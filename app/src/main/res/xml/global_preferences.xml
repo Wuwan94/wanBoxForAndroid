@@ -210,7 +210,11 @@
             app:title="@string/strict_route" />
 
 
-        <!-- preview.17: TUN 实现固定为 Sing-Tun 官方原生，移除四选一入口 -->
+        <Preference
+            app:key="tunImplementation"
+            app:title="@string/tun_implementation"
+            app:summary="Sing-Tun (官方原生, 固定)"
+            app:selectable="false" />
 
         <moe.matsuri.nb4a.ui.MTUPreference
             app:defaultValue="9000"
