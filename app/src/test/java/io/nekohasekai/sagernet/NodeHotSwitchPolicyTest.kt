@@ -16,6 +16,7 @@ class NodeHotSwitchPolicyTest {
         assertTrue(source.contains("val buildSelector = !forTest && !forExport"))
         assertFalse(source.contains("group?.isSelector == true && !forExport"))
     }
+    
 
     @Test fun moduleConfigAlwaysExposesClashApiOnLoopback() {
         val source = File("src/main/java/io/nekohasekai/sagernet/fmt/ConfigBuilder.kt").readText()
@@ -30,6 +31,7 @@ class NodeHotSwitchPolicyTest {
         val source = File("src/main/java/io/nekohasekai/sagernet/bg/RootModuleClient.kt").readText()
         // Staged via the Files channel (not the strict snapshot schema) so older
         // modules still accept the snapshot.
+        
         assertTrue(source.contains("addBytes(\"files/profile_tags.json\""))
         assertTrue(source.contains("instance.config.profileTagMap"))
     }
@@ -71,7 +73,8 @@ class NodeHotSwitchPolicyTest {
             assertTrue("missing $code", source.contains("\"$code\""))
         }
         // Switch must be confirmed by reading the selector back.
-        assertTrue(source.contains("confirmed.Now != pt.Tag"))
+        assertTrue(source.contains("confirmed.Now == pt.Tag"))
+        assertTrue(source.contains("confirmedOK"))
         // Only selector outbounds accept a runtime switch; urltest/loadbalance fall back.
         assertTrue(source.contains("strings.EqualFold(current.Type, \"selector\")"))
         // The actually running node is published for UI; the persisted selection
