@@ -1236,4 +1236,5 @@
     <string name="preset_domestic_custom_config">A full custom configuration is active. Edit its routing or turn it off before applying this preset.</string>
     <string name="preset_domestic_failed">Could not save routing preset. Check available storage and retry.</string>
     <string name="node_switch_in_progress">Switching node, please wait…</string>
+    <string name="node_select_urltest_hint">该分组开启了自动优选，手动选择将完整重载，且自动优选可能再次切换节点</string>
 </resources>

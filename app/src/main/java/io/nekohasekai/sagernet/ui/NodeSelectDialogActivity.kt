@@ -155,6 +155,15 @@ class NodeSelectDialogActivity : AppCompatActivity() {
         // observer to confirm the actually running profile, then close. Slow full
         // reloads close with a hint instead of blocking the dialog.
         if (selectingId != 0L) return
+        // @author 雾晚: warn when the group uses in-core urltest auto-select:
+        // manual selection falls back to a full reload and auto-select may switch again.
+        if (io.nekohasekai.sagernet.database.DataStore.isGroupUrlTest(proxy.groupId)) {
+            android.widget.Toast.makeText(
+                this,
+                getString(R.string.node_select_urltest_hint),
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
         selectingId = proxy.id
         refreshSelectionRows()
         SagerNet.selectProfile(proxy.id)
