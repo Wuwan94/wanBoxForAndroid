@@ -111,7 +111,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                                 .subText(SagerNet.appVersionNameForDisplay)
                                 .setOnClickAction {
                                     requireContext().launchCustomTab(
-                                        "https://github.com/lit008834-pixel/wanBoxForAndroid/releases"
+                                        "https://github.com/Wuwan94/wanBoxForAndroid/releases"
                                     )
                                 }
                                 .build())
@@ -200,7 +200,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                                 .text(R.string.github)
                                 .setOnClickAction {
                                     requireContext().launchCustomTab(
-                                        "https://github.com/lit008834-pixel/wanBoxForAndroid"
+                                        "https://github.com/Wuwan94/wanBoxForAndroid"
                                     )
                                 }
                                 .build())
@@ -280,9 +280,9 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                         tryProxyOutbound()
                     }
                     val url = if (isPreview) {
-                        "https://api.github.com/repos/lit008834-pixel/wanBoxForAndroid/releases"
+                        "https://api.github.com/repos/Wuwan94/wanBoxForAndroid/releases"
                     } else {
-                        "https://api.github.com/repos/lit008834-pixel/wanBoxForAndroid/releases/latest"
+                        "https://api.github.com/repos/Wuwan94/wanBoxForAndroid/releases/latest"
                     }
                     val response = client.newRequest().apply {
                         setURL(url)
