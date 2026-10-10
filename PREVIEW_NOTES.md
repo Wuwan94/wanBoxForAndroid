@@ -1,8 +1,11 @@
 # wanBox 3.0.7-preview.15 · 安装数据恢复修复
 
+
 作者：@author 雾晚
 
+
 ## 本次更新
+
 
 - **恢复进度持久化**：安装数据每个步骤成功后保存进度。数据库已提交、末尾确认失败后，重试只完成剩余步骤，不重复归档或重写数据库。
 - **恢复操作仅在主进程执行**：后台磁贴不会与管理界面同时恢复 App 数据；待处理期间提示打开管理 App 完成原选择。
@@ -11,26 +14,35 @@
 - **明确错误提示**：待处理状态不再误报缺少 Root 权限；恢复失败显示完整步骤与过滤后的错误代码。日志只记录阶段、异常类型和固定代码，不记录备份内容或节点凭据。
 - 保留 preview.14 的模块覆盖更新恢复、立即节点切换、分应用自动应用和国内外分流预设。
 
+
 ## 安装与更新
 
+
 仅面向 **Android 12 及以上、arm64-v8a、已 Root 设备**。管理 APK 需要配套 Root 模块。
+
 
 1. 可直接保留数据覆盖安装；不要卸载旧 App。带 APK 模块支持安装或覆盖更新管理器；不带 APK 包请手动更新管理 APK。
 2. 安装器使用音量上切换、音量下确认。默认保留全部；**仅保留节点和订阅会清除路由规则及其他设置，全新安装还会清除节点和订阅。**
 3. 已选择“仅保留节点/全新安装”却未完成时，打开新版管理 App，继续原数据选择。原备份与令牌保留，不能通过删除待处理记录强行连接。
 4. 若仍失败，请导出应用日志；新提示会指出具体失败步骤。旧截图没有完整异常，不能仅据截图认定该手机的全部失败原因。
 
+
 包名 `com.lit008834.pixel.wanboxforandroid`、原签名、Room/备份格式与 sing-box `v1.15.0-alpha.10` 不变。APK `versionCode=1780`，模块 `versionCode=356`。
 
+
 ## 下载文件
+
 
 - `wanBoxForAndroid-3.0.7-preview.15-arm64-v8a-release.apk`：管理 APK。
 - `wanbox-root-module-with-manager-arm64-v8a.zip`：带管理 APK 模块。
 - `wanbox-root-module-arm64-v8a.zip`：不带 APK 模块。
 - `SHA256SUMS`：附件校验和。
 
+
 ## 实现与验证
+
 
 新增逐步骤失败重入、检查点失败、取消传播与脱敏单测；仪器测试使用实际备份生成器、AtomicFile 和 Room，验证确认失败后重试不重复清理数据库，并实际调用订阅取消入口。发布前执行单元测试、Go/race、签名/ABI、覆盖升级及数据库回归。
 
-[恢复流程与数据边界](https://github.com/lit008834-pixel/wanBoxForAndroid/blob/v3.0.7-preview.15/docs/installer-data-recovery.zh-CN.md)。
+
+[恢复流程与数据边界](https://github.com/Wuwan94/wanBoxForAndroid/blob/v3.0.7-preview.15/docs/installer-data-recovery.zh-CN.md)。
