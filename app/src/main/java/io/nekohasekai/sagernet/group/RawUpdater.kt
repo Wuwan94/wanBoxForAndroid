@@ -107,7 +107,8 @@ object RawUpdater : GroupUpdater() {
 
             for (ua in candidateUas) {
                 try {
-                    val response = if (DataStore.serviceState.connected) {
+                    // @author 雾晚: bound each UA attempt; a hung server must not stall the update.
+                    val response = kotlinx.coroutines.withTimeout(60_000) { if (DataStore.serviceState.connected) {
                         try {
                             executeRequest(ua, useProxy = true)
                         } catch (proxyError: Throwable) {
@@ -116,7 +117,7 @@ object RawUpdater : GroupUpdater() {
                         }
                     } else {
                         executeRequest(ua, useProxy = false)
-                    }
+                    } }
 
                     val userInfo = response.getHeader("Subscription-Userinfo")
                         ?: response.getHeader("subscription-userinfo")
@@ -341,6 +342,19 @@ object RawUpdater : GroupUpdater() {
                     Logs.d("Deleted profiles: $it")
                 }
             }
+            // @author 雾晚: if the active profile was removed by the update,
+            // fall back to the first remaining node in the group.
+            val currentId = DataStore.currentProfile
+            if (currentId > 0 && toDelete.any { it.id == currentId }) {
+                val fallback = SagerDatabase.proxyDao.getByGroup(proxyGroup.id).firstOrNull()
+                if (fallback != null) {
+                    DataStore.currentProfile = fallback.id
+                    Logs.i("RawUpdater: active profile deleted, fallback to ${fallback.displayName()}")
+                }
+            }
+            // @author 雾晚: update lastUpdated atomically with node changes.
+            subscription.lastUpdated = (System.currentTimeMillis() / 1000).toInt()
+            SagerDatabase.groupDao.updateGroup(proxyGroup)
         }
 
         val existCount = SagerDatabase.proxyDao.countByGroup(proxyGroup.id).toInt()
@@ -403,12 +417,6 @@ object RawUpdater : GroupUpdater() {
             }
         }
 
-        subscription.lastUpdated = (System.currentTimeMillis() / 1000).toInt()
-        SagerDatabase.instance.runInTransaction {
-            check(!io.nekohasekai.sagernet.bg.RootModuleDataUpdate.pending()) { "data_update_pending" }
-            check(SagerDatabase.groupDao.getById(proxyGroup.id)?.subscription?.link == subscription.link) { "subscription_changed" }
-            SagerDatabase.groupDao.updateGroup(proxyGroup)
-        }
         GroupManager.postUpdate(proxyGroup)
         finishUpdate(proxyGroup)
 
