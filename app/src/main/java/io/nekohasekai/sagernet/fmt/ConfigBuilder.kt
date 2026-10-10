@@ -1451,7 +1451,7 @@ fun buildConfig(
 
                 fun makeDnsRuleObj(): DNSRule_DefaultOptions {
                     return DNSRule_DefaultOptions().apply {
-                        if (uidList.isNotEmpty()) user_id = uidList
+                        if (uidList.isNotEmpty()) user_id = uidList.toList()
                         if (rule.packages.isNotEmpty()) package_name = rule.packages.toList()
                         domainList?.let { makeSingBoxRule(it) }
                     }
@@ -1534,7 +1534,7 @@ fun buildConfig(
 
                 fun applyCommonFilters(ruleObj: Rule_DefaultOptions) {
                     if (uidList.isNotEmpty()) {
-                        ruleObj.user_id = uidList
+                        ruleObj.user_id = uidList.toList()
                     }
                     if (rule.packages.isNotEmpty()) {
                         ruleObj.package_name = rule.packages.toList()
