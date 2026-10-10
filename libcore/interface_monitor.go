@@ -16,13 +16,13 @@ import (
 
 // networkChangeResetConnections 对应 app 设置
 // DataStore.networkChangeResetConnections（「当网络发生变化时重置出站连接」）。
-// true（默认）：name/index 变化时通知回调 → 官方 notifyInterfaceUpdate → ResetNetwork。
-// false：仍更新 DefaultInterface() 供新拨号绑定，但不通知回调（不拆现有出站）；
+// false（默认，与 Kotlin 侧一致）：仍更新 DefaultInterface() 供新拨号绑定，但不通知回调（不拆现有出站）；
 // 从 nil 恢复时仍通知，以便 NetworkWake（否则 Lost 后会一直 pause）。
+// true：name/index 变化时通知回调 → 官方 notifyInterfaceUpdate → ResetNetwork。
 var networkChangeResetConnections atomic.Bool
 
 func init() {
-	networkChangeResetConnections.Store(true)
+	networkChangeResetConnections.Store(false)
 }
 
 // SetNetworkChangeResetConnections 由 Kotlin 在发起接口更新前同步设置项。
