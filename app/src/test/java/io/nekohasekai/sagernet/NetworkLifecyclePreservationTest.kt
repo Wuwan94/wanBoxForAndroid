@@ -1,14 +1,17 @@
 // @author 雾晚
 package io.nekohasekai.sagernet
 
+
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertFalse
 import org.junit.Test
 import java.io.File
 
+
 /** Source contracts protect wanBox branches during selective upstream sync; not device tests. */
 class NetworkLifecyclePreservationTest {
     private fun source(path: String) = File("src/main/java/io/nekohasekai/sagernet/$path").readText()
+
 
     @Test fun productionWiresIsolationAndKeepsTheExistingDnsModeBoundary() {
         val network = source("utils/DefaultNetworkListener.kt")
@@ -25,6 +28,7 @@ class NetworkLifecyclePreservationTest {
         assertTrue(updater.contains("it !is NaiveBean && !it.serverAddress.isIpAddress()"))
     }
 
+
     @Test fun firstNetworkAndOldLostProtectionRemain() {
         val network = source("utils/DefaultNetworkListener.kt")
         assertTrue(network.contains("message.processed.await()"))
@@ -33,9 +37,10 @@ class NetworkLifecyclePreservationTest {
         val lost = network.substringAfter("is NetworkMessage.Lost ->").substringBefore("/**")
         assertTrue(lost.contains("if (network == message.network)"))
         assertTrue(network.contains("HandlerThread(\"DefaultNetworkListener\")"))
-        assertTrue(network.contains("now - lastUpdateTime < 500"))
+        assertTrue(network.contains("now - lastUpdateTime < debounceMs"))
         assertTrue(network.contains("callbackHandler.removeCallbacks(it)"))
     }
+
 
     @Test fun apiFallbackAndServiceCleanupRemain() {
         val network = source("utils/DefaultNetworkListener.kt")
