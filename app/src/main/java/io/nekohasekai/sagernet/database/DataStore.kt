@@ -197,8 +197,12 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     }
     var ipv6Mode by configurationStore.stringToInt(Key.IPV6_MODE) { IPv6Mode.DISABLE }
     var meteredNetwork by configurationStore.boolean(Key.METERED_NETWORK)
+    
     var proxyApps by configurationStore.boolean(Key.PROXY_APPS)
     var bypass by configurationStore.boolean(Key.BYPASS_MODE) { true }
+    var dashboardMode by configurationStore.stringToInt(Key.DASHBOARD_MODE) { 0 }
+    
+    
     var individual by configurationStore.string(Key.INDIVIDUAL)
     var showDirectSpeed by configurationStore.boolean(Key.SHOW_DIRECT_SPEED) { true }
     var showLandingIp by configurationStore.boolean(Key.SHOW_LANDING_IP) { true }
