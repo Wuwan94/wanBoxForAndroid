@@ -36,6 +36,8 @@
     <string name="group_create">Create group</string>
     <string name="group_create_subscription">Create subscription</string>
     <string name="update_all_subscription">Update all subscriptions</string>
+    <!-- preview.18 UI 改造：订阅批量更新 -->
+    <string name="update_selected_subscription">更新选中</string>
     <string name="group_edit">Edit group</string>
     <string name="group_edit_subscription">Edit subscription</string>
     <string name="layout">Layout</string>
