@@ -64,6 +64,15 @@ jobs:
           name: root-tun-executables
           path: app/executableSo
           if-no-files-found: error
+            - name: Ensure NDK clang present
+        run: |
+          NDK_DIR="$ANDROID_HOME/ndk/25.0.8775105"
+          CLANG="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
+          if [ ! -f "$CLANG" ]; then
+            echo "NDK clang missing, installing ndk;25.0.8775105 via sdkmanager"
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;25.0.8775105"
+          fi
+          test -f "$CLANG"
       - name: Verify and package Root module
         run: |
           go -C rootmodule test -race ./...
