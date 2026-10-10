@@ -98,7 +98,7 @@ object RootModuleClient {
         val process = try { ProcessBuilder("su", "-c", "exec $CLI $command").start() }
             catch (_: IOException) { throw IOException("root_required") }
         try {
-            coroutineScope {
+            return coroutineScope {
                 val output = async(Dispatchers.IO) {
                     process.inputStream.use { stream ->
                         val buffer = java.io.ByteArrayOutputStream()
