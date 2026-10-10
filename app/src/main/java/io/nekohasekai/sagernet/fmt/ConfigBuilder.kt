@@ -761,13 +761,7 @@ fun buildConfig(
                 type = "tun"
                 tag = "tun-in"
                 interface_name = "tun0"
-                stack = when (DataStore.tunImplementation) {
-                    TunImplementation.GVISOR -> "gvisor"
-                    TunImplementation.SYSTEM -> "system"
-                    TunImplementation.MIXED -> "mixed"
-                    TunImplementation.SING_TUN -> null
-                    else -> null
-                }
+                                                /* preview.17: 仅使用 sing-box 原生默认 TUN 栈，不再输出 stack 字段（旧 gVisor/System/Mixed 模式已移除，DataStore 层已迁移为 SING_TUN） */ stack = null
                 mtu = DataStore.mtu
                 auto_route = true
                 auto_redirect = if (isRootTun) true else null
@@ -786,11 +780,7 @@ fun buildConfig(
                         .filter { it >= 1000 && it != SagerNet.application.applicationInfo.uid }
                         .distinct()
                         .toList()
-                    if (DataStore.bypass) {
-                        exclude_uid = selectedUids.takeIf { it.isNotEmpty() }
-                    } else {
-                        include_uid = (selectedUids + SagerNet.application.applicationInfo.uid).distinct()
-                    }
+                                        /* preview.17: Root 进程 (UID 0) 独立策略 */ val rootUidExtra = when (DataStore.rootUidPolicy) { 1 -> listOf(0) else -> emptyList() }; if (DataStore.bypass) { val excludeList = selectedUids.toMutableList(); if (DataStore.rootUidPolicy == 2) { excludeList.add(0) }; exclude_uid = excludeList.takeIf { it.isNotEmpty() } } else { val includeList = (selectedUids + SagerNet.application.applicationInfo.uid + rootUidExtra).distinct(); include_uid = includeList.takeIf { it.isNotEmpty() } }; /* Global Root TUN also needs to honor an explicit UID 0 bypass. */ if (isRootTun && !DataStore.proxyApps && DataStore.rootUidPolicy == 2) { exclude_uid = listOf(0) }
                 }
                 // sing-box 1.13 移除了入站 sniff/domain_strategy 字段，
                 // 改由路由规则动作实现（见下方 route.rules 构建处）；
