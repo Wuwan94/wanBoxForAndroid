@@ -40,9 +40,9 @@
     <string name="group_delete_confirm_prompt">Êtes-vous sûr(e) de vouloir supprimer ce groupe \?</string>
     <string name="group_diff">Diff (%s)</string>
     <string name="group_show_diff">Diff</string>
-    <string name="group_updated">%s : %d proxys mis à jour</string>
+    <string name="group_updated">%1$s : %2$d proxys mis à jour</string>
     <string name="group_no_difference">%s : aucune différence</string>
-    <string name="group_status_proxies_subscription">%d proxys | Mis à jour le %s</string>
+    <string name="group_status_proxies_subscription">%1$d proxys | Mis à jour le %1$s</string>
     <string name="group_status_proxies">%d proxys</string>
     <string name="group_status_empty_subscription">Pas encore mis à jour</string>
     <string name="group_status_empty">Groupe vide</string>

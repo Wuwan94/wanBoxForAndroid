@@ -209,11 +209,11 @@
 <string name="group_status_empty">Пустая группа</string>
 <string name="group_status_empty_subscription">Еще не обновлено</string>
 <string name="group_status_proxies">%d прокси</string>
-<string name="group_status_proxies_subscription">%d прокси | Обновлено %s</string>
+<string name="group_status_proxies_subscription">%1$d прокси | Обновлено %1$s</string>
 <string name="group_subscription_link">Ссылка для подписки</string>
 <string name="group_type">Тип группы</string>
 <string name="group_update">Обновить</string>
-<string name="group_updated">%s: обновлено %d прокси</string>
+<string name="group_updated">%1$s: обновлено %2$d прокси</string>
 <string name="grpc_service_name">Имя службы gRPC</string>
 <string name="header_type">Тип заголовка</string>
 <string name="hop_interval">Интервал переключения портов(второй)</string>
@@ -581,8 +581,8 @@
     <string name="rules_geosite_url">URL geosite</string>
     <string name="rules_geoip_url">URL geoip</string>
     <string name="pinned_certchain_sha256">SHA256 закреплённого сертификата</string>
-    <string name="please_update">Ваше приложение слишком старое (%s). И перестанет работать %s. Пожалуйста, обновите!</string>
-    <string name="please_update_force">Ваше приложение слишком старое (%s). И перестало работать %s. Пожалуйста, обновите!</string>
+    <string name="please_update">Ваше приложение слишком старое (%1$s). И перестанет работать %2$s. Пожалуйста, обновите!</string>
+    <string name="please_update_force">Ваше приложение слишком старое (%1$s). И перестало работать %2$s. Пожалуйста, обновите!</string>
     <string name="exe_prefer_provider">Предпочитаемый поставщик плагина</string>
     <string name="save">Сохранить</string>
     <string name="resolve_server">Разрешать адрес сервера согласно политике IPv6</string>

@@ -23,9 +23,9 @@
     <string name="group_delete_confirm_prompt">このグループを削除してもよろしいですか？</string>
     <string name="group_diff">差分 (%s)</string>
     <string name="group_show_diff">差分</string>
-    <string name="group_updated">%s：更新された %d プロキシ</string>
+    <string name="group_updated">%1$s：更新された %2$d プロキシ</string>
     <string name="group_no_difference">%s：違いなし</string>
-    <string name="group_status_proxies_subscription">%d プロキシ| %s で更新</string>
+    <string name="group_status_proxies_subscription">%1$d プロキシ| %1$s で更新</string>
     <string name="group_status_proxies">%d プロキシ</string>
     <string name="group_status_empty_subscription">まだ更新されていません</string>
     <string name="group_status_empty">空のグループ</string>
@@ -458,8 +458,8 @@
     <string name="tuic_disable_sni">SNI を無効化</string>
     <string name="tuic_reduce_rtt">0-RTT QUIC ハンドシェイクを有効化</string>
     <string name="pinned_certchain_sha256">固定証明書 SHA256</string>
-    <string name="please_update">お使いのアプリは古すぎます (%s)。%s に動作を停止します。更新してください！</string>
-    <string name="please_update_force">お使いのアプリは古すぎます (%s)。%s に動作を停止しました。更新してください！</string>
+    <string name="please_update">お使いのアプリは古すぎます (%1$s)。%2$s に動作を停止します。更新してください！</string>
+    <string name="please_update_force">お使いのアプリは古すぎます (%1$s)。%2$s に動作を停止しました。更新してください！</string>
     <string name="connection_test_delete_unavailable">利用不可をクリア</string>
     <string name="move">移動</string>
     <string name="exe_prefer_provider">プラグインの優先プロバイダー</string>

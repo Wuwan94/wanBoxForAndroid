@@ -50,9 +50,9 @@
     <string name="group_status_empty">Empty group</string>
     <string name="group_status_empty_subscription">Not updated yet</string>
     <string name="group_status_proxies">%d Proxies</string>
-    <string name="group_status_proxies_subscription">%d Proxies | Updated on %s</string>
+    <string name="group_status_proxies_subscription">%1$d Proxies | Updated on %2$s</string>
     <string name="group_no_difference">%s: No difference</string>
-    <string name="group_updated">%s: Updated %d proxies</string>
+    <string name="group_updated">%1$s: Updated %2$d proxies</string>
     <string name="group_show_diff">Diff</string>
     <string name="group_diff">Diff (%s)</string>
     <string name="group_delete_confirm_prompt">Are you sure you want to remove this group?</string>
@@ -674,9 +674,9 @@
 
     <string name="pinned_certchain_sha256">Pinned Certificate SHA256</string>
 
-    <string name="please_update">Your APP is too old (%s). And will stop working at %s. Please
+    <string name="please_update">Your APP is too old (%1$s). And will stop working at %2$s. Please
         update!</string>
-    <string name="please_update_force">Your APP is too old (%s). And has been stopped working at %s.
+    <string name="please_update_force">Your APP is too old (%1$s). And has been stopped working at %2$s.
         Please update!</string>
     <string name="connection_test_delete_unavailable">Clear unavailable</string>
     <string name="hide_unavailable_profiles">Hide unavailable profiles</string>

@@ -39,9 +39,9 @@
     <string name="group_status_empty">خالی</string>
     <string name="group_status_empty_subscription">هنوز به‌روزرسانی نشده است</string>
     <string name="group_status_proxies">%d پراکسی‌ها</string>
-    <string name="group_status_proxies_subscription">%d پراکسی‌ها | به‌روزرسانی شدند در %s</string>
+    <string name="group_status_proxies_subscription">%1$d پراکسی‌ها | به‌روزرسانی شدند در %1$s</string>
     <string name="group_no_difference">%s: بدون تفاوت</string>
-    <string name="group_updated">%s: Updated %d proxies</string>
+    <string name="group_updated">%1$s: Updated %2$d proxies</string>
     <string name="group_show_diff">تفاوت‌ها</string>
     <string name="group_diff">تفاوت‌ها (%s)</string>
     <string name="group_delete_confirm_prompt">آیا مطمئن هستید که می‌خواهید این گروه را حذف کنید؟</string>
@@ -487,8 +487,8 @@
     <string name="tuic_disable_sni">غیرفعال کردن SNI</string>
     <string name="tuic_reduce_rtt">فعال کردن ارتباط 0-RTT QUIC</string>
 
-    <string name="please_update">نسخه (%s) برنامه شما بسیار قدیمی شده است و در %s متوقف می‌شود. لطفاً به نسخه جدیدتر به‌روزرسانی کنید</string>
-    <string name="please_update_force">برنامه شما خیلی قدیمی شده است (%s). و در %s کار نمی‌کند. باید نسخه جدید را دانلود کنید!</string>
+    <string name="please_update">نسخه (%1$s) برنامه شما بسیار قدیمی شده است و در %2$s متوقف می‌شود. لطفاً به نسخه جدیدتر به‌روزرسانی کنید</string>
+    <string name="please_update_force">برنامه شما خیلی قدیمی شده است (%1$s). و در %2$s کار نمی‌کند. باید نسخه جدید را دانلود کنید!</string>
     <string name="connection_test_delete_unavailable">پاک‌کردن غیرقابل‌دسترس‌ها</string>
     <string name="move">حرکت</string>
     <string name="exe_prefer_provider">ارائه‌دهنده برگزیده افزونه‌ها</string>

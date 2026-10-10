@@ -39,9 +39,9 @@
     <string name="group_status_empty">Порожня група</string>
     <string name="group_status_empty_subscription">Ще не оновлено</string>
     <string name="group_status_proxies">%d проксі</string>
-    <string name="group_status_proxies_subscription">%d проксі | Оновлено %s</string>
+    <string name="group_status_proxies_subscription">%1$d проксі | Оновлено %1$s</string>
     <string name="group_no_difference">%s: Немає різниці</string>
-    <string name="group_updated">%s: Оновлено %d проксі</string>
+    <string name="group_updated">%1$s: Оновлено %2$d проксі</string>
     <string name="group_show_diff">Різниця</string>
     <string name="group_diff">Різниця (%s)</string>
     <string name="group_delete_confirm_prompt">Ви впевнені, що хочете видалити цю групу?</string>
@@ -470,8 +470,8 @@
     <string name="tuic_congestion_controller">Контролер перевантаження</string>
     <string name="tuic_disable_sni">Вимкнути SNI</string>
     <string name="tuic_reduce_rtt">Увімкнути 0-RTT QUIC рукостискання</string>
-    <string name="please_update">Ваша програма занадто стара (%s) і перестане працювати %s. Будь ласка, оновіть її!</string>
-    <string name="please_update_force">Ваша програма занадто стара (%s) і перестала працювати %s. Будь ласка, оновіть її!</string>
+    <string name="please_update">Ваша програма занадто стара (%1$s) і перестане працювати %2$s. Будь ласка, оновіть її!</string>
+    <string name="please_update_force">Ваша програма занадто стара (%1$s) і перестала працювати %2$s. Будь ласка, оновіть її!</string>
     <string name="connection_test_delete_unavailable">Очистити недоступні</string>
     <string name="move">Перемістити</string>
     <string name="exe_prefer_provider">Пріоритетний постачальник плагіна</string>

@@ -55,9 +55,9 @@
     <string name="alter_id">Alt-ID</string>
     <string name="group_diff">Forskjell (%s)</string>
     <string name="group_show_diff">Forskjell</string>
-    <string name="group_updated">%s: Oppdaterte %d mellomtjenere</string>
+    <string name="group_updated">%1$s: Oppdaterte %2$d mellomtjenere</string>
     <string name="group_no_difference">%s: Ingen forskjell</string>
-    <string name="group_status_proxies_subscription">%d mellomtjenere | Oppdatert %s</string>
+    <string name="group_status_proxies_subscription">%1$d mellomtjenere | Oppdatert %1$s</string>
     <string name="group_status_proxies">%d mellomtjenere</string>
     <string name="group_status_empty_subscription">Ikke oppdatert enda</string>
     <string name="group_status_empty">Tom gruppe</string>

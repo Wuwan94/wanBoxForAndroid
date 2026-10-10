@@ -34,9 +34,9 @@
     <string name="group_status_empty">Grupo vacío</string> 
     <string name="group_status_empty_subscription">Aún no actualizado</string> 
     <string name="group_status_proxies">%d proxys</string> 
-    <string name="group_status_proxies_subscription">%d proxys | Actualizado el %s</string> 
+    <string name="group_status_proxies_subscription">%1$d proxys | Actualizado el %1$s</string> 
     <string name="group_no_difference">%s: Sin diferencia</string> 
-    <string name="group_updated">%s: %d proxys actualizados</string> 
+    <string name="group_updated">%1$s: %2$d proxys actualizados</string> 
     <string name="group_show_diff">Diferencia</string> 
     <string name="group_diff">Diferencia (%s)</string> 
     <string name="group_delete_confirm_prompt">¿Seguro que quieres eliminar este grupo?</string> 

@@ -59,9 +59,9 @@
     <string name="group_delete_confirm_prompt">Bu grubu silmek istediğinize emin misiniz\?</string>
     <string name="group_diff">Fark (%s)</string>
     <string name="group_show_diff">Fark</string>
-    <string name="group_updated">%s: %d vekil sunucu güncellendi</string>
+    <string name="group_updated">%1$s: %2$d vekil sunucu güncellendi</string>
     <string name="group_no_difference">%s: Farklılık yok</string>
-    <string name="group_status_proxies_subscription">%d Vekil Sunucu | %s güncellendi</string>
+    <string name="group_status_proxies_subscription">%1$d Vekil Sunucu | %1$s güncellendi</string>
     <string name="group_status_proxies">%d Vekil Sunucu</string>
     <string name="group_status_empty_subscription">Henüz güncellenmedi</string>
     <string name="group_status_empty">Boş grup</string>
