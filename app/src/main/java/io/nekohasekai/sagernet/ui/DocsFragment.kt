@@ -267,11 +267,11 @@ class DocsFragment : ToolbarFragment(R.layout.layout_docs) {
             DocListItem.Item(
                 category = "VPN 设置",
                 title = "TUN 实现模式 (tunImplementation)",
-                badge = "推荐: gVisor (默认) 或 Sing-Tun (1.15+ 新栈)",
-                desc = "指定 VPN 虚拟网卡用户态网络协议栈的底层实现算法（gVisor / System / Mixed / Sing-Tun）。",
-                prosCons = "【利】gVisor 沙箱隔离严密，长效稳定；Sing-Tun 为 sing-box 1.15 官方全新自研高能效协议栈，大幅优化峰值吞吐、内存占用与发热；【弊】System 栈在个别系统上有兼容差异。",
-                recommendation = "【最稳推荐：保持默认 gVisor，尝鲜高性能可选 Sing-Tun】日常长效稳定首选 gVisor；追求极速大吞吐与低功耗推荐体验 1.15 官方自研 Sing-Tun 协议栈。",
-                keywords = "tun gvisor system mixed sing-tun singtun 协议栈 网络栈",
+                badge = "固定: Sing-Tun (官方原生)",
+                desc = "preview.17 起仅保留 Sing-Tun 官方原生 TUN 实现，不再提供 gVisor / System / Mixed 兼容模式选择。",
+                prosCons = "【利】Sing-Tun 为 sing-box 1.15 官方自研高能效协议栈，峰值吞吐、内存占用与发热均大幅优化；配置统一，无需选择；【弊】无，旧配置自动迁移。",
+                recommendation = "【无需设置】TUN 实现已固定为 Sing-Tun，旧备份中的 gVisor/System/Mixed 配置会自动迁移。",
+                keywords = "tun sing-tun singtun 协议栈 网络栈",
             )
         )
         allItems.add(
