@@ -38,6 +38,7 @@ func (r *Runtime) SelectNode(ctx context.Context, profileID int64) error {
 	if profileID <= 0 {
 		return errors.New("arguments_invalid")
 	}
+	started := time.Now()
 	return r.withLock(func() error {
 		st := r.Status()
 		if st.Phase != "connected" {
@@ -76,7 +77,9 @@ func (r *Runtime) SelectNode(ctx context.Context, profileID int64) error {
 		}
 		// Always dial loopback: the API never binds wider for the hot-switch path.
 		base := "http://127.0.0.1:" + port
-		client := &http.Client{Timeout: 10 * time.Second}
+		// @author 雾晚: short per-attempt timeout with retry. A transient Clash API
+		// hiccup must not escalate into a full core restart (TUN rebuild).
+		client := &http.Client{Timeout: 2 * time.Second}
 		call := func(method, url string, body []byte) (int, []byte, error) {
 			var reader io.Reader
 			if body != nil {
@@ -119,21 +122,49 @@ func (r *Runtime) SelectNode(ctx context.Context, profileID int64) error {
 		if !strings.EqualFold(current.Type, "selector") {
 			return errors.New("node_select_unsupported")
 		}
-		if current.Now != pt.Tag {
+		if current.Now == pt.Tag {
+			// Already on target: still confirm below, no PUT needed.
+		} else {
 			body, _ := json.Marshal(map[string]string{"name": pt.Tag})
-			code, _, e = call(http.MethodPut, base+"/proxies/"+clashProxySelector, body)
-			if e != nil || (code != http.StatusOK && code != http.StatusNoContent) {
+			switched := false
+			for attempt := 0; attempt < 3; attempt++ {
+				if attempt > 0 {
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case <-time.After(200 * time.Millisecond):
+					}
+				}
+				code, _, e = call(http.MethodPut, base+"/proxies/"+clashProxySelector, body)
+				if e == nil && (code == http.StatusOK || code == http.StatusNoContent) {
+					switched = true
+					break
+				}
+			}
+			if !switched {
 				return errors.New("node_select_failed")
 			}
 		}
-		code, data, e = call(http.MethodGet, base+"/proxies/"+clashProxySelector, nil)
-		if e != nil || code != http.StatusOK {
-			return errors.New("node_select_not_confirmed")
-		}
+		// Confirm the switch with a bounded read-back; retry once on mismatch
+		// (a racing switch is idempotent, re-PUT is safe).
 		var confirmed struct {
 			Now string `json:"now"`
 		}
-		if e := json.Unmarshal(data, &confirmed); e != nil || confirmed.Now != pt.Tag {
+		confirmedOK := false
+		for attempt := 0; attempt < 2; attempt++ {
+			code, data, e = call(http.MethodGet, base+"/proxies/"+clashProxySelector, nil)
+			if e == nil && code == http.StatusOK &&
+				json.Unmarshal(data, &confirmed) == nil && confirmed.Now == pt.Tag {
+				confirmedOK = true
+				break
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(200 * time.Millisecond):
+			}
+		}
+		if !confirmedOK {
 			return errors.New("node_select_not_confirmed")
 		}
 		// Publish the actually running node for UI/notifications; the manager's
@@ -147,6 +178,7 @@ func (r *Runtime) SelectNode(ctx context.Context, profileID int64) error {
 			_ = jsonWrite(r.path("state.json"), s)
 		}
 		r.recordEvent("node_hot_switched")
+		r.recordEvent("node_hot_switch_ms:" + strconv.FormatInt(time.Since(started).Milliseconds(), 10))
 		return nil
 	})
 }
