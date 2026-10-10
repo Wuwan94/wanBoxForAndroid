@@ -239,7 +239,7 @@ jobs:
           else
             # New repo: no prior preview available, use v3.0.6 as the baseline for upgrade test.
                         cp previous/wanBoxForAndroid-3.0.6-x86_64.apk previous/wanBox-prior-preview.apk
-            echo 'WANBOX_PRIOR_PREVIEW_CODE=3006' >> "$GITHUB_ENV"
+            echo 'WANBOX_PRIOR_PREVIEW_CODE=341' >> "$GITHUB_ENV"
           fi
           echo 'd074a0b295be0d92815303d6166329cd540d3a57b5909c15bd6c99023c2cad76  previous/wanBoxForAndroid-3.0.6-x86_64.apk' | sha256sum --check
           # @author 雾晚: deleted v2.9.1-preview replaced by a pinned, verified co-install fixture.
