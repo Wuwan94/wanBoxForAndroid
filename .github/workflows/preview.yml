@@ -158,7 +158,7 @@ jobs:
             printf '%s\n' "$manifest" | grep -q 'io.nekohasekai.sagernet.widget.WidgetControlReceiver'
             signer_digest=$("$APKSIGNER" verify --verbose --print-certs "$apk" | grep -m1 -i 'certificate SHA-256 digest' | sed 's/.*: *//' | tr -d ' \r' | tr '[:lower:]' '[:upper:]')
             echo "$(basename "$apk") certificate SHA-256: $signer_digest"
-            test "$signer_digest" = '4999AA8D5C87D78C89551497DBE9B69D7D4861909132CFDAC1832AF34F89B418'
+            test "$signer_digest" = 'AEC62C7003FA515534817250D3CD0DC705E19F4CD578A7A9A1D22519596EA598'
           done
           mkdir -p public-apks
           cp "$APK_DIR"/*arm64-v8a*.apk public-apks/
