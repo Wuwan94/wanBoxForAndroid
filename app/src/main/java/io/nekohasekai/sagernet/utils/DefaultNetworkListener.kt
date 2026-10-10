@@ -116,6 +116,13 @@ object DefaultNetworkListener {
         private var pendingUpdateRunnable: Runnable? = null
         private var lastUpdateNetwork: Network? = null
         private var lastUpdateTime = 0L
+        // 振荡抑制：10 秒窗口内网络变化超过阈值时，延长防抖避免恢复风暴
+        //（如电梯/地铁中 Wi-Fi/蜂窝快速来回切换）。
+        private var flapWindowStart = 0L
+        private var flapCount = 0
+        private val FLAP_WINDOW_MS = 10_000L
+        private val FLAP_THRESHOLD = 5
+        private val FLAP_DEBOUNCE_MS = 2000L
 
         private fun cancelPendingUpdate() {
             pendingUpdateRunnable?.let {
@@ -124,10 +131,25 @@ object DefaultNetworkListener {
             }
         }
 
+        // 返回当前应使用的防抖时长；检测到振荡时返回延长值
+        private fun flapAwareDebounce(): Long {
+            val now = SystemClock.elapsedRealtime()
+            if (now - flapWindowStart > FLAP_WINDOW_MS) {
+                flapWindowStart = now
+                flapCount = 0
+            }
+            flapCount++
+            return if (flapCount > FLAP_THRESHOLD) {
+                Logs.w("DefaultNetworkListener network flapping detected (${flapCount} changes in 10s), extending debounce to ${FLAP_DEBOUNCE_MS}ms")
+                FLAP_DEBOUNCE_MS
+            } else 500L
+        }
+
         override fun onAvailable(network: Network) {
             cancelPendingUpdate()
             lastUpdateNetwork = network
             lastUpdateTime = SystemClock.elapsedRealtime()
+            flapAwareDebounce() // 计数振荡（onAvailable 本身不等防抖，立即上报）
             Logs.d("DefaultNetworkListener onAvailable enter network=$network thread=${Thread.currentThread().name}")
             runBlocking { networkActor.send(NetworkMessage.Put(network)) }
         }
@@ -136,15 +158,17 @@ object DefaultNetworkListener {
             network: Network, networkCapabilities: NetworkCapabilities
         ) { // it's a good idea to refresh capabilities
             val now = SystemClock.elapsedRealtime()
-            // 500ms 防抖：若短时间内针对同一网络连续触发网络属性变化（如信号抖动、速率协商），进行合并防抖
-            if (lastUpdateNetwork == network && now - lastUpdateTime < 500L) {
+            val debounceMs = flapAwareDebounce()
+            // 防抖：若短时间内针对同一网络连续触发网络属性变化（如信号抖动、速率协商），进行合并防抖。
+            // 振荡期间防抖延长至 2000ms，避免恢复风暴。
+            if (lastUpdateNetwork == network && now - lastUpdateTime < debounceMs) {
                 cancelPendingUpdate()
                 val runnable = Runnable {
                     lastUpdateTime = SystemClock.elapsedRealtime()
                     runBlocking { networkActor.send(NetworkMessage.Update(network)) }
                 }
                 pendingUpdateRunnable = runnable
-                callbackHandler.postDelayed(runnable, 500L - (now - lastUpdateTime))
+                callbackHandler.postDelayed(runnable, debounceMs - (now - lastUpdateTime))
                 return
             }
 

@@ -139,6 +139,7 @@ class NativeInterface : BoxPlatformInterface, NB4AInterface {
         var network: Network? = null
         var suppressed: Int = 0
         var lastCheckTime: Long = 0L
+        var ssid: String? = null
     }
 
     private val ifaceReportStates = Collections.synchronizedMap(
@@ -149,6 +150,43 @@ class NativeInterface : BoxPlatformInterface, NB4AInterface {
         synchronized(ifaceReportStates) {
             ifaceReportStates.getOrPut(listener) { IfaceReportState() }
         }
+
+    // 从 NetworkCapabilities 提取 Wi-Fi SSID（API 29+）。需要位置权限，
+    // 无权限或非 Wi-Fi 网络时返回 null，调用方跳过 SSID 跟踪。
+    private fun extractSSID(network: Network): String? {
+        return try {
+            val caps = SagerNet.connectivity.getNetworkCapabilities(network) ?: return null
+            if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
+            val transportInfo = caps.transportInfo ?: return null
+            // Android Q+ transportInfo 为 WifiInfo
+            val ssid = try {
+                val method = transportInfo.javaClass.getMethod("getSSID")
+                method.invoke(transportInfo) as? String
+            } catch (_: Exception) { null }
+            ssid?.trim('"')?.takeIf { it.isNotEmpty() && it != "<unknown ssid>" }
+        } catch (_: SecurityException) {
+            null // 无位置权限
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun updateSSIDIfChanged(
+        listener: InterfaceUpdateListener,
+        state: IfaceReportState,
+        network: Network,
+    ) {
+        val ssid = extractSSID(network) ?: return
+        if (state.ssid == ssid) return
+        val old = state.ssid
+        state.ssid = ssid
+        Logs.i("checkDefaultInterfaceUpdate SSID changed ${old} -> ${ssid}, notifying Go")
+        try {
+            listener.updateSSID(ssid)
+        } catch (e: Exception) {
+            Logs.w("updateSSID failed: $e")
+        }
+    }
 
     private fun checkDefaultInterfaceUpdate(listener: InterfaceUpdateListener, network: Network?) {
         // 诊断：入口线程 + 全程耗时（验证事件链是否跑在主线程、单次事件成本）
@@ -209,6 +247,9 @@ class NativeInterface : BoxPlatformInterface, NB4AInterface {
             state.suppressed = 0
             clearInterfaceCache()
             listener.updateDefaultInterface(linkProperties.interfaceName, interfaceIndex)
+            // SSID 跟踪：同接口切 Wi-Fi（如双频合一 2.4G/5G）时 name/index 不变，
+            // 需通知 Go 侧触发 ResetNetwork。无位置权限时返回 null，跳过。
+            updateSSIDIfChanged(listener, state, network)
             return
         }
         Logs.w("checkDefaultInterfaceUpdate exhausted retries network=$network -> clear default interface suppressedSinceLast=${state.suppressed} elapsed=${SystemClock.elapsedRealtime() - start}ms")
