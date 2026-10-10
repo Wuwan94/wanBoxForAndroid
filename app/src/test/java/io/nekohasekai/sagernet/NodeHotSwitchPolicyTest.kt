@@ -30,7 +30,7 @@ class NodeHotSwitchPolicyTest {
         val source = File("src/main/java/io/nekohasekai/sagernet/bg/RootModuleClient.kt").readText()
         // Staged via the Files channel (not the strict snapshot schema) so older
         // modules still accept the snapshot.
-        assertTrue(source.contains("addBytes(\"profile_tags.json\""))
+        assertTrue(source.contains("addBytes(\"files/profile_tags.json\""))
         assertTrue(source.contains("instance.config.profileTagMap"))
     }
 
@@ -59,13 +59,13 @@ class NodeHotSwitchPolicyTest {
     }
 
     @Test fun wanboxctlExposesNodeSelectCommand() {
-        val source = File("rootmodule/cmd/wanboxctl/main.go").readText()
+        val source = File("../rootmodule/cmd/wanboxctl/main.go").readText()
         assertTrue(source.contains("args[0] == \"node\" && args[1] == \"select\""))
         assertTrue(source.contains("r.SelectNode(ctx, id)"))
     }
 
     @Test fun goSelectNodeHasExplicitFailureContract() {
-        val source = File("rootmodule/node_select.go").readText()
+        val source = File("../rootmodule/node_select.go").readText()
         for (code in listOf("module_not_running", "node_tag_not_found", "clash_api_disabled",
             "node_select_failed", "node_select_unsupported", "node_select_not_confirmed")) {
             assertTrue("missing $code", source.contains("\"$code\""))
