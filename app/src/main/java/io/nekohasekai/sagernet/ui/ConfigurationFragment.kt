@@ -370,6 +370,11 @@ class ConfigurationFragment @JvmOverloads constructor(
         }
     }
 
+    // preview.18 UI 改造：显示设置变更后刷新
+    fun onDisplaySettingsChanged() {
+        switchAllGroupFragmentsLayout()
+    }
+
     fun refreshAllGroupFragmentsCardStyle() {
         adapter.groupFragments.values.forEach { fragment ->
             if (fragment.isAdded && fragment.view != null) {
@@ -2796,6 +2801,16 @@ class ConfigurationFragment @JvmOverloads constructor(
                     DataStore.profileCardStyle = 1
                     (parentFragment as? ConfigurationFragment)?.refreshAllGroupFragmentsCardStyle()
                 }
+                true
+            }
+
+            // preview.18 UI 改造：显示设置
+            menu.findItem(R.id.action_display_settings)?.setOnMenuItemClickListener {
+                NodeDisplaySettingsDialog().show(
+                    (parentFragment as? ConfigurationFragment)?.childFragmentManager
+                        ?: requireFragmentManager(),
+                    "display_settings"
+                )
                 true
             }
         }
