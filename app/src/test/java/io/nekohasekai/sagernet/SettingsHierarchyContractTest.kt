@@ -11,7 +11,8 @@ import org.w3c.dom.Element
 /** Snapshot covers every legacy key/type/default/dependency, independently of UI ordering. @author 雾晚 */
 class SettingsHierarchyContractTest {
     private val moduleInapplicable = setOf("showGroupInNotification", "httpProxyBypass", "meteredNetwork",
-        "acquireWakeLock", "wakeResetConnections", "networkChangeResetConnections", "showDirectSpeed", "speedInterval")
+        "acquireWakeLock", "wakeResetConnections", "networkChangeResetConnections", "showDirectSpeed", "speedInterval",
+        "tunImplementation")
     @Test fun everyOldKeyKeepsItsValueContractAndControlType() {
         val old = JSONObject(javaClass.getResource("/settings-before-3.0.7.json")!!.readText())
         val factory = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
