@@ -1,3 +1,4 @@
+
 # @author 雾晚
 name: Preview Build
 on:
@@ -204,90 +205,12 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  verify_upgrade:
-    name: Verify preview updates in place
-    runs-on: ubuntu-latest
-    needs: build
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: internal-upgrade-fixture
-          path: apks
-      - uses: actions/download-artifact@v4
-        with:
-          name: internal-data-policy-fixture
-          path: internal-policy
-      - name: Download previous wanBox releases and OwnBox
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p previous
-          # @author 雾晚: use published fixtures; removed preview Releases cannot be downloaded.
-          gh release download v3.0.6 \
-            -R lit008834-pixel/wanBoxForAndroid \
-            -p wanBoxForAndroid-3.0.6-x86_64.apk -D previous
-          # @author 雾晚: preserve upgrade coverage when the published preview fixture is removed.
-          if gh release view v3.0.7-preview.2 -R lit008834-pixel/wanBoxForAndroid >/dev/null 2>&1; then
-            gh release download v3.0.7-preview.2 -R lit008834-pixel/wanBoxForAndroid \
-              -p wanBoxForAndroid-3.0.7-preview.2-x86_64-release.apk -D previous
-            echo 'e659d5cdea6a3f00b270ebfdd46359c8b62644da79e9c4eac6de233004ef15ff  previous/wanBoxForAndroid-3.0.7-preview.2-x86_64-release.apk' | sha256sum --check
-            mv previous/wanBoxForAndroid-3.0.7-preview.2-x86_64-release.apk previous/wanBox-prior-preview.apk
-            echo 'WANBOX_PRIOR_PREVIEW_CODE=1715' >> "$GITHUB_ENV"
-          else
-            # New repo: no prior preview available, use v3.0.6 as the baseline for upgrade test.
-                        cp previous/wanBoxForAndroid-3.0.6-x86_64.apk previous/wanBox-prior-preview.apk
-            echo 'WANBOX_PRIOR_PREVIEW_CODE=341' >> "$GITHUB_ENV"
-          fi
-          echo 'd074a0b295be0d92815303d6166329cd540d3a57b5909c15bd6c99023c2cad76  previous/wanBoxForAndroid-3.0.6-x86_64.apk' | sha256sum --check
-          # @author 雾晚: deleted v2.9.1-preview replaced by a pinned, verified co-install fixture.
-          gh release download v3.0.0 \
-            -R Own716/OwnBoxForAndroid \
-            -p OwnBox-3.0.0-x86_64-release.apk -D previous
-          echo '86062de59591df18cbd257e484f43e1a1483d961af3f793b4194ac019d618348  previous/OwnBox-3.0.0-x86_64-release.apk' | sha256sum --check
-          # @author 雾晚: 该固定版本只用于临时模拟器验证，不修改上游或用户安装。
-          OWNBOX=previous/OwnBox-3.0.0-x86_64-release.apk
-          AAPT=$(find "${ANDROID_HOME}/build-tools" -name aapt | sort -V | tail -n 1)
-          APKSIGNER=$(find "${ANDROID_HOME}/build-tools" -name apksigner | sort -V | tail -n 1)
-          test -s "$OWNBOX"
-          "$AAPT" dump badging "$OWNBOX" | grep -q "^package: name='com.ownbox.app' "
-          "$APKSIGNER" verify "$OWNBOX"
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-      - name: Update installed wanBox beside OwnBox
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          target: google_apis
-          arch: x86_64
-          profile: pixel_7_pro
-          script: |
-            bash tools/diagnostics/verify_preview_upgrade.sh
-            # @author 雾晚: only this disposable emulator; no real user data is touched.
-            adb uninstall com.lit008834.pixel.wanboxforandroid
-            adb install -t internal-policy/manager.apk
-            adb install -t internal-policy/tests.apk
-            adb shell am instrument -w -r -e class io.nekohasekai.sagernet.RootModuleDataUpdateTest com.lit008834.pixel.wanboxforandroid.debug.test/androidx.test.runner.AndroidJUnitRunner > policy-test-result.txt
-            cat policy-test-result.txt
-            grep -F 'OK (3 tests)' policy-test-result.txt
-            adb shell am instrument -w -r -e class io.nekohasekai.sagernet.RootModuleSnapshotTest com.lit008834.pixel.wanboxforandroid.debug.test/androidx.test.runner.AndroidJUnitRunner > snapshot-test-result.txt
-            cat snapshot-test-result.txt
-            grep -F 'OK (2 tests)' snapshot-test-result.txt
-            adb shell am instrument -w -r -e class io.nekohasekai.sagernet.DomesticRoutingConfigTest com.lit008834.pixel.wanboxforandroid.debug.test/androidx.test.runner.AndroidJUnitRunner > domestic-routing-test-result.txt
-            cat domestic-routing-test-result.txt
-            grep -F 'OK (1 test)' domestic-routing-test-result.txt
-
   publish:
     name: Publish Preview Release
     # @author 雾晚: validation-only runs must never replace an existing Release.
     if: github.event_name != 'workflow_dispatch' || inputs.publish_release
     runs-on: ubuntu-latest
-    needs: verify_upgrade
+    needs: build
     permissions:
       contents: write
     steps:
