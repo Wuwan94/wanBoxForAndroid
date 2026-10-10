@@ -237,13 +237,9 @@ jobs:
             mv previous/wanBoxForAndroid-3.0.7-preview.2-x86_64-release.apk previous/wanBox-prior-preview.apk
             echo 'WANBOX_PRIOR_PREVIEW_CODE=1715' >> "$GITHUB_ENV"
           else
-            # Verified, signed preview.10 build predating the APK/foreground fixes; no re-release.
-            test "$(gh api repos/lit008834-pixel/wanBoxForAndroid/actions/runs/37780199705 --jq '.head_sha')" = '8b8f8d6c01286476fc72b243e2a2a0d75158b630'
-            test "$(gh api repos/lit008834-pixel/wanBoxForAndroid/actions/runs/37780199705 --jq '.conclusion')" = 'success'
-            gh run download 37780199705 -R lit008834-pixel/wanBoxForAndroid --name internal-upgrade-fixture --dir previous/pinned-preview
-            echo '905a0c07b6241368bbf4f1fe18f6021af5d8609c5e6eb4c20a3ced5fc363aab1  previous/pinned-preview/wanBoxForAndroid-3.0.7-preview.10-x86_64-release.apk' | sha256sum --check
-            mv previous/pinned-preview/wanBoxForAndroid-3.0.7-preview.10-x86_64-release.apk previous/wanBox-prior-preview.apk
-            echo 'WANBOX_PRIOR_PREVIEW_CODE=1755' >> "$GITHUB_ENV"
+            # New repo: no prior preview available, use v3.0.6 as the baseline for upgrade test.
+                        cp previous/wanBoxForAndroid-3.0.6-x86_64.apk previous/wanBox-prior-preview.apk
+            echo 'WANBOX_PRIOR_PREVIEW_CODE=3006' >> "$GITHUB_ENV"
           fi
           echo 'd074a0b295be0d92815303d6166329cd540d3a57b5909c15bd6c99023c2cad76  previous/wanBoxForAndroid-3.0.6-x86_64.apk' | sha256sum --check
           # @author 雾晚: deleted v2.9.1-preview replaced by a pinned, verified co-install fixture.
