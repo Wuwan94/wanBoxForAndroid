@@ -1249,4 +1249,16 @@
     <string name="tab_nodes">节点</string>
     <string name="tab_subscriptions">订阅</string>
     <string name="tab_settings">设置</string>
+    <!-- preview.18 UI 改造：节点页显示设置 -->
+    <string name="node_display_settings">显示设置</string>
+    <string name="node_column_count">列数</string>
+    <string name="node_column_single">单列</string>
+    <string name="node_column_double">双列</string>
+    <string name="node_column_multi">多列</string>
+    <string name="node_name_text_size">节点名称字号</string>
+    <string name="node_card_spacing">卡片间距</string>
+    <string name="node_card_density">卡片大小</string>
+    <string name="node_card_small">小</string>
+    <string name="node_card_medium">中</string>
+    <string name="node_card_large">大</string>
 </resources>
