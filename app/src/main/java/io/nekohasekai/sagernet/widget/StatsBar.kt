@@ -601,8 +601,7 @@ class StatsBar @JvmOverloads constructor(
                     withContext(Dispatchers.Main) {
                         if (latencyState.complete(ticket, probeKey(), elapsed,
                                 android.os.SystemClock.elapsedRealtime())) {
-                            if (elapsed > 0) updateStatusViews()
-                            else updateStatusViews(customStatus = app.getText(R.string.connection_test_fail))
+                            if (elapsed > 0) { updateStatusViews() } else { /* preview.17: 根据具体错误码显示诊断信息，而非一律"网络不可用" */ val errorMsg = when (elapsed) { io.nekohasekai.sagernet.bg.RootTunService.TEST_ERR_NOT_CONNECTED -> "模块未连接"; io.nekohasekai.sagernet.bg.RootTunService.TEST_ERR_SWITCHING -> "节点切换中"; io.nekohasekai.sagernet.bg.RootTunService.TEST_ERR_SWITCHED_DURING_TEST -> "正在确认当前代理出口"; io.nekohasekai.sagernet.bg.RootTunService.TEST_ERR_PROFILE_NOT_FOUND -> "节点配置不存在"; io.nekohasekai.sagernet.bg.RootTunService.TEST_ERR_PROXY_ENTRY -> "本地代理入口不可用"; io.nekohasekai.sagernet.bg.RootTunService.TEST_ERR_HANDSHAKE_TIMEOUT -> "代理握手超时"; io.nekohasekai.sagernet.bg.RootTunService.TEST_ERR_DNS_FAILED -> "DNS 解析失败"; io.nekohasekai.sagernet.bg.RootTunService.TEST_ERR_EGRESS_UNREACHABLE -> "网络出口不可达"; else -> app.getText(R.string.connection_test_fail).toString() }; updateStatusViews(customStatus = errorMsg) }
                         }
                     }
                 } catch (cancelled: CancellationException) {
