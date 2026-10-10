@@ -3,6 +3,14 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <!-- preview.18 UI 改造：分应用代理明显入口 -->
+    <Preference
+        app:icon="@drawable/ic_navigation_apps"
+        app:key="perAppProxyEntry"
+        app:persistent="false"
+        app:title="@string/per_app_proxy"
+        app:summary="@string/per_app_proxy_summary" />
+
     <!-- 3. 模式与入站设置 -->
     <moe.matsuri.nb4a.ui.ExpandablePreferenceCategory
         app:key="categoryMode"

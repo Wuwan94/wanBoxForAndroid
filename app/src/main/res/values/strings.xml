@@ -1263,4 +1263,7 @@
     <string name="node_card_small">小</string>
     <string name="node_card_medium">中</string>
     <string name="node_card_large">大</string>
+    <!-- preview.18 UI 改造：分应用代理入口 -->
+    <string name="per_app_proxy">分应用代理</string>
+    <string name="per_app_proxy_summary">为每个应用指定代理节点</string>
 </resources>
