@@ -226,7 +226,8 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
         }
 
         override fun onBindViewHolder(holder: GroupHolder, position: Int) {
-            holder.bind(groupList[position])
+            val group = groupList[position]
+            holder.bind(group, groupCounts[group.id] ?: 0L)
         }
 
         override fun getItemCount(): Int {
@@ -467,7 +468,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
         }
 
 
-        fun bind(group: ProxyGroup) {
+        fun bind(group: ProxyGroup, size: Long) {
             proxyGroup = group
 
             itemView.setOnClickListener { }
@@ -607,34 +608,28 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
             groupUser.text = subscription?.username ?: ""
 
             // @author 雾晚: use the pre-fetched batch counts; never query per row.
-            val size = groupCounts[group.id] ?: 0L
-            onMainDispatcher {
-                    @Suppress("DEPRECATION") when (group.type) {
-                        GroupType.BASIC -> {
-                            if (size == 0L) {
-                                groupStatus.setText(R.string.group_status_empty)
-                            } else {
-                                groupStatus.text = getString(R.string.group_status_proxies, size)
-                            }
-                        }
-
-                        GroupType.SUBSCRIPTION -> {
-                            groupStatus.text = if (size == 0L) {
-                                getString(R.string.group_status_empty_subscription)
-                            } else {
-                                val date = Date(group.subscription!!.lastUpdated * 1000L)
-                                getString(
-                                    R.string.group_status_proxies_subscription,
-                                    size,
-                                    "${date.month + 1} - ${date.date}"
-                                )
-                            }
-
-                        }
+            @Suppress("DEPRECATION") when (group.type) {
+                GroupType.BASIC -> {
+                    if (size == 0L) {
+                        groupStatus.setText(R.string.group_status_empty)
+                    } else {
+                        groupStatus.text = getString(R.string.group_status_proxies, size)
                     }
                 }
 
+                GroupType.SUBSCRIPTION -> {
+                    groupStatus.text = if (size == 0L) {
+                        getString(R.string.group_status_empty_subscription)
+                    } else {
+                        val date = Date(group.subscription!!.lastUpdated * 1000L)
+                        getString(
+                            R.string.group_status_proxies_subscription,
+                            size,
+                            "${date.month + 1} - ${date.date}"
+                        )
+                    }
+                }
+            }
         }
     }
-
 }
