@@ -262,7 +262,6 @@ jobs:
       - name: Update installed wanBox beside OwnBox
         uses: reactivecircus/android-emulator-runner@v2
         env:
-          WANBOX_SKIP_UPGRADE: "1"
         with:
           api-level: 35
           target: google_apis
