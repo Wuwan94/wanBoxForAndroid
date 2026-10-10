@@ -1224,6 +1224,11 @@
     <string name="input_method_direct">Current keyboard direct connection</string>
     <!-- @author 雾晚 -->
     <!-- @author 雾晚 -->
+    <!-- preview.18 UI 改造：仪表盘服务状态 -->
+    <string name="service_state_connected">已连接</string>
+    <string name="service_state_connecting">启动中</string>
+    <string name="service_state_stopping">停止中</string>
+    <string name="service_state_idle">未连接</string>
     <string name="tcp_rtt_udp_unavailable">TCP RTT is unavailable for UDP-only nodes; use the proxy channel test.</string>
     <string name="tcp_rtt_network_unavailable">Physical network is not ready. Retry after connecting.</string>
     <string name="default_group_test_url" translatable="false">http://connectivitycheck.gstatic.com/generate_204</string>
