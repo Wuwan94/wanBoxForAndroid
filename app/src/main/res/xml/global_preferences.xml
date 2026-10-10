@@ -210,14 +210,7 @@
             app:title="@string/strict_route" />
 
 
-        <moe.matsuri.nb4a.ui.SimpleMenuPreference
-            app:defaultValue="3"
-            app:entries="@array/tun_implementation"
-            app:entryValues="@array/int_array_4"
-            app:icon="@drawable/ic_baseline_flip_camera_android_24"
-            app:key="tunImplementation"
-            app:title="@string/tun_implementation"
-            app:useSimpleSummaryProvider="true" />
+        <!-- preview.17: TUN 实现固定为 Sing-Tun 官方原生，移除四选一入口 -->
 
         <moe.matsuri.nb4a.ui.MTUPreference
             app:defaultValue="9000"
