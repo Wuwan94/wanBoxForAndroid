@@ -5,7 +5,8 @@ import kotlinx.coroutines.*
 
 /** Foreground-bound status sampling must not wait for an Android network callback. @author 雾晚 */
 internal object RootModuleObservation {
-    suspend fun run(network: suspend () -> Unit, sample: suspend () -> Unit, intervalMs: Long = 2000) = coroutineScope {
+    suspend fun run(network: suspend () -> Unit, sample: suspend () -> Unit, intervalMs: Long = 2000,
+                    isInteractive: () -> Boolean = { true }) = coroutineScope {
         require(intervalMs > 0)
         val networkJob = launch(Dispatchers.IO) {
             try { network() }
@@ -13,7 +14,12 @@ internal object RootModuleObservation {
             catch (_: Exception) { /* Module core observes its own physical network. */ }
         }
         try {
-            while (isActive) { sample(); delay(intervalMs) }
+            while (isActive) {
+                sample()
+                // @author 雾晚: screen off -> back off to 10s; bound observers
+                // get TTL-cached data, no need for aggressive polling.
+                delay(if (isInteractive()) intervalMs else 10000L)
+            }
         } finally { networkJob.cancelAndJoin() }
     }
 }
