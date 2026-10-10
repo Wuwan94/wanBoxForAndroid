@@ -16,19 +16,34 @@
   <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPL--3.0-orange.svg?style=flat-square" alt="License"></a>
   <a href="https://t.me/OwnBoxs"><img src="https://img.shields.io/badge/Telegram-@OwnBoxs-2CA5E0.svg?logo=telegram&style=flat-square" alt="Telegram"></a>
 </p>
-**wanBoxForAndroid 从 OwnBoxForAndroid 的早期代码基础发展而来，目前由本仓库独立维护，拥有自己的代码、版本发布与功能路线；它不是 OwnBoxForAndroid 的官方版本，也不再以持续同步上游作为项目目标。项目面向 Root Android 设备；当前 v3.0.7-preview.16 使用独立 Root TUN 模块，App 保留原有管理界面，不再提供普通 VPN 模式。正式版 v3.0.6 的历史功能
-* **x86_64 / x86**：适用于主流 PC 电脑安卓模拟器。
-* **x86_64 / x86**: Suitable for mainstream Android emulators running on PC.
+
+---
+<div align="center">
+
+## 支持本项目
+
+·如果这个项目对你有帮助,请加入 TG 频道就是对我的最大鼓励
+
+·If this project helps you, joining our TG channel is the best support you can give me.
+
+---
+## 📖 项目介绍 / Introduction
+
+**wanBoxForAndroid 从 OwnBoxForAndroid 的早期代码基础发展而来，目前由本仓库独立维护，拥有自己的代码、版本发布与功能路线；它不是 OwnBoxForAndroid 的官方版本，也不再以持续同步上游作为项目目标。项目面向 Root Android 设备；当前 v3.0.7-preview.16 使用独立 Root TUN 模块，App 保留原有管理界面，不再提供普通 VPN 模式。正式版 v3.0.6 的历史功能范围以其发行说明为准。**
+
+**wanBoxForAndroid evolved from an early OwnBoxForAndroid codebase and is independently maintained with its own code, releases, and roadmap. It is not an official OwnBoxForAndroid release and does not aim to continuously sync upstream. Current v3.0.7-preview.16 uses an independent Root TUN module and retains the management UI; ordinary VPN mode is no longer offered. Stable v3.0.6 retains the historical scope documented in its release notes.**
+
+项目起源、当前状态与发展方向详见[项目定位与发展说明](docs/project-positioning.zh-CN.md)。
 
 ---
 
-## 💬 反馈与建议 / Issues & Feedback
+## 📥 发行版下载 / Downloads
 
-遇到任何使用问题、连接异常或有新的功能建议，欢迎前往 **wanBoxForAndroid 自己的仓库议题页**提交反馈：
+请前往 **wanBoxForAndroid 自己的 GitHub Releases 页面**下载本仓库发布的 APK，并查看对应版本说明：
 
-If you encounter any issues, connection errors, or have feature requests, please submit an issue to the **wanBoxForAndroid repository**:
+Download APKs published by **this wanBoxForAndroid repository** and read the release notes on its GitHub Releases page:
 
-👉 **[前往本仓库提交议题 / Submit an issue to this repository](https://github.com/Wuwan94/wanBoxForAndroid/issues)**
+👉 **[前往本仓库 GitHub Releases 下载 / Download from this repository's GitHub Releases](https://github.com/Wuwan94/wanBoxForAndroid/releases)**
 
 ---
 
@@ -45,31 +60,16 @@ From **v3.0.7-preview.6**, new public builds are **arm64-v8a only** and require 
 
 * **ARMeabi-v7a**：适用于较老款的 32 位安卓设备或部分电视盒子；
 * **ARMeabi-v7a**: Suitable for older 32-bit Android devices or some TV boxes;
-范围以其发行说明为准。**
 
-**wanBoxForAndroid evolved from an early OwnBoxForAndroid codebase and is independently maintained with its own code, releases, and roadmap. It is not an official OwnBoxForAndroid release and does not aim to continuously sync upstream. Current v3.0.7-preview.16 uses an independent Root TUN module and retains the management UI; ordinary VPN mode is no longer offered. Stable v3.0.6 retains the historical scope documented in its release notes.**
-
-项目起源、当前状态与发展方向详见[项目定位与发展说明](docs/project-positioning.zh-CN.md)。
+* **x86_64 / x86**：适用于主流 PC 电脑安卓模拟器。
+* **x86_64 / x86**: Suitable for mainstream Android emulators running on PC.
 
 ---
 
-## 📥 发行版下载 / Downloads
+## 💬 反馈与建议 / Issues & Feedback
 
-请前往 **wanBoxForAndroid 自己的 GitHub Releases 页面**下载本仓库发布的 APK，并查看对应版本说明：
+遇到任何使用问题、连接异常或有新的功能建议，欢迎前往 **wanBoxForAndroid 自己的仓库议题页**提交反馈：
 
-Download APKs published by **this wanBoxForAndroid repository** and read the release notes on its GitHub Releases page:
+If you encounter any issues, connection errors, or have feature requests, please submit an issue to the **wanBoxForAndroid repository**:
 
-👉 **[前往本仓库 GitHub Releases 下载 / Download from this repository's GitHub Releases](https://github.com/Wuwan94/wanBoxForAndroid/releases)**
-
-
----
-<div align="center">
-
-## 支持本项目
-
-·如果这个项目对你有帮助,请加入 TG 频道就是对我的最大鼓励
-
-·If this project helps you, joining our TG channel is the best support you can give me.
-
----
-## 📖 项目介绍 / Introduction
+👉 **[前往本仓库提交议题 / Submit an issue to this repository](https://github.com/Wuwan94/wanBoxForAndroid/issues)**
