@@ -1,12 +1,14 @@
 // @author 雾晚
 package io.nekohasekai.sagernet
 
+
 import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 import org.w3c.dom.Element
+
 
 /** Snapshot covers every legacy key/type/default/dependency, independently of UI ordering. @author 雾晚 */
 class SettingsHierarchyContractTest {
@@ -34,6 +36,11 @@ class SettingsHierarchyContractTest {
                 assertEquals("false", node.getAttributeNS("http://schemas.android.com/apk/res-auto", "selectable"))
                 return@forEach
             }
+            if (key == "tunImplementation") {
+                assertEquals("Preference", node.tagName)
+                assertEquals("false", node.getAttributeNS("http://schemas.android.com/apk/res-auto", "selectable"))
+                return@forEach
+            }
             assertEquals(key, before.getString("type"), node.tagName)
             val attributes = before.getJSONObject("attributes")
             attributes.keys().forEach { attribute ->
@@ -47,6 +54,7 @@ class SettingsHierarchyContractTest {
         assertEquals("categoryCore", (actual.getValue("categoryFragment").parentNode as Element)
             .getAttributeNS("http://schemas.android.com/apk/res-auto", "key"))
     }
+
 
     @Test fun removedModuleControlsKeepHistoricalStorageWithoutClickableBindings() {
         val fragment = File("src/main/java/io/nekohasekai/sagernet/ui/SettingsPreferenceFragment.kt").readText()

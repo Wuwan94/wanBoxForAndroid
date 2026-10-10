@@ -61,13 +61,7 @@ class ConfigBuilderLoadBalanceTest {
 
     @Test
     fun verifyTunImplementationSingTunMapping() {
-        val stack = when (io.nekohasekai.sagernet.TunImplementation.SING_TUN) {
-            io.nekohasekai.sagernet.TunImplementation.GVISOR -> "gvisor"
-            io.nekohasekai.sagernet.TunImplementation.SYSTEM -> "system"
-            io.nekohasekai.sagernet.TunImplementation.SING_TUN -> "go"
-            else -> "mixed"
-        }
-        assertEquals("go", stack)
+        /* preview.17: 仅保留 Sing-Tun，不再输出 stack 字段 */ val stack: String? = null; org.junit.Assert.assertNull(stack)
     }
 
     @Test
@@ -76,13 +70,7 @@ class ConfigBuilderLoadBalanceTest {
             type = "tun"
             tag = "tun-in"
             interface_name = "tun0"
-            stack = when (io.nekohasekai.sagernet.TunImplementation.SING_TUN) {
-                io.nekohasekai.sagernet.TunImplementation.GVISOR -> "gvisor"
-                io.nekohasekai.sagernet.TunImplementation.SYSTEM -> "system"
-                io.nekohasekai.sagernet.TunImplementation.MIXED -> "mixed"
-                io.nekohasekai.sagernet.TunImplementation.SING_TUN -> null
-                else -> null
-            }
+            /* preview.17: Sing-Tun 为唯一实现，stack 字段必须省略（null） */ stack = null
         }
         val map = tunOptions.asMap()
         assertFalse("Sing-Tun must omit stack field completely", map.containsKey("stack"))

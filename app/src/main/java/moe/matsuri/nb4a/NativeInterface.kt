@@ -139,7 +139,7 @@ class NativeInterface : BoxPlatformInterface, NB4AInterface {
         var network: Network? = null
         var suppressed: Int = 0
         var lastCheckTime: Long = 0L
-        var ssid: String? = null
+        var ssid: String? = null; /* preview.17: 跟踪 IP 地址变化，同一接口 DHCP 续租换 IP 时需上报 */ var addresses: String? = null
     }
 
     private val ifaceReportStates = Collections.synchronizedMap(
@@ -200,7 +200,7 @@ class NativeInterface : BoxPlatformInterface, NB4AInterface {
             Logs.i("checkDefaultInterfaceUpdate network=null -> clear default interface suppressedSinceLast=${state.suppressed} elapsed=${SystemClock.elapsedRealtime() - start}ms")
             state.name = null
             state.index = Int.MIN_VALUE
-            state.network = null
+            state.network = null; state.addresses = null; state.ssid = null
             state.suppressed = 0
             state.lastCheckTime = 0L
             cachedInterfaces = null
@@ -208,10 +208,7 @@ class NativeInterface : BoxPlatformInterface, NB4AInterface {
             return
         }
         val now = SystemClock.elapsedRealtime()
-        if (state.network == network && state.name != null && now - state.lastCheckTime < 500L) {
-            state.suppressed++
-            return
-        }
+        /* preview.17: 移除 500ms 节流 */
         state.lastCheckTime = now
         // LinkProperties / NetworkInterface 可能短暂未就绪，参考 husi/SFA 重试
         repeat(10) { attempt ->
@@ -228,12 +225,12 @@ class NativeInterface : BoxPlatformInterface, NB4AInterface {
                 Thread.sleep(100)
                 return@repeat
             }
-            // 结果与上次完全相同：短路，不调 Go。
+            /* preview.17: 接口名未变时也需检查 IP/SSID 变化 */ val currentAddresses = linkProperties.linkAddresses.mapNotNull { it.address.hostAddress }.sorted().joinToString(","); val addressesChanged = currentAddresses != state.addresses; val currentSsid = extractSSID(network); val ssidChanged = currentSsid != null && currentSsid != state.ssid; // 结果与上次完全相同（接口名、索引、网络、IP、SSID 均未变）：短路，不调 Go。
             // Go 侧 unchanged 路径本就只是 UpdateInterfaces 刷缓存后 skip ResetNetwork，
             // 不上报零语义损失（下次真实变化时全链照跑、缓存照刷）。
             // 批量测速时每个 test box 挂一个监听器，onCapabilitiesChanged 风暴 ×
             // N 个 box × (JNI + Go UpdateInterfaces 全量枚举) 曾把主线程按秒阻塞。
-            if (state.name == linkProperties.interfaceName && state.index == interfaceIndex && state.network == network) {
+            if (state.name == linkProperties.interfaceName && state.index == interfaceIndex && state.network == network && !addressesChanged && !ssidChanged) {
                 state.suppressed++
                 if (state.suppressed == 1 || state.suppressed % 20 == 0) {
                     Logs.d("checkDefaultInterfaceUpdate duplicate #${state.suppressed} name=${linkProperties.interfaceName} index=$interfaceIndex network=$network elapsed=${SystemClock.elapsedRealtime() - start}ms (unchanged, skip Go)")
@@ -255,7 +252,7 @@ class NativeInterface : BoxPlatformInterface, NB4AInterface {
         Logs.w("checkDefaultInterfaceUpdate exhausted retries network=$network -> clear default interface suppressedSinceLast=${state.suppressed} elapsed=${SystemClock.elapsedRealtime() - start}ms")
         state.name = null
         state.index = Int.MIN_VALUE
-        state.network = null
+        state.network = null; state.addresses = null; state.ssid = null
         state.suppressed = 0
         clearInterfaceCache()
         listener.updateDefaultInterface("", -1)

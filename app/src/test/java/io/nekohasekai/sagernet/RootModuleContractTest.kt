@@ -50,7 +50,7 @@ class RootModuleContractTest {
         assertFalse(observer.contains("ProcessBuilder")); assertFalse(observer.contains("noBackupFilesDir"))
         assertFalse(observer.contains("myPid()")); assertFalse(observer.contains("rootProcess"))
         assertTrue(observer.contains("RootModuleClient.call(\"status\")"))
-        assertTrue(observer.contains("after.runningRevision == before.runningRevision"))
+        assertTrue(observer.contains("after.runningRevision != targetRevision"))
     }
     @Test fun moduleErrorsAreSafeAndHiddenUiDoesNotPoll() {
         val parsed = RootModuleClient.parseResponse("""{"schemaVersion":1,"ok":true,"state":{"phase":"failed","error":"cgroup_move_failed"}}""")
