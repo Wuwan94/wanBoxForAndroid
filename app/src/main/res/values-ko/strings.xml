@@ -337,7 +337,7 @@
     <string name="subscription_user_agent">UserAgent</string>
     <string name="confirm">확인</string>
     <string name="missing_plugin">플러그인 누락</string>
-    <string name="profile_requiring_plugin">프로파일 %s에는 %s 플러그인 설치가 필요하지만 찾을 수 없습니다.</string>
+    <string name="profile_requiring_plugin">프로파일 %1$s에는 %2$s 플러그인 설치가 필요하지만 찾을 수 없습니다.</string>
     <string name="action_learn_more">자세히 보기</string>
     <string name="action_download">다운로드</string>
     <string name="install_from_play_store">Play 스토어에서 설치</string>
@@ -352,7 +352,7 @@
     <string name="subscription_update_message">%s 업데이트 중 …</string>
     <string name="group_filter">필터</string>
     <string name="subscription_used">%s 사용됨</string>
-    <string name="subscription_traffic">%s 사용됨 / %s 남음</string>
+    <string name="subscription_traffic">%1$s 사용됨 / %2$s 남음</string>
     <string name="subscription_expire">만료: %s</string>
     <string name="subscription_import">구독 가져오기</string>
     <string name="subscription_import_message">구독 %s을(를) 가져오시겠습니까? 신뢰할 수 없는 출처에서 온 경우 IP와 이 동작이 유출될 수 있습니다.</string>
@@ -375,7 +375,7 @@
     <string name="group_order_origin">원래 순서</string>
     <string name="group_order_by_name">이름순</string>
     <string name="group_order_by_delay">지연순</string>
-    <string name="plugin_exists_but_on_shit_system">프로파일 %s에는 %s 플러그인이 필요하지만, 독점 장비 공급업체(보통 감시 자본 대기업과 멀웨어 제작자)가 Android를 변조하여 플러그인을 사용할 수 없습니다.</string>
+    <string name="plugin_exists_but_on_shit_system">프로파일 %1$s에는 %2$s 플러그인이 필요하지만, 독점 장비 공급업체(보통 감시 자본 대기업과 멀웨어 제작자)가 Android를 변조하여 플러그인을 사용할 수 없습니다.</string>
     <string name="shadowsocks_plugin_simple_obfs">Simple Obfs (Shadowsocks Android 플러그인)</string>
     <string name="shadowsocks_plugin_v2ray">V2Ray (Shadowsocks Android 플러그인)</string>
     <string name="tcp_connections">TCP 연결 %d개</string>

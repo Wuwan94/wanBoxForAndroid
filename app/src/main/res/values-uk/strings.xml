@@ -353,7 +353,7 @@
     <string name="subscription_user_agent">UserAgent</string>
     <string name="confirm">Підтвердити</string>
     <string name="missing_plugin">Відсутній плагін</string>
-    <string name="profile_requiring_plugin">Профіль %s вимагає встановлення плагіна %s, але його не знайдено.</string>
+    <string name="profile_requiring_plugin">Профіль %1$s вимагає встановлення плагіна %2$s, але його не знайдено.</string>
     <string name="action_learn_more">ДІЗНАТИСЯ БІЛЬШЕ</string>
     <string name="action_download">ЗАВАНТАЖИТИ</string>
     <string name="install_from_play_store">Встановити з Play Store</string>
@@ -369,7 +369,7 @@
     <string name="subscription_update_message">Оновлення %s …</string>
     <string name="group_filter">Фільтр</string>
     <string name="subscription_used">Використано %s</string>
-    <string name="subscription_traffic">Використано %s / Залишилося %s</string>
+    <string name="subscription_traffic">Використано %1$s / Залишилося %2$s</string>
     <string name="subscription_expire">Закінчується: %s</string>
     <string name="subscription_import">Імпортувати підписку</string>
     <string name="subscription_import_message">Підтвердьте, що ви хочете імпортувати підписку %s? Якщо ви робите це з ненадійного джерела, це може призвести до витоку вашої IP-адреси та даних про цю дію.</string>
@@ -392,7 +392,7 @@
     <string name="group_order_origin">За замовчуванням</string>
     <string name="group_order_by_name">За назвою</string>
     <string name="group_order_by_delay">За затримкою</string>
-    <string name="plugin_exists_but_on_shit_system">Профіль %s вимагає плагін %s, але ваш виробник обладнання (зазвичай гіганти-капіталісти зі спостереження та виробники шкідливого ПЗ) змінив вашу систему Android, зробивши плагін непридатним для використання.</string>
+    <string name="plugin_exists_but_on_shit_system">Профіль %1$s вимагає плагін %2$s, але ваш виробник обладнання (зазвичай гіганти-капіталісти зі спостереження та виробники шкідливого ПЗ) змінив вашу систему Android, зробивши плагін непридатним для використання.</string>
     <string name="shadowsocks_plugin_simple_obfs">Simple Obfs (плагін для Shadowsocks)</string>
     <string name="shadowsocks_plugin_v2ray">V2Ray (плагін для Shadowsocks)</string>
     <string name="traffic_uplink" translatable="false">%s | %s/с ↑</string>

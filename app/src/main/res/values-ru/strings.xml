@@ -324,7 +324,7 @@
 <string name="plugin_auto_connect_unlock_only">Этот плагин может не работать с автоподключением</string>
 <string name="plugin_configure">Настроить…</string>
 <string name="plugin_disabled">Отключено</string>
-<string name="plugin_exists_but_on_shit_system">Профиль %s требует плагин %s, но поставщик вашего проприетарного оборудования (обычно это большие компании, занимающиеся слежкой и производители вредоносного ПО) изменил ваш Android, сделав плагин непригодным для использования.</string>
+<string name="plugin_exists_but_on_shit_system">Профиль %1$s требует плагин %2$s, но поставщик вашего проприетарного оборудования (обычно это большие компании, занимающиеся слежкой и производители вредоносного ПО) изменил ваш Android, сделав плагин непригодным для использования.</string>
 <string name="plugin_unknown">Неизвестный плагин %s</string>
 <string name="plugin_untrusted">Предупреждение: похоже, что этот плагин не из известного надежного источника.</string>
 <string name="port_http">Порт прокси HTTP</string>
@@ -344,7 +344,7 @@
 <string name="profile_import">Импортировать профиль</string>
 <string name="profile_import_message">Подтвердите, что хотите импортировать профиль %s?</string>
 <string name="profile_name">Имя профиля</string>
-<string name="profile_requiring_plugin">Профиль %s требует установки подключаемого модуля %s, но он не найден.</string>
+<string name="profile_requiring_plugin">Профиль %1$s требует установки подключаемого модуля %2$s, но он не найден.</string>
 <string name="profile_traffic_statistics">Статистика трафика профиля</string>
 <string name="profile_traffic_statistics_summary">Когда отключено, использованный трафик не будет отображаться</string>
 <string name="project">Проект</string>
@@ -448,7 +448,7 @@
 <string name="subscription_import">Импортировать подписку</string>
 <string name="subscription_import_message">Подтвердите, что хотите импортировать подписку %s? Если вы импортируете из ненадежного источника, это может привести к утечке вашего IP-адреса и такого поведения.</string>
 <string name="subscription_settings">Настройки подписки</string>
-<string name="subscription_traffic">%s Использовано / %s Осталось</string>
+<string name="subscription_traffic">%1$s Использовано / %2$s Осталось</string>
 <string name="subscription_type">Тип подписки</string>
 <string name="subscription_update">Обновление подписки</string>
 <string name="subscription_update_message">Обновление %s …</string>

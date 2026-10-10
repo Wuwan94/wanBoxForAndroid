@@ -356,7 +356,7 @@
     <string name="subscription_user_agent">UserAgent</string>
     <string name="confirm">تأیید</string>
     <string name="missing_plugin">افزونه مورد نیاز یافت‌ نشد</string>
-    <string name="profile_requiring_plugin">پراکسی %s نیاز به نصب افزونه %s دارد، اما پیدا نشد.</string>
+    <string name="profile_requiring_plugin">پراکسی %1$s نیاز به نصب افزونه %2$s دارد، اما پیدا نشد.</string>
     <string name="action_learn_more">اطلاعات بیشتر</string>
     <string name="action_download">دانلود</string>
     <string name="install_from_play_store">نصب از فروشگاه Play</string>
@@ -372,7 +372,7 @@
     <string name="subscription_update_message">به‌روزرسانی %s …</string>
     <string name="group_filter">پالایش</string>
     <string name="subscription_used">%s استفاده‌شده</string>
-    <string name="subscription_traffic">%s استفاده‌شده / %s باقی‌مانده</string>
+    <string name="subscription_traffic">%1$s استفاده‌شده / %2$s باقی‌مانده</string>
     <string name="subscription_expire">انقضا: %s</string>
     <string name="subscription_import">وارد کردن اشتراک</string>
     <string name="subscription_import_message">تأیید می‌کنید که می‌خواهید اشتراک %s را وارد کنید؟ اگر از یک منبع نامعتبر وارد کنید، ممکن است منجر به لو رفتن IP شما شود.</string>
@@ -395,7 +395,7 @@
     <string name="group_order_origin">مبدأ</string>
     <string name="group_order_by_name">به ترتیب نام</string>
     <string name="group_order_by_delay">به میزان تأخیر</string>
-    <string name="plugin_exists_but_on_shit_system">پراکسی %s به افزونه %s نیاز دارد، اما تأمین‌کننده تجهیزات اختصاصی شما(معمولاً سازمان‌های جاسوسی و سازنده بدافزار) اندروید شما را دستکاری کرده و افزونه را غیرقابل استفاده کرده است!</string>
+    <string name="plugin_exists_but_on_shit_system">پراکسی %1$s به افزونه %2$s نیاز دارد، اما تأمین‌کننده تجهیزات اختصاصی شما(معمولاً سازمان‌های جاسوسی و سازنده بدافزار) اندروید شما را دستکاری کرده و افزونه را غیرقابل استفاده کرده است!</string>
 
     <string name="shadowsocks_plugin_simple_obfs">Obfs ساده (افزونه اندروید Shadowsocks)</string>
     <string name="shadowsocks_plugin_v2ray">V2Ray (افزونه Shadowsocks اندروید)</string>

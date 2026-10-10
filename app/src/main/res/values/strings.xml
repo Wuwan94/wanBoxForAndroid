@@ -513,7 +513,7 @@
     <string name="ua_updated_toast">Subscription User-Agent updated</string>
     <string name="confirm">Confirm</string>
     <string name="missing_plugin">Missing Plugin</string>
-    <string name="profile_requiring_plugin">Profile %s requires the %s plugin to be installed, but
+    <string name="profile_requiring_plugin">Profile %1$s requires the %2$s plugin to be installed, but
         it was not found.</string>
     <string name="action_learn_more">LEARN MORE</string>
     <string name="action_download">DOWNLOAD</string>
@@ -535,7 +535,7 @@
     <string name="server_dns_subscription_sum">Optional DNS used only to resolve server domains in this subscription. Leave empty to use the default behavior. Accepts https://, tls://, quic:// or host[:port].</string>
     <string name="server_dns_invalid">Invalid custom server DNS. Use https://, tls://, quic:// or host[:port], or leave empty.</string>
     <string name="subscription_used">%s Used</string>
-    <string name="subscription_traffic">%s Used / %s Remaining</string>
+    <string name="subscription_traffic">%1$s Used / %2$s Remaining</string>
     <string name="subscription_expire">Expire: %s</string>
     <string name="subscription_import">Import subscription</string>
     <string name="subscription_import_message">Confirm you want to import subscription %s? If you
@@ -560,7 +560,7 @@
     <string name="group_order_origin">Origin</string>
     <string name="group_order_by_name">By Name</string>
     <string name="group_order_by_delay">By Delay</string>
-    <string name="plugin_exists_but_on_shit_system">Profile %s requires the %s plugin, but your
+    <string name="plugin_exists_but_on_shit_system">Profile %1$s requires the %2$s plugin, but your
         proprietary equipment vendor (usually surveillance capital giants and malware maker)
         tampered with your Android, making the plugin unusable.</string>
 

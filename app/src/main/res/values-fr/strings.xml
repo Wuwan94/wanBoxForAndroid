@@ -23,7 +23,7 @@
     <string name="enable_log">Activer la journalisation</string>
     <string name="delete_group_prompt">Êtes-vous sûr(e) de vouloir supprimer ce groupe \?</string>
     <string name="subscription">Abonnement</string>
-    <string name="profile_requiring_plugin">%s nécessite l\'installation du greffon %s, mais il n\'a pas été trouvé.</string>
+    <string name="profile_requiring_plugin">%1$s nécessite l\'installation du greffon %2$s, mais il n\'a pas été trouvé.</string>
     <string name="missing_plugin">Greffon manquant</string>
     <string name="confirm">Confirmer</string>
     <string name="action_download">TÉLÉCHARGER</string>
@@ -297,7 +297,7 @@
     <string name="update_when_connected_only">Mettre à jour que quand connecté</string>
     <string name="auto_update_delay">Délai de mise à jour automatique (en minutes)</string>
     <string name="auto_update">Mise à jour auto</string>
-    <string name="subscription_traffic">%s utilisé(s) / %s restant(s)</string>
+    <string name="subscription_traffic">%1$s utilisé(s) / %2$s restant(s)</string>
     <string name="subscription_import">Importer une souscription</string>
     <string name="profile_import">Importer un profil</string>
     <string name="warp_generate">Générer une configuration</string>
