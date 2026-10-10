@@ -33,6 +33,8 @@ object RootModuleClient {
     private const val STATUS_TTL_MS = 2000L
     @Volatile private var statusCache: Status? = null
     @Volatile private var statusCacheAt = 0L
+    // @author 雾晚: coalesce concurrent status fetches; each su spawn costs 100-300ms.
+    private val statusMutex = Mutex()
     /** Drop the cached status; call after any mutation (select/start/stop/reload/apply). */
     fun invalidateStatusCache() { statusCache = null }
     data class InstallSelection(val id: String, val mode: Int)
@@ -82,11 +84,21 @@ object RootModuleClient {
         if (command == "status") {
             val cached = statusCache
             if (cached != null && SystemClock.elapsedRealtime() - statusCacheAt < STATUS_TTL_MS) return@withContext cached
+            // Coalesce concurrent fetches: only one su spawn; others share the result.
+            return@withContext statusMutex.withLock {
+                val recached = statusCache
+                if (recached != null && SystemClock.elapsedRealtime() - statusCacheAt < STATUS_TTL_MS) return@withLock recached
+                doCall(command, input)
+            }
         }
+        return@withContext doCall(command, input)
+    }
+
+    private suspend fun doCall(command: String, input: File? = null): Status {
         val process = try { ProcessBuilder("su", "-c", "exec $CLI $command").start() }
             catch (_: IOException) { throw IOException("root_required") }
         try {
-            coroutineScope {
+            return coroutineScope {
                 val output = async(Dispatchers.IO) {
                     process.inputStream.use { stream ->
                         val buffer = java.io.ByteArrayOutputStream()

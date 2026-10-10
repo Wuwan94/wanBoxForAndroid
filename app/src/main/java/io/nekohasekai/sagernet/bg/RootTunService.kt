@@ -51,7 +51,8 @@ class RootTunService : Service(), BaseService.Interface {
                     snapshot = null; DataStore.currentProfile = 0; DataStore.mixedInboundAuthed = false
                     data.changeState(BaseService.State.Stopped)
                 }
-            }) // Bound UI/tile only, never an App background watchdog.
+            }, isInteractive = { SagerNet.power.isInteractive })
+            // Bound UI/tile only, never an App background watchdog.
         }
         return super<BaseService.Interface>.onBind(intent)
     }

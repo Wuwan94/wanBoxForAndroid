@@ -76,7 +76,9 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 	defer func() { cancel(); <-done }()
 	go func() {
 		defer close(done)
-		t := time.NewTicker(10 * time.Second)
+		// @author 雾晚: module disable is a rare manual action; 30s granularity
+		// is plenty and reduces idle wakeups.
+		t := time.NewTicker(30 * time.Second)
 		defer t.Stop()
 		for {
 			select {
