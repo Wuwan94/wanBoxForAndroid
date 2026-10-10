@@ -181,3 +181,10 @@ jobs:
             audit-baseline/payload.json
             app/build/outputs/mapping
             app/build/outputs/connected_android_test_additional_output
+      - name: Upload release APK
+        uses: actions/upload-artifact@v5
+        with:
+          name: release-apk
+          path: public-apks/*.apk
+          if-no-files-found: error
+          retention-days: 7
