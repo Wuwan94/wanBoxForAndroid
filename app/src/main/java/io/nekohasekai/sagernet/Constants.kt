@@ -20,6 +20,7 @@ object Key {
     const val IPV6_MODE = "ipv6Mode"
     const val PROXY_APPS = "proxyApps"
     const val BYPASS_MODE = "bypassMode"
+    const val DASHBOARD_MODE = "dashboardMode"
     const val INDIVIDUAL = "individual"
     const val METERED_NETWORK = "meteredNetwork"
     const val TRAFFIC_SNIFFING = "trafficSniffing"
