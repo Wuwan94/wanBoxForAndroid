@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/lit008834-pixel/wanBoxForAndroid/releases/tag/v3.0.6"><img src="https://img.shields.io/badge/Stable-v3.0.6-blue.svg?style=flat-square" alt="Latest stable release"></a>
-  <a href="https://github.com/lit008834-pixel/wanBoxForAndroid/releases/tag/v3.0.7-preview.15"><img src="https://img.shields.io/badge/Preview-v3.0.7--preview.15-5b7cfa.svg?style=flat-square" alt="Latest preview release"></a>
+  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases"><img src="https://img.shields.io/badge/Preview-v3.0.7--preview.16-5b7cfa.svg?style=flat-square" alt="Latest preview release"></a>
   <a href="https://android-arsenal.com/api?level=21"><img src="https://img.shields.io/badge/Stable%20Android-5.0%2B%20(API%2021%2B)-brightgreen.svg?style=flat-square" alt="Stable minimum Android version"></a>
   <a href="https://android-arsenal.com/api?level=31"><img src="https://img.shields.io/badge/Preview%20Android-12%2B%20(API%2031%2B)-brightgreen.svg?style=flat-square" alt="Preview minimum Android version"></a>
   <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPL--3.0-orange.svg?style=flat-square" alt="License"></a>
@@ -43,7 +43,7 @@
 
 Download APKs published by **this wanBoxForAndroid repository** and read the release notes on its GitHub Releases page:
 
-👉 **[前往本仓库 GitHub Releases 下载 / Download from this repository's GitHub Releases](https://github.com/lit008834-pixel/wanBoxForAndroid/releases)**
+👉 **[前往本仓库 GitHub Releases 下载 / Download from this repository's GitHub Releases](https://github.com/Wuwan94/wanBoxForAndroid/releases)**
 
 ---
 
