@@ -1,6 +1,5 @@
 // @author 雾晚
 package io.nekohasekai.sagernet.database
-
 import android.database.sqlite.SQLiteDatabase
 import io.nekohasekai.sagernet.database.preference.KeyValuePair
 import io.nekohasekai.sagernet.GroupType
@@ -22,7 +21,6 @@ import java.nio.ByteOrder
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
-
 /**
  * 解析 Throne 电脑版 `.thrbackup`（QDataStream + 内嵌 SQLite），
  * 并尽力映射为 T4A 的分组/节点、路由规则与设置。
@@ -30,16 +28,13 @@ import java.nio.charset.StandardCharsets
  * 忽略自定义图标（icons/ 下文件）。
  */
 object ThroneDesktopBackupImporter {
-
     private const val MAGIC = "THRN"
     private const val MAX_FORMAT_VERSION = 2
-
     // Throne RouteRule outboundID
     private const val DESKTOP_OUT_PROXY = -1
     private const val DESKTOP_OUT_DIRECT = -2
     private const val DESKTOP_OUT_BLOCK = -3
     private const val DESKTOP_OUT_WARP_BYPASS = -5
-
     data class ParsedBackup(
         val formatVersion: Int,
         val meta: JSONObject,
@@ -48,9 +43,7 @@ object ThroneDesktopBackupImporter {
         val hasSettings: Boolean,
         internal val dbFile: File,
     )
-
     class InvalidBackupException(message: String) : Exception(message)
-
     fun parse(bytes: ByteArray, cacheDir: File): ParsedBackup {
         require(bytes.size <= io.nekohasekai.sagernet.utils.BoundedInput.SOURCE_BYTES)
         if (bytes.size < 8) throw InvalidBackupException("file too small")
@@ -92,7 +85,6 @@ object ThroneDesktopBackupImporter {
         ) {
             throw InvalidBackupException("database payload is not SQLite")
         }
-
         val parts = meta.optJSONObject("parts")
         val hasProfiles: Boolean
         val hasRoutes: Boolean
@@ -107,11 +99,9 @@ object ThroneDesktopBackupImporter {
             hasRoutes = true
             hasSettings = true
         }
-
         cacheDir.mkdirs()
         val dbFile = File(cacheDir, "throne_import_${System.currentTimeMillis()}.db")
         dbFile.writeBytes(databaseBytes!!)
-
         // Refine availability by actual row counts (selective backup may leave empty tables)
         val refined = try { refineAvailability(dbFile, hasProfiles, hasRoutes, hasSettings) } catch (e: Throwable) { dbFile.delete(); throw e }
         return ParsedBackup(
@@ -123,7 +113,6 @@ object ThroneDesktopBackupImporter {
             dbFile = dbFile,
         )
     }
-
     fun import(
         parsed: ParsedBackup,
         importProfiles: Boolean,
@@ -159,9 +148,7 @@ object ThroneDesktopBackupImporter {
             parsed.dbFile.delete()
         }
     }
-
     // region QDataStream
-
     private fun readQString(buf: ByteBuffer): String? {
         if (buf.remaining() < 4) throw InvalidBackupException("truncated QString length")
         val n = buf.int
@@ -180,7 +167,6 @@ object ThroneDesktopBackupImporter {
             String(bytes, Charsets.UTF_16LE)
         }
     }
-
     private fun readQByteArray(buf: ByteBuffer): ByteArray? {
         if (buf.remaining() < 4) throw InvalidBackupException("truncated QByteArray length")
         val n = buf.int
@@ -190,9 +176,7 @@ object ThroneDesktopBackupImporter {
         buf.get(bytes)
         return bytes
     }
-
     // endregion
-
     private fun refineAvailability(
         dbFile: File,
         hasProfiles: Boolean,
@@ -219,7 +203,6 @@ object ThroneDesktopBackupImporter {
             db.close()
         }
     }
-
     private fun readSettings(db: SQLiteDatabase): Map<String, String> {
         val map = LinkedHashMap<String, String>()
         try {
@@ -236,9 +219,7 @@ object ThroneDesktopBackupImporter {
         }
         return map
     }
-
     // region profiles
-
     private fun readGroupsAndProfiles(db: SQLiteDatabase, settings: Map<String, String>): Pair<List<ProxyGroup>, List<ProxyEntity>> {
         data class DeskGroup(
             val id: Long,
@@ -252,7 +233,6 @@ object ThroneDesktopBackupImporter {
             val profilesJson: String,
             val order: Long,
         )
-
         data class DeskProfile(
             val id: Long,
             val type: String,
@@ -263,7 +243,6 @@ object ThroneDesktopBackupImporter {
             val trafficDl: Long,
             val latency: Int,
         )
-
         val orderMap = HashMap<Long, Long>()
         try {
             db.rawQuery("SELECT group_id, display_order FROM groups_order", null).use { c ->
@@ -275,7 +254,6 @@ object ThroneDesktopBackupImporter {
             }
         } catch (_: Exception) {
         }
-
         val deskGroups = ArrayList<DeskGroup>()
         db.rawQuery("SELECT * FROM groups", null).use { c ->
             fun idx(n: String) = c.getColumnIndex(n)
@@ -307,7 +285,6 @@ object ThroneDesktopBackupImporter {
             }
         }
         deskGroups.sortBy { it.order }
-
         val deskProfiles = ArrayList<DeskProfile>()
         db.rawQuery("SELECT * FROM profiles", null).use { c ->
             fun idx(n: String) = c.getColumnIndex(n)
@@ -334,9 +311,7 @@ object ThroneDesktopBackupImporter {
                 )
             }
         }
-
         val subAutoUpdateDelay = settings["sub_auto_update"]?.toIntOrNull()?.takeIf { it > 0 } ?: 1440
-
         // Build per-group profile order from profiles_json
         val orderInGroup = HashMap<Long, Long>() // profileId -> userOrder
         for (g in deskGroups) {
@@ -353,7 +328,6 @@ object ThroneDesktopBackupImporter {
                 }
             }
         }
-
         val groups = ArrayList<ProxyGroup>()
         // Always keep a local ungrouped bucket (id=1) so T4A assumptions hold
         groups.add(
@@ -365,7 +339,6 @@ object ThroneDesktopBackupImporter {
                 type = GroupType.BASIC,
             )
         )
-
         for (g in deskGroups) {
             val isSub = g.url.isNotBlank()
             val pg = ProxyGroup(
@@ -391,7 +364,6 @@ object ThroneDesktopBackupImporter {
             }
             groups.add(pg)
         }
-
         val proxies = ArrayList<ProxyEntity>()
         var fallbackOrder = 10_000L
         for (p in deskProfiles) {
@@ -406,11 +378,9 @@ object ThroneDesktopBackupImporter {
             ).putBean(bean)
             proxies.add(entity)
         }
-
         require(proxies.all { p -> groups.any { it.id == p.groupId } }) { "备份节点引用无效分组" }
         return groups to proxies
     }
-
     private fun convertOutbound(outboundJson: String, name: String, typeHint: String): AbstractBean {
         if (outboundJson.isBlank()) {
             return ConfigBean().apply {
@@ -445,11 +415,8 @@ object ThroneDesktopBackupImporter {
             initializeDefaultValues()
         }
     }
-
     // endregion
-
     // region routes
-
     private fun readRoutes(db: SQLiteDatabase, settings: Map<String, String>): List<RuleEntity> {
         val currentRouteId = settings["current_route_id"]?.toLongOrNull()
         val routeProfileIds = ArrayList<Long>()
@@ -469,7 +436,6 @@ object ThroneDesktopBackupImporter {
         } else {
             routeProfileIds
         }
-
         val rules = ArrayList<RuleEntity>()
         var userOrder = 1L
         for (rpId in targetIds) {
@@ -500,7 +466,6 @@ object ThroneDesktopBackupImporter {
                     val action = (if (iAction >= 0) c.getString(iAction) else null) ?: "route"
                     // T4A ConfigBuilder already injects hijack-dns / sniff plumbing
                     if (action == "hijack-dns" || action == "sniff" || action == "resolve") continue
-
                     val domainParts = ArrayList<String>()
                     parseStringList(if (iDomain >= 0) c.getString(iDomain) else null).forEach {
                         domainParts.add(if (it.startsWith("full:")) it else "full:$it")
@@ -520,7 +485,6 @@ object ThroneDesktopBackupImporter {
                     parseStringList(if (iDomRe >= 0) c.getString(iDomRe) else null).forEach {
                         domainParts.add(if (it.startsWith("regexp:")) it else "regexp:$it")
                     }
-
                     val ipParts = ArrayList<String>()
                     parseStringList(if (iIp >= 0) c.getString(iIp) else null).forEach { ipParts.add(it) }
                     if (iIpPriv >= 0 && c.getInt(iIpPriv) != 0) {
@@ -531,7 +495,6 @@ object ThroneDesktopBackupImporter {
                     if (iSrcPriv >= 0 && c.getInt(iSrcPriv) != 0) {
                         // no dedicated field; approximate via source list note — skip private flag
                     }
-
                     val remoteRulesets = ArrayList<String>()
                     parseStringList(if (iRuleSet >= 0) c.getString(iRuleSet) else null).forEach { rs ->
                         when {
@@ -544,7 +507,6 @@ object ThroneDesktopBackupImporter {
                             }
                         }
                     }
-
                     val ports = ArrayList<String>()
                     parseStringList(if (iPort >= 0) c.getString(iPort) else null).forEach { ports.add(it) }
                     parseStringList(if (iPortR >= 0) c.getString(iPortR) else null).forEach {
@@ -554,26 +516,22 @@ object ThroneDesktopBackupImporter {
                     val srcPorts = ArrayList<String>()
                     parseStringList(if (iSrcPort >= 0) c.getString(iSrcPort) else null).forEach { srcPorts.add(it) }
                     parseStringList(if (iSrcPortR >= 0) c.getString(iSrcPortR) else null).forEach { srcPorts.add(it) }
-
                     val network = if (iNetwork >= 0) c.getString(iNetwork) ?: "" else ""
                     val protocol = if (iProtocol >= 0) c.getString(iProtocol) ?: "" else ""
                     // skip pure dns protocol rules (usually paired with hijack-dns)
                     if (protocol.equals("dns", ignoreCase = true) && domainParts.isEmpty() && ipParts.isEmpty()) {
                         continue
                     }
-
                     val outboundId = if (iOutbound >= 0) c.getInt(iOutbound) else DESKTOP_OUT_DIRECT
                     val outbound = when (action) {
                         "reject" -> -2L
                         else -> mapOutboundId(outboundId)
                     }
-
                     // Skip empty rules that would match everything to proxy/direct unintentionally
                     val hasMatch = domainParts.isNotEmpty() || ipParts.isNotEmpty() ||
                         ports.isNotEmpty() || srcPorts.isNotEmpty() || srcParts.isNotEmpty() ||
                         network.isNotBlank() || protocol.isNotBlank() || remoteRulesets.isNotEmpty()
                     if (!hasMatch) continue
-
                     rules.add(
                         RuleEntity(
                             id = userOrder,
@@ -596,17 +554,14 @@ object ThroneDesktopBackupImporter {
                 }
             }
         }
-
         return rules
     }
-
     private fun mapOutboundId(desktopId: Int): Long = when (desktopId) {
         DESKTOP_OUT_PROXY -> 0L
         DESKTOP_OUT_DIRECT, DESKTOP_OUT_WARP_BYPASS -> -1L
         DESKTOP_OUT_BLOCK -> -2L
         else -> if (desktopId > 0) desktopId.toLong() else 0L
     }
-
     private fun parseStringList(raw: String?): List<String> {
         if (raw.isNullOrBlank()) return emptyList()
         return try {
@@ -621,24 +576,18 @@ object ThroneDesktopBackupImporter {
             emptyList()
         }
     }
-
     // endregion
-
     // region settings
-
     private fun readSettingsChanges(s: Map<String, String>): MutableList<KeyValuePair> {
         val changes = mutableListOf<KeyValuePair>()
-
         fun putBool(key: String, value: Boolean) = changes.add(KeyValuePair(key).put(value))
         fun putStr(key: String, value: String) = changes.add(KeyValuePair(key).put(value))
         fun putIntStr(key: String, value: Int) = changes.add(KeyValuePair(key).put(value.toString()))
         fun putInt(key: String, value: Int) = changes.add(KeyValuePair(key).put(value.toLong()))
-
         s["remote_dns"]?.takeIf { it.isNotBlank() }?.let { putStr(Key.REMOTE_DNS, normalizeDns(it)) }
         s["direct_dns"]?.takeIf { it.isNotBlank() }?.let { putStr(Key.DIRECT_DNS, normalizeDns(it)) }
         s["enable_dns_routing"]?.let { putBool(Key.ENABLE_DNS_ROUTING, it.toBooleanStrictOrNull() ?: return@let) }
         s["fakedns"]?.let { putBool(Key.ENABLE_FAKEDNS, it.toBooleanStrictOrNull() ?: return@let) }
-
         s["inbound_socks_port"]?.toIntOrNull()?.takeIf { it in 1..65535 }?.let {
             putStr(Key.MIXED_PORT, it.toString())
         }
@@ -659,7 +608,6 @@ object ThroneDesktopBackupImporter {
             val allow = addr.isNotBlank() && addr != "127.0.0.1" && addr != "::1"
             putBool(Key.ALLOW_ACCESS, allow)
         }
-
         s["log_level"]?.let { putIntStr(Key.LOG_LEVEL, mapLogLevel(it)) }
         s["vpn_mtu"]?.toIntOrNull()?.takeIf { it >= 1000 }?.let { putIntStr(Key.MTU, it) }
         s["vpn_strict_route"]?.let {
@@ -670,10 +618,9 @@ object ThroneDesktopBackupImporter {
             putIntStr(Key.IPV6_MODE, if (on) IPv6Mode.ENABLE else IPv6Mode.DISABLE)
         }
         s["vpn_impl"]?.let {
+            // preview.17: 旧 TUN 模式已移除，统一迁移为 Sing-Tun 原生实现
             val impl = when (it.lowercase()) {
-                "system" -> TunImplementation.SYSTEM
-                "gvisor" -> TunImplementation.GVISOR
-                "mixed" -> TunImplementation.MIXED
+                "system", "gvisor", "mixed" -> TunImplementation.SING_TUN
                 else -> return@let
             }
             putIntStr(Key.TUN_IMPLEMENTATION, impl)
@@ -686,29 +633,23 @@ object ThroneDesktopBackupImporter {
         s["system_proxy_enabled"]?.toBooleanStrictOrNull()?.let { spOn ->
             if (spOn) putStr(Key.SERVICE_MODE, Key.MODE_ROOT)
         }
-
         s["test_url"]?.takeIf { it.isNotBlank() }?.let { putStr(Key.CONNECTION_TEST_URL, it) }
         s["url_test_timeout_ms"]?.toIntOrNull()?.let { putInt(Key.CONNECTION_TEST_TIMEOUT, it) }
         s["test_concurrent"]?.toIntOrNull()?.let { putInt(Key.CONNECTION_TEST_CONCURRENT, it) }
         SpeedTestSettings.desktopBackupUpdates(s).forEach { (key, value) ->
             putStr(key, value)
         }
-
         s["skip_cert"]?.toBooleanStrictOrNull()?.let { putBool(Key.GLOBAL_ALLOW_INSECURE, it) }
             ?: s["net_insecure"]?.toBooleanStrictOrNull()?.let { putBool(Key.GLOBAL_ALLOW_INSECURE, it) }
-
         s["fragment_default_on"]?.toBooleanStrictOrNull()?.let { putBool(Key.ENABLE_TLS_FRAGMENT, it) }
         s["fragment_size"]?.takeIf { it.isNotBlank() }?.let { putStr(Key.FRAGMENT_LENGTH, it) }
         s["fragment_sleep"]?.takeIf { it.isNotBlank() }?.let { putStr(Key.FRAGMENT_INTERVAL, it) }
-
         s["sniffing_mode"]?.toIntOrNull()?.let { putIntStr(Key.TRAFFIC_SNIFFING, it) }
-
         // disable_private_range_bypass=true means do NOT bypass LAN → bypassLanInCore=false
         s["disable_private_range_bypass"]?.toBooleanStrictOrNull()?.let { disabled ->
             putBool(Key.BYPASS_LAN_IN_CORE, !disabled)
             putBool(Key.BYPASS_LAN, !disabled)
         }
-
         s["core_box_clash_api"]?.let { v ->
             val enabled = when {
                 v.equals("true", true) -> true
@@ -717,7 +658,6 @@ object ThroneDesktopBackupImporter {
             }
             putBool(Key.ENABLE_CLASH_API, enabled)
         }
-
         // domain strategies (T4A uses dedicated keys read by SingBoxOptionsUtil)
         s["outbound_domain_strategy"]?.let {
             putStr("domain_strategy_for_server", it)
@@ -730,7 +670,6 @@ object ThroneDesktopBackupImporter {
         }
         s["remote_dns_strategy"]?.let { putStr("domain_strategy_for_remote", it) }
         s["direct_dns_strategy"]?.let { putStr("domain_strategy_for_direct", it) }
-
         // geo assets: desktop often points at .dat; only map if looks usable or leave default
         s["xray_geosite_url"]?.takeIf { it.contains("geosite") }?.let {
             // Prefer keeping T4A default .db URLs; map only custom non-empty
@@ -743,22 +682,18 @@ object ThroneDesktopBackupImporter {
                 putStr(Key.RULES_GEOIP_URL, it)
             }
         }
-
         s["disable_traffic_stats"]?.toBooleanStrictOrNull()?.let {
             putBool(Key.PROFILE_TRAFFIC_STATISTICS, !it)
         }
-
         // touch PublicDatabase so Room flush is consistent with other backup path
         return changes
     }
-
     private fun normalizeDns(raw: String): String {
         val t = raw.trim()
         if (t.isEmpty()) return t
         // bare IP → leave as-is (T4A accepts udp/tcp/https/local/etc.)
         return t
     }
-
     private fun mapLogLevel(desktop: String): Int = when (desktop.lowercase()) {
         "panic", "fatal" -> 0
         "error", "warn", "warning" -> 1
@@ -767,6 +702,5 @@ object ThroneDesktopBackupImporter {
         "trace" -> 4
         else -> desktop.toIntOrNull()?.coerceIn(0, 4) ?: 1
     }
-
     // endregion
 }
