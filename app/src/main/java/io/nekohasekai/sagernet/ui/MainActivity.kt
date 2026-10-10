@@ -87,6 +87,18 @@ class MainActivity : ThemedActivity(),
     private var currentMainFragment: ToolbarFragment? = null
     private var installerDataJob: Job? = null
     private var installerDataDialog: android.app.Dialog? = null
+
+    // preview.18 UI 改造：仪表盘支持
+    var serviceState: BaseService.State = BaseService.State.Idle
+        private set
+    var lastSpeedStats: SpeedDisplayData? = null
+        private set
+
+    fun navigateToNodes() {
+        // 跳转到节点页（底部导航的节点 tab）
+        // TODO: 底部导航接入后通过 bottomNav 切换
+    }
+
     private val serviceModeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action == Action.SERVICE_MODE_CHANGED) connection.rebindIfServiceChanged(this@MainActivity)
@@ -668,6 +680,7 @@ class MainActivity : ThemedActivity(),
     }
 
     override fun stateChanged(state: BaseService.State, profileName: String?, msg: String?) {
+        serviceState = state
         changeState(state, msg, true)
     }
 
@@ -691,6 +704,7 @@ class MainActivity : ThemedActivity(),
     // may NOT called when app is in background
     // ONLY do UI update here, write DB in bg process
     override fun cbSpeedUpdate(stats: SpeedDisplayData) {
+        lastSpeedStats = stats
         binding.stats.updateSpeed(stats.txRateProxy, stats.rxRateProxy)
     }
 
