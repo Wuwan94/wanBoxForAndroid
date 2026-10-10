@@ -1237,4 +1237,11 @@
     <string name="preset_domestic_failed">Could not save routing preset. Check available storage and retry.</string>
     <string name="node_switch_in_progress">Switching node, please wait…</string>
     <string name="node_select_urltest_hint">该分组开启了自动优选，手动选择将完整重载，且自动优选可能再次切换节点</string>
+
+
+    <!-- preview.18 UI 改造：底部导航标题 -->
+    <string name="tab_dashboard">仪表盘</string>
+    <string name="tab_nodes">节点</string>
+    <string name="tab_subscriptions">订阅</string>
+    <string name="tab_settings">设置</string>
 </resources>
