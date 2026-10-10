@@ -11,6 +11,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.DiffUtil
 import com.google.android.material.tabs.TabLayout
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
@@ -20,7 +21,6 @@ import io.nekohasekai.sagernet.database.ProxyGroup
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.databinding.ActivityNodeSelectDialogBinding
 import io.nekohasekai.sagernet.ktx.onMainDispatcher
-import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
@@ -38,8 +38,11 @@ class NodeSelectDialogActivity : AppCompatActivity() {
     // @author 雾晚: three-state selection (idle -> selecting -> confirmed/failed).
     // The checkmark follows the actually running profile, not the saved intent.
     private var selectingId: Long = 0L
+    private var prevSelectingId: Long = 0L
     private var filterRevision = 0
     private val dialogScope = MainScope()
+    // @author 雾晚: payload for selection-state-only rebinds; avoids full rebind.
+    private val selectPayload = Any()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,11 +63,13 @@ class NodeSelectDialogActivity : AppCompatActivity() {
     }
 
     private fun loadGroupsAndNodes() {
-        runOnDefaultDispatcher {
+        // @author 雾晚: bound to dialog lifecycle; GlobalScope could touch dead views.
+        dialogScope.launch(Dispatchers.Default) {
             val allGroups = SagerDatabase.groupDao.allGroups().filter { !it.ungrouped && !DataStore.isGroupDisabled(it.id) || it.ungrouped }
             val initialNodes = SagerDatabase.proxyDao.getAll().filter { !DataStore.isGroupDisabled(it.groupId) }
 
             onMainDispatcher {
+                if (isFinishing || isDestroyed) return@onMainDispatcher
                 groups.clear()
                 groups.addAll(allGroups)
 
@@ -91,7 +96,8 @@ class NodeSelectDialogActivity : AppCompatActivity() {
 
     private fun filterNodes() {
         val revision = ++filterRevision
-        runOnDefaultDispatcher {
+        // @author 雾晚: bound to dialog lifecycle (revision guard is a second layer).
+        dialogScope.launch(Dispatchers.Default) {
             val nodes = if (currentGroupId == -1L) {
                 SagerDatabase.proxyDao.getAll().filter { !DataStore.isGroupDisabled(it.groupId) }
             } else {
@@ -99,15 +105,28 @@ class NodeSelectDialogActivity : AppCompatActivity() {
             }
             onMainDispatcher {
                 // @author 雾晚: drop stale filter results; only the latest tab wins.
+                if (isFinishing || isDestroyed) return@onMainDispatcher
                 if (revision == filterRevision) updateNodeList(nodes)
             }
         }
     }
 
     private fun updateNodeList(nodes: List<ProxyEntity>) {
+        // @author 雾晚: diffed list updates; full notifyDataSetChanged() dropped
+        // frames on large node lists.
+        val old = displayedNodes.toList()
+        val diff = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+            override fun getOldListSize() = old.size
+            override fun getNewListSize() = nodes.size
+            override fun areItemsTheSame(o: Int, n: Int) = old[o].id == nodes[n].id
+            override fun areContentsTheSame(o: Int, n: Int): Boolean {
+                val a = old[o]; val b = nodes[n]
+                return a.displayName() == b.displayName() && a.ping == b.ping
+            }
+        })
         displayedNodes.clear()
         displayedNodes.addAll(nodes)
-        adapter.notifyDataSetChanged()
+        diff.dispatchUpdatesTo(adapter)
 
         if (displayedNodes.isEmpty()) {
             binding.emptyHint.visibility = View.VISIBLE
@@ -118,13 +137,26 @@ class NodeSelectDialogActivity : AppCompatActivity() {
         }
     }
 
+    // @author 雾晚: refresh only rows whose selection visuals may have changed
+    // (previous selecting/selected + current). Avoids full list rebind.
+    private fun refreshSelectionRows() {
+        val runningId = DataStore.currentProfile.takeIf { it > 0 } ?: DataStore.selectedProxy
+        val ids = setOf(runningId, selectingId, prevSelectingId).filter { it > 0 }.toSet()
+        displayedNodes.forEachIndexed { index, item ->
+            if (item.id in ids) {
+                adapter.notifyItemChanged(index, selectPayload)
+            }
+        }
+        prevSelectingId = selectingId
+    }
+
     private fun selectNode(proxy: ProxyEntity) {
         // @author 雾晚: three-state selection. Show "selecting", wait for the module
         // observer to confirm the actually running profile, then close. Slow full
         // reloads close with a hint instead of blocking the dialog.
         if (selectingId != 0L) return
         selectingId = proxy.id
-        adapter.notifyDataSetChanged()
+        refreshSelectionRows()
         SagerNet.selectProfile(proxy.id)
         dialogScope.launch {
             val confirmed = withContext(Dispatchers.IO) {
@@ -136,10 +168,10 @@ class NodeSelectDialogActivity : AppCompatActivity() {
                 false
             }
             selectingId = 0L
+            refreshSelectionRows()
             if (confirmed) {
                 finishWithFade()
             } else {
-                adapter.notifyDataSetChanged()
                 android.widget.Toast.makeText(
                     this@NodeSelectDialogActivity,
                     getString(R.string.node_switch_in_progress),
@@ -177,16 +209,20 @@ class NodeSelectDialogActivity : AppCompatActivity() {
             return VH(view)
         }
 
+        override fun onBindViewHolder(holder: VH, position: Int, payloads: MutableList<Any>) {
+            if (payloads.isNotEmpty()) {
+                bindSelection(holder, displayedNodes[position])
+                return
+            }
+            onBindViewHolder(holder, position)
+        }
+
         @SuppressLint("SetTextI18n")
         override fun onBindViewHolder(holder: VH, position: Int) {
             val item = displayedNodes[position]
             // @author 雾晚: checkmark follows the actually running profile
             // (DataStore.currentProfile, updated by the module observer),
             // not the saved selection intent.
-            val runningId = DataStore.currentProfile.takeIf { it > 0 } ?: DataStore.selectedProxy
-            val isSelected = item.id == runningId
-            val isSelecting = item.id == selectingId
-
             holder.name.text = item.displayName()
             holder.type.text = item.displayType()
 
@@ -203,6 +239,16 @@ class NodeSelectDialogActivity : AppCompatActivity() {
                 holder.ping.setTextColor(Color.parseColor("#94A3B8"))
             }
 
+            holder.root.setOnClickListener {
+                onClick(item)
+            }
+            bindSelection(holder, item)
+        }
+
+        private fun bindSelection(holder: VH, item: ProxyEntity) {
+            val runningId = DataStore.currentProfile.takeIf { it > 0 } ?: DataStore.selectedProxy
+            val isSelected = item.id == runningId
+            val isSelecting = item.id == selectingId
             if (isSelecting) {
                 holder.root.setBackgroundResource(R.drawable.bg_item_node_selected)
                 holder.checkIcon.visibility = View.VISIBLE
@@ -213,10 +259,6 @@ class NodeSelectDialogActivity : AppCompatActivity() {
             } else {
                 holder.root.setBackgroundResource(R.drawable.bg_item_node_normal)
                 holder.checkIcon.visibility = View.GONE
-            }
-
-            holder.root.setOnClickListener {
-                onClick(item)
             }
         }
 
