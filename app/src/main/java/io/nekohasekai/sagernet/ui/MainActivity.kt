@@ -96,7 +96,7 @@ class MainActivity : ThemedActivity(),
 
     fun navigateToNodes() {
         // 跳转到节点页（底部导航的节点 tab）
-        // TODO: 底部导航接入后通过 bottomNav 切换
+        binding.bottomNav.selectedItemId = R.id.nav_nodes
     }
 
     private val serviceModeReceiver = object : BroadcastReceiver() {
@@ -150,9 +150,15 @@ class MainActivity : ThemedActivity(),
         }
         navigation.setNavigationItemSelectedListener(this)
 
+        // preview.18 UI 改造：底部导航
+        binding.bottomNav.setOnItemSelectedListener { item ->
+            displayFragmentWithId(item.itemId)
+        }
+
         if (savedInstanceState == null) {
             if (TileNavigation.destinationFor(intent?.action) == null) {
-                displayFragmentWithId(R.id.nav_configuration)
+                displayFragmentWithId(R.id.nav_dashboard)
+                binding.bottomNav.selectedItemId = R.id.nav_dashboard
             }
         } else {
             currentMainFragment =
@@ -540,7 +546,9 @@ class MainActivity : ThemedActivity(),
             R.id.nav_group -> current is GroupFragment
             R.id.nav_route -> current is RouteFragment
             R.id.nav_settings -> current is SettingsFragment
-            R.id.nav_dashboard -> current is WebviewFragment
+            R.id.nav_dashboard -> current is DashboardFragment
+            R.id.nav_nodes -> current is ConfigurationFragment
+            R.id.nav_subscriptions -> current is GroupFragment
             R.id.nav_tools -> current is ToolsFragment
             R.id.nav_logcat -> current is LogcatFragment
             R.id.nav_docs -> current is DocsFragment
@@ -626,14 +634,24 @@ class MainActivity : ThemedActivity(),
 
     fun displayFragmentWithId(@IdRes id: Int): Boolean {
         when (id) {
+            // preview.18 UI 改造：底部导航四栏
+            R.id.nav_dashboard -> {
+                displayFragment(DashboardFragment())
+            }
+            R.id.nav_nodes -> {
+                displayFragment(ConfigurationFragment())
+            }
+            R.id.nav_subscriptions -> {
+                displayFragment(GroupFragment())
+            }
+            R.id.nav_settings -> displayFragment(SettingsFragment())
+
             R.id.nav_configuration -> {
                 displayFragment(ConfigurationFragment())
             }
 
             R.id.nav_group -> displayFragment(GroupFragment())
             R.id.nav_route -> displayFragment(RouteFragment())
-            R.id.nav_settings -> displayFragment(SettingsFragment())
-            R.id.nav_dashboard -> displayFragment(WebviewFragment())
             R.id.nav_tools -> displayFragment(ToolsFragment())
             R.id.nav_logcat -> displayFragment(LogcatFragment())
             R.id.nav_faq -> {
