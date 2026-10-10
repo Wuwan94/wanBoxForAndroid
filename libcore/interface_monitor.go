@@ -34,8 +34,10 @@ func SetNetworkChangeResetConnections(enable bool) {
 // ConnectivityManager 默认网络变化时通知 Go 默认物理接口（名称 + index，-1 表示无网络）。
 // 对齐官方 experimental/libbox/monitor.go 的 InterfaceUpdateListener（本仓库 JNI
 // 未传 isExpensive/isConstrained，二者由 NetworkInterfaces 缓存提供）。
+// UpdateSSID：Wi-Fi SSID 变化时调用（需位置权限，无权限时不调用）。
 type InterfaceUpdateListener interface {
 	UpdateDefaultInterface(interfaceName string, interfaceIndex int32)
+	UpdateSSID(ssid string)
 }
 
 var (
@@ -67,6 +69,12 @@ type interfaceMonitor struct {
 	myInterfaces                []string
 	defaultInterface            *control.Interface
 	defaultInterfaceInitialized bool
+	// lastSSID 跟踪 Wi-Fi SSID：同接口切 SSID（如 2.4G/5G）时 name/index 不变，
+	// 必须视为网络变化并触发 ResetNetwork，否则连接会卡在旧网关。
+	lastSSID string
+	// lastIPFingerprint 跟踪接口主 IP：DHCP 续租换 IP 时 name/index 不变，
+	// 同样必须触发 ResetNetwork。
+	lastIPFingerprint string
 }
 
 func newInterfaceMonitor(w *boxPlatformInterfaceWrapper, l logger.Logger) *interfaceMonitor {
@@ -178,6 +186,67 @@ func (m *interfaceMonitor) resolveInterface(interfaceName string, interfaceIndex
 	return nil, "", E.New("interface not found: ", interfaceName, "#", idx)
 }
 
+// interfaceIPFingerprint 返回接口主 IP 指纹（首个非 link-local 的 IPv4，
+// 无 IPv4 则取首个全局单播 IPv6）。用于检测 DHCP 续租/IP 变化。
+func interfaceIPFingerprint(ifIndex int) string {
+	iface, err := net.InterfaceByIndex(ifIndex)
+	if err != nil || iface == nil {
+		return ""
+	}
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return ""
+	}
+	var fallback string
+	for _, a := range addrs {
+		var ip net.IP
+		switch v := a.(type) {
+		case *net.IPNet:
+			ip = v.IP
+		case *net.IPAddr:
+			ip = v.IP
+		}
+		if ip == nil || ip.IsLinkLocalUnicast() || ip.IsLoopback() {
+			continue
+		}
+		if ip.To4() != nil {
+			return ip.String()
+		}
+		if fallback == "" {
+			fallback = ip.String()
+		}
+	}
+	return fallback
+}
+
+// UpdateSSID 由 Kotlin 侧在 Wi-Fi SSID 变化时调用。同接口切 SSID
+//（如双频合一路由器的 2.4G/5G 切换）时网关/IP 通常已变，必须触发 ResetNetwork。
+// 无位置权限时 Kotlin 侧不调用，保持原有行为。
+func (m *interfaceMonitor) UpdateSSID(ssid string) {
+	m.access.Lock()
+	if m.lastSSID == ssid {
+		m.access.Unlock()
+		return
+	}
+	old := m.lastSSID
+	m.lastSSID = ssid
+	// 首次设置或清空不触发；只有"从一个有效 SSID 切到另一个"才重置连接
+	if old == "" || ssid == "" {
+		m.access.Unlock()
+		m.logger.Debug("wifi SSID tracked ", old, " -> ", ssid, " (no reset)")
+		return
+	}
+	m.logger.Info("wifi SSID changed ", old, " -> ", ssid, ", triggering ResetNetwork")
+	callbacks := m.callbacks.Array()
+	current := m.defaultInterface
+	m.access.Unlock()
+	if current != nil {
+		for _, callback := range callbacks {
+			callback(current, 0)
+		}
+	}
+}
+
 // UpdateDefaultInterface 对齐官方 libbox monitor.go updateDefaultInterface。
 func (m *interfaceMonitor) UpdateDefaultInterface(interfaceName string, interfaceIndex int32) {
 	totalStarted := time.Now()
@@ -226,8 +295,15 @@ func (m *interfaceMonitor) UpdateDefaultInterface(interfaceName string, interfac
 	m.defaultInterface = newInterface
 	m.defaultInterfaceInitialized = true
 
-	// 官方：name+index 未变则不通知（不 ResetNetwork）
-	if oldInterface != nil && oldInterface.Name == newInterface.Name && oldInterface.Index == newInterface.Index {
+	// 指纹比较：name+index+主 IP。DHCP 续租换 IP、同接口切 SSID 时
+	// name/index 不变，但必须视为网络变化并触发 ResetNetwork。
+	newIPFp := interfaceIPFingerprint(newInterface.Index)
+	interfaceUnchanged := oldInterface != nil &&
+		oldInterface.Name == newInterface.Name &&
+		oldInterface.Index == newInterface.Index &&
+		m.lastIPFingerprint == newIPFp
+	m.lastIPFingerprint = newIPFp
+	if interfaceUnchanged {
 		m.access.Unlock()
 		m.logger.Debug("default interface unchanged ", newInterface.Name,
 			" index ", newInterface.Index, " source ", source,
