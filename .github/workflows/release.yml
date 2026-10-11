@@ -113,11 +113,7 @@ jobs:
           unzip -p app/libs/libcore.aar classes.jar > /tmp/libcore-classes.jar
           unzip -l /tmp/libcore-classes.jar | grep -q 'libcore/Libcore.class'
           unzip -l /tmp/libcore-classes.jar | grep -q 'go/Seq.class'
-      - name: Gradle cache
-        uses: actions/cache@v5
-        with:
-          path: ~/.gradle
-          key: gradle-oss-${{ hashFiles('**/*.gradle.kts') }}
+      # Release 构建禁用 Gradle 缓存，确保每次都是干净构建（避免旧代码残留）
       - name: Prepare release signing key
         env:
           WANBOX_KEYSTORE_BASE64: ${{ secrets.WANBOX_KEYSTORE_BASE64 }}
