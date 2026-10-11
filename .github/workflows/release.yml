@@ -64,6 +64,16 @@ jobs:
           path: app/executableSo
           if-no-files-found: error
           retention-days: 1
+      - name: Build Root Module
+        run: |
+          ANDROID_NDK_HOME="$ANDROID_HOME/ndk/25.0.8775105" bash rootmodule/build.sh
+      - name: Upload Root module
+        uses: actions/upload-artifact@v5
+        with:
+          name: root-module
+          path: rootmodule/build/wanbox-root-module-arm64-v8a.zip
+          if-no-files-found: error
+          retention-days: 1
 
   build:
     name: Build OSS APK
@@ -233,13 +243,25 @@ jobs:
         with:
           name: APKs
           path: artifacts
-      - name: Prepare APKs
+      - name: Download Root Module
+        uses: actions/download-artifact@v5
+        with:
+          name: root-module
+          path: module-artifacts
+      - name: Bundle Module with Manager APK
+        run: |
+          python3 rootmodule/bundle_manager.py --source module-artifacts/wanbox-root-module-arm64-v8a.zip --apk artifacts/*arm64-v8a*.apk --output module-artifacts/wanbox-root-module-with-manager-arm64-v8a.zip
+          python3 -m zipfile -t module-artifacts/wanbox-root-module-with-manager-arm64-v8a.zip
+      - name: Prepare APKs and Modules
         run: |
           mkdir -p apks
           find artifacts -name "*.apk" -exec cp {} apks/ \;
+          cp module-artifacts/wanbox-root-module-arm64-v8a.zip apks/
+          cp module-artifacts/wanbox-root-module-with-manager-arm64-v8a.zip apks/
           ls -la apks/
           test "$(find apks -maxdepth 1 -name '*.apk' | wc -l)" -eq 1
-          (cd apks && sha256sum *.apk > SHA256SUMS && sha256sum --check SHA256SUMS)
+          test "$(find apks -maxdepth 1 -name '*.zip' | wc -l)" -eq 2
+          (cd apks && sha256sum *.apk *.zip > SHA256SUMS && sha256sum --check SHA256SUMS)
           cat apks/SHA256SUMS
       - name: Show Release Notes
         run: cat RELEASE_NOTES.md
