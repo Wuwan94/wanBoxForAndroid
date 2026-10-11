@@ -33,32 +33,27 @@ class RootTunService : Service(), BaseService.Interface {
                 }
             }, sample = {
                 try {
-                    val status = RootModuleClient.call("status")
+                    // @author 雾晚：只在最开头用完整 dashboard 结果
+                    // changedError/changedProfile/snapshot/currentProfile/mixedInboundAuthed
+                    // changeState/cbSelectorUpdate/telemetry/stats/runningName 全部从这个 status 取值
+                    // 不先 status 再 dashboard，避免两代次混合
+                    val status = RootModuleClient.call("dashboard")
                     val changedError = snapshot?.error != status.error
                     val changedProfile = status.connected && (snapshot?.connected != true || snapshot?.profileId != status.profileId)
                     snapshot = status; DataStore.currentProfile = if (status.connected) status.profileId else 0
-                    // @author 雾晚：一开始就用完整 dashboard 结果，后续全部用它
-                    // 不先 status 再 dashboard，避免状态与数据显示两代次
-                    val dashStatus = try {
-                        RootModuleClient.call("dashboard")
-                    } catch (e: Exception) {
-                        if (e is kotlinx.coroutines.CancellationException) throw e
-                        null
-                    } ?: return@launch
-                    val status = dashStatus // 统一使用 dashboard 结果
                     DataStore.mixedInboundAuthed = status.connected && DataStore.mixedInboundNeedsAuth
                     data.changeState(status.state, if (changedError && status.error.isNotBlank())
                         RootModuleErrors.message(this@RootTunService, status.error) else null)
                     if (changedProfile) data.binder.broadcast { it.cbSelectorUpdate(status.profileId) }
                     val telemetry = status.telemetry
-                    // 速度数据：优先用 dashboard 的 stats，缺失时用 0
-                    val stats = dashStatus?.stats
+                    // 速度数据：用 dashboard 的 stats，缺失时用 0
+                    val stats = status.stats
                     val tx = stats?.tx ?: 0L
                     val rx = stats?.rx ?: 0L
                     val directTx = stats?.directTx ?: 0L
                     val directRx = stats?.directRx ?: 0L
                     // @author 雾晚：仅使用已验证的 runningProfileName
-                    val runningName = dashStatus?.profileName?.takeIf { dashStatus.connected } ?: ""
+                    val runningName = status.profileName.takeIf { status.connected } ?: ""
                     data.binder.broadcast {
                         it.cbSpeedUpdate(io.nekohasekai.sagernet.aidl.SpeedDisplayData(
                             txRateProxy = tx,

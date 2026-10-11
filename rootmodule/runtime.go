@@ -610,64 +610,76 @@ func (r *Runtime) fillTelemetry(s *State) {
 	}
 }
 
-// @author 雾晚：返回绑定同一快照的完整 Dashboard 状态。
-// 流程：before:=Status；以 before 采集；after:=Status；严格比较；
-// 不一致返回 after 且 Telemetry=nil/Stats=nil（完全丢弃 before）；
-// 一致才把采集赋给 after 并返回。不拼接两代次。
-// ProfileID 也比较：热切换节点同 PID/revision 也必须识别。
-func (r *Runtime) DashboardState() State {
-	before := r.Status()
-	if before.Phase != "connected" || !SameProcess(before.Core) {
-		// 未连接：直接返回，Telemetry/Stats 已由 Status() 清空
+// @author 雾晚：可注入的 Dashboard 状态采集，用于测试。
+// readStatus: 读取状态；collect: 采集遥测；sameProc: 进程身份校验。
+// 生产代码传入真实实现，测试传入模拟。
+func dashboardStateInternal(
+	readStatus func() State,
+	collect func(snap State) *Telemetry,
+	sameProc func(ProcessIdentity) bool,
+) State {
+	before := readStatus()
+	if before.Phase != "connected" || !sameProc(before.Core) {
 		return before
 	}
-	// 以 before 的身份采集
-	snapCore := before.Core
-	snapRevision := before.RunningRevision
-	snapProfileID := before.ProfileID
-
-	t := &Telemetry{}
-	t.VmRSSBytes = readVmRSS(snapCore.PID)
-	t.UptimeSeconds = r.coreReadyDuration(snapCore, snapRevision)
-	tx, rx, connCount := r.queryClashStats(snapRevision, snapCore)
-	t.TxBytes = tx
-	t.RxBytes = rx
-	t.ConnectionCount = connCount
+	// 以 before 采集
+	t := collect(before)
 
 	// 无条件回读，严格验证
-	after := r.Status()
+	after := readStatus()
 	if after.Phase != before.Phase {
 		after.Telemetry = nil
 		after.Stats = nil
 		return after
 	}
-	// Core 完整身份比较
-	if after.Core.PID != snapCore.PID || after.Core.Start != snapCore.Start || after.Core.Executable != snapCore.Executable {
+	if after.Core.PID != before.Core.PID || after.Core.Start != before.Core.Start || after.Core.Executable != before.Core.Executable {
 		after.Telemetry = nil
 		after.Stats = nil
 		return after
 	}
-	if after.RunningRevision != snapRevision {
+	if after.RunningRevision != before.RunningRevision {
 		after.Telemetry = nil
 		after.Stats = nil
 		return after
 	}
-	// ProfileID 比较：热切换节点必须识别
-	if after.ProfileID != snapProfileID {
+	// ProfileID：热切换节点同 PID/revision 也必须识别
+	if after.ProfileID != before.ProfileID {
 		after.Telemetry = nil
 		after.Stats = nil
 		return after
 	}
-	if !SameProcess(after.Core) {
+	if !sameProc(after.Core) {
 		after.Telemetry = nil
 		after.Stats = nil
 		return after
 	}
 	// 一致：把采集赋给 after
-	if t.VmRSSBytes > 0 || t.UptimeSeconds > 0 || tx != nil || rx != nil || connCount != nil {
+	if t != nil {
 		after.Telemetry = t
 	}
 	return after
+}
+
+// @author 雾晚：返回绑定同一快照的完整 Dashboard 状态。
+// 生产代码调用可注入版本，传入真实实现。
+func (r *Runtime) DashboardState() State {
+	return dashboardStateInternal(
+		r.Status,
+		func(snap State) *Telemetry {
+			t := &Telemetry{}
+			t.VmRSSBytes = readVmRSS(snap.Core.PID)
+			t.UptimeSeconds = r.coreReadyDuration(snap.Core, snap.RunningRevision)
+			tx, rx, connCount := r.queryClashStats(snap.RunningRevision, snap.Core)
+			t.TxBytes = tx
+			t.RxBytes = rx
+			t.ConnectionCount = connCount
+			if t.VmRSSBytes <= 0 && t.UptimeSeconds <= 0 && tx == nil && rx == nil && connCount == nil {
+				return nil
+			}
+			return t
+		},
+		SameProcess,
+	)
 }
 
 // @author 雾晚：DashboardTelemetry 仅为兼容保留，调用完整 DashboardState。

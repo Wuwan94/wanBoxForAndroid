@@ -204,37 +204,174 @@ func TestDashboardTelemetry_OldSessionDiscard(t *testing.T) {
 	t.Logf("Old session correctly discarded (nil for non-connected)")
 }
 
-// TestDashboardState_GenerationChange verifies old telemetry is discarded on generation change
-// Uses injectable hooks to simulate state change during collection
-func TestDashboardState_GenerationChange(t *testing.T) {
-	// This test verifies the before/after comparison logic
-	// by checking that ProfileID changes are detected
-	r := &Runtime{Root: t.TempDir(), ModuleDir: t.TempDir()}
-
-	// Without connected state, DashboardState returns before as-is
-	s := r.DashboardState()
-	if s.Phase == "connected" && s.Telemetry != nil {
-		// If connected, telemetry should be from same snapshot
-		// (can't easily simulate mid-collection change without hooks,
-		// but we verify the structure is correct)
-		t.Logf("Connected with telemetry: %+v", s.Telemetry)
-	} else {
-		t.Logf("Not connected or no telemetry (expected in test env)")
+// TestDashboardState_ProfileIDChange verifies hot-switch detection
+// Same PID/revision but different ProfileID must discard old telemetry
+func TestDashboardState_ProfileIDChange(t *testing.T) {
+	core := ProcessIdentity{PID: 1234, Start: "5678", Executable: "/bin/core"}
+	before := State{
+		Phase:           "connected",
+		RunningRevision: "abc123",
+		ProfileID:       100,
+		Core:            core,
+		Stats:           json.RawMessage(`{"tx":1}`),
 	}
-
-	// Verify that when phase changes, telemetry is cleared
-	// (DashboardState returns after with nil telemetry on mismatch)
-	// This is a structural test; full integration needs Linux CI with real core
+	after := State{
+		Phase:           "connected",
+		RunningRevision: "abc123",
+		ProfileID:       200, // Changed!
+		Core:            core,
+		Stats:           json.RawMessage(`{"tx":2}`),
+	}
+	collectCalled := false
+	result := dashboardStateInternal(
+		func() State {
+			if !collectCalled {
+				return before
+			}
+			return after
+		},
+		func(snap State) *Telemetry {
+			collectCalled = true
+			// Return non-zero data
+			tx := int64(1000)
+			return &Telemetry{VmRSSBytes: 1024, UptimeSeconds: 60, TxBytes: &tx}
+		},
+		func(p ProcessIdentity) bool { return true },
+	)
+	// Must return after snapshot
+	if result.ProfileID != 200 {
+		t.Errorf("expected after ProfileID 200, got %d", result.ProfileID)
+	}
+	// Telemetry must be nil (discarded)
+	if result.Telemetry != nil {
+		t.Errorf("expected nil telemetry on ProfileID change, got %+v", result.Telemetry)
+	}
+	// Stats must be nil (discarded)
+	if result.Stats != nil {
+		t.Errorf("expected nil stats on ProfileID change")
+	}
 }
 
-// TestDashboardState_ProfileIDChange documents the requirement:
-// hot-switch node with same PID/revision must be detected via ProfileID
-func TestDashboardState_ProfileIDChange(t *testing.T) {
-	// The DashboardState implementation compares:
-	// - Phase
-	// - Core.PID, Core.Start, Core.Executable
-	// - RunningRevision
-	// - ProfileID (for hot-switch detection)
-	// If any differ, returns after with Telemetry=nil, Stats=nil
-	t.Logf("ProfileID comparison ensures hot-switch is detected")
+// TestDashboardState_PhaseChange verifies phase change discards telemetry
+func TestDashboardState_PhaseChange(t *testing.T) {
+	core := ProcessIdentity{PID: 1234, Start: "5678", Executable: "/bin/core"}
+	before := State{Phase: "connected", RunningRevision: "abc", ProfileID: 100, Core: core}
+	after := State{Phase: "stopped", RunningRevision: "abc", ProfileID: 100, Core: core}
+	collectCalled := false
+	result := dashboardStateInternal(
+		func() State {
+			if !collectCalled {
+				return before
+			}
+			return after
+		},
+		func(snap State) *Telemetry {
+			collectCalled = true
+			return &Telemetry{VmRSSBytes: 1024}
+		},
+		func(p ProcessIdentity) bool { return true },
+	)
+	if result.Phase != "stopped" {
+		t.Errorf("expected after phase stopped, got %s", result.Phase)
+	}
+	if result.Telemetry != nil {
+		t.Errorf("expected nil telemetry on phase change")
+	}
+}
+
+// TestDashboardState_RevisionChange verifies revision change discards telemetry
+func TestDashboardState_RevisionChange(t *testing.T) {
+	core := ProcessIdentity{PID: 1234, Start: "5678", Executable: "/bin/core"}
+	before := State{Phase: "connected", RunningRevision: "aaa", ProfileID: 100, Core: core}
+	after := State{Phase: "connected", RunningRevision: "bbb", ProfileID: 100, Core: core}
+	collectCalled := false
+	result := dashboardStateInternal(
+		func() State {
+			if !collectCalled {
+				return before
+			}
+			return after
+		},
+		func(snap State) *Telemetry {
+			collectCalled = true
+			return &Telemetry{VmRSSBytes: 1024}
+		},
+		func(p ProcessIdentity) bool { return true },
+	)
+	if result.RunningRevision != "bbb" {
+		t.Errorf("expected after revision bbb, got %s", result.RunningRevision)
+	}
+	if result.Telemetry != nil {
+		t.Errorf("expected nil telemetry on revision change")
+	}
+}
+
+// TestDashboardState_StartChange verifies process start change discards telemetry
+func TestDashboardState_StartChange(t *testing.T) {
+	beforeCore := ProcessIdentity{PID: 1234, Start: "1111", Executable: "/bin/core"}
+	afterCore := ProcessIdentity{PID: 1234, Start: "2222", Executable: "/bin/core"} // Same PID, different start = PID reuse
+	before := State{Phase: "connected", RunningRevision: "abc", ProfileID: 100, Core: beforeCore}
+	after := State{Phase: "connected", RunningRevision: "abc", ProfileID: 100, Core: afterCore}
+	collectCalled := false
+	result := dashboardStateInternal(
+		func() State {
+			if !collectCalled {
+				return before
+			}
+			return after
+		},
+		func(snap State) *Telemetry {
+			collectCalled = true
+			return &Telemetry{VmRSSBytes: 1024}
+		},
+		func(p ProcessIdentity) bool { return true },
+	)
+	if result.Core.Start != "2222" {
+		t.Errorf("expected after start 2222, got %s", result.Core.Start)
+	}
+	if result.Telemetry != nil {
+		t.Errorf("expected nil telemetry on start change (PID reuse)")
+	}
+}
+
+// TestDashboardState_ConsistentPreserves verifies consistent snapshot keeps telemetry
+// Including real 0 values (not just non-zero)
+func TestDashboardState_ConsistentPreserves(t *testing.T) {
+	core := ProcessIdentity{PID: 1234, Start: "5678", Executable: "/bin/core"}
+	snap := State{
+		Phase:           "connected",
+		RunningRevision: "abc123",
+		ProfileID:       100,
+		Core:            core,
+		Stats:           json.RawMessage(`{"tx":1}`),
+	}
+	// Real 0 connection count (not unknown)
+	zeroCount := 0
+	txVal := int64(5000)
+	result := dashboardStateInternal(
+		func() State { return snap },
+		func(s State) *Telemetry {
+			return &Telemetry{
+				VmRSSBytes:      2048,
+				UptimeSeconds:   120,
+				TxBytes:         &txVal,
+				ConnectionCount: &zeroCount, // Real 0, not nil
+			}
+		},
+		func(p ProcessIdentity) bool { return true },
+	)
+	if result.Telemetry == nil {
+		t.Fatalf("expected telemetry on consistent snapshot")
+	}
+	if result.Telemetry.VmRSSBytes != 2048 {
+		t.Errorf("expected VmRSS 2048, got %d", result.Telemetry.VmRSSBytes)
+	}
+	if result.Telemetry.ConnectionCount == nil {
+		t.Errorf("expected non-nil connection count (real 0)")
+	} else if *result.Telemetry.ConnectionCount != 0 {
+		t.Errorf("expected 0 connections, got %d", *result.Telemetry.ConnectionCount)
+	}
+	if result.Stats == nil {
+		t.Errorf("expected stats preserved on consistent snapshot")
+	}
 }
