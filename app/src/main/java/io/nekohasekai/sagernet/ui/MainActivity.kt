@@ -655,6 +655,9 @@ class MainActivity : ThemedActivity(),
         animate: Boolean = false,
         animateControls: Boolean = animate,
     ) {
+        // @author 雾晚：统一更新 serviceState，确保 onServiceConnected/
+        // onServiceDisconnected 也能正确同步，避免 Dashboard 读取到过期状态。
+        serviceState = state
         DataStore.serviceState = state
         refreshConfigurationProfileState()
         io.nekohasekai.sagernet.widget.OwnBoxWidgetProvider.updateWidgets(this)
@@ -665,6 +668,8 @@ class MainActivity : ThemedActivity(),
             showWhenConnected = state == BaseService.State.Connected,
             animate = animateControls,
         )
+        // @author 雾晚：通知 DashboardFragment 更新状态（生命周期感知）
+        (currentMainFragment as? DashboardFragment)?.onServiceStateChanged(state)
         if (msg != null) snackbar(getString(R.string.vpn_error, msg)).show()
     }
 
@@ -677,7 +682,6 @@ class MainActivity : ThemedActivity(),
     }
 
     override fun stateChanged(state: BaseService.State, profileName: String?, msg: String?) {
-        serviceState = state
         changeState(state, msg, true)
     }
 

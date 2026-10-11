@@ -86,10 +86,11 @@ class DashboardFragment : ToolbarFragment() {
             } else {
                 SagerNet.stopService()
             }
-            // 等待后台状态回调后清除标记，超时保护
-            view?.postDelayed({
+            // @author 雾晚：等待后台状态回调后清除标记，超时保护（生命周期感知）
+            lifecycleScope.launch {
+                kotlinx.coroutines.delay(5000)
                 serviceOpInProgress = false
-            }, 5000)
+            }
         }
 
         modeRule?.setOnClickListener { setMode(MODE_RULE) }
@@ -135,6 +136,15 @@ class DashboardFragment : ToolbarFragment() {
         downloadTotal = null
         coreMemory = null
         connectionCount = null
+    }
+
+    /**
+     * @author 雾晚：由 MainActivity.changeState() 回调，服务状态变化时实时更新 UI。
+     * 仅在 Fragment 处于活跃生命周期时处理，避免后台回调导致状态错乱。
+     */
+    fun onServiceStateChanged(state: BaseService.State) {
+        if (!isAdded || view == null) return
+        updateServiceState()
     }
 
     private fun updateServiceState() {
