@@ -279,9 +279,9 @@ class SagerNet : Application(),
                     }
                     io.nekohasekai.sagernet.widget.OwnBoxWidgetProvider.updateWidgets(application)
                 } else {
-                    // @author 雾晚：失败保持旧选择/运行连接，仅提示，不无条件重启
-                    // 明确 node_tag_not_found 才用原子 apply 重建（不提前改全局 selectedProxy）
-                    Logs.e("Node switch not confirmed, keeping old selection $previous")
+                    // @author 雾晚：热切换失败，回退到完整重载
+                    Logs.e("Node switch not confirmed, falling back to full reload")
+                    configurationReload.request(immediate = true)
                 }
             }, onError = ::reportModuleError)
         }
