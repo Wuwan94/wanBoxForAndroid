@@ -64,6 +64,15 @@ jobs:
           path: app/executableSo
           if-no-files-found: error
           retention-days: 1
+      - name: Ensure NDK clang present
+        run: |
+          NDK_DIR="$ANDROID_HOME/ndk/25.0.8775105"
+          CLANG="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
+          if [ ! -f "$CLANG" ]; then
+            echo "NDK clang missing, installing ndk;25.0.8775105 via sdkmanager"
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;25.0.8775105"
+          fi
+          test -f "$CLANG"
       - name: Build Root Module
         run: |
           ANDROID_NDK_HOME="$ANDROID_HOME/ndk/25.0.8775105" bash rootmodule/build.sh
