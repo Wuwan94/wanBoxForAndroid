@@ -10,7 +10,6 @@
 
 <p align="center">
   <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.7"><img src="https://img.shields.io/badge/Stable-v3.0.7-blue.svg?style=flat-square" alt="Latest stable release"></a>
-  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases"><img src="https://img.shields.io/badge/Preview-v3.0.7--preview.16-5b7cfa.svg?style=flat-square" alt="Latest preview release"></a>
   <a href="https://android-arsenal.com/api?level=21"><img src="https://img.shields.io/badge/Stable%20Android-5.0%2B%20(API%2021%2B)-brightgreen.svg?style=flat-square" alt="Stable minimum Android version"></a>
   <a href="https://android-arsenal.com/api?level=31"><img src="https://img.shields.io/badge/Preview%20Android-12%2B%20(API%2031%2B)-brightgreen.svg?style=flat-square" alt="Preview minimum Android version"></a>
   <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPL--3.0-orange.svg?style=flat-square" alt="License"></a>
@@ -29,9 +28,9 @@
 ---
 ## 📖 项目介绍 / Introduction
 
-**wanBoxForAndroid 从 OwnBoxForAndroid 的早期代码基础发展而来，目前由本仓库独立维护，拥有自己的代码、版本发布与功能路线；它不是 OwnBoxForAndroid 的官方版本，也不再以持续同步上游作为项目目标。项目面向 Root Android 设备；当前 v3.0.7 使用独立 Root TUN 模块，App 保留原有管理界面，不再提供普通 VPN 模式。正式版 v3.0.6 的历史功能范围以其发行说明为准。**
+**wanBoxForAndroid 从 OwnBoxForAndroid 的早期代码基础发展而来，目前由本仓库独立维护，拥有自己的代码、版本发布与功能路线；它不是 OwnBoxForAndroid 的官方版本，也不再以持续同步上游作为项目目标。项目面向 Root Android 设备；当前 v3.0.7 使用独立 Root TUN 模块，App 保留原有管理界面，不再提供普通 VPN 模式。正式版 v3.0.7 新增底部四栏导航（仪表盘/节点/订阅/设置），历史功能范围以其发行说明为准。**
 
-**wanBoxForAndroid evolved from an early OwnBoxForAndroid codebase and is independently maintained with its own code, releases, and roadmap. It is not an official OwnBoxForAndroid release and does not aim to continuously sync upstream. Current v3.0.7 uses an independent Root TUN module and retains the management UI; ordinary VPN mode is no longer offered. Stable v3.0.6 retains the historical scope documented in its release notes.**
+**wanBoxForAndroid evolved from an early OwnBoxForAndroid codebase and is independently maintained with its own code, releases, and roadmap. It is not an official OwnBoxForAndroid release and does not aim to continuously sync upstream. Current v3.0.7 uses an independent Root TUN module and retains the management UI; ordinary VPN mode is no longer offered. Stable v3.0.7 adds bottom four-tab navigation (Dashboard/Nodes/Subscriptions/Settings).**
 
 项目起源、当前状态与发展方向详见[项目定位与发展说明](docs/project-positioning.zh-CN.md)。
 
