@@ -156,20 +156,10 @@
             app:useSimpleSummaryProvider="true" />
 
         <SwitchPreference
-            app:key="showBottomBar"
-            app:title="@string/show_bottom_bar" />
-
-        <SwitchPreference
             app:defaultValue="true"
             app:key="hapticFeedback"
             app:title="@string/haptic_feedback"
             app:summary="@string/haptic_feedback_summary" />
-
-        <SwitchPreference
-            app:defaultValue="false"
-            app:key="showAllGroupsTab"
-            app:title="@string/show_all_groups_tab"
-            app:summary="@string/show_all_groups_tab_summary" />
 
         <SwitchPreference
             app:key="hideFromRecentApps"
