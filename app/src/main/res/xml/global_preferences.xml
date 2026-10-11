@@ -109,6 +109,7 @@
             app:summary="@string/disable_mixed_inbound_sum"
             app:title="@string/disable_mixed_inbound" />
 
+        <!-- @author 雾晚：mixed 相关项由 Fragment 代码按 disableMixedInbound 联动禁用 -->
         <EditTextPreference
             app:icon="@drawable/ic_maps_directions_boat"
             app:key="mixedPort"
@@ -406,11 +407,13 @@
             app:key="defaultSubscriptionUserAgent"
             app:title="@string/default_subscription_user_agent" />
 
-        <SwitchPreference
-            app:icon="@drawable/baseline_construction_24"
-            app:key="enableClashAPI"
-            app:summary="@string/enable_clash_api_summary"
-            app:title="@string/enable_clash_api" />
+        <!-- @author 雾晚：Root 必需内部接口，固定启用，不提供误导开关 -->
+        <Preference
+            app:key="clashApiFixed"
+            app:persistent="false"
+            app:selectable="false"
+            app:title="@string/enable_clash_api"
+            app:summary="Root 模式固定启用（内部控制需要）" />
 
 
 
