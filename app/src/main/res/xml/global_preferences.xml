@@ -1,98 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- @author 雾晚 -->
+<!-- 四组重组：外观 / 运行 / 维护与诊断 / 关于 + 高级设置 -->
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <!-- preview.18 UI 改造：分应用代理明显入口 -->
-    <Preference
-        app:icon="@drawable/ic_navigation_apps"
-        app:key="perAppProxyEntry"
-        app:persistent="false"
-        app:title="@string/per_app_proxy"
-        app:summary="@string/per_app_proxy_summary" />
-
-    <!-- 3. 模式与入站设置 -->
+    <!-- 1. 外观：主题、语言、界面 -->
     <moe.matsuri.nb4a.ui.ExpandablePreferenceCategory
-        app:key="categoryMode"
-        app:title="@string/mode_and_inbound_settings">
-
-        <Preference
-            app:icon="@drawable/ic_device_developer_mode"
-            app:key="serviceMode"
-            app:persistent="false"
-            app:selectable="false"
-            app:title="@string/service_mode"
-            app:summary="@string/root_module_mode" />
-
-        <SwitchPreference
-            app:defaultValue="false"
-            app:icon="@drawable/ic_baseline_block_24"
-            app:key="disableMixedInbound"
-            app:summary="@string/disable_mixed_inbound_sum"
-            app:title="@string/disable_mixed_inbound" />
-
-        <EditTextPreference
-            app:icon="@drawable/ic_maps_directions_boat"
-            app:key="mixedPort"
-            app:title="@string/port_proxy"
-            app:useSimpleSummaryProvider="true" />
-
-        <Preference
-            app:icon="@drawable/ic_baseline_lock_24"
-            app:key="mixedAuthConfig"
-            app:title="@string/mixed_auth_config" />
-
-        <Preference
-            app:icon="@drawable/ic_social_share"
-            app:key="lanSharing"
-            app:title="@string/lan_sharing" />
-
-    </moe.matsuri.nb4a.ui.ExpandablePreferenceCategory>
-
-    <!-- 7. 连接观测设置 (Observatory) -->
-    <moe.matsuri.nb4a.ui.ExpandablePreferenceCategory
-        app:key="categoryObservatory"
-        app:title="@string/observatory_settings">
-
-        <moe.matsuri.nb4a.ui.UrlTestPreference
-            app:defaultValue="@string/default_connection_test_url"
-            app:icon="@drawable/ic_baseline_cast_connected_24"
-            app:key="connectionTestURL"
-            app:title="@string/connection_test_url"
-            app:useSimpleSummaryProvider="true" />
-
-        <SwitchPreference
-            app:defaultValue="false"
-            app:icon="@drawable/ic_baseline_filter_list_24"
-            app:key="hideUnavailableProfiles"
-            app:summary="@string/hide_unavailable_profiles_sum"
-            app:title="@string/hide_unavailable_profiles" />
-
-        <moe.matsuri.nb4a.ui.SimpleMenuPreference
-            app:defaultValue="@string/default_speed_test_mode"
-            app:entries="@array/speed_test_modes"
-            app:entryValues="@array/speed_test_mode_values"
-            app:key="speedTestMode"
-            app:title="@string/speed_test_mode"
-            app:useSimpleSummaryProvider="true" />
-
-        <EditTextPreference
-            app:defaultValue="@string/default_speed_test_timeout_ms"
-            app:key="speedTestTimeoutMs"
-            app:title="@string/speed_test_timeout_ms"
-            app:useSimpleSummaryProvider="true" />
-
-        <EditTextPreference
-            app:defaultValue="@string/default_simple_download_url"
-            app:key="simpleDownloadURL"
-            app:title="@string/simple_download_url"
-            app:useSimpleSummaryProvider="true" />
-
-    </moe.matsuri.nb4a.ui.ExpandablePreferenceCategory>
-
-    <!-- 1. 用户界面设置 -->
-    <moe.matsuri.nb4a.ui.ExpandablePreferenceCategory
-        app:key="categoryUI"
+        app:key="categoryAppearance"
+        app:title="@string/settings_group_appearance">
         app:title="@string/ui_settings">
 
         <moe.matsuri.nb4a.ui.SimpleMenuPreference
@@ -168,9 +83,50 @@
 
     </moe.matsuri.nb4a.ui.ExpandablePreferenceCategory>
 
-    <!-- 2. 模块连接设置 -->
+    <!-- 2. 运行：Root模块状态、连接、分应用 -->
     <moe.matsuri.nb4a.ui.ExpandablePreferenceCategory
-        app:key="categoryVPN"
+        app:key="categoryRuntime"
+        app:title="@string/settings_group_runtime">
+    <!-- preview.18 UI 改造：分应用代理明显入口 -->
+    <Preference
+        app:icon="@drawable/ic_navigation_apps"
+        app:key="perAppProxyEntry"
+        app:persistent="false"
+        app:title="@string/per_app_proxy"
+        app:summary="@string/per_app_proxy_summary" />
+        app:title="@string/mode_and_inbound_settings">
+
+        <Preference
+            app:icon="@drawable/ic_device_developer_mode"
+            app:key="serviceMode"
+            app:persistent="false"
+            app:selectable="false"
+            app:title="@string/service_mode"
+            app:summary="@string/root_module_mode" />
+
+        <SwitchPreference
+            app:defaultValue="false"
+            app:icon="@drawable/ic_baseline_block_24"
+            app:key="disableMixedInbound"
+            app:summary="@string/disable_mixed_inbound_sum"
+            app:title="@string/disable_mixed_inbound" />
+
+        <EditTextPreference
+            app:icon="@drawable/ic_maps_directions_boat"
+            app:key="mixedPort"
+            app:title="@string/port_proxy"
+            app:useSimpleSummaryProvider="true" />
+
+        <Preference
+            app:icon="@drawable/ic_baseline_lock_24"
+            app:key="mixedAuthConfig"
+            app:title="@string/mixed_auth_config" />
+
+        <Preference
+            app:icon="@drawable/ic_social_share"
+            app:key="lanSharing"
+            app:title="@string/lan_sharing" />
+
         app:title="@string/connection_background_settings">
 
         <SwitchPreference
@@ -226,9 +182,77 @@
 
     </moe.matsuri.nb4a.ui.ExpandablePreferenceCategory>
 
-    <!-- 5. DNS 设置 -->
+    <!-- 3. 维护与诊断：日志、测速、诊断 -->
     <moe.matsuri.nb4a.ui.ExpandablePreferenceCategory
-        app:key="categoryDNS"
+        app:key="categoryMaintenance"
+        app:title="@string/settings_group_maintenance">
+        app:title="@string/observatory_settings">
+
+        <moe.matsuri.nb4a.ui.UrlTestPreference
+            app:defaultValue="@string/default_connection_test_url"
+            app:icon="@drawable/ic_baseline_cast_connected_24"
+            app:key="connectionTestURL"
+            app:title="@string/connection_test_url"
+            app:useSimpleSummaryProvider="true" />
+
+        <SwitchPreference
+            app:defaultValue="false"
+            app:icon="@drawable/ic_baseline_filter_list_24"
+            app:key="hideUnavailableProfiles"
+            app:summary="@string/hide_unavailable_profiles_sum"
+            app:title="@string/hide_unavailable_profiles" />
+
+        <moe.matsuri.nb4a.ui.SimpleMenuPreference
+            app:defaultValue="@string/default_speed_test_mode"
+            app:entries="@array/speed_test_modes"
+            app:entryValues="@array/speed_test_mode_values"
+            app:key="speedTestMode"
+            app:title="@string/speed_test_mode"
+            app:useSimpleSummaryProvider="true" />
+
+        <EditTextPreference
+            app:defaultValue="@string/default_speed_test_timeout_ms"
+            app:key="speedTestTimeoutMs"
+            app:title="@string/speed_test_timeout_ms"
+            app:useSimpleSummaryProvider="true" />
+
+        <EditTextPreference
+            app:defaultValue="@string/default_simple_download_url"
+            app:key="simpleDownloadURL"
+            app:title="@string/simple_download_url"
+            app:useSimpleSummaryProvider="true" />
+
+    </moe.matsuri.nb4a.ui.ExpandablePreferenceCategory>
+
+    <!-- 4. 关于：版本、GitHub -->
+    <moe.matsuri.nb4a.ui.ExpandablePreferenceCategory
+        app:key="categoryAbout"
+        app:title="@string/settings_group_about">
+
+        <Preference
+            app:key="aboutVersion"
+            app:persistent="false"
+            app:title="@string/app_version"
+            app:summary="@string/app_version_summary" />
+
+        <Preference
+            app:key="aboutCoreVersion"
+            app:persistent="false"
+            app:title="@string/core_version"
+            app:summary="@string/core_version_summary" />
+
+        <Preference
+            app:key="aboutGithub"
+            app:persistent="false"
+            app:title="@string/github"
+            app:summary="@string/github_summary" />
+
+    </moe.matsuri.nb4a.ui.ExpandablePreferenceCategory>
+
+    <!-- 高级设置：DNS、核心、分片、进阶（保留所有 key） -->
+    <moe.matsuri.nb4a.ui.ExpandablePreferenceCategory
+        app:key="categoryAdvancedGroup"
+        app:title="@string/settings_group_advanced">
         app:title="@string/dns_settings">
 
         <EditTextPreference
@@ -291,11 +315,6 @@
             app:title="@string/dns_hosts"
             app:useSimpleSummaryProvider="true" />
 
-    </moe.matsuri.nb4a.ui.ExpandablePreferenceCategory>
-
-    <!-- 4. 核心设置 -->
-    <moe.matsuri.nb4a.ui.ExpandablePreferenceCategory
-        app:key="categoryCore"
         app:title="@string/core_settings">
 
         <moe.matsuri.nb4a.ui.SimpleMenuPreference
@@ -385,11 +404,6 @@
                 app:useSimpleSummaryProvider="true" />
 
         </moe.matsuri.nb4a.ui.ExpandablePreferenceCategory>
-    </moe.matsuri.nb4a.ui.ExpandablePreferenceCategory>
-
-    <!-- 8. 进阶设置 -->
-    <moe.matsuri.nb4a.ui.ExpandablePreferenceCategory
-        app:key="categoryAdvanced"
         app:title="@string/advanced_settings">
 
         <io.nekohasekai.sagernet.widget.SubscriptionUserAgentPreference
