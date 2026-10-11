@@ -30,11 +30,36 @@
                 android:orientation="vertical"
                 android:padding="16dp">
 
+                <!-- 服务状态行 -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
-                    android:orientation="horizontal">                <TextView
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_baseline_power_24"
+                        app:tint="#616161" />
+
+                    <TextView
+                        android:id="@+id/statusText"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:layout_weight="1"
+                        android:text="未连接"
+                        android:textColor="#212121"
+                        android:textSize="16sp" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/serviceSwitch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
+
+                <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
@@ -106,7 +131,6 @@
                         android:textSize="13sp" />
                 </LinearLayout>
             </LinearLayout>
-        </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
         <!-- 模式切换 -->

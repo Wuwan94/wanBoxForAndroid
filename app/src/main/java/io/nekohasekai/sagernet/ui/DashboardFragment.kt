@@ -15,7 +15,6 @@ import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ProfileManager
-import io.nekohasekai.sagernet.ktx.onMainDispatcher
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -125,7 +124,7 @@ class DashboardFragment : Fragment() {
 
     private fun updateServiceState() {
         val state = (activity as? MainActivity)?.serviceState ?: BaseService.State.Idle
-        onMainDispatcher {
+        lifecycleScope.launch {
             when (state) {
                 BaseService.State.Connected -> {
                     statusText?.text = getString(R.string.service_state_connected)
@@ -146,12 +145,12 @@ class DashboardFragment : Fragment() {
     }
 
     private fun updateCurrentNode() {
-        onMainDispatcher {
+        lifecycleScope.launch {
             val profileId = DataStore.selectedProxy
             if (profileId == 0L) {
                 nodeName?.text = "—"
                 nodeInfo?.text = "—"
-                return@onMainDispatcher
+                return@launch
             }
             val profile = ProfileManager.getProfile(profileId)
             nodeName?.text = profile?.displayName() ?: "—"
@@ -161,7 +160,7 @@ class DashboardFragment : Fragment() {
 
     private fun updateModeUI() {
         val mode = getCurrentMode()
-        onMainDispatcher {
+        lifecycleScope.launch {
             val selectedBg = android.graphics.drawable.ColorDrawable(0xFFE0E0E0.toInt())
             val normalBg = android.graphics.drawable.ColorDrawable(0x00000000)
             modeRule?.background = if (mode == MODE_RULE) selectedBg else normalBg
@@ -215,19 +214,19 @@ class DashboardFragment : Fragment() {
     private fun updateStats() {
         val activity = activity as? MainActivity ?: return
         val stats = activity.lastSpeedStats ?: return
-        onMainDispatcher {
-            val ctx = context ?: return@onMainDispatcher
+        lifecycleScope.launch {
+            val ctx = context ?: return@launch
             uploadSpeed?.text = Formatter.formatFileSize(ctx, stats.txRateProxy) + "/s"
             downloadSpeed?.text = Formatter.formatFileSize(ctx, stats.rxRateProxy) + "/s"
-            uploadTotal?.text = "累计 " + Formatter.formatFileSize(ctx, stats.txTotalProxy)
-            downloadTotal?.text = "累计 " + Formatter.formatFileSize(ctx, stats.rxTotalProxy)
+            uploadTotal?.text = "累计 " + Formatter.formatFileSize(ctx, stats.txTotal)
+            downloadTotal?.text = "累计 " + Formatter.formatFileSize(ctx, stats.rxTotal)
             coreMemory?.text = "—"
             connectionCount?.text = "—"
         }
     }
 
     private fun updateUptime() {
-        onMainDispatcher {
+        lifecycleScope.launch {
             val state = (activity as? MainActivity)?.serviceState
             if (state == BaseService.State.Connected && serviceStartTime == 0L) {
                 serviceStartTime = System.currentTimeMillis()
