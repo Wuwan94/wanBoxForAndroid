@@ -584,6 +584,7 @@
     <string name="create_rule">Create Rule</string>
 
     <string name="copy_success">Copy success!</string>
+    <string name="copy_toast_msg">Link copied to clipboard.</string>
     <string name="copy_failed">Copy failed.</string>
     <string name="app_no_launcher">The app has no interface.</string>
     <string name="route_for">Rule for %s</string>
