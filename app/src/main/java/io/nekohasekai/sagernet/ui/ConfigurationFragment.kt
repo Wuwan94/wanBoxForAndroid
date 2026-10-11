@@ -679,8 +679,13 @@ class ConfigurationFragment @JvmOverloads constructor(
 
         val primaryTextColor = requireContext().getColorAttr(android.R.attr.textColorPrimary)
         if (!select) {
-            // 节点页只保留浏览/切换/测速，添加功能已移到订阅页
+            toolbar.inflateMenu(R.menu.add_profile_menu)
+            // @author 雾晚：节点页隐藏"添加节点"入口（扫码/剪贴板/文件/手动），
+            // 保留搜索、排序、单双列布局、卡片样式、测速等功能，添加统一到订阅页。
+            toolbar.menu.findItem(R.id.action_add)?.isVisible = false
+            toolbar.menu.findItem(R.id.action_global_mode)?.isChecked = DataStore.globalMode
             toolbar.setOnMenuItemClickListener(this)
+            tintMenuIcons(toolbar.menu, primaryTextColor)
         } else {
             toolbar.setTitle(titleRes)
             toolbar.setNavigationIcon(R.drawable.ic_navigation_close)
