@@ -134,7 +134,7 @@ class ServiceCommandController(
      * 尝试提交。若有命令执行中，直接返回 false（不排队）。
      * 任务在 applicationScope 中执行，调用方取消不影响。
      */
-    fun trySubmit(kind: CommandKind, action: suspend Backend.(Long) -> RootModuleClient.Status): Boolean {
+    fun trySubmit(kind: CommandKind, action: suspend Backend.() -> RootModuleClient.Status): Boolean {
         // 原子 tryLock
         if (!mutex.tryLock()) return false
         generation++
@@ -143,7 +143,7 @@ class ServiceCommandController(
 
         applicationScope.launch {
             try {
-                val status = backend.action(gen)
+                val status = backend.action()
                 // 仅当 generation 未变时提交（防旧回调覆盖）
                 if (generation == gen) {
                     _state.value = CommandState.Confirmed(kind, gen, status)
