@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
  * preview.18 UI 改造：仪表盘页。
  * 显示服务状态、当前节点、模式切换（规则/全局/直连）、2x2 数据卡。
  */
-class DashboardFragment : Fragment() {
+class DashboardFragment : ToolbarFragment() {
 
     private var statusText: TextView? = null
     private var serviceSwitch: SwitchMaterial? = null
