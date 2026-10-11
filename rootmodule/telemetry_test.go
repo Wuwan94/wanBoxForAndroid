@@ -29,25 +29,39 @@ func TestReadVmRSS_InvalidPID(t *testing.T) {
 	}
 }
 
-// TestReadVmRSS_Overflow verifies no overflow on malicious large values
+// TestReadVmRSS_Overflow verifies overflow handling via injectable parser
 func TestReadVmRSS_Overflow(t *testing.T) {
-	// Simulate parsing a maliciously large VmRSS value
-	// readVmRSS does: kb * 1024, ensure int64 handles it
-	// Max int64 is 9.2e18; 8EB in KB would overflow, but such values
-	// never appear in /proc. Test the multiplication logic directly.
-	var kb int64 = 1 << 40 // 1TB in KB (unrealistically large)
-	result := kb * 1024
-	if result < 0 {
-		t.Errorf("overflow on large value: kb=%d resulted in %d", kb, result)
+	// 恶意大数字：超过 int64 上限的 KB 值
+	malicious := "VmRSS: 99999999999999999999 kB\n"
+	result := parseVmRSSFromText(malicious)
+	if result != 0 {
+		t.Errorf("expected 0 for overflow value, got %d", result)
 	}
-	// Realistic max: 1TB RAM = 1M KB * 1024 = 1GB, well within int64
-	// Current process should never be negative
-	pid := os.Getpid()
-	rss := readVmRSS(pid)
-	if rss < 0 {
-		t.Errorf("VmRSS overflow: got negative %d", rss)
+	// 负值
+	negative := "VmRSS: -100 kB\n"
+	result = parseVmRSSFromText(negative)
+	if result != 0 {
+		t.Errorf("expected 0 for negative value, got %d", result)
 	}
-	t.Logf("Overflow check passed, current RSS: %d", rss)
+	// 非法格式
+	invalid := "VmRSS: abc kB\n"
+	result = parseVmRSSFromText(invalid)
+	if result != 0 {
+		t.Errorf("expected 0 for invalid format, got %d", result)
+	}
+	// 正常值
+	valid := "VmRSS: 102400 kB\n"
+	result = parseVmRSSFromText(valid)
+	if result != 102400*1024 {
+		t.Errorf("expected %d, got %d", 102400*1024, result)
+	}
+	// 缺失字段
+	missing := "Name: test\n"
+	result = parseVmRSSFromText(missing)
+	if result != 0 {
+		t.Errorf("expected 0 for missing field, got %d", result)
+	}
+	t.Logf("Overflow/invalid handling verified via injectable parser")
 }
 
 // TestCoreReadyDuration_NoMarker verifies 0 when ready marker missing

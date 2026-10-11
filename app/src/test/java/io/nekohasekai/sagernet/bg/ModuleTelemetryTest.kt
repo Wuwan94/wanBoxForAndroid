@@ -36,8 +36,8 @@ class ModuleTelemetryTest {
         val json = JSONObject().apply {
             put("vmRssBytes", 104857600L)
             put("uptimeSeconds", 3600L)
-            putNull("txBytes")
-            putNull("rxBytes")
+            put("txBytes", JSONObject.NULL)
+            put("rxBytes", JSONObject.NULL)
         }
         val t = ModuleTelemetry.fromJson(json)
         assertNotNull(t)

@@ -20,6 +20,7 @@ import io.nekohasekai.sagernet.database.ProfileManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * preview.18 UI 改造：仪表盘页。
@@ -60,7 +61,6 @@ class DashboardFragment : ToolbarFragment() {
     private var coreMemory: TextView? = null
     private var connectionCount: TextView? = null
 
-    private var statsJob: Job? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -121,17 +121,22 @@ class DashboardFragment : ToolbarFragment() {
         updateModeUI()
     }
 
-    override fun onResume() {
-        super.onResume()
-        startStatsPolling()
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        // @author 雾晚：使用 repeatOnLifecycle(STARTED) 订阅，界面销毁自动取消
+        // 无旧值回写，无重复查询，异常/断开清空
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                // 单一观察循环，不嵌套启动 lifecycleScope
+                while (true) {
+                    updateDashboardOnce()
+                    kotlinx.coroutines.delay(1000)
+                }
+            }
+        }
         updateServiceState()
         updateCurrentNode()
         updateModeUI()
-    }
-
-    override fun onPause() {
-        super.onPause()
-        stopStatsPolling()
     }
 
     override fun onDestroyView() {
@@ -339,72 +344,65 @@ class DashboardFragment : ToolbarFragment() {
         return DataStore.dashboardMode
     }
 
-    private fun startStatsPolling() {
-        stopStatsPolling()
-        statsJob = lifecycleScope.launch {
-            while (true) {
-                updateDashboard()
-                delay(1000)
-            }
-        }
-    }
 
-    private fun stopStatsPolling() {
-        statsJob?.cancel()
-        statsJob = null
-    }
 
     /**
      * @author 雾晚：单次更新所有仪表盘数据。
      * 合并 stats 与 uptime，避免每秒两轮独立 status 查询。
      * 复用 RootModuleClient 的 TTL 缓存，不另开轮询。
      */
-    private fun updateDashboard() {
-        val activity = activity as? MainActivity ?: return
-        val stats = activity.lastSpeedStats
-        // @author 雾晚：单次状态获取，同时更新速度与遥测，避免每秒两轮独立查询
-        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val ctx = context ?: return@launch
-            // 未连接时清理旧数据
-            if (stats == null) {
-                launch(kotlinx.coroutines.Dispatchers.Main) {
-                    if (!isAdded) return@launch
-                    uploadSpeed?.text = "—"
-                    downloadSpeed?.text = "—"
-                    uploadTotal?.text = "累计 —"
-                    downloadTotal?.text = "累计 —"
-                    coreMemory?.text = "—"
-                    connectionCount?.text = "—"
-                    uptimeText?.text = "—"
-                }
-                return@launch
+    /**
+     * @author 雾晚：单次仪表盘更新，由 repeatOnLifecycle(STARTED) 循环调用。
+     * 界面销毁自动取消，无旧值回写。异常/断开清空显示。
+     */
+    private suspend fun updateDashboardOnce() {
+        val act = activity as? MainActivity ?: return
+        val stats = act.lastSpeedStats
+        val ctx = context ?: return
+
+        // 未连接时清理旧数据
+        if (stats == null) {
+            withContext(kotlinx.coroutines.Dispatchers.Main) {
+                if (!isAdded) return@withContext
+                uploadSpeed?.text = "—"
+                downloadSpeed?.text = "—"
+                uploadTotal?.text = "累计 —"
+                downloadTotal?.text = "累计 —"
+                coreMemory?.text = "—"
+                connectionCount?.text = "—"
+                uptimeText?.text = "—"
             }
-            // 获取模块遥测（复用状态查询 TTL 缓存）
-            val telemetry = try {
+            return
+        }
+
+        // 获取模块遥测（复用 RootModuleClient TTL 缓存，单次查询）
+        val telemetry = withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
                 io.nekohasekai.sagernet.bg.RootModuleClient.call("status").telemetry
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 null
             }
-            launch(kotlinx.coroutines.Dispatchers.Main) {
-                if (!isAdded) return@launch
-                uploadSpeed?.text = Formatter.formatFileSize(ctx, stats.txRateProxy) + "/s"
-                downloadSpeed?.text = Formatter.formatFileSize(ctx, stats.rxRateProxy) + "/s"
-                uploadTotal?.text = "累计 " + Formatter.formatFileSize(ctx, stats.txTotal)
-                downloadTotal?.text = "累计 " + Formatter.formatFileSize(ctx, stats.rxTotal)
-                // @author 雾晚：RSS 未知显示—，不伪造
-                coreMemory?.text = telemetry?.let {
-                    if (it.vmRSSBytes > 0) Formatter.formatFileSize(ctx, it.vmRSSBytes) else "—"
-                } ?: "—"
-                // @author 雾晚：连接数 null 显示—，区分未知与真实 0
-                connectionCount?.text = telemetry?.connectionCount?.let { "$it 个" } ?: "—"
-                // @author 雾晚：运行时长由模块端提供（ready marker），未知显示—
-                val uptimeSeconds = telemetry?.uptimeSeconds ?: 0L
-                uptimeText?.text = if (uptimeSeconds > 0) {
-                    formatDuration(uptimeSeconds * 1000)
-                } else {
-                    "—"
-                }
+        }
+
+        withContext(kotlinx.coroutines.Dispatchers.Main) {
+            if (!isAdded) return@withContext
+            uploadSpeed?.text = Formatter.formatFileSize(ctx, stats.txRateProxy) + "/s"
+            downloadSpeed?.text = Formatter.formatFileSize(ctx, stats.rxRateProxy) + "/s"
+            uploadTotal?.text = "累计 " + Formatter.formatFileSize(ctx, stats.txTotal)
+            downloadTotal?.text = "累计 " + Formatter.formatFileSize(ctx, stats.rxTotal)
+            // @author 雾晚：RSS 未知显示—，不伪造
+            coreMemory?.text = telemetry?.let {
+                if (it.vmRSSBytes > 0) Formatter.formatFileSize(ctx, it.vmRSSBytes) else "—"
+            } ?: "—"
+            // @author 雾晚：连接数 null 显示—，区分未知与真实 0
+            connectionCount?.text = telemetry?.connectionCount?.let { "$it 个" } ?: "—"
+            // @author 雾晚：运行时长由模块端提供（ready marker），未知显示—
+            val uptimeSeconds = telemetry?.uptimeSeconds ?: 0L
+            uptimeText?.text = if (uptimeSeconds > 0) {
+                formatDuration(uptimeSeconds * 1000)
+            } else {
+                "—"
             }
         }
     }

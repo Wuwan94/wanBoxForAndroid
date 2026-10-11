@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -78,12 +79,12 @@ type Event struct {
 type Telemetry struct {
 	// VmRSSBytes: 核心进程 VmRSS（字节），从 /proc/<pid>/status 读取
 	VmRSSBytes int64 `json:"vmRssBytes,omitempty"`
-	// UptimeSeconds: 核心进程运行时长（秒），从进程启动时间计算
+	// UptimeSeconds: 核心进程运行时长（秒），从 ready marker 计算
 	UptimeSeconds int64 `json:"uptimeSeconds,omitempty"`
-	// TxBytes/RxBytes: 累计上传/下载字节（可选，由 Stats 填充）
-	TxBytes int64 `json:"txBytes,omitempty"`
-	RxBytes int64 `json:"rxBytes,omitempty"`
-	// ConnectionCount: 活动连接数（可选）
+	// TxBytes/RxBytes: 累计上传/下载字节，nil 表示未知（不用 0 冒充）
+	TxBytes *int64 `json:"txBytes,omitempty"`
+	RxBytes *int64 `json:"rxBytes,omitempty"`
+	// ConnectionCount: 活动连接数，nil 表示未知
 	ConnectionCount *int `json:"connectionCount,omitempty"`
 }
 
@@ -426,17 +427,34 @@ func (r *Runtime) Stage(ctx context.Context, s Snapshot) (string, error) {
 }
 // @author 雾晚：从 /proc/<pid>/status 安全读取 VmRSS（字节）。
 // PID 身份已由 SameProcess 校验，读取前后核对代次。
+// 使用可注入的解析器，便于测试溢出与非法值。
+var vmRSSParser = parseVmRSSFromText
+
 func readVmRSS(pid int) int64 {
 	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/status", pid))
 	if err != nil {
 		return 0
 	}
-	for _, line := range strings.Split(string(data), "\n") {
+	return vmRSSParser(string(data))
+}
+
+// @author 雾晚：从 status 文本解析 VmRSS，处理溢出与非法值。
+func parseVmRSSFromText(text string) int64 {
+	for _, line := range strings.Split(text, "\n") {
 		if strings.HasPrefix(line, "VmRSS:") {
 			fields := strings.Fields(line)
 			if len(fields) >= 2 {
 				var kb int64
-				fmt.Sscanf(fields[1], "%d", &kb)
+				if _, err := fmt.Sscanf(fields[1], "%d", &kb); err != nil {
+					return 0
+				}
+				if kb < 0 {
+					return 0
+				}
+				// 溢出检查：kb * 1024 不得超过 MaxInt64
+				if kb > (1<<63-1)/1024 {
+					return 0
+				}
 				return kb * 1024
 			}
 		}
@@ -470,6 +488,85 @@ func (r *Runtime) coreReadyDuration(core ProcessIdentity, revision string) int64
 	return int64(d.Seconds())
 }
 
+// @author 雾晚：从运行配置读取 Clash API secret，仅本地鉴权，不泄露。
+func (r *Runtime) clashAPISecret() string {
+	data, err := os.ReadFile(r.path("run", "config.json"))
+	if err != nil {
+		return ""
+	}
+	// 限制读取大小，防止大配置耗内存
+	if len(data) > MaxConfigBytes {
+		return ""
+	}
+	var config struct {
+		Experimental struct {
+			ClashAPI struct {
+				Secret string `json:"secret"`
+			} `json:"clash_api"`
+		} `json:"experimental"`
+	}
+	if err := json.Unmarshal(data, &config); err != nil {
+		return ""
+	}
+	return config.Experimental.ClashAPI.Secret
+}
+
+// @author 雾晚：通过受限 loopback API 获取连接数与累计流量。
+// 仅访问 127.0.0.1:9090，5s 超时，禁重定向，流式限额 256KB。
+// 返回 (txBytes, rxBytes, connectionCount)，未知为 nil。
+func (r *Runtime) queryClashStats() (tx, rx *int64, connCount *int) {
+	secret := r.clashAPISecret()
+	if secret == "" {
+		return nil, nil, nil
+	}
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return errors.New("redirect_forbidden")
+		},
+	}
+	req, err := http.NewRequest("GET", "http://127.0.0.1:9090/connections", nil)
+	if err != nil {
+		return nil, nil, nil
+	}
+	req.Header.Set("Authorization", "Bearer "+secret)
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, nil, nil
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, nil, nil
+	}
+	// 流式限额 256KB
+	limited := io.LimitReader(resp.Body, 262144)
+	data, err := io.ReadAll(limited)
+	if err != nil {
+		return nil, nil, nil
+	}
+	var result struct {
+		UploadTotal   *int64 `json:"uploadTotal"`
+		DownloadTotal *int64 `json:"downloadTotal"`
+		Connections   []json.RawMessage `json:"connections"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, nil, nil
+	}
+	// 验证非负
+	if result.UploadTotal != nil && *result.UploadTotal < 0 {
+		result.UploadTotal = nil
+	}
+	if result.DownloadTotal != nil && *result.DownloadTotal < 0 {
+		result.DownloadTotal = nil
+	}
+	var count *int
+	if result.Connections != nil {
+		c := len(result.Connections)
+		count = &c
+	}
+	return result.UploadTotal, result.DownloadTotal, count
+}
+
 // @author 雾晚：填充遥测数据。仅在 Core 进程身份校验通过后调用。
 // 读取前后验证 PID/代次，旧数据不覆盖新会话。
 func (r *Runtime) fillTelemetry(s *State) {
@@ -487,9 +584,13 @@ func (r *Runtime) fillTelemetry(s *State) {
 	}
 	// 运行时长：ready marker 时间，需验证 revision 一致
 	t.UptimeSeconds = r.coreReadyDuration(s.Core, revision)
-	// Tx/Rx/connectionCount：通过受限本地 API 采集（待实现）
-	// 缺失时为 nil/0，Kotlin 区分未知与真实 0
+	// Tx/Rx/connectionCount：通过受限本地 API 实际采集
+	tx, rx, connCount := r.queryClashStats()
+	t.TxBytes = tx
+	t.RxBytes = rx
+	t.ConnectionCount = connCount
 	// 仅当有有效数据时保留 Telemetry，否则 nil（Kotlin 显示"—"）
+	// 注意：tx/rx/conn 为 nil 表示未知，不影响 hasData 判断
 	if t.VmRSSBytes > 0 || t.UptimeSeconds > 0 {
 		s.Telemetry = t
 	} else {
