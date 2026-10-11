@@ -203,24 +203,42 @@ class DashboardFragment : ToolbarFragment() {
      * @author 雾晚：测试连接 - 通过 Clash API 获取延迟
      * Root 下可用，不可用时说明原因
      */
+    // @author 雾晚：测速代次，避免旧请求覆盖新节点结果
+    private var speedTestGeneration = 0
+
+    /**
+     * @author 雾晚：经实际代理出站测速（Clash API GLOBAL 延迟接口）
+     * 支持取消（Fragment 销毁时 lifecycleScope 自动取消）
+     */
     private fun testConnection() {
         val ctx = context ?: return
         lifecycleScope.launch {
+            val gen = ++speedTestGeneration
+            val queryNodeId = io.nekohasekai.sagernet.database.DataStore.selectedProxy
             try {
                 btnTestConnection?.isEnabled = false
                 btnTestConnection?.text = "测试中..."
-                // 通过 Clash API 获取代理延迟
+                // 通过 Clash API 获取代理延迟（经实际代理出站）
                 val delay = getProxyDelay()
+                if (gen != speedTestGeneration) return@launch
+                val currentNodeId = io.nekohasekai.sagernet.database.DataStore.selectedProxy
+                val nodeChanged = queryNodeId != currentNodeId
                 if (delay != null) {
-                    android.widget.Toast.makeText(ctx, "延迟: ${delay}ms", android.widget.Toast.LENGTH_SHORT).show()
+                    val msg = if (nodeChanged) "延迟: ${delay}ms（测试期间节点已切换）" else "延迟: ${delay}ms"
+                    android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_SHORT).show()
                 } else {
                     android.widget.Toast.makeText(ctx, "服务未运行或 API 不可用", android.widget.Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
-                android.widget.Toast.makeText(ctx, "测试失败", android.widget.Toast.LENGTH_SHORT).show()
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                if (gen == speedTestGeneration) {
+                    android.widget.Toast.makeText(ctx, "测试失败", android.widget.Toast.LENGTH_SHORT).show()
+                }
             } finally {
-                btnTestConnection?.isEnabled = true
-                btnTestConnection?.text = "测速"
+                if (gen == speedTestGeneration) {
+                    btnTestConnection?.isEnabled = true
+                    btnTestConnection?.text = "测速"
+                }
             }
         }
     }
@@ -234,7 +252,7 @@ class DashboardFragment : ToolbarFragment() {
                 .followRedirects(false)
                 .build()
             val req = okhttp3.Request.Builder()
-                .url("http://127.0.0.1:9090/proxies/GLOBAL/delay?timeout=5000&url=http://www.gstatic.com/generate_204")
+                .url("http://127.0.0.1:9090/proxies/GLOBAL/delay?timeout=5000&url=https://www.google.com/generate_204")
                 .header("Authorization", "Bearer $secret")
                 .build()
             client.newCall(req).execute().use { resp ->
@@ -249,26 +267,51 @@ class DashboardFragment : ToolbarFragment() {
      * @author 雾晚：查询落地 IP - 通过外部 API
      * Root 下可用，显示当前出口 IP
      */
+    // @author 雾晚：落地 IP 查询代次，避免旧请求覆盖新节点结果
+    private var landingIpGeneration = 0
+
     private fun queryLandingIp() {
         val ctx = context ?: return
         lifecycleScope.launch {
+            // 代次一致性：记录当前代次，返回时比对
+            val gen = ++landingIpGeneration
+            // 记录查询时的节点，避免节点切换后旧结果覆盖
+            val queryNodeId = io.nekohasekai.sagernet.database.DataStore.selectedProxy
             try {
                 btnLandingIp?.isEnabled = false
                 landingIpText?.text = "查询中..."
                 val ip = getLandingIp()
+                // 检查代次：若用户已发起新查询，丢弃旧结果
+                if (gen != landingIpGeneration) return@launch
+                // 检查节点：若查询期间切换了节点，提示而非直接显示
+                val currentNodeId = io.nekohasekai.sagernet.database.DataStore.selectedProxy
                 if (ip != null) {
-                    landingIpText?.text = "落地 IP: $ip"
+                    if (queryNodeId != currentNodeId) {
+                        landingIpText?.text = "落地 IP: $ip（查询期间节点已切换）"
+                    } else {
+                        landingIpText?.text = "落地 IP: $ip"
+                    }
                 } else {
                     landingIpText?.text = "查询失败：服务未运行或网络不可用"
                 }
             } catch (e: Exception) {
-                landingIpText?.text = "查询失败"
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                if (gen == landingIpGeneration) {
+                    landingIpText?.text = "查询失败"
+                }
             } finally {
-                btnLandingIp?.isEnabled = true
+                if (gen == landingIpGeneration) {
+                    btnLandingIp?.isEnabled = true
+                }
             }
         }
     }
 
+    /**
+     * @author 雾晚：经当前节点查询落地 IP
+     * Root TUN 模式下所有流量经 TUN 接口，故直接请求 ipify 即经当前节点出口；
+     * 非 TUN 模式下此方法不适用，调用方需先检查服务状态
+     */
     private suspend fun getLandingIp(): String? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
             val client = okhttp3.OkHttpClient.Builder()
