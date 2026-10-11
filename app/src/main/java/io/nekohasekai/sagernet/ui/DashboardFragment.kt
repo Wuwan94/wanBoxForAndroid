@@ -90,7 +90,7 @@ class DashboardFragment : ToolbarFragment() {
         serviceSwitch?.setOnCheckedChangeListener { _, isChecked ->
             // @author 雾晚：程序化更新时 tag 标记，回调直接返回不发送命令
             if (serviceSwitch?.tag == "programmatic") return@setOnCheckedChangeListener
-            if (io.nekohasekai.sagernet.bg.ServiceCommandController.isBusy()) {
+            if (io.nekohasekai.sagernet.SagerNet.commandController.isBusy()) {
                 // 操作进行中，恢复开关到实际状态，忽略本次点击
                 syncSwitchToState()
                 return@setOnCheckedChangeListener
@@ -101,38 +101,15 @@ class DashboardFragment : ToolbarFragment() {
             } else {
                 io.nekohasekai.sagernet.bg.ServiceCommandController.CommandKind.STOP
             }
-            lifecycleScope.launch {
-                val submitted = io.nekohasekai.sagernet.bg.ServiceCommandController.submit(kind) { gen ->
-                    try {
-                        if (isChecked) {
-                            SagerNet.startService()
-                        } else {
-                            SagerNet.stopService()
-                        }
-                        // 等待后台确认：轮询状态直到目标状态或超时
-                        val targetConnected = isChecked
-                        val deadline = System.currentTimeMillis() + 10000
-                        while (System.currentTimeMillis() < deadline) {
-                            kotlinx.coroutines.delay(500)
-                            val s = try {
-                                io.nekohasekai.sagernet.bg.RootModuleClient.call("status")
-                            } catch (e: Exception) {
-                                if (e is kotlinx.coroutines.CancellationException) throw e
-                                null
-                            } ?: continue
-                            if (s.connected == targetConnected) return@submit true
-                        }
-                        false
-                    } catch (e: kotlinx.coroutines.CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        false
-                    }
-                }
-                if (!submitted) {
-                    // 被拒绝（有命令执行中），恢复开关
-                    syncSwitchToState()
-                }
+            // @author 雾晚：通过控制器提交，不捕获 Fragment/views
+            val submitted = if (isChecked) {
+                io.nekohasekai.sagernet.SagerNet.commandController.requestStart()
+            } else {
+                io.nekohasekai.sagernet.SagerNet.commandController.requestStop()
+            }
+            if (!submitted) {
+                // 被拒绝（有命令执行中），恢复开关
+                syncSwitchToState()
             }
         }
 
@@ -160,14 +137,14 @@ class DashboardFragment : ToolbarFragment() {
         // @author 雾晚：观察串行命令状态，UI 只读渲染
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
-                io.nekohasekai.sagernet.bg.ServiceCommandController.state.collect { state ->
+                io.nekohasekai.sagernet.SagerNet.commandController.state.collect { state ->
                     when (state) {
                         is io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.Confirmed,
                         is io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.Error -> {
                             // 后台已确认，同步 UI 并确认
                             syncSwitchToState()
                             updateServiceState()
-                            io.nekohasekai.sagernet.bg.ServiceCommandController.acknowledge()
+                            io.nekohasekai.sagernet.SagerNet.commandController.acknowledge()
                         }
                         else -> {}
                     }
@@ -207,7 +184,6 @@ class DashboardFragment : ToolbarFragment() {
         val state = (activity as? MainActivity)?.serviceState ?: BaseService.State.Idle
         lifecycleScope.launch {
             // 后台确认状态后清除操作中标记
-            serviceOpInProgress = false
             serviceSwitch?.tag = "programmatic"
             try {
                 when (state) {

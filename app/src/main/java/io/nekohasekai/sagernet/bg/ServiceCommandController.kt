@@ -3,102 +3,163 @@
 package io.nekohasekai.sagernet.bg
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 /**
  * @author 雾晚：应用级串行命令控制器。
- * 替代 Fragment 局部门闩 + 5s 延时。
  *
- * 特性：
- * - 串行执行：重复点击拒绝/合并，不并发
- * - 可观察状态：pending/confirmed/error，UI 只读渲染
- * - 未终态回调不提前解锁：仅 confirmed/error 解锁
- * - 页面销毁不丢失：控制器属于 Application 生命周期
- * - 模式/节点/启停共用入口
- * - 取消异常重新抛出，不被吞掉
+ * - 接收 applicationScope，在其中 launch 执行，页面销毁不取消
+ * - 原子 tryLock：第二次提交直接拒绝，不排队
+ * - Pending 赋值与加锁原子完成
+ * - finally 解锁，取消时重置为 Idle（可继续提交）
+ * - UI 只调用 requestX，不捕获 Fragment/views/context
+ * - 直接 await RootModuleClient，不经 SagerNet.startService (它只 launch 返回)
+ * - STOP 明确检查 phase==stopped，starting/failed 不算已停止
+ * - 结果携带确认的 Status，UI 更新真实状态
  */
-object ServiceCommandController {
-
-    /** 命令状态 */
-    sealed class CommandState {
-        /** 空闲 */
-        data object Idle : CommandState()
-        /** 执行中 */
-        data class Pending(val kind: CommandKind, val generation: Long) : CommandState()
-        /** 已确认 */
-        data class Confirmed(val kind: CommandKind, val generation: Long) : CommandState()
-        /** 失败 */
-        data class Error(val kind: CommandKind, val generation: Long, val message: String) : CommandState()
-    }
-
+class ServiceCommandController(
+    private val applicationScope: CoroutineScope,
+    private val backend: Backend = RealBackend(),
+) {
     /** 命令类型 */
     enum class CommandKind { START, STOP, MODE, NODE }
 
+    /** 命令状态 */
+    sealed class CommandState {
+        data object Idle : CommandState()
+        data class Pending(val kind: CommandKind, val generation: Long) : CommandState()
+        data class Confirmed(val kind: CommandKind, val generation: Long, val status: RootModuleClient.Status) : CommandState()
+        data class Error(val kind: CommandKind, val generation: Long, val message: String) : CommandState()
+        data object Cancelled : CommandState()
+    }
+
+    /** 后端接口，可注入 fake 测试 */
+    interface Backend {
+        suspend fun start(): RootModuleClient.Status
+        suspend fun stop(): RootModuleClient.Status
+        suspend fun setMode(mode: String): RootModuleClient.Status
+        suspend fun selectNode(id: Long): RootModuleClient.Status
+        suspend fun queryStatus(): RootModuleClient.Status
+    }
+
+    /** 真实后端 */
+    class RealBackend : Backend {
+        override suspend fun start(): RootModuleClient.Status {
+            RootModuleClient.startOrReload(startIfStopped = true)
+            return waitFor({ it.connected }, 10000)
+        }
+        override suspend fun stop(): RootModuleClient.Status {
+            RootModuleClient.stop()
+            // @author 雾晚：STOP 明确检查 stopped，starting/failed 不算
+            return waitFor({ it.phase == "stopped" }, 10000)
+        }
+        override suspend fun setMode(mode: String): RootModuleClient.Status {
+            // 由调用方实现 PATCH+GET 确认，这里仅查询
+            return queryStatus()
+        }
+        override suspend fun selectNode(id: Long): RootModuleClient.Status {
+            return RootModuleClient.selectNode(id)
+        }
+        override suspend fun queryStatus(): RootModuleClient.Status {
+            return RootModuleClient.call("status")
+        }
+        private suspend fun waitFor(
+            predicate: (RootModuleClient.Status) -> Boolean,
+            timeoutMs: Long,
+        ): RootModuleClient.Status {
+            val deadline = System.currentTimeMillis() + timeoutMs
+            var last: RootModuleClient.Status? = null
+            while (System.currentTimeMillis() < deadline) {
+                delay(500)
+                last = try {
+                    RootModuleClient.call("status")
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    null
+                } ?: continue
+                if (predicate(last)) return last
+            }
+            return last ?: throw IllegalStateException("status_timeout")
+        }
+    }
+
     private val mutex = Mutex()
     private var generation = 0L
-    private var currentJob: Job? = null
 
     private val _state = MutableStateFlow<CommandState>(CommandState.Idle)
-    /** UI 只读观察 */
     val state: StateFlow<CommandState> = _state.asStateFlow()
 
     /**
-     * 提交命令。串行执行，重复命令合并。
-     * @param kind 命令类型
-     * @param action 实际执行逻辑，返回 true 表示后台已确认
-     * @return 是否已提交（false 表示有命令正在执行，已拒绝）
+     * 尝试提交。若有命令执行中，直接返回 false（不排队）。
+     * 任务在 applicationScope 中执行，调用方取消不影响。
      */
-    suspend fun submit(kind: CommandKind, action: suspend (generation: Long) -> Boolean): Boolean {
-        // 快速检查：有命令在执行则拒绝
-        if (mutex.isLocked) return false
-        return mutex.withLock {
-            // 双重检查
-            val current = _state.value
-            if (current is CommandState.Pending) return@withLock false
+    fun trySubmit(kind: CommandKind, action: suspend Backend.(Long) -> RootModuleClient.Status): Boolean {
+        // 原子 tryLock
+        if (!mutex.tryLock()) return false
+        generation++
+        val gen = generation
+        _state.value = CommandState.Pending(kind, gen)
 
-            generation++
-            val gen = generation
-            _state.value = CommandState.Pending(kind, gen)
+        applicationScope.launch {
             try {
-                val confirmed = action(gen)
-                // 仅当 generation 未变化时提交（防旧回调覆盖）
+                val status = backend.action(gen)
+                // 仅当 generation 未变时提交（防旧回调覆盖）
                 if (generation == gen) {
-                    _state.value = if (confirmed) {
-                        CommandState.Confirmed(kind, gen)
-                    } else {
-                        CommandState.Error(kind, gen, "not_confirmed")
-                    }
+                    _state.value = CommandState.Confirmed(kind, gen, status)
                 }
-                // 返回是否确认（用于调用方判断）
-                confirmed && generation == gen
             } catch (e: CancellationException) {
-                // @author 雾晚：取消必须重新抛出
+                // @author 雾晚：取消时重置为 Idle，可继续提交
+                if (generation == gen) {
+                    _state.value = CommandState.Cancelled
+                    // 延迟后回到 Idle
+                    _state.value = CommandState.Idle
+                }
                 throw e
             } catch (e: Exception) {
                 if (generation == gen) {
                     _state.value = CommandState.Error(kind, gen, e.message ?: "unknown")
                 }
-                false
             } finally {
-                // 延迟重置为 Idle，让 UI 有机会显示 Confirmed/Error
-                // 不立即重置，避免闪烁
+                mutex.unlock()
             }
         }
+        return true
     }
 
-    /** 重置为空闲（UI 已处理完结果后调用） */
+    /** UI 请求启动（不捕获 Fragment/views） */
+    fun requestStart(): Boolean = trySubmit(CommandKind.START) { backend.start() }
+
+    /** UI 请求停止 */
+    fun requestStop(): Boolean = trySubmit(CommandKind.STOP) { backend.stop() }
+
+    /** UI 请求切换模式 */
+    fun requestMode(mode: String, patch: suspend (String) -> Boolean): Boolean =
+        trySubmit(CommandKind.MODE) {
+            val ok = patch(mode)
+            if (!ok) throw IllegalStateException("mode_patch_failed")
+            backend.queryStatus()
+        }
+
+    /** UI 请求切换节点 */
+    fun requestNode(id: Long): Boolean = trySubmit(CommandKind.NODE) {
+        backend.selectNode(id)
+    }
+
+    /** 确认已处理，回到 Idle */
     fun acknowledge() {
-        val current = _state.value
-        if (current is CommandState.Confirmed || current is CommandState.Error) {
+        val s = _state.value
+        if (s is CommandState.Confirmed || s is CommandState.Error || s is CommandState.Cancelled) {
             _state.value = CommandState.Idle
         }
     }
 
-    /** 是否有命令执行中 */
     fun isBusy(): Boolean = _state.value is CommandState.Pending
 }

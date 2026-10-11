@@ -262,6 +262,11 @@ class SagerNet : Application(),
         }
         fun selectProfile(id: Long) { profileSelection.request(id) }
 
+        /** @author 雾晚：应用级串行命令控制器 */
+        val commandController by lazy {
+            io.nekohasekai.sagernet.bg.ServiceCommandController(application.applicationScope)
+        }
+
         private fun moduleCommand(work: suspend () -> Unit) {
             application.applicationScope.launch {
                 try { work() }
