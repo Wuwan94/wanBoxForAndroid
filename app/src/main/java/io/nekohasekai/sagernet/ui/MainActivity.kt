@@ -22,6 +22,7 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.asStateFlow
 import androidx.annotation.IdRes
 import androidx.core.graphics.ColorUtils
 import androidx.preference.PreferenceDataStore
@@ -730,7 +731,7 @@ class MainActivity : ThemedActivity(),
             ProfileManager.postUpdate(old, true)
             ProfileManager.postUpdate(id, true)
         }
-        if (id == DataStore.selectedProxy) binding.stats.refreshLandingIp(forceRefresh = true)
+        // @author 雾晚：落地 IP 诊断已移至 Dashboard 诊断卡
     }
 
     override fun onPreferenceDataStoreChanged(store: PreferenceDataStore, key: String) {
@@ -740,7 +741,7 @@ class MainActivity : ThemedActivity(),
                 Key.SERVICE_MODE -> {
                     connection.rebindIfServiceChanged(this@MainActivity)
                 }
-                Key.CONNECTION_TEST_URL, Key.CONNECTION_TEST_TIMEOUT -> binding.stats.refreshDisplay()
+                // @author 雾晚：StatsBar 已删除，连接测试配置由 Dashboard 诊断卡处理
                 Key.PROFILE_ID -> {
                     refreshConfigurationProfileState()
                     LandingIpManager.clearCache()
