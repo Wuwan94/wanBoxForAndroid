@@ -95,7 +95,8 @@ object RootModuleClient {
                 || command.matches(Regex("node select [1-9][0-9]{0,18}")))
         require((command == "config apply" || command == "config validate") == (input != null))
         // @author 雾晚: serve fresh-enough status from the TTL cache; mutations invalidate it.
-        if (command == "status") {
+        // dashboard 也是只读命令，纳入缓存，不当 mutation 清除
+        if (command == "status" || command == "dashboard") {
             val cached = statusCache
             if (cached != null && SystemClock.elapsedRealtime() - statusCacheAt < STATUS_TTL_MS) return@withContext cached
             // Coalesce concurrent fetches: only one su spawn; others share the result.

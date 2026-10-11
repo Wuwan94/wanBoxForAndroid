@@ -41,34 +41,39 @@ class RootTunService : Service(), BaseService.Interface {
                     data.changeState(status.state, if (changedError && status.error.isNotBlank())
                         RootModuleErrors.message(this@RootTunService, status.error) else null)
                     if (changedProfile) data.binder.broadcast { it.cbSelectorUpdate(status.profileId) }
-                    status.stats?.let { stats ->
-                        // @author 雾晚：通过 dashboard 命令获取遥测（:bg 进程内）
-                        // 验证同代次后填充，跨进程经 AIDL 传递到 UI
-                        val telemetry = try {
-                            RootModuleClient.call("dashboard").telemetry
-                        } catch (e: Exception) {
-                            if (e is kotlinx.coroutines.CancellationException) throw e
-                            null
-                        }
-                        // @author 雾晚：仅使用已验证的 runningProfileName，
-                        // 不从未确认的 selectedProxy 冒充当前节点
-                        val runningName = status.profileName.takeIf { status.connected } ?: ""
-                        data.binder.broadcast {
-                            it.cbSpeedUpdate(io.nekohasekai.sagernet.aidl.SpeedDisplayData(
-                                txRateProxy = stats.tx,
-                                rxRateProxy = stats.rx,
-                                txRateDirect = stats.directTx,
-                                rxRateDirect = stats.directRx,
-                                txTotal = 0L, // 保留字段，实际累计用 txTotalModule
-                                rxTotal = 0L,
-                                vmRSSBytes = telemetry?.vmRSSBytes ?: -1L,
-                                uptimeSeconds = telemetry?.uptimeSeconds ?: -1L,
-                                txTotalModule = telemetry?.txBytes ?: -1L,
-                                rxTotalModule = telemetry?.rxBytes ?: -1L,
-                                connectionCount = telemetry?.connectionCount ?: -1,
-                                runningProfileName = runningName
-                            ))
-                        }
+                    // @author 雾晚：直接使用一次完整 dashboard 结果作采样
+                    // 不混合 status.stats 与 dashboard.telemetry 两代次
+                    // stats 缺失不阻断 RSS/时长，失败清空遥测
+                    val dashStatus = try {
+                        RootModuleClient.call("dashboard")
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        null
+                    }
+                    val telemetry = dashStatus?.telemetry
+                    // 速度数据：优先用 dashboard 的 stats，缺失时用 0
+                    val stats = dashStatus?.stats
+                    val tx = stats?.tx ?: 0L
+                    val rx = stats?.rx ?: 0L
+                    val directTx = stats?.directTx ?: 0L
+                    val directRx = stats?.directRx ?: 0L
+                    // @author 雾晚：仅使用已验证的 runningProfileName
+                    val runningName = dashStatus?.profileName?.takeIf { dashStatus.connected } ?: ""
+                    data.binder.broadcast {
+                        it.cbSpeedUpdate(io.nekohasekai.sagernet.aidl.SpeedDisplayData(
+                            txRateProxy = tx,
+                            rxRateProxy = rx,
+                            txRateDirect = directTx,
+                            rxRateDirect = directRx,
+                            txTotal = 0L,
+                            rxTotal = 0L,
+                            vmRSSBytes = telemetry?.vmRSSBytes ?: -1L,
+                            uptimeSeconds = telemetry?.uptimeSeconds ?: -1L,
+                            txTotalModule = telemetry?.txBytes ?: -1L,
+                            rxTotalModule = telemetry?.rxBytes ?: -1L,
+                            connectionCount = telemetry?.connectionCount ?: -1,
+                            runningProfileName = runningName
+                        ))
                     }
                 } catch (e: CancellationException) { throw e }
                   catch (_: Exception) {

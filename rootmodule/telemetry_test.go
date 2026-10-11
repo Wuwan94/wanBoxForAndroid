@@ -178,28 +178,28 @@ func TestTelemetry_JSONRoundTrip(t *testing.T) {
 // TestStatus_NoHTTP verifies Status() does not perform HTTP requests
 // Status() must remain a fast local check for internal callers
 func TestStatus_NoHTTP(t *testing.T) {
-\tr := &Runtime{Root: t.TempDir(), ModuleDir: t.TempDir()}
-\t// Status() should complete quickly without network
-\t// We can't easily mock HTTP, but we verify it doesn't set Tx/Rx
-\t// (those are only set by DashboardTelemetry)
-\ts := r.Status()
-\tif s.Telemetry != nil {
-\t\tif s.Telemetry.TxBytes != nil || s.Telemetry.RxBytes != nil {
-\t\t\tt.Errorf("Status() should not populate Tx/Rx (HTTP), got %+v", s.Telemetry)
-\t\t}
-\t\tif s.Telemetry.ConnectionCount != nil {
-\t\t\tt.Errorf("Status() should not populate ConnectionCount (HTTP)")
-\t\t}
-\t}
-\tt.Logf("Status() correctly avoids HTTP for Tx/Rx/ConnectionCount")
+	r := &Runtime{Root: t.TempDir(), ModuleDir: t.TempDir()}
+	// Status() should complete quickly without network
+	// We can't easily mock HTTP, but we verify it doesn't set Tx/Rx
+	// (those are only set by DashboardTelemetry)
+	s := r.Status()
+	if s.Telemetry != nil {
+		if s.Telemetry.TxBytes != nil || s.Telemetry.RxBytes != nil {
+			t.Errorf("Status() should not populate Tx/Rx (HTTP), got %+v", s.Telemetry)
+		}
+		if s.Telemetry.ConnectionCount != nil {
+			t.Errorf("Status() should not populate ConnectionCount (HTTP)")
+		}
+	}
+	t.Logf("Status() correctly avoids HTTP for Tx/Rx/ConnectionCount")
 }
 
 // TestDashboardTelemetry_OldSessionDiscard verifies old session results are discarded
 func TestDashboardTelemetry_OldSessionDiscard(t *testing.T) {
-\tr := &Runtime{Root: t.TempDir(), ModuleDir: t.TempDir()}
-\t// Without a connected core, should return nil
-\tif t := r.DashboardTelemetry(); t != nil {
-\t\tt.Errorf("expected nil for non-connected state, got %+v", t)
-\t}
-\tt.Logf("Old session correctly discarded (nil for non-connected)")
+	r := &Runtime{Root: t.TempDir(), ModuleDir: t.TempDir()}
+	// Without a connected core, should return nil
+	if tm := r.DashboardTelemetry(); tm != nil {
+		t.Errorf("expected nil for non-connected state, got %+v", tm)
+	}
+	t.Logf("Old session correctly discarded (nil for non-connected)")
 }

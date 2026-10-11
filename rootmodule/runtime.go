@@ -611,38 +611,60 @@ func (r *Runtime) fillTelemetry(s *State) {
 }
 
 // @author 雾晚：专用 dashboard 遥测采集，仅 CLI 前台观察调用。
-// 不经过 Runtime.Status()，避免内部状态读取被网络阻塞。
-// 绑定当前运行 revision，读取有上限 JSON，请求后验证代次。
+// 不经过 Runtime.Status() 的调用方，避免内部状态读取被网络阻塞。
+// 无条件回读最新状态，严格比较 phase、Core 完整身份、RunningRevision。
+// 返回与同一快照绑定的完整结果，不拼接两代次。
 func (r *Runtime) DashboardTelemetry() *Telemetry {
 	s := r.Status()
 	if s.Phase != "connected" || !SameProcess(s.Core) {
 		return nil
 	}
-	revision := s.RunningRevision
-	core := s.Core
+	// 快照绑定：记录初始状态的完整身份
+	snapPhase := s.Phase
+	snapCore := s.Core
+	snapRevision := s.RunningRevision
+
 	t := &Telemetry{}
-	t.VmRSSBytes = readVmRSS(core.PID)
-	t.UptimeSeconds = r.coreReadyDuration(core, revision)
-	tx, rx, connCount := r.queryClashStats(revision, core)
+	t.VmRSSBytes = readVmRSS(snapCore.PID)
+	t.UptimeSeconds = r.coreReadyDuration(snapCore, snapRevision)
+	tx, rx, connCount := r.queryClashStats(snapRevision, snapCore)
 	t.TxBytes = tx
 	t.RxBytes = rx
 	t.ConnectionCount = connCount
-	// 请求后再次核对，丢弃旧会话结果
-	if !SameProcess(core) {
+
+	// @author 雾晚：请求后无条件回读，严格验证未发生代次变化
+	// 即使 stop/start 同 revision，旧进程存活也必须丢弃
+	s2 := r.Status()
+	if s2.Phase != snapPhase {
 		return nil
 	}
-	if rev, _ := r.CurrentRevision(); rev != revision {
-		// 注意：CurrentRevision 返回当前 revision，需与 runningRevision 比较
-		// 这里简化：重新获取 Status 验证
-		s2 := r.Status()
-		if s2.RunningRevision != revision || !SameProcess(s2.Core) {
-			return nil
-		}
+	// 严格比较 Core 完整身份（PID/start/executable），不只 SameProcess
+	if s2.Core.PID != snapCore.PID || s2.Core.Start != snapCore.Start || s2.Core.Executable != snapCore.Executable {
+		return nil
+	}
+	if s2.RunningRevision != snapRevision {
+		return nil
+	}
+	if !SameProcess(s2.Core) {
+		return nil
 	}
 	if t.VmRSSBytes <= 0 && t.UptimeSeconds <= 0 && tx == nil && rx == nil && connCount == nil {
 		return nil
 	}
 	return t
+}
+
+// @author 雾晚：返回绑定同一快照的完整 Dashboard 状态。
+// CLI dashboard 命令使用，避免旧 state 与新 telemetry 拼接两代次。
+func (r *Runtime) DashboardState() State {
+	s := r.Status()
+	// 仅在 connected 时附加遥测，且与同一快照绑定
+	if s.Phase == "connected" && SameProcess(s.Core) {
+		if t := r.DashboardTelemetry(); t != nil {
+			s.Telemetry = t
+		}
+	}
+	return s
 }
 
 func (r *Runtime) Status() State {

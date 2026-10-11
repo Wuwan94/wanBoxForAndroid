@@ -47,15 +47,15 @@ func main() {
 	} else if err = module.IndependentCgroup(); err == nil {
 		err = run(ctx, r, os.Args[1:])
 	}
-	state := r.Status()
+	// @author 雾晚：dashboard 返回绑定同一快照的完整状态，不拼接两代次
+	var state module.State
+	if len(os.Args) == 2 && os.Args[1] == "dashboard" {
+		state = r.DashboardState()
+	} else {
+		state = r.Status()
+	}
 	if len(os.Args) == 2 && os.Args[1] == "logs" {
 		state.Events = r.Events()
-	}
-	// @author 雾晚：dashboard 命令显式获取遥测，不经过 Status() 的快速路径
-	if len(os.Args) == 2 && os.Args[1] == "dashboard" {
-		if t := r.DashboardTelemetry(); t != nil {
-			state.Telemetry = t
-		}
 	}
 	module.Response(os.Stdout, state, err)
 	if err != nil {

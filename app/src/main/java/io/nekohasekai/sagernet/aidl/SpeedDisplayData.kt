@@ -16,9 +16,9 @@ data class SpeedDisplayData(
     var txTotal: Long = 0L,
     var rxTotal: Long = 0L,
 
-    // @author 雾晚：模块端遥测（可空，未知为 null，不用 0 冒充）
+    // @author 雾晚：模块端遥测（-1=未知，明确协议）
     // 由 :bg 进程通过 AIDL 回调传递，UI 进程观察
-    // -1 表示未知（Parcelable 不支持 Long?，用 -1 标记）
+    // 使用 -1 标记未知，与真实 0 区分（见回归测试）
     var vmRSSBytes: Long = -1L,
     var uptimeSeconds: Long = -1L,
     var txTotalModule: Long = -1L,
