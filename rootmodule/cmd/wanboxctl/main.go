@@ -51,6 +51,12 @@ func main() {
 	if len(os.Args) == 2 && os.Args[1] == "logs" {
 		state.Events = r.Events()
 	}
+	// @author 雾晚：dashboard 命令显式获取遥测，不经过 Status() 的快速路径
+	if len(os.Args) == 2 && os.Args[1] == "dashboard" {
+		if t := r.DashboardTelemetry(); t != nil {
+			state.Telemetry = t
+		}
+	}
 	module.Response(os.Stdout, state, err)
 	if err != nil {
 		os.Exit(1)
@@ -114,7 +120,7 @@ func run(ctx context.Context, r *module.Runtime, args []string) error {
 	}
 	if len(args) == 1 {
 		switch args[0] {
-		case "status", "module", "logs":
+		case "status", "module", "logs", "dashboard":
 			return nil
 		case "start":
 			return r.Start(ctx)

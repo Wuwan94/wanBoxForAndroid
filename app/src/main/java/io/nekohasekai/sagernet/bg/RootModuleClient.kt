@@ -26,7 +26,7 @@ object RootModuleClient {
     // @author 雾晚: this is the manager-owned root module, never App private storage.
     @android.annotation.SuppressLint("SdCardPath")
     const val CLI = "/data/adb/modules/wanbox/bin/wanboxctl"
-    private val commands = setOf("status", "module", "logs", "start", "stop", "restart", "reload",
+    private val commands = setOf("status", "module", "logs", "dashboard", "start", "stop", "restart", "reload",
         "config apply", "config validate", "autostart on", "autostart off", "data prepare", "data finish", "data rollback")
     private val changes = Mutex()
     // @author 雾晚: 2s TTL status cache. The home observer, service tiles and node

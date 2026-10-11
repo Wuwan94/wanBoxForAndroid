@@ -367,10 +367,11 @@ class DashboardFragment : ToolbarFragment() {
             return
         }
 
-        // 获取模块遥测（复用 RootModuleClient TTL 缓存，单次查询）
+        // @author 雾晚：通过专用 dashboard 命令获取遥测
+        // 不经过 Status() 快速路径，由 CLI 显式采集
         val telemetry = withContext(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                io.nekohasekai.sagernet.bg.RootModuleClient.call("status").telemetry
+                io.nekohasekai.sagernet.bg.RootModuleClient.call("dashboard").telemetry
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 null
@@ -381,8 +382,11 @@ class DashboardFragment : ToolbarFragment() {
             if (!isAdded) return@withContext
             uploadSpeed?.text = Formatter.formatFileSize(ctx, stats.txRateProxy) + "/s"
             downloadSpeed?.text = Formatter.formatFileSize(ctx, stats.rxRateProxy) + "/s"
-            uploadTotal?.text = "累计 " + Formatter.formatFileSize(ctx, stats.txTotal)
-            downloadTotal?.text = "累计 " + Formatter.formatFileSize(ctx, stats.rxTotal)
+            // @author 雾晚：优先使用模块采集的真实累计（可空），未知显示—
+            uploadTotal?.text = telemetry?.txBytes?.let { "累计 " + Formatter.formatFileSize(ctx, it) }
+                ?: "累计 —"
+            downloadTotal?.text = telemetry?.rxBytes?.let { "累计 " + Formatter.formatFileSize(ctx, it) }
+                ?: "累计 —"
             // @author 雾晚：RSS 未知显示—，不伪造
             coreMemory?.text = telemetry?.let {
                 if (it.vmRSSBytes > 0) Formatter.formatFileSize(ctx, it.vmRSSBytes) else "—"

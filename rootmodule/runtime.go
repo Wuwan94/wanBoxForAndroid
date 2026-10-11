@@ -488,14 +488,23 @@ func (r *Runtime) coreReadyDuration(core ProcessIdentity, revision string) int64
 	return int64(d.Seconds())
 }
 
-// @author 雾晚：从运行配置读取 Clash API secret，仅本地鉴权，不泄露。
-func (r *Runtime) clashAPISecret() string {
-	data, err := os.ReadFile(r.path("run", "config.json"))
+// @author 雾晚：从运行中配置读取 Clash API secret，仅本地鉴权。
+// 真实路径：generations/<runningRevision>/run/config.json
+// 绑定 revision，有上限流式读取，禁止先全量再检查。
+func (r *Runtime) clashAPISecret(revision string) string {
+	if revision == "" || !revisionName.MatchString(revision) {
+		return ""
+	}
+	path := r.path("generations", revision, "run", "config.json")
+	f, err := os.Open(path)
 	if err != nil {
 		return ""
 	}
-	// 限制读取大小，防止大配置耗内存
-	if len(data) > MaxConfigBytes {
+	defer f.Close()
+	// 有上限读取：MaxConfigBytes+1，超限明确拒绝
+	limited := io.LimitReader(f, MaxConfigBytes+1)
+	data, err := io.ReadAll(limited)
+	if err != nil || len(data) > MaxConfigBytes {
 		return ""
 	}
 	var config struct {
@@ -512,20 +521,26 @@ func (r *Runtime) clashAPISecret() string {
 }
 
 // @author 雾晚：通过受限 loopback API 获取连接数与累计流量。
-// 仅访问 127.0.0.1:9090，5s 超时，禁重定向，流式限额 256KB。
-// 返回 (txBytes, rxBytes, connectionCount)，未知为 nil。
-func (r *Runtime) queryClashStats() (tx, rx *int64, connCount *int) {
-	secret := r.clashAPISecret()
+// 仅访问 127.0.0.1:9090，禁用环境代理，禁重定向，总 ctx 超时 5s，
+// 响应读 max+1 明确拒绝超限。请求后由调用方验证代次。
+func (r *Runtime) queryClashStats(revision string, core ProcessIdentity) (tx, rx *int64, connCount *int) {
+	secret := r.clashAPISecret(revision)
 	if secret == "" {
 		return nil, nil, nil
 	}
+	// 禁用环境代理，仅 loopback
+	transport := &http.Transport{
+		Proxy: nil,
+	}
 	client := &http.Client{
-		Timeout: 5 * time.Second,
+		Transport: transport,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return errors.New("redirect_forbidden")
 		},
 	}
-	req, err := http.NewRequest("GET", "http://127.0.0.1:9090/connections", nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://127.0.0.1:9090/connections", nil)
 	if err != nil {
 		return nil, nil, nil
 	}
@@ -538,21 +553,21 @@ func (r *Runtime) queryClashStats() (tx, rx *int64, connCount *int) {
 	if resp.StatusCode != 200 {
 		return nil, nil, nil
 	}
-	// 流式限额 256KB
-	limited := io.LimitReader(resp.Body, 262144)
+	// 读 max+1 (256KB+1)，超限明确拒绝
+	const maxResp = 262144
+	limited := io.LimitReader(resp.Body, maxResp+1)
 	data, err := io.ReadAll(limited)
-	if err != nil {
+	if err != nil || len(data) > maxResp {
 		return nil, nil, nil
 	}
 	var result struct {
-		UploadTotal   *int64 `json:"uploadTotal"`
-		DownloadTotal *int64 `json:"downloadTotal"`
+		UploadTotal   *int64            `json:"uploadTotal"`
+		DownloadTotal *int64            `json:"downloadTotal"`
 		Connections   []json.RawMessage `json:"connections"`
 	}
 	if err := json.Unmarshal(data, &result); err != nil {
 		return nil, nil, nil
 	}
-	// 验证非负
 	if result.UploadTotal != nil && *result.UploadTotal < 0 {
 		result.UploadTotal = nil
 	}
@@ -567,8 +582,10 @@ func (r *Runtime) queryClashStats() (tx, rx *int64, connCount *int) {
 	return result.UploadTotal, result.DownloadTotal, count
 }
 
-// @author 雾晚：填充遥测数据。仅在 Core 进程身份校验通过后调用。
-// 读取前后验证 PID/代次，旧数据不覆盖新会话。
+// @author 雾晚：填充本地遥测数据（无 HTTP）。
+// Runtime.Status() 必须保持快速本地检查，不访问网络。
+// Tx/Rx/connectionCount 由专用 dashboard 命令在 CLI 层显式获取，
+// 不经过 Status()，避免守护循环/持锁逻辑被网络等待阻塞。
 func (r *Runtime) fillTelemetry(s *State) {
 	if !SameProcess(s.Core) {
 		s.Telemetry = nil
@@ -584,18 +601,48 @@ func (r *Runtime) fillTelemetry(s *State) {
 	}
 	// 运行时长：ready marker 时间，需验证 revision 一致
 	t.UptimeSeconds = r.coreReadyDuration(s.Core, revision)
-	// Tx/Rx/connectionCount：通过受限本地 API 实际采集
-	tx, rx, connCount := r.queryClashStats()
-	t.TxBytes = tx
-	t.RxBytes = rx
-	t.ConnectionCount = connCount
-	// 仅当有有效数据时保留 Telemetry，否则 nil（Kotlin 显示"—"）
-	// 注意：tx/rx/conn 为 nil 表示未知，不影响 hasData 判断
+	// Tx/Rx/connectionCount: nil（未知），由 dashboard 命令单独采集
+	// Status() 永不发起 HTTP，保持快速
 	if t.VmRSSBytes > 0 || t.UptimeSeconds > 0 {
 		s.Telemetry = t
 	} else {
 		s.Telemetry = nil
 	}
+}
+
+// @author 雾晚：专用 dashboard 遥测采集，仅 CLI 前台观察调用。
+// 不经过 Runtime.Status()，避免内部状态读取被网络阻塞。
+// 绑定当前运行 revision，读取有上限 JSON，请求后验证代次。
+func (r *Runtime) DashboardTelemetry() *Telemetry {
+	s := r.Status()
+	if s.Phase != "connected" || !SameProcess(s.Core) {
+		return nil
+	}
+	revision := s.RunningRevision
+	core := s.Core
+	t := &Telemetry{}
+	t.VmRSSBytes = readVmRSS(core.PID)
+	t.UptimeSeconds = r.coreReadyDuration(core, revision)
+	tx, rx, connCount := r.queryClashStats(revision, core)
+	t.TxBytes = tx
+	t.RxBytes = rx
+	t.ConnectionCount = connCount
+	// 请求后再次核对，丢弃旧会话结果
+	if !SameProcess(core) {
+		return nil
+	}
+	if rev, _ := r.CurrentRevision(); rev != revision {
+		// 注意：CurrentRevision 返回当前 revision，需与 runningRevision 比较
+		// 这里简化：重新获取 Status 验证
+		s2 := r.Status()
+		if s2.RunningRevision != revision || !SameProcess(s2.Core) {
+			return nil
+		}
+	}
+	if t.VmRSSBytes <= 0 && t.UptimeSeconds <= 0 && tx == nil && rx == nil && connCount == nil {
+		return nil
+	}
+	return t
 }
 
 func (r *Runtime) Status() State {
