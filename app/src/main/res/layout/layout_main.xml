@@ -24,15 +24,15 @@
             android:layout_weight="1"
             android:clipToPadding="false" />
 
-        <!-- 底部导航：wrap_content，含 gesture inset -->
+        <!-- 底部导航：wrap_content，语义主题色支持深色与选中状态 -->
         <com.google.android.material.bottomnavigation.BottomNavigationView
             android:id="@+id/bottom_nav"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="#FFFFFF"
+            android:background="?attr/colorSurface"
             app:elevation="8dp"
-            app:itemIconTint="#616161"
-            app:itemTextColor="#616161"
+            app:itemIconTint="@color/bottom_nav_item_color"
+            app:itemTextColor="@color/bottom_nav_item_color"
             app:menu="@menu/bottom_nav_menu" />
 
     </LinearLayout>

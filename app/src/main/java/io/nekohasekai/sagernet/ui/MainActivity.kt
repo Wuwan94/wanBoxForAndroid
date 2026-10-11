@@ -100,7 +100,6 @@ class MainActivity : ThemedActivity(),
     var lastSpeedStats: SpeedDisplayData?
         get() = _speedStatsFlow.value
         set(value) { _speedStatsFlow.value = value }
-        private set
 
     fun navigateToNodes() {
         // 跳转到节点页（底部导航的节点 tab）
@@ -589,12 +588,8 @@ class MainActivity : ThemedActivity(),
         animate: Boolean,
     ) {
         val showControls = fragment is ConfigurationFragment || DataStore.showBottomBar
-            showControls,
-            DataStore.serviceState,
-            showWhenConnected,
-            animate,
-        )
-        // preview.19: 悬浮按钮已移除
+        // preview.19: 悬浮按钮已移除，StatsBar 已删除
+        // @author 雾晚：诊断入口已移至 Dashboard 诊断卡
     }
 
     private fun refreshConfigurationProfileState() {
