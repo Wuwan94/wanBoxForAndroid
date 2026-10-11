@@ -212,10 +212,9 @@ class DashboardFragment : ToolbarFragment() {
                 DataStore.proxyApps = false
             }
             MODE_DIRECT -> {
-                SagerNet.stopService()
-                DataStore.dashboardMode = mode
-                updateModeUI()
-                return
+                // 直连模式：不断开 Root TUN，仅切换路由为直连
+                DataStore.bypass = true
+                DataStore.proxyApps = false
             }
         }
         DataStore.dashboardMode = mode
