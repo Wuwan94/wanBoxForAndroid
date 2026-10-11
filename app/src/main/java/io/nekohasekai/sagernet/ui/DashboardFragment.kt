@@ -27,6 +27,10 @@ class DashboardFragment : ToolbarFragment() {
 
     private var statusText: TextView? = null
     private var serviceSwitch: SwitchMaterial? = null
+    // 防止程序化更新开关状态时触发监听器导致重复启停
+    private var suppressSwitchCallback = false
+    // 防重复提交：连接操作进行中时忽略新的点击
+    private var serviceOpInProgress = false
     private var nodeName: TextView? = null
     private var nodeInfo: TextView? = null
     private var uptimeText: TextView? = null
@@ -70,11 +74,22 @@ class DashboardFragment : ToolbarFragment() {
         connectionCount = view.findViewById(R.id.connectionCount)
 
         serviceSwitch?.setOnCheckedChangeListener { _, isChecked ->
+            if (suppressSwitchCallback) return@setOnCheckedChangeListener
+            if (serviceOpInProgress) {
+                // 操作进行中，恢复开关到实际状态，忽略本次点击
+                syncSwitchToState()
+                return@setOnCheckedChangeListener
+            }
+            serviceOpInProgress = true
             if (isChecked) {
                 SagerNet.startService()
             } else {
                 SagerNet.stopService()
             }
+            // 等待后台状态回调后清除标记，超时保护
+            view?.postDelayed({
+                serviceOpInProgress = false
+            }, 5000)
         }
 
         modeRule?.setOnClickListener { setMode(MODE_RULE) }
@@ -125,22 +140,39 @@ class DashboardFragment : ToolbarFragment() {
     private fun updateServiceState() {
         val state = (activity as? MainActivity)?.serviceState ?: BaseService.State.Idle
         lifecycleScope.launch {
-            when (state) {
-                BaseService.State.Connected -> {
-                    statusText?.text = getString(R.string.service_state_connected)
-                    if (serviceSwitch?.isChecked == false) serviceSwitch?.isChecked = true
+            // 后台确认状态后清除操作中标记
+            serviceOpInProgress = false
+            suppressSwitchCallback = true
+            try {
+                when (state) {
+                    BaseService.State.Connected -> {
+                        statusText?.text = getString(R.string.service_state_connected)
+                        if (serviceSwitch?.isChecked == false) serviceSwitch?.isChecked = true
+                    }
+                    BaseService.State.Connecting -> {
+                        statusText?.text = getString(R.string.service_state_connecting)
+                    }
+                    BaseService.State.Stopping -> {
+                        statusText?.text = getString(R.string.service_state_stopping)
+                    }
+                    else -> {
+                        statusText?.text = getString(R.string.service_state_idle)
+                        if (serviceSwitch?.isChecked == true) serviceSwitch?.isChecked = false
+                    }
                 }
-                BaseService.State.Connecting -> {
-                    statusText?.text = getString(R.string.service_state_connecting)
-                }
-                BaseService.State.Stopping -> {
-                    statusText?.text = getString(R.string.service_state_stopping)
-                }
-                else -> {
-                    statusText?.text = getString(R.string.service_state_idle)
-                    if (serviceSwitch?.isChecked == true) serviceSwitch?.isChecked = false
-                }
+            } finally {
+                suppressSwitchCallback = false
             }
+        }
+    }
+
+    private fun syncSwitchToState() {
+        val state = (activity as? MainActivity)?.serviceState ?: BaseService.State.Idle
+        suppressSwitchCallback = true
+        try {
+            serviceSwitch?.isChecked = (state == BaseService.State.Connected)
+        } finally {
+            suppressSwitchCallback = false
         }
     }
 

@@ -116,7 +116,7 @@ class MainActivity : ThemedActivity(),
         val animateInitialControls = savedInstanceState == null
 
         binding = LayoutMainBinding.inflate(layoutInflater)
-        binding.fab.initProgress(binding.fabProgress)
+        // preview.19: 移除悬浮小飞机，连接操作统一在仪表盘
         val isNight = Theme.usingNightMode()
         val fabBgColor = when {
             Theme.isBlackTheme() -> Color.BLACK
@@ -136,8 +136,6 @@ class MainActivity : ThemedActivity(),
                 }
             }
         }
-        binding.fab.backgroundTintList = ColorStateList.valueOf(fabBgColor)
-        binding.fab.imageTintList = ColorStateList.valueOf(Color.WHITE)
         if (themeResId !in intArrayOf(
                 R.style.Theme_SagerNet_Black
             )
@@ -174,10 +172,6 @@ class MainActivity : ThemedActivity(),
             }
         }
 
-        binding.fab.setOnClickListener {
-            if (DataStore.hapticFeedback) it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            if (DataStore.serviceState.canStop) SagerNet.stopService() else SagerNet.startService()
-        }
         binding.stats.setOnClickListener {
             if (DataStore.hapticFeedback) it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (DataStore.serviceState.connected) binding.stats.testConnection()
@@ -605,21 +599,7 @@ class MainActivity : ThemedActivity(),
             showWhenConnected,
             animate,
         )
-        binding.fab.animate().cancel()
-        if (showControls) {
-            binding.fab.translationY = 0f
-            binding.fab.translationX = 0f
-            binding.fab.show()
-        } else {
-            binding.fab.hideProgress()
-            binding.fabProgress.hide()
-            binding.fabProgress.visibility = View.INVISIBLE
-            if (animate && binding.fab.isLaidOut) {
-                binding.fab.hide()
-            } else {
-                binding.fab.visibility = View.INVISIBLE
-            }
-        }
+        // preview.19: 悬浮按钮已移除
     }
 
     private fun refreshConfigurationProfileState() {
@@ -679,7 +659,7 @@ class MainActivity : ThemedActivity(),
         refreshConfigurationProfileState()
         io.nekohasekai.sagernet.widget.OwnBoxWidgetProvider.updateWidgets(this)
 
-        binding.fab.changeState(state, DataStore.serviceState, animate)
+        // preview.19: 服务状态由仪表盘处理
         binding.stats.changeState(state)
         syncMainControls(
             showWhenConnected = state == BaseService.State.Connected,
@@ -690,9 +670,8 @@ class MainActivity : ThemedActivity(),
 
     override fun snackbarInternal(text: CharSequence): Snackbar {
         return Snackbar.make(binding.coordinator, text, Snackbar.LENGTH_LONG).apply {
-            if (binding.fab.isShown) {
-                anchorView = binding.fab
-            }
+            // preview.19: 锚定到底部导航
+            anchorView = binding.bottomNav
             // TODO
         }
     }

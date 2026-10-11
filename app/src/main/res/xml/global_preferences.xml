@@ -137,11 +137,6 @@
             app:title="@string/show_subscription_info_card" />
 
 
-        <moe.matsuri.nb4a.ui.ColorPickerPreference
-            android:title="@string/theme"
-            app:icon="@drawable/ic_baseline_color_lens_24"
-            app:key="appTheme" />
-
         <moe.matsuri.nb4a.ui.SimpleMenuPreference
             app:defaultValue="0"
             app:entries="@array/night_mode"
@@ -161,20 +156,10 @@
             app:useSimpleSummaryProvider="true" />
 
         <SwitchPreference
-            app:key="showBottomBar"
-            app:title="@string/show_bottom_bar" />
-
-        <SwitchPreference
             app:defaultValue="true"
             app:key="hapticFeedback"
             app:title="@string/haptic_feedback"
             app:summary="@string/haptic_feedback_summary" />
-
-        <SwitchPreference
-            app:defaultValue="false"
-            app:key="showAllGroupsTab"
-            app:title="@string/show_all_groups_tab"
-            app:summary="@string/show_all_groups_tab_summary" />
 
         <SwitchPreference
             app:key="hideFromRecentApps"
