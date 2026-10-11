@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
  * @author 雾晚：应用级串行命令控制器。
@@ -75,17 +77,40 @@ class ServiceCommandController(
             return s
         }
         /**
-         * @author 雾晚：经模块 CLI 执行 PATCH /configs
-         * secret 从运行配置读取，PATCH 后 GET 确认
+         * @author 雾晚：经 Clash API 执行 PATCH /configs 并 GET 确认
+         * 使用 DataStore.clashApiSecret（与配置生成时的 secret 一致），
+         * 仅访问 127.0.0.1:9090，5s 超时。返回 true 仅当 PATCH 成功且 GET 确认模式一致。
          */
         private suspend fun patchClashModeViaModule(mode: String): Boolean {
             return try {
-                // 调用模块的 dashboard 命令已包含 secret 读取
-                // 这里简化：直接用 RootModuleClient 的内部方法
-                // 实际应通过新增的 module 命令 "mode <mode>" 实现
-                // 为保持兼容，暂时返回 true 由上层确认
-                // TODO: 实现 module mode 命令
-                true
+                val secret = io.nekohasekai.sagernet.database.DataStore.clashApiSecret
+                val client = okhttp3.OkHttpClient.Builder()
+                    .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                    .followRedirects(false)
+                    .build()
+                // PATCH 设置模式
+                val body = "{\"mode\":\"$mode\"}"
+                    .toRequestBody("application/json".toMediaType())
+                val patchReq = okhttp3.Request.Builder()
+                    .url("http://127.0.0.1:9090/configs")
+                    .patch(body)
+                    .header("Authorization", "Bearer $secret")
+                    .build()
+                val patchOk = client.newCall(patchReq).execute().use { it.isSuccessful }
+                if (!patchOk) return false
+                // GET 确认模式已生效（读回确认）
+                val getReq = okhttp3.Request.Builder()
+                    .url("http://127.0.0.1:9090/configs")
+                    .header("Authorization", "Bearer $secret")
+                    .build()
+                val confirmedMode = client.newCall(getReq).execute().use { resp ->
+                    if (!resp.isSuccessful) return false
+                    val bodyStr = resp.body?.string()?.take(4096) ?: return false
+                    org.json.JSONObject(bodyStr).optString("mode", null)
+                }
+                // 代次一致性：确认返回的模式与目标一致
+                confirmedMode.equals(mode, ignoreCase = true)
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
