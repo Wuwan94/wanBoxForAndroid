@@ -10,17 +10,23 @@ import json
 import re
 
 def module_properties(template, project_properties):
-    """Derive module identity/version from the same preview metadata as the APK. @author 雾晚"""
+    """Derive module identity/version from the same metadata as the APK. @author 雾晚"""
     values = {}
     for line in project_properties.splitlines():
         if not line.strip() or line.lstrip().startswith('#'): continue
         key, separator, value = line.partition('=')
         if not separator or key.strip() in values: raise ValueError('invalid project properties')
         values[key.strip()] = value.strip()
-    version, code = values.get('PRE_VERSION_NAME', ''), values.get('PRE_VERSION_CODE', '')
-    if not re.fullmatch(r'[0-9][0-9A-Za-z.+_-]{0,79}', version): raise ValueError('invalid preview version')
+    # 正式版用 VERSION_NAME/VERSION_CODE，预览版用 PRE_VERSION_NAME/PRE_VERSION_CODE
+    version_name = values.get('VERSION_NAME', '')
+    is_official = version_name and not any(x in version_name.lower() for x in ['preview', 'alpha', 'beta'])
+    if is_official:
+        version, code = values.get('VERSION_NAME', ''), values.get('VERSION_CODE', '')
+    else:
+        version, code = values.get('PRE_VERSION_NAME', ''), values.get('PRE_VERSION_CODE', '')
+    if not re.fullmatch(r'[0-9][0-9A-Za-z.+_-]{0,79}', version): raise ValueError('invalid version')
     if not re.fullmatch(r'[1-9][0-9]{0,9}', code) or int(code) > 2147483647:
-        raise ValueError('invalid preview version code')
+        raise ValueError('invalid version code')
     replacements = {'version': version, 'versionCode': code}
     seen, lines = set(), []
     for line in template.decode('utf-8').splitlines():
