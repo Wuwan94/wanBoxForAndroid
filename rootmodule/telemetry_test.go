@@ -76,29 +76,42 @@ func TestCoreReadyDuration_NoMarker(t *testing.T) {
 }
 
 // TestCoreReadyDuration_WithMarker verifies duration from marker time
+// Uses valid 64-char hex revision, writes Root/current, checks all errors
 func TestCoreReadyDuration_WithMarker(t *testing.T) {
 	root := t.TempDir()
 	r := &Runtime{Root: root, ModuleDir: t.TempDir()}
 
+	// Valid 64-char hex revision (revisionName requires it)
+	rev := "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90"
+
 	// Create runtime/ready marker with known mod time (65 seconds ago)
 	runtimeDir := filepath.Join(root, "runtime")
-	os.MkdirAll(runtimeDir, 0755)
+	if err := os.MkdirAll(runtimeDir, 0755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
 	readyPath := filepath.Join(runtimeDir, "ready")
-	os.WriteFile(readyPath, []byte("ready"), 0644)
+	if err := os.WriteFile(readyPath, []byte("ready"), 0644); err != nil {
+		t.Fatalf("WriteFile ready failed: %v", err)
+	}
 	past := time.Now().Add(-65 * time.Second)
-	os.Chtimes(readyPath, past, past)
+	if err := os.Chtimes(readyPath, past, past); err != nil {
+		t.Fatalf("Chtimes failed: %v", err)
+	}
 
-	// Use current process with valid identity to pass SameProcess check
+	// Write Root/current with valid revision (coreReadyDuration calls CurrentRevision)
+	currentPath := filepath.Join(root, "current")
+	if err := os.WriteFile(currentPath, []byte(rev), 0644); err != nil {
+		t.Fatalf("WriteFile current failed: %v", err)
+	}
+
+	// Use current process with valid identity (real /proc verification)
 	pid := os.Getpid()
 	identity, err := Identity(pid)
 	if err != nil {
-		t.Skipf("cannot get identity for current process: %v", err)
+		t.Fatalf("cannot get identity for current process: %v", err)
 	}
-	// Write state.json with matching revision to pass revision check
-	statePath := filepath.Join(root, "state.json")
-	os.WriteFile(statePath, []byte(`{"revision":"rev1","runningRevision":"rev1"}`), 0644)
 
-	dur := r.coreReadyDuration(identity, "rev1")
+	dur := r.coreReadyDuration(identity, rev)
 	// Should be approximately 65 seconds (allow 5s tolerance for test execution)
 	if dur < 60 || dur > 70 {
 		t.Errorf("expected ~65s duration, got %d", dur)

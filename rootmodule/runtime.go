@@ -520,23 +520,27 @@ func (r *Runtime) clashAPISecret(revision string) string {
 	return config.Experimental.ClashAPI.Secret
 }
 
+// @author 雾晚：共享受限 loopback 客户端，避免每轮新建遗留 idle socket。
+// 禁用环境代理，禁重定向。调用方负责 ctx 超时。
+var loopbackClient = &http.Client{
+	Transport: &http.Transport{
+		Proxy:               nil, // 禁用环境代理，仅 loopback
+		MaxIdleConns:        2,
+		IdleConnTimeout:     10 * time.Second,
+		DisableCompression:  true,
+	},
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		return errors.New("redirect_forbidden")
+	},
+}
+
 // @author 雾晚：通过受限 loopback API 获取连接数与累计流量。
-// 仅访问 127.0.0.1:9090，禁用环境代理，禁重定向，总 ctx 超时 5s，
+// 仅访问 127.0.0.1:9090，复用受限客户端，总 ctx 超时 5s，
 // 响应读 max+1 明确拒绝超限。请求后由调用方验证代次。
 func (r *Runtime) queryClashStats(revision string, core ProcessIdentity) (tx, rx *int64, connCount *int) {
 	secret := r.clashAPISecret(revision)
 	if secret == "" {
 		return nil, nil, nil
-	}
-	// 禁用环境代理，仅 loopback
-	transport := &http.Transport{
-		Proxy: nil,
-	}
-	client := &http.Client{
-		Transport: transport,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return errors.New("redirect_forbidden")
-		},
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -545,7 +549,8 @@ func (r *Runtime) queryClashStats(revision string, core ProcessIdentity) (tx, rx
 		return nil, nil, nil
 	}
 	req.Header.Set("Authorization", "Bearer "+secret)
-	resp, err := client.Do(req)
+	// @author 雾晚：复用受限客户端，避免每轮遗留 idle socket
+	resp, err := loopbackClient.Do(req)
 	if err != nil {
 		return nil, nil, nil
 	}

@@ -45,10 +45,8 @@ class DashboardFragment : ToolbarFragment() {
 
     private var statusText: TextView? = null
     private var serviceSwitch: SwitchMaterial? = null
-    // 防止程序化更新开关状态时触发监听器导致重复启停
-    private var suppressSwitchCallback = false
-    // 防重复提交：连接操作进行中时忽略新的点击
-    private var serviceOpInProgress = false
+    // @author 雾晚：使用应用级 ServiceCommandController 串行控制
+    // 替代局部门闩 + 5s 延时，UI 通过 StateFlow 只读观察
     private var nodeName: TextView? = null
     private var nodeInfo: TextView? = null
     private var uptimeText: TextView? = null
@@ -90,22 +88,51 @@ class DashboardFragment : ToolbarFragment() {
         connectionCount = view.findViewById(R.id.connectionCount)
 
         serviceSwitch?.setOnCheckedChangeListener { _, isChecked ->
-            if (suppressSwitchCallback) return@setOnCheckedChangeListener
-            if (serviceOpInProgress) {
+            // @author 雾晚：程序化更新时 tag 标记，回调直接返回不发送命令
+            if (serviceSwitch?.tag == "programmatic") return@setOnCheckedChangeListener
+            if (io.nekohasekai.sagernet.bg.ServiceCommandController.isBusy()) {
                 // 操作进行中，恢复开关到实际状态，忽略本次点击
                 syncSwitchToState()
                 return@setOnCheckedChangeListener
             }
-            serviceOpInProgress = true
-            if (isChecked) {
-                SagerNet.startService()
+            // @author 雾晚：通过应用级串行控制器提交，后台确认后更新
+            val kind = if (isChecked) {
+                io.nekohasekai.sagernet.bg.ServiceCommandController.CommandKind.START
             } else {
-                SagerNet.stopService()
+                io.nekohasekai.sagernet.bg.ServiceCommandController.CommandKind.STOP
             }
-            // @author 雾晚：等待后台状态回调后清除标记，超时保护（生命周期感知）
             lifecycleScope.launch {
-                kotlinx.coroutines.delay(5000)
-                serviceOpInProgress = false
+                val submitted = io.nekohasekai.sagernet.bg.ServiceCommandController.submit(kind) { gen ->
+                    try {
+                        if (isChecked) {
+                            SagerNet.startService()
+                        } else {
+                            SagerNet.stopService()
+                        }
+                        // 等待后台确认：轮询状态直到目标状态或超时
+                        val targetConnected = isChecked
+                        val deadline = System.currentTimeMillis() + 10000
+                        while (System.currentTimeMillis() < deadline) {
+                            kotlinx.coroutines.delay(500)
+                            val s = try {
+                                io.nekohasekai.sagernet.bg.RootModuleClient.call("status")
+                            } catch (e: Exception) {
+                                if (e is kotlinx.coroutines.CancellationException) throw e
+                                null
+                            } ?: continue
+                            if (s.connected == targetConnected) return@submit true
+                        }
+                        false
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        false
+                    }
+                }
+                if (!submitted) {
+                    // 被拒绝（有命令执行中），恢复开关
+                    syncSwitchToState()
+                }
             }
         }
 
@@ -127,6 +154,23 @@ class DashboardFragment : ToolbarFragment() {
                 while (true) {
                     updateDashboardOnce()
                     kotlinx.coroutines.delay(1000)
+                }
+            }
+        }
+        // @author 雾晚：观察串行命令状态，UI 只读渲染
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                io.nekohasekai.sagernet.bg.ServiceCommandController.state.collect { state ->
+                    when (state) {
+                        is io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.Confirmed,
+                        is io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.Error -> {
+                            // 后台已确认，同步 UI 并确认
+                            syncSwitchToState()
+                            updateServiceState()
+                            io.nekohasekai.sagernet.bg.ServiceCommandController.acknowledge()
+                        }
+                        else -> {}
+                    }
                 }
             }
         }
@@ -164,7 +208,7 @@ class DashboardFragment : ToolbarFragment() {
         lifecycleScope.launch {
             // 后台确认状态后清除操作中标记
             serviceOpInProgress = false
-            suppressSwitchCallback = true
+            serviceSwitch?.tag = "programmatic"
             try {
                 when (state) {
                     BaseService.State.Connected -> {
@@ -183,18 +227,18 @@ class DashboardFragment : ToolbarFragment() {
                     }
                 }
             } finally {
-                suppressSwitchCallback = false
+                serviceSwitch?.tag = null
             }
         }
     }
 
     private fun syncSwitchToState() {
         val state = (activity as? MainActivity)?.serviceState ?: BaseService.State.Idle
-        suppressSwitchCallback = true
+        serviceSwitch?.tag = "programmatic"
         try {
             serviceSwitch?.isChecked = (state == BaseService.State.Connected)
         } finally {
-            suppressSwitchCallback = false
+            serviceSwitch?.tag = null
         }
     }
 
