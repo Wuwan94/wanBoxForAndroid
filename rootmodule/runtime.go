@@ -63,12 +63,28 @@ type State struct {
 	Core            ProcessIdentity       `json:"core"`
 	Error           string                `json:"error,omitempty"`
 	Stats           json.RawMessage       `json:"stats,omitempty"`
+	Telemetry       *Telemetry            `json:"telemetry,omitempty"`
 	Events          []Event               `json:"events,omitempty"`
 	InstallData     *InstallDataSelection `json:"installData,omitempty"`
 }
 type Event struct {
 	Time int64  `json:"time"`
 	Code string `json:"code"`
+}
+
+// @author 雾晚：模块端遥测字段，可选。
+// 由 Status() 在 Core 进程身份校验通过后填充。
+// 未知时为 nil/0，Kotlin 端显示"—"，不伪造数据。
+type Telemetry struct {
+	// VmRSSBytes: 核心进程 VmRSS（字节），从 /proc/<pid>/status 读取
+	VmRSSBytes int64 `json:"vmRssBytes,omitempty"`
+	// UptimeSeconds: 核心进程运行时长（秒），从进程启动时间计算
+	UptimeSeconds int64 `json:"uptimeSeconds,omitempty"`
+	// TxBytes/RxBytes: 累计上传/下载字节（可选，由 Stats 填充）
+	TxBytes int64 `json:"txBytes,omitempty"`
+	RxBytes int64 `json:"rxBytes,omitempty"`
+	// ConnectionCount: 活动连接数（可选）
+	ConnectionCount *int `json:"connectionCount,omitempty"`
 }
 
 func (r *Runtime) Events() []Event {
@@ -408,6 +424,60 @@ func (r *Runtime) Stage(ctx context.Context, s Snapshot) (string, error) {
 	}
 	return rev, nil
 }
+// @author 雾晚：从 /proc/<pid>/status 安全读取 VmRSS（字节）。
+// PID 身份已由 SameProcess 校验，读取前后核对代次。
+func readVmRSS(pid int) int64 {
+	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/status", pid))
+	if err != nil {
+		return 0
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "VmRSS:") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				var kb int64
+				fmt.Sscanf(fields[1], "%d", &kb)
+				return kb * 1024
+			}
+		}
+	}
+	return 0
+}
+
+// @author 雾晚：从进程启动时间计算运行时长（秒）。
+// Start 格式由 Identity() 生成，需解析。
+func calcUptimeSeconds(start string) int64 {
+	// Start 为 RFC3339 或类似格式，解析失败返回 0
+	t, err := time.Parse(time.RFC3339, start)
+	if err != nil {
+		return 0
+	}
+	d := time.Since(t)
+	if d < 0 {
+		return 0
+	}
+	return int64(d.Seconds())
+}
+
+// @author 雾晚：填充遥测数据。仅在 Core 进程身份校验通过后调用。
+func (r *Runtime) fillTelemetry(s *State) {
+	if !SameProcess(s.Core) {
+		s.Telemetry = nil
+		return
+	}
+	t := &Telemetry{}
+	// VmRSS
+	t.VmRSSBytes = readVmRSS(s.Core.PID)
+	// 运行时长
+	t.UptimeSeconds = calcUptimeSeconds(s.Core.Start)
+	// 仅当有有效数据时保留 Telemetry，否则 nil（Kotlin 显示"—"）
+	if t.VmRSSBytes > 0 || t.UptimeSeconds > 0 {
+		s.Telemetry = t
+	} else {
+		s.Telemetry = nil
+	}
+}
+
 func (r *Runtime) Status() State {
 	s := State{SchemaVersion: Version, Phase: "stopped"}
 	_ = readJSON(r.path("state.json"), &s, 1<<20)
@@ -437,6 +507,10 @@ func (r *Runtime) Status() State {
 	}
 	if s.Phase != "connected" {
 		s.Stats = nil
+		s.Telemetry = nil
+	} else {
+		// @author 雾晚：已连接时填充遥测，进程身份已校验
+		r.fillTelemetry(&s)
 	}
 	selection, selectionError := r.installSelection()
 	s.InstallData = selection

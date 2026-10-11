@@ -382,7 +382,9 @@ class DashboardFragment : ToolbarFragment() {
         }
         // 后台查询真实连接数
         lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val count = getActiveConnectionCount()
+            // @author 雾晚：活动连接数由模块端 Telemetry 提供，删除独立 API 轮询
+            // TODO: 从 RootModuleClient 获取 ModuleTelemetry.connectionCount
+            val count: Int? = null
             lifecycleScope.launch(kotlinx.coroutines.Dispatchers.Main) {
                 if (isAdded) {
                     connectionCount?.text = count?.let { "$it 个" } ?: "—"
@@ -419,7 +421,9 @@ class DashboardFragment : ToolbarFragment() {
     private fun updateUptime() {
         lifecycleScope.launch {
             // @author 雾晚：使用 MainActivity 跟踪的真实服务启动时间，而非页面本地计时
-            val startTime = (activity as? MainActivity)?.serviceStartTimeMillis ?: 0L
+            // @author 雾晚：真实运行时长由模块端 Telemetry 提供
+            // TODO: 从 RootModuleClient 获取 ModuleTelemetry
+            val startTime = 0L
             uptimeText?.text = if (startTime > 0) {
                 formatDuration(System.currentTimeMillis() - startTime)
             } else {
