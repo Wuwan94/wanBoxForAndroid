@@ -820,6 +820,24 @@ fun buildConfig(
             rules = mutableListOf()
             rule_set = mutableListOf()
 
+            // @author 雾晚：仪表盘运行模式（规则/全局/直连），兼容 Clash mode 语义。
+            // 0=规则（默认，按规则路由），1=全局（全部走代理），2=直连（全部直连）。
+            // 仅在规则列表头部插入兜底规则，不破坏用户自定义规则顺序与 per-app 语义。
+            when (DataStore.dashboardMode) {
+                1 -> {
+                    // 全局模式：所有流量走代理
+                    rules.add(Rule_DefaultOptions().apply {
+                        outbound = TAG_PROXY
+                    })
+                }
+                2 -> {
+                    // 直连模式：所有流量直连
+                    rules.add(Rule_DefaultOptions().apply {
+                        outbound = "direct"
+                    })
+                }
+            }
+
             // 默认域名解析器强制走直连物理 DNS，彻底消除出站节点服务器域名在内核启动与规则集拉取时的循环死锁
             default_domain_resolver = "dns-direct"
 

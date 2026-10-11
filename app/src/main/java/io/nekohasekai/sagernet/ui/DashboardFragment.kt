@@ -212,21 +212,8 @@ class DashboardFragment : ToolbarFragment() {
     }
 
     private fun setMode(mode: Int) {
-        when (mode) {
-            MODE_RULE -> {
-                DataStore.bypass = true
-                DataStore.proxyApps = false
-            }
-            MODE_GLOBAL -> {
-                DataStore.bypass = false
-                DataStore.proxyApps = false
-            }
-            MODE_DIRECT -> {
-                // 直连模式：不断开 Root TUN，仅切换路由为直连
-                DataStore.bypass = true
-                DataStore.proxyApps = false
-            }
-        }
+        // @author 雾晚：仅设置 dashboardMode，不修改 bypass/proxyApps 等 per-app 偏好，
+        // 由 ConfigBuilder 读取 dashboardMode 并应用对应路由模式。
         DataStore.dashboardMode = mode
         SagerNet.reloadService()
         updateModeUI()
