@@ -312,11 +312,8 @@ class DashboardFragment : ToolbarFragment() {
             else -> "rule"
         }
         // @author 雾晚：不提前写 DataStore，后台 PATCH+GET 确认后再持久化
-        // 停止时仅保存下次启动模式
-        val submitted = io.nekohasekai.sagernet.SagerNet.commandController.requestMode(modeStr) {
-            // patch 逻辑：经模块 CLI，secret 从运行配置读取
-            patchClashModeViaController(modeStr)
-        }
+        // 停止时仅保存下次启动模式；经 RealBackend.setMode 真实切换
+        val submitted = io.nekohasekai.sagernet.SagerNet.commandController.requestMode(modeStr)
         if (!submitted) {
             android.widget.Toast.makeText(context, "操作进行中，请稍候", android.widget.Toast.LENGTH_SHORT).show()
         }
