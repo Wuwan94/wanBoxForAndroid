@@ -24,8 +24,40 @@ class ModuleTelemetryTest {
         assertNotNull(t)
         assertEquals(104857600L, t!!.vmRSSBytes)
         assertEquals(3600L, t.uptimeSeconds)
+        assertEquals(1000L, t.txBytes)
+        assertEquals(2000L, t.rxBytes)
         assertEquals(5, t.connectionCount)
         assertTrue(t.hasData())
+    }
+
+    @Test
+    fun `parse null tx rx as unknown`() {
+        // tx/rx 为 null 表示未知，不用 0 冒充
+        val json = JSONObject().apply {
+            put("vmRssBytes", 104857600L)
+            put("uptimeSeconds", 3600L)
+            putNull("txBytes")
+            putNull("rxBytes")
+        }
+        val t = ModuleTelemetry.fromJson(json)
+        assertNotNull(t)
+        assertNull(t!!.txBytes)
+        assertNull(t.rxBytes)
+    }
+
+    @Test
+    fun `reject negative values`() {
+        // 负值视为未知
+        val json = JSONObject().apply {
+            put("vmRssBytes", -100L)
+            put("connectionCount", -5)
+            put("txBytes", -1L)
+        }
+        val t = ModuleTelemetry.fromJson(json)
+        assertNotNull(t)
+        assertEquals(0L, t!!.vmRSSBytes) // 负值转为 0
+        assertNull(t.connectionCount) // 负值转为 null
+        assertNull(t.txBytes)
     }
 
     @Test
@@ -44,7 +76,7 @@ class ModuleTelemetryTest {
         // 未知：字段缺失 -> null
         val unknown = ModuleTelemetry.fromJson(JSONObject())
         assertNull(unknown!!.connectionCount)
-        
+
         // 真实 0：字段存在且为 0 -> 0（非 null）
         val realZero = ModuleTelemetry.fromJson(JSONObject().apply {
             put("connectionCount", 0)
@@ -72,7 +104,7 @@ class ModuleTelemetryTest {
         val unknown = ModuleTelemetry.fromJson(JSONObject())
         val displayRss = if (unknown!!.vmRSSBytes > 0) "100MB" else "—"
         assertEquals("—", displayRss)
-        
+
         val displayCount = unknown.connectionCount?.let { "$it 个" } ?: "—"
         assertEquals("—", displayCount)
     }

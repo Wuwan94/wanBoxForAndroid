@@ -343,8 +343,7 @@ class DashboardFragment : ToolbarFragment() {
         stopStatsPolling()
         statsJob = lifecycleScope.launch {
             while (true) {
-                updateStats()
-                updateUptime()
+                updateDashboard()
                 delay(1000)
             }
         }
@@ -355,74 +354,62 @@ class DashboardFragment : ToolbarFragment() {
         statsJob = null
     }
 
-    private fun updateStats() {
+    /**
+     * @author 雾晚：单次更新所有仪表盘数据。
+     * 合并 stats 与 uptime，避免每秒两轮独立 status 查询。
+     * 复用 RootModuleClient 的 TTL 缓存，不另开轮询。
+     */
+    private fun updateDashboard() {
         val activity = activity as? MainActivity ?: return
         val stats = activity.lastSpeedStats
-        lifecycleScope.launch {
+        // @author 雾晚：单次状态获取，同时更新速度与遥测，避免每秒两轮独立查询
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val ctx = context ?: return@launch
-            // @author 雾晚：未连接时清理旧数据，不显示虚假数据
+            // 未连接时清理旧数据
             if (stats == null) {
-                uploadSpeed?.text = "—"
-                downloadSpeed?.text = "—"
-                uploadTotal?.text = "累计 —"
-                downloadTotal?.text = "累计 —"
-                coreMemory?.text = "—"
-                connectionCount?.text = "—"
+                launch(kotlinx.coroutines.Dispatchers.Main) {
+                    if (!isAdded) return@launch
+                    uploadSpeed?.text = "—"
+                    downloadSpeed?.text = "—"
+                    uploadTotal?.text = "累计 —"
+                    downloadTotal?.text = "累计 —"
+                    coreMemory?.text = "—"
+                    connectionCount?.text = "—"
+                    uptimeText?.text = "—"
+                }
                 return@launch
             }
-            uploadSpeed?.text = Formatter.formatFileSize(ctx, stats.txRateProxy) + "/s"
-            downloadSpeed?.text = Formatter.formatFileSize(ctx, stats.rxRateProxy) + "/s"
-            uploadTotal?.text = "累计 " + Formatter.formatFileSize(ctx, stats.txTotal)
-            downloadTotal?.text = "累计 " + Formatter.formatFileSize(ctx, stats.rxTotal)
-            // @author 雾晚：从模块端 Telemetry 获取真实 RSS/连接数/运行时长
-            // 通过 RootModuleClient 状态查询，复用既有前台观察，不另开轮询
-            coreMemory?.text = "—"
-            connectionCount?.text = "—"
-        }
-        // 后台获取模块遥测（复用状态查询缓存，不独立轮询）
-        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                val status = io.nekohasekai.sagernet.bg.RootModuleClient.call("status")
-                val telemetry = status.telemetry
-                lifecycleScope.launch(kotlinx.coroutines.Dispatchers.Main) {
-                    if (!isAdded) return@launch
-                    // RSS：未知显示—，不伪造
-                    coreMemory?.text = telemetry?.let {
-                        if (it.vmRSSBytes > 0) Formatter.formatFileSize(ctx, it.vmRSSBytes) else "—"
-                    } ?: "—"
-                    // 连接数：null 显示—，区分未知与真实 0
-                    connectionCount?.text = telemetry?.connectionCount?.let { "$it 个" } ?: "—"
-                }
+            // 获取模块遥测（复用状态查询 TTL 缓存）
+            val telemetry = try {
+                io.nekohasekai.sagernet.bg.RootModuleClient.call("status").telemetry
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                // 失败保持"—"，不伪造
+                null
+            }
+            launch(kotlinx.coroutines.Dispatchers.Main) {
+                if (!isAdded) return@launch
+                uploadSpeed?.text = Formatter.formatFileSize(ctx, stats.txRateProxy) + "/s"
+                downloadSpeed?.text = Formatter.formatFileSize(ctx, stats.rxRateProxy) + "/s"
+                uploadTotal?.text = "累计 " + Formatter.formatFileSize(ctx, stats.txTotal)
+                downloadTotal?.text = "累计 " + Formatter.formatFileSize(ctx, stats.rxTotal)
+                // @author 雾晚：RSS 未知显示—，不伪造
+                coreMemory?.text = telemetry?.let {
+                    if (it.vmRSSBytes > 0) Formatter.formatFileSize(ctx, it.vmRSSBytes) else "—"
+                } ?: "—"
+                // @author 雾晚：连接数 null 显示—，区分未知与真实 0
+                connectionCount?.text = telemetry?.connectionCount?.let { "$it 个" } ?: "—"
+                // @author 雾晚：运行时长由模块端提供（ready marker），未知显示—
+                val uptimeSeconds = telemetry?.uptimeSeconds ?: 0L
+                uptimeText?.text = if (uptimeSeconds > 0) {
+                    formatDuration(uptimeSeconds * 1000)
+                } else {
+                    "—"
+                }
             }
         }
     }
 
 
-    private fun updateUptime() {
-        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                val status = io.nekohasekai.sagernet.bg.RootModuleClient.call("status")
-                val uptimeSeconds = status.telemetry?.uptimeSeconds ?: 0L
-                lifecycleScope.launch(kotlinx.coroutines.Dispatchers.Main) {
-                    if (!isAdded) return@launch
-                    // @author 雾晚：真实运行时长由模块端提供（ready marker），未知显示—
-                    uptimeText?.text = if (uptimeSeconds > 0) {
-                        formatDuration(uptimeSeconds * 1000)
-                    } else {
-                        "—"
-                    }
-                }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                lifecycleScope.launch(kotlinx.coroutines.Dispatchers.Main) {
-                    if (isAdded) uptimeText?.text = "—"
-                }
-            }
-        }
-    }
 
     private fun formatDuration(millis: Long): String {
         val seconds = millis / 1000

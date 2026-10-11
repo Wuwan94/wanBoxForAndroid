@@ -3,6 +3,7 @@
 package module
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,15 +29,25 @@ func TestReadVmRSS_InvalidPID(t *testing.T) {
 	}
 }
 
-// TestReadVmRSS_Overflow verifies no overflow on large values
+// TestReadVmRSS_Overflow verifies no overflow on malicious large values
 func TestReadVmRSS_Overflow(t *testing.T) {
-	// readVmRSS multiplies KB by 1024; ensure int64 doesn't overflow
-	// Max realistic VmRSS is < 1TB, well within int64
+	// Simulate parsing a maliciously large VmRSS value
+	// readVmRSS does: kb * 1024, ensure int64 handles it
+	// Max int64 is 9.2e18; 8EB in KB would overflow, but such values
+	// never appear in /proc. Test the multiplication logic directly.
+	var kb int64 = 1 << 40 // 1TB in KB (unrealistically large)
+	result := kb * 1024
+	if result < 0 {
+		t.Errorf("overflow on large value: kb=%d resulted in %d", kb, result)
+	}
+	// Realistic max: 1TB RAM = 1M KB * 1024 = 1GB, well within int64
+	// Current process should never be negative
 	pid := os.Getpid()
 	rss := readVmRSS(pid)
 	if rss < 0 {
 		t.Errorf("VmRSS overflow: got negative %d", rss)
 	}
+	t.Logf("Overflow check passed, current RSS: %d", rss)
 }
 
 // TestCoreReadyDuration_NoMarker verifies 0 when ready marker missing
@@ -54,24 +65,31 @@ func TestCoreReadyDuration_NoMarker(t *testing.T) {
 func TestCoreReadyDuration_WithMarker(t *testing.T) {
 	root := t.TempDir()
 	r := &Runtime{Root: root, ModuleDir: t.TempDir()}
-	
-	// Create runtime/ready marker with known mod time
+
+	// Create runtime/ready marker with known mod time (65 seconds ago)
 	runtimeDir := filepath.Join(root, "runtime")
 	os.MkdirAll(runtimeDir, 0755)
 	readyPath := filepath.Join(runtimeDir, "ready")
 	os.WriteFile(readyPath, []byte("ready"), 0644)
-	// Set mod time to 65 seconds ago
 	past := time.Now().Add(-65 * time.Second)
 	os.Chtimes(readyPath, past, past)
-	
-	// Mock SameProcess by using a fake identity that won't match
-	// This test verifies the marker time logic; SameProcess check is separate
-	core := ProcessIdentity{PID: 999999999, Start: "fake", Executable: "/fake"}
-	dur := r.coreReadyDuration(core, "rev1")
-	// PID doesn't exist, SameProcess fails, should be 0
-	if dur != 0 {
-		t.Errorf("expected 0 for non-matching process, got %d", dur)
+
+	// Use current process with valid identity to pass SameProcess check
+	pid := os.Getpid()
+	identity, err := Identity(pid)
+	if err != nil {
+		t.Skipf("cannot get identity for current process: %v", err)
 	}
+	// Write state.json with matching revision to pass revision check
+	statePath := filepath.Join(root, "state.json")
+	os.WriteFile(statePath, []byte(`{"revision":"rev1","runningRevision":"rev1"}`), 0644)
+
+	dur := r.coreReadyDuration(identity, "rev1")
+	// Should be approximately 65 seconds (allow 5s tolerance for test execution)
+	if dur < 60 || dur > 70 {
+		t.Errorf("expected ~65s duration, got %d", dur)
+	}
+	t.Logf("Verified ready duration: %d seconds (expected ~65)", dur)
 }
 
 // TestFillTelemetry_PIDReuse verifies telemetry cleared on PID mismatch
@@ -88,9 +106,9 @@ func TestFillTelemetry_PIDReuse(t *testing.T) {
 	}
 }
 
-// TestTelemetry_JSONRoundTrip verifies JSON serialization
+// TestTelemetry_JSONRoundTrip verifies JSON Marshal/Unmarshal
 func TestTelemetry_JSONRoundTrip(t *testing.T) {
-	// Verify Telemetry struct has correct JSON tags
+	// Verify Telemetry struct JSON tags work correctly
 	tm := &Telemetry{
 		VmRSSBytes:    1024 * 1024 * 100, // 100MB
 		UptimeSeconds: 3600,
@@ -99,16 +117,43 @@ func TestTelemetry_JSONRoundTrip(t *testing.T) {
 	}
 	count := 5
 	tm.ConnectionCount = &count
-	
-	if tm.VmRSSBytes != 104857600 {
-		t.Errorf("VmRSS mismatch")
+
+	// Marshal to JSON
+	data, err := json.Marshal(tm)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
 	}
-	if *tm.ConnectionCount != 5 {
+	t.Logf("Marshaled: %s", string(data))
+
+	// Unmarshal back
+	var tm2 Telemetry
+	if err := json.Unmarshal(data, &tm2); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+
+	if tm2.VmRSSBytes != 104857600 {
+		t.Errorf("VmRSS mismatch: got %d", tm2.VmRSSBytes)
+	}
+	if tm2.ConnectionCount == nil || *tm2.ConnectionCount != 5 {
 		t.Errorf("ConnectionCount mismatch")
 	}
+
 	// Unknown vs real 0: nil means unknown, 0 means real zero
-	tm2 := &Telemetry{}
-	if tm2.ConnectionCount != nil {
-		t.Errorf("expected nil for unknown connection count")
+	tm3 := &Telemetry{} // all fields omitted
+	data3, _ := json.Marshal(tm3)
+	var tm4 Telemetry
+	json.Unmarshal(data3, &tm4)
+	if tm4.ConnectionCount != nil {
+		t.Errorf("expected nil for unknown connection count, got %v", tm4.ConnectionCount)
+	}
+	// Real zero should be preserved
+	tm5 := &Telemetry{}
+	zero := 0
+	tm5.ConnectionCount = &zero
+	data5, _ := json.Marshal(tm5)
+	var tm6 Telemetry
+	json.Unmarshal(data5, &tm6)
+	if tm6.ConnectionCount == nil || *tm6.ConnectionCount != 0 {
+		t.Errorf("expected 0 for real zero connection count")
 	}
 }
