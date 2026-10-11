@@ -444,15 +444,26 @@ func readVmRSS(pid int) int64 {
 	return 0
 }
 
-// @author 雾晚：从进程启动时间计算运行时长（秒）。
-// Start 格式由 Identity() 生成，需解析。
-func calcUptimeSeconds(start string) int64 {
-	// Start 为 RFC3339 或类似格式，解析失败返回 0
-	t, err := time.Parse(time.RFC3339, start)
+// @author 雾晚：从 ready marker 文件时间计算核心就绪时长（秒）。
+// Start 是 /proc/<pid>/stat 的启动 ticks（非 RFC3339），不硬猜 HZ。
+// 使用 runtime/ready 文件的修改时间作为可说明的就绪起点，
+// 读取前后验证 SameProcess 与 revision 一致，防止 PID 复用。
+func (r *Runtime) coreReadyDuration(core ProcessIdentity, revision string) int64 {
+	if !SameProcess(core) {
+		return 0
+	}
+	fi, err := os.Stat(r.path("runtime", "ready"))
 	if err != nil {
 		return 0
 	}
-	d := time.Since(t)
+	// 读取后再次验证，防止竞态
+	if !SameProcess(core) {
+		return 0
+	}
+	if rev, _ := r.CurrentRevision(); rev != revision {
+		return 0
+	}
+	d := time.Since(fi.ModTime())
 	if d < 0 {
 		return 0
 	}
@@ -460,16 +471,24 @@ func calcUptimeSeconds(start string) int64 {
 }
 
 // @author 雾晚：填充遥测数据。仅在 Core 进程身份校验通过后调用。
+// 读取前后验证 PID/代次，旧数据不覆盖新会话。
 func (r *Runtime) fillTelemetry(s *State) {
 	if !SameProcess(s.Core) {
 		s.Telemetry = nil
 		return
 	}
+	revision := s.RunningRevision
 	t := &Telemetry{}
-	// VmRSS
+	// VmRSS：读取后再次验证身份
 	t.VmRSSBytes = readVmRSS(s.Core.PID)
-	// 运行时长
-	t.UptimeSeconds = calcUptimeSeconds(s.Core.Start)
+	if !SameProcess(s.Core) {
+		s.Telemetry = nil
+		return
+	}
+	// 运行时长：ready marker 时间，需验证 revision 一致
+	t.UptimeSeconds = r.coreReadyDuration(s.Core, revision)
+	// Tx/Rx/connectionCount：通过受限本地 API 采集（待实现）
+	// 缺失时为 nil/0，Kotlin 区分未知与真实 0
 	// 仅当有有效数据时保留 Telemetry，否则 nil（Kotlin 显示"—"）
 	if t.VmRSSBytes > 0 || t.UptimeSeconds > 0 {
 		s.Telemetry = t

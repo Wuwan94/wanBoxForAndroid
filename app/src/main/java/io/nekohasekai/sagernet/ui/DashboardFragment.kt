@@ -374,60 +374,52 @@ class DashboardFragment : ToolbarFragment() {
             downloadSpeed?.text = Formatter.formatFileSize(ctx, stats.rxRateProxy) + "/s"
             uploadTotal?.text = "累计 " + Formatter.formatFileSize(ctx, stats.txTotal)
             downloadTotal?.text = "累计 " + Formatter.formatFileSize(ctx, stats.rxTotal)
-            // @author 雾晚：真实 sing-box RSS 需 root 权限读 /proc/corePID/status，
-            // 当前未实现 PID 获取，诚实显示未获取，不造假。
+            // @author 雾晚：从模块端 Telemetry 获取真实 RSS/连接数/运行时长
+            // 通过 RootModuleClient 状态查询，复用既有前台观察，不另开轮询
             coreMemory?.text = "—"
-            // 活动连接数通过 Clash API 获取（后台线程）
             connectionCount?.text = "—"
         }
-        // 后台查询真实连接数
+        // 后台获取模块遥测（复用状态查询缓存，不独立轮询）
         lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            // @author 雾晚：活动连接数由模块端 Telemetry 提供，删除独立 API 轮询
-            // TODO: 从 RootModuleClient 获取 ModuleTelemetry.connectionCount
-            val count: Int? = null
-            lifecycleScope.launch(kotlinx.coroutines.Dispatchers.Main) {
-                if (isAdded) {
-                    connectionCount?.text = count?.let { "$it 个" } ?: "—"
+            try {
+                val status = io.nekohasekai.sagernet.bg.RootModuleClient.call("status")
+                val telemetry = status.telemetry
+                lifecycleScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                    if (!isAdded) return@launch
+                    // RSS：未知显示—，不伪造
+                    coreMemory?.text = telemetry?.let {
+                        if (it.vmRSSBytes > 0) Formatter.formatFileSize(ctx, it.vmRSSBytes) else "—"
+                    } ?: "—"
+                    // 连接数：null 显示—，区分未知与真实 0
+                    connectionCount?.text = telemetry?.connectionCount?.let { "$it 个" } ?: "—"
                 }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                // 失败保持"—"，不伪造
             }
         }
     }
 
-    /**
-     * @author 雾晚：通过 loopback Clash API 获取真实活动连接数。
-     * 安全约束：仅 127.0.0.1:9090，Bearer 鉴权，5s 超时，4KB 响应限制，禁重定向。
-     * 失败返回 null（显示"—"），不造假。
-     */
-    private fun getActiveConnectionCount(): Int? {
-        return try {
-            val secret = DataStore.clashApiSecret
-            val req = okhttp3.Request.Builder()
-                .url("http://127.0.0.1:9090/connections")
-                .header("Authorization", "Bearer $secret")
-                .build()
-            loopbackClient.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) return null
-                // @author 雾晚：流式限额 256KB，超限返回 null（未知），不伪造 0
-                val bodyStr = readLimitedBody(resp, 262144) ?: return null
-                val arr = org.json.JSONObject(bodyStr).optJSONArray("connections")
-                arr?.length()
-            }
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            null
-        }
-    }
 
     private fun updateUptime() {
-        lifecycleScope.launch {
-            // @author 雾晚：使用 MainActivity 跟踪的真实服务启动时间，而非页面本地计时
-            // @author 雾晚：真实运行时长由模块端 Telemetry 提供
-            // TODO: 从 RootModuleClient 获取 ModuleTelemetry
-            val startTime = 0L
-            uptimeText?.text = if (startTime > 0) {
-                formatDuration(System.currentTimeMillis() - startTime)
-            } else {
-                "—"
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val status = io.nekohasekai.sagernet.bg.RootModuleClient.call("status")
+                val uptimeSeconds = status.telemetry?.uptimeSeconds ?: 0L
+                lifecycleScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                    if (!isAdded) return@launch
+                    // @author 雾晚：真实运行时长由模块端提供（ready marker），未知显示—
+                    uptimeText?.text = if (uptimeSeconds > 0) {
+                        formatDuration(uptimeSeconds * 1000)
+                    } else {
+                        "—"
+                    }
+                }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                lifecycleScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                    if (isAdded) uptimeText?.text = "—"
+                }
             }
         }
     }
