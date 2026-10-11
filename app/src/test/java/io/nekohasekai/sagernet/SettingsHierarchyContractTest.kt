@@ -16,7 +16,7 @@ class SettingsHierarchyContractTest {
         "acquireWakeLock", "wakeResetConnections", "networkChangeResetConnections", "showDirectSpeed", "speedInterval",
         "appTheme", "showBottomBar", "showAllGroupsTab")
     // @author 雾晚：明确授权移除的 UI 项（Root 精简），key 保留迁移兼容
-    private val authorizedUiRemovals = setOf("enableClashAPI")
+    private val authorizedUiRemovals = setOf("enableClashAPI", "hideFromRecentApps", "isAutoConnect")
     @Test fun everyOldKeyKeepsItsValueContractAndControlType() {
         val old = JSONObject(javaClass.getResource("/settings-before-3.0.7.json")!!.readText())
         val factory = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }

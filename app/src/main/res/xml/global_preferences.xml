@@ -75,11 +75,6 @@
             app:title="@string/haptic_feedback"
             app:summary="@string/haptic_feedback_summary" />
 
-        <SwitchPreference
-            app:key="hideFromRecentApps"
-            app:summary="@string/hide_from_recent_apps_summary"
-            app:title="@string/hide_from_recent_apps" />
-
     </moe.matsuri.nb4a.ui.ExpandablePreferenceCategory>
 
     <!-- 2. 运行：Root模块状态、连接、分应用 -->
@@ -127,13 +122,6 @@
             app:title="@string/lan_sharing" />
 
         app:title="@string/connection_background_settings">
-
-        <SwitchPreference
-            app:defaultValue="false"
-            app:icon="@drawable/ic_communication_phonelink_ring"
-            app:key="isAutoConnect"
-            app:summary="@string/auto_connect_summary"
-            app:title="@string/auto_connect" />
 
         <SwitchPreference
             app:icon="@drawable/ic_navigation_apps"

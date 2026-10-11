@@ -243,7 +243,6 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
 
         // preview.17: TUN 实现固定为 Sing-Tun，不再提供选择入口
         val resolveDestination = findPreference<SwitchPreference>(Key.RESOLVE_DESTINATION)!!
-        val hideFromRecentApps = findPreference<SwitchPreference>(Key.HIDE_FROM_RECENT_APPS)!!
         // @author 雾晚：enableClashAPI 开关已移除（Root 固定启用），导航菜单默认显示
 
         // @author 雾晚：四组重组，categoryCore 已合并到 categoryAdvancedGroup
@@ -338,12 +337,6 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             needReload()
             true
         }
-        hideFromRecentApps.setOnPreferenceChangeListener { _, newValue ->
-            (activity as? MainActivity)?.applyHideFromRecentApps(newValue as Boolean)
-            // needReload()
-            true
-        }
-
         enableTLSFragment.onPreferenceChangeListener = reloadListener
 
         // 恢复默认设置功能
