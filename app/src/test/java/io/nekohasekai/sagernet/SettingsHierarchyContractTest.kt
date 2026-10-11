@@ -27,7 +27,10 @@ class SettingsHierarchyContractTest {
             if (key.isNotEmpty()) { assertNull("Duplicate key $key", actual.put(key, element)) }
         }
         // @author 雾晚: input-method routing is an ordinary rule, not a separate preference.
-        assertEquals(old.keySet() - moduleInapplicable, actual.keys)
+        // @author 雾晚：四组重组，分组 key（category*）是 UI 容器，不参与契约对比
+        val oldPrefs = old.keySet() - moduleInapplicable - old.keySet().filter { it.startsWith("category") }.toSet()
+        val actualPrefs = actual.keys - actual.keys.filter { it.startsWith("category") }.toSet()
+        assertEquals(oldPrefs, actualPrefs)
         assertFalse(actual.containsKey("rootModuleUpdateData"))
         old.keys().forEach { key ->
             if (key in moduleInapplicable) return@forEach
