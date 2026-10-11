@@ -90,6 +90,8 @@ class MainActivity : ThemedActivity(),
 
     // preview.18 UI 改造：仪表盘支持
     var serviceState: BaseService.State = BaseService.State.Idle
+    // @author 雾晚：服务真实启动时间（毫秒），用于仪表盘运行时长显示
+    var serviceStartTimeMillis: Long = 0L
         private set
     var lastSpeedStats: SpeedDisplayData? = null
         private set
@@ -657,8 +659,15 @@ class MainActivity : ThemedActivity(),
     ) {
         // @author 雾晚：统一更新 serviceState，确保 onServiceConnected/
         // onServiceDisconnected 也能正确同步，避免 Dashboard 读取到过期状态。
+        val oldState = serviceState
         serviceState = state
         DataStore.serviceState = state
+        // @author 雾晚：跟踪服务真实启动时间，用于仪表盘运行时长
+        if (state == BaseService.State.Connected && oldState != BaseService.State.Connected) {
+            serviceStartTimeMillis = System.currentTimeMillis()
+        } else if (state == BaseService.State.Idle || state == BaseService.State.Stopped) {
+            serviceStartTimeMillis = 0L
+        }
         refreshConfigurationProfileState()
         io.nekohasekai.sagernet.widget.OwnBoxWidgetProvider.updateWidgets(this)
 

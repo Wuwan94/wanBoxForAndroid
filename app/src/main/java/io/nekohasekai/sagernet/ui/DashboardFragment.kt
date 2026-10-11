@@ -45,7 +45,6 @@ class DashboardFragment : ToolbarFragment() {
     private var connectionCount: TextView? = null
 
     private var statsJob: Job? = null
-    private var serviceStartTime: Long = 0L
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -255,14 +254,10 @@ class DashboardFragment : ToolbarFragment() {
 
     private fun updateUptime() {
         lifecycleScope.launch {
-            val state = (activity as? MainActivity)?.serviceState
-            if (state == BaseService.State.Connected && serviceStartTime == 0L) {
-                serviceStartTime = System.currentTimeMillis()
-            } else if (state != BaseService.State.Connected) {
-                serviceStartTime = 0L
-            }
-            uptimeText?.text = if (serviceStartTime > 0) {
-                formatDuration(System.currentTimeMillis() - serviceStartTime)
+            // @author 雾晚：使用 MainActivity 跟踪的真实服务启动时间，而非页面本地计时
+            val startTime = (activity as? MainActivity)?.serviceStartTimeMillis ?: 0L
+            uptimeText?.text = if (startTime > 0) {
+                formatDuration(System.currentTimeMillis() - startTime)
             } else {
                 "—"
             }
