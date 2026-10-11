@@ -59,6 +59,9 @@ class DashboardFragment : ToolbarFragment() {
     private var downloadTotal: TextView? = null
     private var coreMemory: TextView? = null
     private var connectionCount: TextView? = null
+    private var btnTestConnection: android.widget.Button? = null
+    private var btnLandingIp: android.widget.Button? = null
+    private var landingIpText: android.widget.TextView? = null
 
 
     override fun onCreateView(
@@ -86,6 +89,12 @@ class DashboardFragment : ToolbarFragment() {
         downloadTotal = view.findViewById(R.id.downloadTotal)
         coreMemory = view.findViewById(R.id.coreMemory)
         connectionCount = view.findViewById(R.id.connectionCount)
+        btnTestConnection = view.findViewById(R.id.btnTestConnection)
+        btnLandingIp = view.findViewById(R.id.btnLandingIp)
+        landingIpText = view.findViewById(R.id.landingIpText)
+        // @author 雾晚：诊断按钮绑定，Root 下可用
+        btnTestConnection?.setOnClickListener { testConnection() }
+        btnLandingIp?.setOnClickListener { queryLandingIp() }
 
         serviceSwitch?.setOnCheckedChangeListener { _, isChecked ->
             // @author 雾晚：程序化更新时 tag 标记，回调直接返回不发送命令
@@ -157,6 +166,8 @@ class DashboardFragment : ToolbarFragment() {
                             // @author 雾晚：用确认结果中的真实 status 同步，不用旧 MainActivity.serviceState
                             serviceSwitch?.isEnabled = true
                             updateServiceStateFromStatus(state.status)
+                            // @author 雾晚：模式切换确认后刷新选中样式
+                            updateModeUI()
                             io.nekohasekai.sagernet.SagerNet.commandController.acknowledge()
                         }
                         is io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.Error -> {
@@ -165,12 +176,14 @@ class DashboardFragment : ToolbarFragment() {
                             val safeMsg = when {
                                 state.message.contains("timeout") -> "操作超时"
                                 state.message.contains("node") -> "节点切换失败"
+                                state.message.contains("mode") -> "模式切换失败，已恢复实际模式"
                                 else -> "操作失败"
                             }
                             android.widget.Toast.makeText(context, safeMsg, android.widget.Toast.LENGTH_SHORT).show()
-                            // 回读真实状态
+                            // 回读真实状态与真实模式（PATCH 成功 GET 失败时恢复显示）
                             updateServiceState()
                             syncSwitchToState()
+                            updateModeUI()
                             io.nekohasekai.sagernet.SagerNet.commandController.acknowledge()
                         }
                         is io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.Cancelled -> {
@@ -184,6 +197,94 @@ class DashboardFragment : ToolbarFragment() {
                 }
             }
         }
+    }
+
+    /**
+     * @author 雾晚：测试连接 - 通过 Clash API 获取延迟
+     * Root 下可用，不可用时说明原因
+     */
+    private fun testConnection() {
+        val ctx = context ?: return
+        lifecycleScope.launch {
+            try {
+                btnTestConnection?.isEnabled = false
+                btnTestConnection?.text = "测试中..."
+                // 通过 Clash API 获取代理延迟
+                val delay = getProxyDelay()
+                if (delay != null) {
+                    android.widget.Toast.makeText(ctx, "延迟: ${delay}ms", android.widget.Toast.LENGTH_SHORT).show()
+                } else {
+                    android.widget.Toast.makeText(ctx, "服务未运行或 API 不可用", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(ctx, "测试失败", android.widget.Toast.LENGTH_SHORT).show()
+            } finally {
+                btnTestConnection?.isEnabled = true
+                btnTestConnection?.text = "测速"
+            }
+        }
+    }
+
+    private suspend fun getProxyDelay(): Long? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            val secret = io.nekohasekai.sagernet.database.DataStore.clashApiSecret
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                .followRedirects(false)
+                .build()
+            val req = okhttp3.Request.Builder()
+                .url("http://127.0.0.1:9090/proxies/GLOBAL/delay?timeout=5000&url=http://www.gstatic.com/generate_204")
+                .header("Authorization", "Bearer $secret")
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return@withContext null
+                val body = resp.body?.string() ?: return@withContext null
+                org.json.JSONObject(body).optLong("delay", -1).takeIf { it >= 0 }
+            }
+        } catch (_: Exception) { null }
+    }
+
+    /**
+     * @author 雾晚：查询落地 IP - 通过外部 API
+     * Root 下可用，显示当前出口 IP
+     */
+    private fun queryLandingIp() {
+        val ctx = context ?: return
+        lifecycleScope.launch {
+            try {
+                btnLandingIp?.isEnabled = false
+                landingIpText?.text = "查询中..."
+                val ip = getLandingIp()
+                if (ip != null) {
+                    landingIpText?.text = "落地 IP: $ip"
+                } else {
+                    landingIpText?.text = "查询失败：服务未运行或网络不可用"
+                }
+            } catch (e: Exception) {
+                landingIpText?.text = "查询失败"
+            } finally {
+                btnLandingIp?.isEnabled = true
+            }
+        }
+    }
+
+    private suspend fun getLandingIp(): String? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                .followRedirects(false)
+                .build()
+            val req = okhttp3.Request.Builder()
+                .url("https://api.ipify.org?format=json")
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return@withContext null
+                val body = resp.body?.string() ?: return@withContext null
+                org.json.JSONObject(body).optString("ip", null)
+            }
+        } catch (_: Exception) { null }
     }
 
     override fun onDestroyView() {
@@ -312,11 +413,8 @@ class DashboardFragment : ToolbarFragment() {
             else -> "rule"
         }
         // @author 雾晚：不提前写 DataStore，后台 PATCH+GET 确认后再持久化
-        // 停止时仅保存下次启动模式
-        val submitted = io.nekohasekai.sagernet.SagerNet.commandController.requestMode(modeStr) {
-            // patch 逻辑：经模块 CLI，secret 从运行配置读取
-            patchClashModeViaController(modeStr)
-        }
+        // 停止时仅保存下次启动模式；经 RealBackend.setMode 做真实模式切换
+        val submitted = io.nekohasekai.sagernet.SagerNet.commandController.requestMode(modeStr)
         if (!submitted) {
             android.widget.Toast.makeText(context, "操作进行中，请稍候", android.widget.Toast.LENGTH_SHORT).show()
         }

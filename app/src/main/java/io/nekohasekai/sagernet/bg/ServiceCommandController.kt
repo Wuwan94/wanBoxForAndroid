@@ -106,7 +106,17 @@ class ServiceCommandController(
                     .build()
                 val confirmedMode = client.newCall(getReq).execute().use { resp ->
                     if (!resp.isSuccessful) return false
-                    val bodyStr = resp.body?.string()?.take(4096) ?: return false
+                    // @author 雾晚：流式限额读取，防止大响应体 OOM
+                    val bodyStr = resp.body?.source()?.let { source ->
+                        val buffer = okio.Buffer()
+                        var total = 0L
+                        while (total < 4096) {
+                            val read = source.read(buffer, 4096 - total)
+                            if (read == -1L) break
+                            total += read
+                        }
+                        buffer.readUtf8()
+                    } ?: return false
                     org.json.JSONObject(bodyStr).optString("mode", null)
                 }
                 // 代次一致性：确认返回的模式与目标一致
@@ -198,12 +208,10 @@ class ServiceCommandController(
     /** UI 请求停止 */
     fun requestStop(): Boolean = trySubmit(CommandKind.STOP) { backend.stop() }
 
-    /** UI 请求切换模式 */
-    fun requestMode(mode: String, patch: suspend (String) -> Boolean): Boolean =
+    /** UI 请求切换模式：经 RealBackend.setMode 做 PATCH+GET 确认 */
+    fun requestMode(mode: String): Boolean =
         trySubmit(CommandKind.MODE) {
-            val ok = patch(mode)
-            if (!ok) throw IllegalStateException("mode_patch_failed")
-            backend.queryStatus()
+            backend.setMode(mode)
         }
 
     /** UI 请求切换节点：确认返回 connected && profileId==目标 */

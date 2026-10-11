@@ -105,8 +105,8 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             isSelectable = false
         }
         findPreference<Preference>("aboutCoreVersion")?.apply {
-            // 显示真实 sing-box 核心版本
-            summary = "sing-box v1.15.0-alpha.10"
+            // @author 雾晚：显示内置 sing-box 版本（模块实际版本需 Root 查询，此处为打包版本）
+            summary = "sing-box v1.15.0-alpha.10 (内置)"
             // 不可点击，仅展示
             isSelectable = false
         }
