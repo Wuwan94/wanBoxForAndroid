@@ -227,14 +227,18 @@ class DashboardFragment : ToolbarFragment() {
             when {
                 status.connected -> {
                     statusText?.text = getString(R.string.service_state_connected)
+                    // @author 雾晚：已连接用深灰，视觉更沉稳
+                    statusText?.setTextColor(0xFF212121.toInt())
                     serviceSwitch?.isChecked = true
                 }
                 status.phase == "starting" -> {
                     statusText?.text = getString(R.string.service_state_connecting)
+                    statusText?.setTextColor(0xFF757575.toInt())
                     serviceSwitch?.isChecked = true
                 }
                 else -> {
                     statusText?.text = getString(R.string.service_state_idle)
+                    statusText?.setTextColor(0xFF9E9E9E.toInt())
                     serviceSwitch?.isChecked = false
                 }
             }
@@ -296,12 +300,13 @@ class DashboardFragment : ToolbarFragment() {
         }
     }
 
-    // @author 雾晚：选中模式用深灰底白字高亮，一眼看出当前模式
+    // @author 雾晚：选中模式用深灰圆角底白字高亮，一眼看出当前模式
     private fun updateModeUI() {
         val mode = getCurrentMode()
+        val ctx = context ?: return
         lifecycleScope.launch {
-            val selectedBg = android.graphics.drawable.ColorDrawable(0xFF424242.toInt())
-            val normalBg = android.graphics.drawable.ColorDrawable(0x00000000)
+            val selectedBg = androidx.core.content.ContextCompat.getDrawable(ctx, R.drawable.bg_mode_selected)
+            val normalBg = androidx.core.content.ContextCompat.getDrawable(ctx, R.drawable.bg_mode_normal)
             val selectedTextColor = 0xFFFFFFFF.toInt()
             val normalTextColor = 0xFF212121.toInt()
             modeRule?.background = if (mode == MODE_RULE) selectedBg else normalBg
