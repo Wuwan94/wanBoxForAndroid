@@ -610,19 +610,21 @@ func (r *Runtime) fillTelemetry(s *State) {
 	}
 }
 
-// @author 雾晚：专用 dashboard 遥测采集，仅 CLI 前台观察调用。
-// 不经过 Runtime.Status() 的调用方，避免内部状态读取被网络阻塞。
-// 无条件回读最新状态，严格比较 phase、Core 完整身份、RunningRevision。
-// 返回与同一快照绑定的完整结果，不拼接两代次。
-func (r *Runtime) DashboardTelemetry() *Telemetry {
-	s := r.Status()
-	if s.Phase != "connected" || !SameProcess(s.Core) {
-		return nil
+// @author 雾晚：返回绑定同一快照的完整 Dashboard 状态。
+// 流程：before:=Status；以 before 采集；after:=Status；严格比较；
+// 不一致返回 after 且 Telemetry=nil/Stats=nil（完全丢弃 before）；
+// 一致才把采集赋给 after 并返回。不拼接两代次。
+// ProfileID 也比较：热切换节点同 PID/revision 也必须识别。
+func (r *Runtime) DashboardState() State {
+	before := r.Status()
+	if before.Phase != "connected" || !SameProcess(before.Core) {
+		// 未连接：直接返回，Telemetry/Stats 已由 Status() 清空
+		return before
 	}
-	// 快照绑定：记录初始状态的完整身份
-	snapPhase := s.Phase
-	snapCore := s.Core
-	snapRevision := s.RunningRevision
+	// 以 before 的身份采集
+	snapCore := before.Core
+	snapRevision := before.RunningRevision
+	snapProfileID := before.ProfileID
 
 	t := &Telemetry{}
 	t.VmRSSBytes = readVmRSS(snapCore.PID)
@@ -632,39 +634,47 @@ func (r *Runtime) DashboardTelemetry() *Telemetry {
 	t.RxBytes = rx
 	t.ConnectionCount = connCount
 
-	// @author 雾晚：请求后无条件回读，严格验证未发生代次变化
-	// 即使 stop/start 同 revision，旧进程存活也必须丢弃
-	s2 := r.Status()
-	if s2.Phase != snapPhase {
-		return nil
+	// 无条件回读，严格验证
+	after := r.Status()
+	if after.Phase != before.Phase {
+		after.Telemetry = nil
+		after.Stats = nil
+		return after
 	}
-	// 严格比较 Core 完整身份（PID/start/executable），不只 SameProcess
-	if s2.Core.PID != snapCore.PID || s2.Core.Start != snapCore.Start || s2.Core.Executable != snapCore.Executable {
-		return nil
+	// Core 完整身份比较
+	if after.Core.PID != snapCore.PID || after.Core.Start != snapCore.Start || after.Core.Executable != snapCore.Executable {
+		after.Telemetry = nil
+		after.Stats = nil
+		return after
 	}
-	if s2.RunningRevision != snapRevision {
-		return nil
+	if after.RunningRevision != snapRevision {
+		after.Telemetry = nil
+		after.Stats = nil
+		return after
 	}
-	if !SameProcess(s2.Core) {
-		return nil
+	// ProfileID 比较：热切换节点必须识别
+	if after.ProfileID != snapProfileID {
+		after.Telemetry = nil
+		after.Stats = nil
+		return after
 	}
-	if t.VmRSSBytes <= 0 && t.UptimeSeconds <= 0 && tx == nil && rx == nil && connCount == nil {
-		return nil
+	if !SameProcess(after.Core) {
+		after.Telemetry = nil
+		after.Stats = nil
+		return after
 	}
-	return t
+	// 一致：把采集赋给 after
+	if t.VmRSSBytes > 0 || t.UptimeSeconds > 0 || tx != nil || rx != nil || connCount != nil {
+		after.Telemetry = t
+	}
+	return after
 }
 
-// @author 雾晚：返回绑定同一快照的完整 Dashboard 状态。
-// CLI dashboard 命令使用，避免旧 state 与新 telemetry 拼接两代次。
-func (r *Runtime) DashboardState() State {
-	s := r.Status()
-	// 仅在 connected 时附加遥测，且与同一快照绑定
-	if s.Phase == "connected" && SameProcess(s.Core) {
-		if t := r.DashboardTelemetry(); t != nil {
-			s.Telemetry = t
-		}
-	}
-	return s
+// @author 雾晚：DashboardTelemetry 仅为兼容保留，调用完整 DashboardState。
+// 不另读自己的快照，避免代次混合。
+func (r *Runtime) DashboardTelemetry() *Telemetry {
+	s := r.DashboardState()
+	return s.Telemetry
 }
 
 func (r *Runtime) Status() State {

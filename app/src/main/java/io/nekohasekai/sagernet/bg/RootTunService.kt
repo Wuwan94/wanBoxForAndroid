@@ -37,20 +37,20 @@ class RootTunService : Service(), BaseService.Interface {
                     val changedError = snapshot?.error != status.error
                     val changedProfile = status.connected && (snapshot?.connected != true || snapshot?.profileId != status.profileId)
                     snapshot = status; DataStore.currentProfile = if (status.connected) status.profileId else 0
-                    DataStore.mixedInboundAuthed = status.connected && DataStore.mixedInboundNeedsAuth
-                    data.changeState(status.state, if (changedError && status.error.isNotBlank())
-                        RootModuleErrors.message(this@RootTunService, status.error) else null)
-                    if (changedProfile) data.binder.broadcast { it.cbSelectorUpdate(status.profileId) }
-                    // @author 雾晚：直接使用一次完整 dashboard 结果作采样
-                    // 不混合 status.stats 与 dashboard.telemetry 两代次
-                    // stats 缺失不阻断 RSS/时长，失败清空遥测
+                    // @author 雾晚：一开始就用完整 dashboard 结果，后续全部用它
+                    // 不先 status 再 dashboard，避免状态与数据显示两代次
                     val dashStatus = try {
                         RootModuleClient.call("dashboard")
                     } catch (e: Exception) {
                         if (e is kotlinx.coroutines.CancellationException) throw e
                         null
-                    }
-                    val telemetry = dashStatus?.telemetry
+                    } ?: return@launch
+                    val status = dashStatus // 统一使用 dashboard 结果
+                    DataStore.mixedInboundAuthed = status.connected && DataStore.mixedInboundNeedsAuth
+                    data.changeState(status.state, if (changedError && status.error.isNotBlank())
+                        RootModuleErrors.message(this@RootTunService, status.error) else null)
+                    if (changedProfile) data.binder.broadcast { it.cbSelectorUpdate(status.profileId) }
+                    val telemetry = status.telemetry
                     // 速度数据：优先用 dashboard 的 stats，缺失时用 0
                     val stats = dashStatus?.stats
                     val tx = stats?.tx ?: 0L
