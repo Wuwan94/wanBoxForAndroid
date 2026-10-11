@@ -44,6 +44,37 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
     lateinit var groupAdapter: GroupAdapter
     lateinit var undoManager: UndoSnackbarManager<ProxyGroup>
 
+    // preview.18 UI 改造：订阅批量选择
+    val selectedGroupIds = mutableSetOf<Long>()
+    var selectionMode = false
+        private set
+
+    fun setSelectionMode(enabled: Boolean) {
+        selectionMode = enabled
+        if (!enabled) selectedGroupIds.clear()
+        groupAdapter.notifyDataSetChanged()
+        updateSelectionUI()
+    }
+
+    fun toggleGroupSelection(groupId: Long) {
+        if (selectedGroupIds.contains(groupId)) {
+            selectedGroupIds.remove(groupId)
+        } else {
+            selectedGroupIds.add(groupId)
+        }
+        groupAdapter.notifyDataSetChanged()
+        updateSelectionUI()
+    }
+
+    private fun updateSelectionUI() {
+        // 更新标题栏显示选择数量
+        if (selectionMode && selectedGroupIds.isNotEmpty()) {
+            toolbar.title = "${getString(R.string.menu_group)} (${selectedGroupIds.size})"
+        } else {
+            toolbar.setTitle(R.string.menu_group)
+        }
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         activity = requireActivity() as MainActivity
@@ -157,6 +188,46 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
                     }
                     .setNegativeButton(R.string.no, null)
                     .show()
+            }
+
+            // preview.18 UI 改造：更新选中订阅
+            R.id.action_update_selected -> {
+                if (selectedGroupIds.isEmpty()) {
+                    safeSnackbar("请先选择要更新的订阅")
+                } else {
+                    val groups = SagerDatabase.groupDao.allGroups()
+                        .filter { it.id in selectedGroupIds && it.type == GroupType.SUBSCRIPTION }
+                    if (groups.isEmpty()) {
+                        safeSnackbar("选中的订阅中没有可更新的项")
+                    } else {
+                        runOnDefaultDispatcher {
+                            supervisorScope {
+                                val tasks = groups.map { group ->
+                                    async {
+                                        runCatching {
+                                            GroupUpdater.executeUpdate(group, false)
+                                        }.getOrElse { e ->
+                                            Logs.w("Batch update failed for ${group.displayName()}: ${e.readableMessage}")
+                                            false
+                                        }
+                                    }
+                                }
+                                val results = tasks.awaitAll()
+                                val successCount = results.count { it }
+                                val failCount = results.count { !it }
+                                onMainDispatcher {
+                                    val msg = if (failCount == 0) {
+                                        "选中订阅更新完成（共 ${successCount} 个）"
+                                    } else {
+                                        "订阅更新完成：${successCount} 个成功，${failCount} 个失败"
+                                    }
+                                    safeSnackbar(msg)
+                                    setSelectionMode(false)
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
         return true
@@ -366,6 +437,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
         val optionsButton = binding.options
         val updateButton = binding.groupUpdate
         val subscriptionUpdateProgress = binding.subscriptionUpdateProgress
+        val checkBox = binding.groupCheckbox
 
         override fun onMenuItemClick(item: MenuItem): Boolean {
 
@@ -472,6 +544,27 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
             proxyGroup = group
 
             itemView.setOnClickListener { }
+
+            // preview.18 UI 改造：批量选择勾选框
+            val fragment = this@GroupFragment
+            checkBox.visibility = if (fragment.selectionMode) View.VISIBLE else View.GONE
+            checkBox.setOnCheckedChangeListener(null)
+            checkBox.isChecked = fragment.selectedGroupIds.contains(group.id)
+            checkBox.setOnCheckedChangeListener { _, isChecked ->
+                if (isChecked) {
+                    fragment.selectedGroupIds.add(group.id)
+                } else {
+                    fragment.selectedGroupIds.remove(group.id)
+                }
+                fragment.updateSelectionUI()
+            }
+            itemView.setOnLongClickListener {
+                if (!fragment.selectionMode) {
+                    fragment.setSelectionMode(true)
+                    fragment.toggleGroupSelection(group.id)
+                    true
+                } else false
+            }
 
             val isDisabled = DataStore.isGroupDisabled(proxyGroup.id)
             editButton.isGone = proxyGroup.ungrouped

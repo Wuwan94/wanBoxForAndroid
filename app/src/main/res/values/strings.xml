@@ -36,6 +36,8 @@
     <string name="group_create">Create group</string>
     <string name="group_create_subscription">Create subscription</string>
     <string name="update_all_subscription">Update all subscriptions</string>
+    <!-- preview.18 UI 改造：订阅批量更新 -->
+    <string name="update_selected_subscription">更新选中</string>
     <string name="group_edit">Edit group</string>
     <string name="group_edit_subscription">Edit subscription</string>
     <string name="layout">Layout</string>
@@ -48,9 +50,9 @@
     <string name="group_status_empty">Empty group</string>
     <string name="group_status_empty_subscription">Not updated yet</string>
     <string name="group_status_proxies">%d Proxies</string>
-    <string name="group_status_proxies_subscription">%d Proxies | Updated on %s</string>
+    <string name="group_status_proxies_subscription">%1$d Proxies | Updated on %2$s</string>
     <string name="group_no_difference">%s: No difference</string>
-    <string name="group_updated">%s: Updated %d proxies</string>
+    <string name="group_updated">%1$s: Updated %2$d proxies</string>
     <string name="group_show_diff">Diff</string>
     <string name="group_diff">Diff (%s)</string>
     <string name="group_delete_confirm_prompt">Are you sure you want to remove this group?</string>
@@ -511,7 +513,7 @@
     <string name="ua_updated_toast">Subscription User-Agent updated</string>
     <string name="confirm">Confirm</string>
     <string name="missing_plugin">Missing Plugin</string>
-    <string name="profile_requiring_plugin">Profile %s requires the %s plugin to be installed, but
+    <string name="profile_requiring_plugin">Profile %1$s requires the %2$s plugin to be installed, but
         it was not found.</string>
     <string name="action_learn_more">LEARN MORE</string>
     <string name="action_download">DOWNLOAD</string>
@@ -533,7 +535,7 @@
     <string name="server_dns_subscription_sum">Optional DNS used only to resolve server domains in this subscription. Leave empty to use the default behavior. Accepts https://, tls://, quic:// or host[:port].</string>
     <string name="server_dns_invalid">Invalid custom server DNS. Use https://, tls://, quic:// or host[:port], or leave empty.</string>
     <string name="subscription_used">%s Used</string>
-    <string name="subscription_traffic">%s Used / %s Remaining</string>
+    <string name="subscription_traffic">%1$s Used / %2$s Remaining</string>
     <string name="subscription_expire">Expire: %s</string>
     <string name="subscription_import">Import subscription</string>
     <string name="subscription_import_message">Confirm you want to import subscription %s? If you
@@ -558,7 +560,7 @@
     <string name="group_order_origin">Origin</string>
     <string name="group_order_by_name">By Name</string>
     <string name="group_order_by_delay">By Delay</string>
-    <string name="plugin_exists_but_on_shit_system">Profile %s requires the %s plugin, but your
+    <string name="plugin_exists_but_on_shit_system">Profile %1$s requires the %2$s plugin, but your
         proprietary equipment vendor (usually surveillance capital giants and malware maker)
         tampered with your Android, making the plugin unusable.</string>
 
@@ -582,6 +584,7 @@
     <string name="create_rule">Create Rule</string>
 
     <string name="copy_success">Copy success!</string>
+    <string name="copy_toast_msg">Link copied to clipboard.</string>
     <string name="copy_failed">Copy failed.</string>
     <string name="app_no_launcher">The app has no interface.</string>
     <string name="route_for">Rule for %s</string>
@@ -672,9 +675,9 @@
 
     <string name="pinned_certchain_sha256">Pinned Certificate SHA256</string>
 
-    <string name="please_update">Your APP is too old (%s). And will stop working at %s. Please
+    <string name="please_update">Your APP is too old (%1$s). And will stop working at %2$s. Please
         update!</string>
-    <string name="please_update_force">Your APP is too old (%s). And has been stopped working at %s.
+    <string name="please_update_force">Your APP is too old (%1$s). And has been stopped working at %2$s.
         Please update!</string>
     <string name="connection_test_delete_unavailable">Clear unavailable</string>
     <string name="hide_unavailable_profiles">Hide unavailable profiles</string>
@@ -1224,6 +1227,11 @@
     <string name="input_method_direct">Current keyboard direct connection</string>
     <!-- @author 雾晚 -->
     <!-- @author 雾晚 -->
+    <!-- preview.18 UI 改造：仪表盘服务状态 -->
+    <string name="service_state_connected">已连接</string>
+    <string name="service_state_connecting">启动中</string>
+    <string name="service_state_stopping">停止中</string>
+    <string name="service_state_idle">未连接</string>
     <string name="tcp_rtt_udp_unavailable">TCP RTT is unavailable for UDP-only nodes; use the proxy channel test.</string>
     <string name="tcp_rtt_network_unavailable">Physical network is not ready. Retry after connecting.</string>
     <string name="default_group_test_url" translatable="false">http://connectivitycheck.gstatic.com/generate_204</string>
@@ -1237,4 +1245,26 @@
     <string name="preset_domestic_failed">Could not save routing preset. Check available storage and retry.</string>
     <string name="node_switch_in_progress">Switching node, please wait…</string>
     <string name="node_select_urltest_hint">该分组开启了自动优选，手动选择将完整重载，且自动优选可能再次切换节点</string>
+
+
+    <!-- preview.18 UI 改造：底部导航标题 -->
+    <string name="tab_dashboard">仪表盘</string>
+    <string name="tab_nodes">节点</string>
+    <string name="tab_subscriptions">订阅</string>
+    <string name="tab_settings">设置</string>
+    <!-- preview.18 UI 改造：节点页显示设置 -->
+    <string name="node_display_settings">显示设置</string>
+    <string name="node_column_count">列数</string>
+    <string name="node_column_single">单列</string>
+    <string name="node_column_double">双列</string>
+    <string name="node_column_multi">多列</string>
+    <string name="node_name_text_size">节点名称字号</string>
+    <string name="node_card_spacing">卡片间距</string>
+    <string name="node_card_density">卡片大小</string>
+    <string name="node_card_small">小</string>
+    <string name="node_card_medium">中</string>
+    <string name="node_card_large">大</string>
+    <!-- preview.18 UI 改造：分应用代理入口 -->
+    <string name="per_app_proxy">分应用代理</string>
+    <string name="per_app_proxy_summary">为每个应用指定代理节点</string>
 </resources>

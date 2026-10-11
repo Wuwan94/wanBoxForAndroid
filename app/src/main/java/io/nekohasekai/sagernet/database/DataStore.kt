@@ -82,6 +82,11 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var showBottomBar by configurationStore.boolean(Key.SHOW_BOTTOM_BAR)
     var confirmProfileDelete by configurationStore.boolean(Key.CONFIRM_PROFILE_DELETE) { true }
     var groupLayoutMode by configurationStore.stringToInt(Key.GROUP_LAYOUT_MODE) { 0 }
+    // preview.18 UI 改造：节点页显示设置
+    var nodeColumnCount by configurationStore.stringToInt(Key.NODE_COLUMN_COUNT) { 2 }
+    var nodeNameTextSize by configurationStore.stringToInt(Key.NODE_NAME_TEXT_SIZE) { 14 }
+    var nodeCardSpacing by configurationStore.stringToInt(Key.NODE_CARD_SPACING) { 8 }
+    var nodeCardDensity by configurationStore.stringToInt(Key.NODE_CARD_DENSITY) { 1 }
     var profileCardStyle by configurationStore.stringToInt(Key.PROFILE_CARD_STYLE) { 0 }
     var showSubscriptionInfoCard by configurationStore.boolean(Key.SHOW_SUBSCRIPTION_INFO_CARD) { true }
     var customThemeColor by configurationStore.int("custom_theme_color") { 0xFF00E676.toInt() }
@@ -197,8 +202,12 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     }
     var ipv6Mode by configurationStore.stringToInt(Key.IPV6_MODE) { IPv6Mode.DISABLE }
     var meteredNetwork by configurationStore.boolean(Key.METERED_NETWORK)
+    
     var proxyApps by configurationStore.boolean(Key.PROXY_APPS)
     var bypass by configurationStore.boolean(Key.BYPASS_MODE) { true }
+    var dashboardMode by configurationStore.stringToInt(Key.DASHBOARD_MODE) { 0 }
+    
+    
     var individual by configurationStore.string(Key.INDIVIDUAL)
     var showDirectSpeed by configurationStore.boolean(Key.SHOW_DIRECT_SPEED) { true }
     var showLandingIp by configurationStore.boolean(Key.SHOW_LANDING_IP) { true }

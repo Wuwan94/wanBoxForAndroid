@@ -90,6 +90,12 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
         DataStore.initGlobal()
         addPreferencesFromResource(R.xml.global_preferences)
 
+        // preview.18 UI 改造：分应用代理入口
+        findPreference<Preference>("perAppProxyEntry")?.setOnPreferenceClickListener {
+            startActivity(Intent(activity, AppManagerActivity::class.java))
+            true
+        }
+
         val iconColor = Theme.getPrimaryColor(requireContext())
         tintPreferenceIcons(preferenceScreen, iconColor)
 

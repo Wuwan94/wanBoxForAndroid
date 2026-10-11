@@ -186,6 +186,18 @@
 
         </io.nekohasekai.sagernet.widget.StatsBar>
 
+        <!-- preview.18 UI 改造：底部导航 -->
+        <com.google.android.material.bottomnavigation.BottomNavigationView
+            android:id="@+id/bottom_nav"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:background="#FFFFFF"
+            app:elevation="8dp"
+            app:itemIconTint="#616161"
+            app:itemTextColor="#616161"
+            app:menu="@menu/bottom_nav_menu" />
+
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
     <com.google.android.material.navigation.NavigationView

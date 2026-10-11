@@ -196,6 +196,10 @@
                         </group>
                     </menu>
                 </item>
+                <item
+                    android:id="@+id/action_display_settings"
+                    android:title="@string/node_display_settings"
+                    app:showAsAction="never" />
             </group>
         </menu>
     </item>

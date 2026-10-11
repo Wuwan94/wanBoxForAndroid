@@ -709,5 +709,15 @@
       "{http://schemas.android.com/apk/res-auto}key": "resetSettings",
       "{http://schemas.android.com/apk/res-auto}title": "@string/reset_settings"
     }
+  },
+  "perAppProxyEntry": {
+    "type": "Preference",
+    "attributes": {
+      "{http://schemas.android.com/apk/res-auto}icon": "@drawable/ic_navigation_apps",
+      "{http://schemas.android.com/apk/res-auto}key": "perAppProxyEntry",
+      "{http://schemas.android.com/apk/res-auto}persistent": "false",
+      "{http://schemas.android.com/apk/res-auto}title": "@string/per_app_proxy",
+      "{http://schemas.android.com/apk/res-auto}summary": "@string/per_app_proxy_summary"
+    }
   }
 }
