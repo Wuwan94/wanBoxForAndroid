@@ -81,17 +81,17 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var enableClashAPI by configurationStore.boolean(Key.ENABLE_CLASH_API) { true }
     var showBottomBar by configurationStore.boolean(Key.SHOW_BOTTOM_BAR)
     var confirmProfileDelete by configurationStore.boolean(Key.CONFIRM_PROFILE_DELETE) { true }
-    var groupLayoutMode by configurationStore.stringToInt(Key.GROUP_LAYOUT_MODE) { 0 }
+    var groupLayoutMode by configurationStore.stringToInt(Key.GROUP_LAYOUT_MODE) { 1 }
     // preview.18 UI 改造：节点页显示设置
     var nodeColumnCount by configurationStore.stringToInt(Key.NODE_COLUMN_COUNT) { 2 }
     var nodeNameTextSize by configurationStore.stringToInt(Key.NODE_NAME_TEXT_SIZE) { 14 }
     var nodeCardSpacing by configurationStore.stringToInt(Key.NODE_CARD_SPACING) { 8 }
     var nodeCardDensity by configurationStore.stringToInt(Key.NODE_CARD_DENSITY) { 1 }
     var profileCardStyle by configurationStore.stringToInt(Key.PROFILE_CARD_STYLE) { 0 }
-    var showSubscriptionInfoCard by configurationStore.boolean(Key.SHOW_SUBSCRIPTION_INFO_CARD) { true }
+    var showSubscriptionInfoCard by configurationStore.boolean(Key.SHOW_SUBSCRIPTION_INFO_CARD) { false }
     var customThemeColor by configurationStore.int("custom_theme_color") { 0xFF00E676.toInt() }
     var hapticFeedback by configurationStore.boolean(Key.HAPTIC_FEEDBACK) { true }
-    var showAllGroupsTab by configurationStore.boolean(Key.SHOW_ALL_GROUPS_TAB) { false }
+    var showAllGroupsTab by configurationStore.boolean(Key.SHOW_ALL_GROUPS_TAB) { true }
     var allGroupsOrder by configurationStore.int(Key.ALL_GROUPS_ORDER) { GroupOrder.ORIGIN }
     var allowInsecureOnRequest by configurationStore.boolean(Key.ALLOW_INSECURE_ON_REQUEST)
     var networkChangeResetConnections by configurationStore.boolean(Key.NETWORK_CHANGE_RESET_CONNECTIONS) { false }

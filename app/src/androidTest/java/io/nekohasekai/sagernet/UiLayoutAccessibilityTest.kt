@@ -31,11 +31,9 @@ class UiLayoutAccessibilityTest {
                 val state = context.getString(if (connected) R.string.ui_profile_connected else R.string.ui_profile_selected)
                 for (compact in listOf(true, false, true, false)) {
                     style.apply(compact); style.selection(selected, connected)
-                    assertEquals(if (selected) View.VISIBLE else View.GONE, badge.visibility)
+                    assertEquals(View.GONE, badge.visibility)
+                    assertEquals(View.VISIBLE, card.findViewById<ImageView>(R.id.profile_check).visibility)
                     assertEquals(if (selected) state else null, ViewCompat.getStateDescription(card)?.toString())
-                    assertEquals(if (compact) context.getString(
-                        if (connected) R.string.ui_profile_connected_mark else R.string.ui_profile_selected_mark
-                    ) else state, badge.text.toString())
                 }
             }
         }

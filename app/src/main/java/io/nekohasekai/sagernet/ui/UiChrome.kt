@@ -60,7 +60,7 @@ internal object UiChrome {
         }
     }
 
-    fun apply(view: View) { view.background = background(view.context) }
+    fun apply(view: View) { view.setBackgroundColor(view.context.getColor(R.color.minimal_background)); view.elevation = 0f }
 
     fun applyInformationCard(content: View) {
         // MaterialCardView retains its shape, elevation, stroke and click/ripple handling.

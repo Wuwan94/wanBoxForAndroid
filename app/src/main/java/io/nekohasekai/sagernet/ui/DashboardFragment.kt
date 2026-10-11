@@ -1,518 +1,143 @@
 package io.nekohasekai.sagernet.ui
 
+import android.content.res.ColorStateList
 import android.os.Bundle
+import android.os.SystemClock
+import android.text.SpannableString
+import android.text.Spanned
 import android.text.format.Formatter
-import android.view.LayoutInflater
+import android.text.style.RelativeSizeSpan
 import android.view.View
-import android.view.ViewGroup
 import android.widget.Button
 import android.widget.TextView
-import androidx.fragment.app.Fragment
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.toRequestBody
 import com.google.android.material.switchmaterial.SwitchMaterial
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.database.DataStore
-import io.nekohasekai.sagernet.database.ProfileManager
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import io.nekohasekai.sagernet.database.SagerDatabase
+import kotlinx.coroutines.*
+import java.util.Locale
 
-/**
- * preview.18 UI 改造：仪表盘页。
- * 显示服务状态、当前节点、模式切换（规则/全局/直连）、2x2 数据卡。
- */
-class DashboardFragment : ToolbarFragment() {
-
-    /**
-     * @author 雾晚：共享的受限 loopback 客户端。
-     * 仅访问 127.0.0.1:9090，5s 超时，禁重定向，不每次新建。
-     */
-    private val loopbackClient: okhttp3.OkHttpClient by lazy {
-        okhttp3.OkHttpClient.Builder()
-            .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-            .callTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-            .followRedirects(false)
-            .followSslRedirects(false)
-            .build()
-    }
-
-    private var statusText: TextView? = null
-    private var serviceSwitch: SwitchMaterial? = null
-    // @author 雾晚：使用应用级 ServiceCommandController 串行控制
-    // 替代局部门闩 + 5s 延时，UI 通过 StateFlow 只读观察
-    private var nodeName: TextView? = null
-    private var nodeInfo: TextView? = null
-    private var uptimeText: TextView? = null
-    private var modeRule: Button? = null
-    private var modeGlobal: Button? = null
-    private var modeDirect: Button? = null
-    private var uploadSpeed: TextView? = null
-    private var uploadTotal: TextView? = null
-    private var downloadSpeed: TextView? = null
-    private var downloadTotal: TextView? = null
-    private var coreMemory: TextView? = null
-    private var connectionCount: TextView? = null
-
-
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View? {
-        return inflater.inflate(R.layout.layout_dashboard, container, false)
-    }
+/** Compact dashboard bound to the same Root service and persisted routing mode. */
+class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
+    private var statsJob: Job? = null
+    private var nodeJob: Job? = null
+    private var suppressSwitch = false
+    private var operationUntil = 0L
+    private var renderedProfile = -1L
+    private var renderedState: BaseService.State? = null
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
-        statusText = view.findViewById(R.id.statusText)
-        serviceSwitch = view.findViewById(R.id.serviceSwitch)
-        nodeName = view.findViewById(R.id.nodeName)
-        nodeInfo = view.findViewById(R.id.nodeInfo)
-        uptimeText = view.findViewById(R.id.uptimeText)
-        modeRule = view.findViewById(R.id.modeRule)
-        modeGlobal = view.findViewById(R.id.modeGlobal)
-        modeDirect = view.findViewById(R.id.modeDirect)
-        uploadSpeed = view.findViewById(R.id.uploadSpeed)
-        uploadTotal = view.findViewById(R.id.uploadTotal)
-        downloadSpeed = view.findViewById(R.id.downloadSpeed)
-        downloadTotal = view.findViewById(R.id.downloadTotal)
-        coreMemory = view.findViewById(R.id.coreMemory)
-        connectionCount = view.findViewById(R.id.connectionCount)
-
-        serviceSwitch?.setOnCheckedChangeListener { _, isChecked ->
-            // @author 雾晚：程序化更新时 tag 标记，回调直接返回不发送命令
-            if (serviceSwitch?.tag == "programmatic") return@setOnCheckedChangeListener
-            if (io.nekohasekai.sagernet.SagerNet.commandController.isBusy()) {
-                // 操作进行中，恢复开关到实际状态，忽略本次点击
-                syncSwitchToState()
-                return@setOnCheckedChangeListener
-            }
-            // @author 雾晚：通过应用级串行控制器提交，后台确认后更新
-            val kind = if (isChecked) {
-                io.nekohasekai.sagernet.bg.ServiceCommandController.CommandKind.START
-            } else {
-                io.nekohasekai.sagernet.bg.ServiceCommandController.CommandKind.STOP
-            }
-            // @author 雾晚：通过控制器提交，不捕获 Fragment/views
-            val submitted = if (isChecked) {
-                io.nekohasekai.sagernet.SagerNet.commandController.requestStart()
-            } else {
-                io.nekohasekai.sagernet.SagerNet.commandController.requestStop()
-            }
-            if (!submitted) {
-                // 被拒绝（有命令执行中），恢复开关
-                syncSwitchToState()
-            }
+        toolbar.title = "wanBox"
+        val switch = view.findViewById<SwitchMaterial>(R.id.serviceSwitch)
+        switch.setOnCheckedChangeListener { _, checked ->
+            if (suppressSwitch) return@setOnCheckedChangeListener
+            operationUntil = SystemClock.elapsedRealtime() + 5000L
+            switch.isEnabled = false
+            if (checked) SagerNet.startService() else SagerNet.stopService()
         }
-
-        modeRule?.setOnClickListener { setMode(MODE_RULE) }
-        modeGlobal?.setOnClickListener { setMode(MODE_GLOBAL) }
-        modeDirect?.setOnClickListener { setMode(MODE_DIRECT) }
-
-        view.findViewById<View>(R.id.currentNodeLayout)?.setOnClickListener {
+        view.findViewById<View>(R.id.currentNodeLayout).setOnClickListener {
             (activity as? MainActivity)?.navigateToNodes()
         }
-
-        updateServiceState()
-        updateCurrentNode()
-        updateModeUI()
-        // @author 雾晚：使用 repeatOnLifecycle(STARTED) 订阅，界面销毁自动取消
-        // 无旧值回写，无重复查询，异常/断开清空
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewLifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
-                while (true) {
-                    updateDashboardOnce()
-                    kotlinx.coroutines.delay(1000)
+        listOf(R.id.modeRule, R.id.modeGlobal, R.id.modeDirect).forEachIndexed { mode, id ->
+            view.findViewById<Button>(id).setOnClickListener {
+                if (DataStore.dashboardMode != mode) {
+                    DataStore.bypass = mode != MODE_GLOBAL
+                    DataStore.proxyApps = false
+                    DataStore.dashboardMode = mode
+                    SagerNet.reloadService()
+                    renderMode(view)
                 }
             }
         }
-        // @author 雾晚：观察串行命令状态，UI 只读渲染
-        // Pending 禁用开关并显示连接中/断开中；Confirmed 用携带的 status 同步真实状态；
-        // Error 提示安全错误码并回读真实状态
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewLifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
-                io.nekohasekai.sagernet.SagerNet.commandController.state.collect { state ->
-                    when (state) {
-                        is io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.Pending -> {
-                            // 执行中：禁用开关，显示过渡状态
-                            serviceSwitch?.isEnabled = false
-                            val msg = when (state.kind) {
-                                io.nekohasekai.sagernet.bg.ServiceCommandController.CommandKind.START ->
-                                    getString(R.string.service_state_connecting)
-                                io.nekohasekai.sagernet.bg.ServiceCommandController.CommandKind.STOP ->
-                                    getString(R.string.service_state_stopping)
-                                else -> statusText?.text.toString()
-                            }
-                            statusText?.text = msg
-                        }
-                        is io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.Confirmed -> {
-                            // @author 雾晚：用确认结果中的真实 status 同步，不用旧 MainActivity.serviceState
-                            serviceSwitch?.isEnabled = true
-                            updateServiceStateFromStatus(state.status)
-                            // @author 雾晚：模式切换确认后刷新选中样式
-                            updateModeUI()
-                            io.nekohasekai.sagernet.SagerNet.commandController.acknowledge()
-                        }
-                        is io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.Error -> {
-                            serviceSwitch?.isEnabled = true
-                            // 安全错误码提示（不暴露原始异常）
-                            val safeMsg = when {
-                                state.message.contains("timeout") -> "操作超时"
-                                state.message.contains("node") -> "节点切换失败"
-                                state.message.contains("mode") -> "模式切换失败，已恢复实际模式"
-                                else -> "操作失败"
-                            }
-                            android.widget.Toast.makeText(context, safeMsg, android.widget.Toast.LENGTH_SHORT).show()
-                            // 回读真实状态与真实模式（PATCH 成功 GET 失败时恢复显示）
-                            updateServiceState()
-                            syncSwitchToState()
-                            updateModeUI()
-                            io.nekohasekai.sagernet.SagerNet.commandController.acknowledge()
-                        }
-                        is io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.Cancelled -> {
-                            serviceSwitch?.isEnabled = true
-                            updateServiceState()
-                            syncSwitchToState()
-                            io.nekohasekai.sagernet.SagerNet.commandController.acknowledge()
-                        }
-                        else -> {}
-                    }
-                }
+        renderMode(view)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val root = view ?: return
+        statsJob?.cancel()
+        statsJob = viewLifecycleOwner.lifecycleScope.launch {
+            while (isActive) {
+                render(root)
+                delay(1000)
             }
         }
     }
 
+    private fun renderMode(root: View) {
+        listOf(R.id.modeRule, R.id.modeGlobal, R.id.modeDirect).forEachIndexed { mode, id ->
+            root.findViewById<Button>(id).apply {
+                background = ContextCompat.getDrawable(context, if (DataStore.dashboardMode == mode) R.drawable.bg_minimal_active else R.drawable.bg_minimal_segment)
+                backgroundTintList = null
+                isSelected = DataStore.dashboardMode == mode
+            }
+        }
+    }
+
+    private fun render(root: View) {
+        val host = activity as? MainActivity ?: return
+        val state = host.serviceState
+        val switch = root.findViewById<SwitchMaterial>(R.id.serviceSwitch)
+        if (renderedState != state) operationUntil = 0L
+        renderedState = state
+        suppressSwitch = true
+        switch.isChecked = state == BaseService.State.Connected || state == BaseService.State.Connecting
+        suppressSwitch = false
+        switch.isEnabled = state != BaseService.State.Connecting && state != BaseService.State.Stopping && SystemClock.elapsedRealtime() >= operationUntil
+        root.findViewById<TextView>(R.id.statusText).setText(when (state) {
+            BaseService.State.Connected -> R.string.service_state_connected
+            BaseService.State.Connecting -> R.string.service_state_connecting
+            BaseService.State.Stopping -> R.string.service_state_stopping
+            else -> R.string.service_state_idle
+        })
+        val profileId = if (state.connected && DataStore.currentProfile > 0) DataStore.currentProfile else DataStore.selectedProxy
+        if (profileId != renderedProfile) {
+            renderedProfile = profileId
+            nodeJob?.cancel()
+            nodeJob = viewLifecycleOwner.lifecycleScope.launch {
+                val result = withContext(Dispatchers.IO) {
+                    val profile = SagerDatabase.proxyDao.getById(profileId)
+                    val group = profile?.let { SagerDatabase.groupDao.getById(it.groupId) }
+                    profile to group
+                }
+                val profile = result.first
+                root.findViewById<TextView>(R.id.nodeName).text = profile?.displayName() ?: getString(R.string.minimal_select)
+                root.findViewById<TextView>(R.id.nodeInfo).text = profile?.let {
+                    listOfNotNull(result.second?.displayName(), if (it.status == 1) "${it.ping} ms" else it.displayType()).joinToString(" · ")
+                } ?: "—"
+            }
+        }
+        val stats = host.lastSpeedStats.takeIf { state.connected }
+        fun text(id: Int, value: CharSequence) { root.findViewById<TextView>(id).text = value }
+        fun rate(value: Long): CharSequence {
+            val formatted = Formatter.formatFileSize(requireContext(), value) + "/s"
+            val unit = formatted.indexOf(' ')
+            return SpannableString(formatted).apply {
+                if (unit >= 0) setSpan(RelativeSizeSpan(0.55f), unit, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        }
+        text(R.id.uploadSpeed, stats?.let { rate(it.txRateProxy) } ?: "—")
+        text(R.id.downloadSpeed, stats?.let { rate(it.rxRateProxy) } ?: "—")
+        text(R.id.uploadTotal, getString(R.string.minimal_total, stats?.let { Formatter.formatFileSize(requireContext(), it.txTotal) } ?: "—"))
+        text(R.id.downloadTotal, getString(R.string.minimal_total, stats?.let { Formatter.formatFileSize(requireContext(), it.rxTotal) } ?: "—"))
+        // The v3.0.8 module protocol does not expose memory or connection counts.
+        text(R.id.coreMemory, "—")
+        text(R.id.connectionCount, "—")
+        val seconds = if (host.connectedSince > 0 && state.connected) (SystemClock.elapsedRealtime() - host.connectedSince) / 1000 else null
+        text(R.id.uptimeText, seconds?.let { String.format(Locale.ROOT, "%02d:%02d:%02d", it / 3600, it % 3600 / 60, it % 60) } ?: "—")
+    }
+
+    override fun onPause() { statsJob?.cancel(); statsJob = null; super.onPause() }
     override fun onDestroyView() {
+        statsJob?.cancel(); nodeJob?.cancel()
+        renderedProfile = -1L; renderedState = null; operationUntil = 0L
         super.onDestroyView()
-        statusText = null
-        serviceSwitch = null
-        nodeName = null
-        nodeInfo = null
-        uptimeText = null
-        modeRule = null
-        modeGlobal = null
-        modeDirect = null
-        uploadSpeed = null
-        uploadTotal = null
-        downloadSpeed = null
-        downloadTotal = null
-        coreMemory = null
-        connectionCount = null
     }
-
-    /**
-     * @author 雾晚：由 MainActivity.changeState() 回调，服务状态变化时实时更新 UI。
-     * 仅在 Fragment 处于活跃生命周期时处理，避免后台回调导致状态错乱。
-     */
-    fun onServiceStateChanged(state: BaseService.State) {
-        if (!isAdded || view == null) return
-        updateServiceState()
-    }
-
-    /**
-     * @author 雾晚：从确认的 Status 同步真实状态，不用旧 MainActivity.serviceState 渲染。
-     */
-    private fun updateServiceStateFromStatus(status: io.nekohasekai.sagernet.bg.RootModuleClient.Status) {
-        val ctx = context ?: return
-        serviceSwitch?.tag = "programmatic"
-        try {
-            when {
-                status.connected -> {
-                    statusText?.text = getString(R.string.service_state_connected)
-                    // @author 雾晚：已连接用深灰，视觉更沉稳
-                    statusText?.setTextColor(0xFF212121.toInt())
-                    serviceSwitch?.isChecked = true
-                }
-                status.phase == "starting" -> {
-                    statusText?.text = getString(R.string.service_state_connecting)
-                    statusText?.setTextColor(0xFF757575.toInt())
-                    serviceSwitch?.isChecked = true
-                }
-                else -> {
-                    statusText?.text = getString(R.string.service_state_idle)
-                    statusText?.setTextColor(0xFF9E9E9E.toInt())
-                    serviceSwitch?.isChecked = false
-                }
-            }
-        } finally {
-            serviceSwitch?.tag = null
-        }
-        updateCurrentNode()
-    }
-
-    private fun updateServiceState() {
-        val state = (activity as? MainActivity)?.serviceState ?: BaseService.State.Idle
-        lifecycleScope.launch {
-            // 后台确认状态后清除操作中标记
-            serviceSwitch?.tag = "programmatic"
-            try {
-                when (state) {
-                    BaseService.State.Connected -> {
-                        statusText?.text = getString(R.string.service_state_connected)
-                        if (serviceSwitch?.isChecked == false) serviceSwitch?.isChecked = true
-                    }
-                    BaseService.State.Connecting -> {
-                        statusText?.text = getString(R.string.service_state_connecting)
-                    }
-                    BaseService.State.Stopping -> {
-                        statusText?.text = getString(R.string.service_state_stopping)
-                    }
-                    else -> {
-                        statusText?.text = getString(R.string.service_state_idle)
-                        if (serviceSwitch?.isChecked == true) serviceSwitch?.isChecked = false
-                    }
-                }
-            } finally {
-                serviceSwitch?.tag = null
-            }
-        }
-    }
-
-    private fun syncSwitchToState() {
-        val state = (activity as? MainActivity)?.serviceState ?: BaseService.State.Idle
-        serviceSwitch?.tag = "programmatic"
-        try {
-            serviceSwitch?.isChecked = (state == BaseService.State.Connected)
-        } finally {
-            serviceSwitch?.tag = null
-        }
-    }
-
-    private fun updateCurrentNode() {
-        lifecycleScope.launch {
-            val profileId = DataStore.selectedProxy
-            if (profileId == 0L) {
-                nodeName?.text = "—"
-                nodeInfo?.text = "—"
-                return@launch
-            }
-            val profile = ProfileManager.getProfile(profileId)
-            nodeName?.text = profile?.displayName() ?: "—"
-            nodeInfo?.text = "—"
-        }
-    }
-
-    // @author 雾晚：选中模式用深灰圆角底白字高亮，一眼看出当前模式
-    private fun updateModeUI() {
-        val mode = getCurrentMode()
-        val ctx = context ?: return
-        lifecycleScope.launch {
-            val selectedBg = androidx.core.content.ContextCompat.getDrawable(ctx, R.drawable.bg_mode_selected)
-            val normalBg = androidx.core.content.ContextCompat.getDrawable(ctx, R.drawable.bg_mode_normal)
-            val selectedTextColor = 0xFFFFFFFF.toInt()
-            val normalTextColor = 0xFF212121.toInt()
-            modeRule?.background = if (mode == MODE_RULE) selectedBg else normalBg
-            modeRule?.setTextColor(if (mode == MODE_RULE) selectedTextColor else normalTextColor)
-            modeGlobal?.background = if (mode == MODE_GLOBAL) selectedBg else normalBg
-            modeGlobal?.setTextColor(if (mode == MODE_GLOBAL) selectedTextColor else normalTextColor)
-            modeDirect?.background = if (mode == MODE_DIRECT) selectedBg else normalBg
-            modeDirect?.setTextColor(if (mode == MODE_DIRECT) selectedTextColor else normalTextColor)
-        }
-    }
-
-    private fun setMode(mode: Int) {
-        // @author 雾晚：通过应用级控制器串行切换，移除 Fragment 自己的 OkHttp/并发 launch
-        // 0=rule, 1=global, 2=direct
-        val modeStr = when (mode) {
-            MODE_GLOBAL -> "global"
-            MODE_DIRECT -> "direct"
-            else -> "rule"
-        }
-        // @author 雾晚：不提前写 DataStore，后台 PATCH+GET 确认后再持久化
-        // 停止时仅保存下次启动模式；经 RealBackend.setMode 做真实模式切换
-        val submitted = io.nekohasekai.sagernet.SagerNet.commandController.requestMode(modeStr)
-        if (!submitted) {
-            android.widget.Toast.makeText(context, "操作进行中，请稍候", android.widget.Toast.LENGTH_SHORT).show()
-        }
-        // UI 更新由控制器 Confirmed/Error 状态驱动
-        // Confirmed 后持久化 DataStore.dashboardMode
-    }
-
-    /**
-     * @author 雾晚：经控制器调用的模式 PATCH
-     * secret 从模块运行配置读取，PATCH 后 GET 确认，取消重抛
-     */
-    private suspend fun patchClashModeViaController(mode: String): Boolean {
-        return try {
-            if (patchClashMode(mode)) {
-                val confirmed = getClashMode()
-                if (confirmed == mode) {
-                    // @author 雾晚：回读真实模式确认后才持久化
-                    val modeInt = when (mode) {
-                        "global" -> MODE_GLOBAL
-                        "direct" -> MODE_DIRECT
-                        else -> MODE_RULE
-                    }
-                    DataStore.dashboardMode = modeInt
-                    true
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            // @author 雾晚：取消不能被外层 catch 吞掉
-            throw e
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-
-    /**
-     * @author 雾晚：流式限额读取响应体，避免 body.string().take() 全量读入内存。
-     * 超过限额返回 null（视为未知，不造假）。
-     */
-    private fun readLimitedBody(resp: okhttp3.Response, maxBytes: Long): String? {
-        return try {
-            val source = resp.body?.source() ?: return null
-            val buffer = okio.Buffer()
-            var total: Long = 0
-            while (true) {
-                val read = source.read(buffer, 8192)
-                if (read == -1L) break
-                total += read
-                if (total > maxBytes) return null // 超限，视为未知
-            }
-            buffer.readUtf8()
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            null
-        }
-    }
-
-    /**
-     * @author 雾晚：通过 loopback Clash API 切换运行模式，不重启核心。
-     * 安全约束：仅访问 127.0.0.1:9090，带 Bearer 鉴权，限制超时与响应体大小，
-     * 禁止远程重定向。
-     */
-    private fun patchClashMode(mode: String): Boolean {
-        return try {
-            val secret = DataStore.clashApiSecret
-            val body = "{\"mode\":\"$mode\"}"
-                .toRequestBody("application/json".toMediaType())
-            val req = okhttp3.Request.Builder()
-                .url("http://127.0.0.1:9090/configs")
-                .patch(body)
-                .header("Authorization", "Bearer $secret")
-                .build()
-            loopbackClient.newCall(req).execute().use { resp ->
-                // PATCH 响应体小，直接关闭即可，不读取内容
-                resp.isSuccessful
-            }
-        } catch (e: Exception) {
-            // @author 雾晚：取消异常必须重新抛出，与 OkHttp 取消联动
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            false
-        }
-    }
-
-    /**
-     * @author 雾晚：读回当前 Clash 模式用于确认。
-     */
-    private fun getClashMode(): String? {
-        return try {
-            val secret = DataStore.clashApiSecret
-            val req = okhttp3.Request.Builder()
-                .url("http://127.0.0.1:9090/configs")
-                .header("Authorization", "Bearer $secret")
-                .build()
-            loopbackClient.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) return null
-                val bodyStr = readLimitedBody(resp, 4096) ?: return null
-                org.json.JSONObject(bodyStr).optString("mode", null)
-            }
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            null
-        }
-    }
-
-    private fun getCurrentMode(): Int {
-        return DataStore.dashboardMode
-    }
-
-
-
-    /**
-     * @author 雾晚：单次更新所有仪表盘数据。
-     * 合并 stats 与 uptime，避免每秒两轮独立 status 查询。
-     * 复用 RootModuleClient 的 TTL 缓存，不另开轮询。
-     */
-    /**
-     * @author 雾晚：单次仪表盘更新，由 repeatOnLifecycle(STARTED) 循环调用。
-     * 界面销毁自动取消，无旧值回写。异常/断开清空显示。
-     */
-    private suspend fun updateDashboardOnce() {
-        val act = activity as? MainActivity ?: return
-        val stats = act.lastSpeedStats
-        val ctx = context ?: return
-
-        // 未连接时清理旧数据
-        if (stats == null) {
-            withContext(kotlinx.coroutines.Dispatchers.Main) {
-                if (!isAdded) return@withContext
-                uploadSpeed?.text = "—"
-                downloadSpeed?.text = "—"
-                uploadTotal?.text = "累计 —"
-                downloadTotal?.text = "累计 —"
-                coreMemory?.text = "—"
-                connectionCount?.text = "—"
-                uptimeText?.text = "—"
-            }
-            return
-        }
-
-        // @author 雾晚：遥测经 AIDL 从 :bg 进程传递，在 SpeedDisplayData 中
-        // UI 进程直接使用，不跨进程调用 RootModuleClient
-        withContext(kotlinx.coroutines.Dispatchers.Main) {
-            if (!isAdded) return@withContext
-            uploadSpeed?.text = Formatter.formatFileSize(ctx, stats.txRateProxy) + "/s"
-            downloadSpeed?.text = Formatter.formatFileSize(ctx, stats.rxRateProxy) + "/s"
-            // @author 雾晚：使用模块采集的真实累计（-1=未知），未知显示—
-            uploadTotal?.text = stats.txTotalModuleOrNull()?.let { "累计 " + Formatter.formatFileSize(ctx, it) }
-                ?: "累计 —"
-            downloadTotal?.text = stats.rxTotalModuleOrNull()?.let { "累计 " + Formatter.formatFileSize(ctx, it) }
-                ?: "累计 —"
-            // @author 雾晚：RSS 未知显示—，不伪造
-            coreMemory?.text = if (stats.vmRSSBytes >= 0) {
-                Formatter.formatFileSize(ctx, stats.vmRSSBytes)
-            } else "—"
-            // @author 雾晚：连接数 null 显示—，区分未知与真实 0
-            connectionCount?.text = stats.connectionCountOrNull()?.let { "$it 个" } ?: "—"
-            // @author 雾晚：运行时长由模块端提供（ready marker），未知显示—
-            uptimeText?.text = if (stats.uptimeSeconds >= 0) {
-                formatDuration(stats.uptimeSeconds * 1000)
-            } else {
-                "—"
-            }
-            // @author 雾晚：仅显示已验证的 runningProfileName，
-            // 不从未确认的 selectedProxy 冒充
-            if (stats.runningProfileName.isNotBlank()) {
-                nodeName?.text = stats.runningProfileName
-            }
-        }
-    }
-
-
-
-    private fun formatDuration(millis: Long): String {
-        val seconds = millis / 1000
-        val h = seconds / 3600
-        val m = (seconds % 3600) / 60
-        val s = seconds % 60
-        return String.format("%02d:%02d:%02d", h, m, s)
-    }
-
     companion object {
         const val MODE_RULE = 0
         const val MODE_GLOBAL = 1

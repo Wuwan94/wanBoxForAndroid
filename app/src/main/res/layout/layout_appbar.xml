@@ -5,9 +5,9 @@
     android:id="@+id/appbar"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="?attr/colorSurface"
+    android:background="@color/minimal_background"
     app:elevation="0dp"
-    app:liftOnScroll="true">
+    app:liftOnScroll="false">
 
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar"
@@ -17,7 +17,9 @@
         android:background="@android:color/transparent"
         android:theme="?actionBarTheme"
         android:touchscreenBlocksFocus="false"
-        app:titleTextAppearance="@style/TextAppearance.WanBox.Ui.Toolbar"
+        app:titleTextAppearance="@style/TextAppearance.WanBox.Minimal.Title"
+        app:contentInsetStart="20dp"
+        app:contentInsetEnd="12dp"
         app:titleTextColor="?android:attr/textColorPrimary"
         app:subtitleTextColor="?android:attr/textColorSecondary"
         app:navigationIconTint="?android:attr/textColorPrimary"

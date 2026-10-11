@@ -370,6 +370,25 @@ class ConfigurationFragment @JvmOverloads constructor(
         }
     }
 
+    private fun toggleDisplayPanel() {
+        view?.findViewById<View>(R.id.node_display_panel)?.let { it.isVisible = !it.isVisible }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean("display_panel", view?.findViewById<View>(R.id.node_display_panel)?.isVisible == true)
+        super.onSaveInstanceState(outState)
+    }
+
+    private fun refreshNodeSummary() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val summary = withContext(Dispatchers.IO) {
+                val groups = SagerDatabase.groupDao.allGroups()
+                groups.count { it.type == GroupType.SUBSCRIPTION } to SagerDatabase.proxyDao.getAll().size
+            }
+            view?.findViewById<TextView>(R.id.nodes_summary)?.text = getString(R.string.minimal_overview, summary.first, summary.second)
+        }
+    }
+
     // preview.18 UI 改造：显示设置变更后刷新
     fun onDisplaySettingsChanged() {
         switchAllGroupFragmentsLayout()
@@ -668,6 +687,28 @@ class ConfigurationFragment @JvmOverloads constructor(
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        toolbar.inflateMenu(R.menu.add_profile_menu)
+        toolbar.menu.findItem(R.id.action_add)?.isVisible = false
+        toolbar.menu.findItem(R.id.action_misc)?.setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
+        toolbar.menu.findItem(R.id.action_misc)?.subMenu?.removeItem(R.id.action_display_settings)
+        toolbar.menu.add(Menu.NONE, R.id.action_display_settings, 2, R.string.node_display_settings).apply {
+            setIcon(R.drawable.ic_minimal_sliders)
+            setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            setOnMenuItemClickListener { toggleDisplayPanel(); true }
+        }
+        toolbar.menu.add(Menu.NONE, R.id.action_minimal_refresh, 1, R.string.retest).apply {
+            setIcon(R.drawable.ic_minimal_refresh)
+            setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            setOnMenuItemClickListener {
+                onMenuItemClick(toolbar.menu.findItem(R.id.action_connection_tcp_ping))
+                true
+            }
+        }
+        view.findViewById<View>(R.id.node_display_panel).apply {
+            isVisible = savedInstanceState?.getBoolean("display_panel") == true
+            NodeDisplaySettings.bind(this) { onDisplaySettingsChanged() }
+            findViewById<View>(R.id.display_settings_close).setOnClickListener { isVisible = false }
+        }
         groupPager = view.findViewById(R.id.group_pager)
         tabLayout = view.findViewById(R.id.group_tab)
         adapter = GroupPagerAdapter()
@@ -679,13 +720,8 @@ class ConfigurationFragment @JvmOverloads constructor(
 
         val primaryTextColor = requireContext().getColorAttr(android.R.attr.textColorPrimary)
         if (!select) {
-            toolbar.inflateMenu(R.menu.add_profile_menu)
-            // @author 雾晚：节点页隐藏"添加节点"入口（扫码/剪贴板/文件/手动），
-            // 保留搜索、排序、单双列布局、卡片样式、测速等功能，添加统一到订阅页。
-            toolbar.menu.findItem(R.id.action_add)?.isVisible = false
-            toolbar.menu.findItem(R.id.action_global_mode)?.isChecked = DataStore.globalMode
+            // 节点页只保留浏览/切换/测速，添加功能已移到订阅页
             toolbar.setOnMenuItemClickListener(this)
-            tintMenuIcons(toolbar.menu, primaryTextColor)
         } else {
             toolbar.setTitle(titleRes)
             toolbar.setNavigationIcon(R.drawable.ic_navigation_close)
@@ -720,7 +756,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                 tintMenuIcons(toolbar.menu, Color.parseColor("#212121"))
             }
             Theme.isLightGrayTheme() -> {
-                val bg = Color.parseColor("#F5F5F7")
+                val bg = requireContext().getColor(R.color.minimal_background)
                 val textPrimary = Color.parseColor("#1F2937")
                 val textSecondary = Color.parseColor("#6B7280")
                 view.findViewById<View>(R.id.appbar)?.setBackgroundColor(bg)
@@ -773,7 +809,7 @@ class ConfigurationFragment @JvmOverloads constructor(
         // @author 雾晚: share surface treatment while preserving the selected theme's tab/icon colors.
         view.findViewById<View>(R.id.appbar)?.let(UiChrome::apply)
         toolbar.setBackgroundColor(Color.TRANSPARENT)
-        tabLayout.setBackgroundColor(Color.TRANSPARENT)
+        tabLayout.setBackgroundResource(R.drawable.bg_minimal_segment)
 
         val searchItem = toolbar.menu.findItem(R.id.action_search)
         val searchView = (searchItem?.actionView as? SearchView) ?: toolbar.findViewById<SearchView>(R.id.action_search)
@@ -1718,7 +1754,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                     val txBytes = sample.uploadBitsPerSecond / 8
                     runOnMainDispatcher {
                     if (speedTestRunner !== runner) return@runOnMainDispatcher
-                        // @author 雾晚：测速经 StateFlow，StatsBar 已删除
+                        (activity as? MainActivity)?.binding?.stats?.updateSpeed(txBytes, rxBytes)
                         try {
                             (activity as? MainActivity)?.connection?.service?.postNotificationSpeed(
                                 io.nekohasekai.sagernet.aidl.SpeedDisplayData(
@@ -1792,7 +1828,7 @@ class ConfigurationFragment @JvmOverloads constructor(
             } finally {
                 runOnMainDispatcher {
                     if (speedTestRunner !== runner) return@runOnMainDispatcher
-                    // @author 雾晚：测速经 StateFlow，StatsBar 已删除
+                    (activity as? MainActivity)?.binding?.stats?.updateSpeed(0, 0)
                     try {
                         (activity as? MainActivity)?.connection?.service?.postNotificationSpeed(
                             io.nekohasekai.sagernet.aidl.SpeedDisplayData(0, 0, 0, 0, 0, 0)
@@ -1869,7 +1905,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                     val txBytes = sample.uploadBitsPerSecond / 8
                     runOnMainDispatcher {
                     if (speedTestRunner !== runner) return@runOnMainDispatcher
-                        // @author 雾晚：测速经 StateFlow，StatsBar 已删除
+                        (activity as? MainActivity)?.binding?.stats?.updateSpeed(txBytes, rxBytes)
                         try {
                             (activity as? MainActivity)?.connection?.service?.postNotificationSpeed(
                                 io.nekohasekai.sagernet.aidl.SpeedDisplayData(
@@ -1948,7 +1984,7 @@ class ConfigurationFragment @JvmOverloads constructor(
             } finally {
                 runOnMainDispatcher {
                     if (speedTestRunner !== runner) return@runOnMainDispatcher
-                    // @author 雾晚：测速经 StateFlow，StatsBar 已删除
+                    (activity as? MainActivity)?.binding?.stats?.updateSpeed(0, 0)
                     try {
                         (activity as? MainActivity)?.connection?.service?.postNotificationSpeed(
                             io.nekohasekai.sagernet.aidl.SpeedDisplayData(0, 0, 0, 0, 0, 0)
@@ -2337,6 +2373,7 @@ class ConfigurationFragment @JvmOverloads constructor(
         ProfileManager.Listener,
         GroupManager.Listener {
 
+        private var initialGroupsLoad = true
         var selectedGroupIndex = 0
         var groupList: ArrayList<ProxyGroup> = ArrayList()
         var groupFragments: HashMap<Long, GroupFragment> = HashMap()
@@ -2410,7 +2447,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                 }
 
                 // Inject "All" tab sentinel at position 0 when the setting is enabled
-                if (DataStore.showAllGroupsTab && newGroupList.isNotEmpty()) {
+                if ((DataStore.showAllGroupsTab || !select) && newGroupList.isNotEmpty()) {
                     val sentinelGroup = ProxyGroup().apply {
                         id = ALL_GROUPS_SENTINEL_ID
                         name = app.getString(R.string.group_tab_all)
@@ -2439,6 +2476,10 @@ class ConfigurationFragment @JvmOverloads constructor(
                                     return@launch
                                 }
                                 refreshProfileState()
+                                if (!select && initialGroupsLoad && newGroupList.firstOrNull()?.id == ALL_GROUPS_SENTINEL_ID) {
+                                    newSelectedGroupIndex = 0
+                                }
+                                initialGroupsLoad = false
                                 newSelectedGroupIndex?.let { selectedGroupIndex = it }
                                 groupFragments.keys.retainAll(newGroupList.map { it.id }.toSet())
                                 groupList = newGroupList
@@ -2449,8 +2490,10 @@ class ConfigurationFragment @JvmOverloads constructor(
                                 // Show tab if there are ≥2 real groups (or ≥3 items including sentinel)
                                 val realGroupCount = groupList.count { it.id != ALL_GROUPS_SENTINEL_ID }
                                 val hideTab = realGroupCount < 2
-                                tabLayout.isGone = hideTab
-                                toolbar.elevation = if (hideTab) 0F else dp2px(4).toFloat()
+                                tabLayout.isGone = groupList.isEmpty()
+                                toolbar.elevation = 0f
+                                toolbar.setTitle(R.string.tab_nodes)
+                                refreshNodeSummary()
                                 if (!select) {
                                     groupPager.registerOnPageChangeCallback(updateSelectedCallback)
                                 }
@@ -2711,15 +2754,15 @@ class ConfigurationFragment @JvmOverloads constructor(
             val currentOrder = if (isAllGroupsTab) DataStore.allGroupsOrder else proxyGroup.order
             when (currentOrder) {
                 GroupOrder.ORIGIN -> {
-                    origin?.isChecked = true
+                    origin.isChecked = true
                 }
 
                 GroupOrder.BY_NAME -> {
-                    byName?.isChecked = true
+                    byName.isChecked = true
                 }
 
                 GroupOrder.BY_DELAY -> {
-                    byDelay?.isChecked = true
+                    byDelay.isChecked = true
                 }
             }
 
@@ -2764,10 +2807,10 @@ class ConfigurationFragment @JvmOverloads constructor(
             val layoutSingle = menu.findItem(R.id.action_layout_single)
             val layoutDouble = menu.findItem(R.id.action_layout_double)
             when (DataStore.groupLayoutMode) {
-                0 -> layoutSingle?.isChecked = true
-                1 -> layoutDouble?.isChecked = true
+                0 -> layoutSingle.isChecked = true
+                1 -> layoutDouble.isChecked = true
             }
-            layoutSingle?.setOnMenuItemClickListener {
+            layoutSingle.setOnMenuItemClickListener {
                 it.isChecked = true
                 if (DataStore.groupLayoutMode != 0) {
                     DataStore.groupLayoutMode = 0
@@ -2775,7 +2818,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                 }
                 true
             }
-            layoutDouble?.setOnMenuItemClickListener {
+            layoutDouble.setOnMenuItemClickListener {
                 it.isChecked = true
                 if (DataStore.groupLayoutMode != 1) {
                     DataStore.groupLayoutMode = 1
@@ -2787,10 +2830,10 @@ class ConfigurationFragment @JvmOverloads constructor(
             val cardClassic = menu.findItem(R.id.action_card_style_classic)
             val cardStroke = menu.findItem(R.id.action_card_style_stroke)
             when (DataStore.profileCardStyle) {
-                1 -> cardStroke?.isChecked = true
-                else -> cardClassic?.isChecked = true
+                1 -> cardStroke.isChecked = true
+                else -> cardClassic.isChecked = true
             }
-            cardClassic?.setOnMenuItemClickListener {
+            cardClassic.setOnMenuItemClickListener {
                 it.isChecked = true
                 if (DataStore.profileCardStyle != 0) {
                     DataStore.profileCardStyle = 0
@@ -2798,7 +2841,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                 }
                 true
             }
-            cardStroke?.setOnMenuItemClickListener {
+            cardStroke.setOnMenuItemClickListener {
                 it.isChecked = true
                 if (DataStore.profileCardStyle != 1) {
                     DataStore.profileCardStyle = 1
@@ -2809,19 +2852,43 @@ class ConfigurationFragment @JvmOverloads constructor(
 
             // preview.18 UI 改造：显示设置
             menu.findItem(R.id.action_display_settings)?.setOnMenuItemClickListener {
-                NodeDisplaySettingsDialog().show(
-                    (parentFragment as? ConfigurationFragment)?.childFragmentManager
-                        ?: requireFragmentManager(),
-                    "display_settings"
-                )
+                (parentFragment as? ConfigurationFragment)?.toggleDisplayPanel()
                 true
+            }
+        }
+
+        private val nodeSections = NodeSectionLayout()
+        private val sectionDecoration = object : RecyclerView.ItemDecoration() {
+            private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+            override fun getItemOffsets(outRect: android.graphics.Rect, child: View, parent: RecyclerView, state: RecyclerView.State) {
+                val item = nodeSections.item(parent.getChildAdapterPosition(child)) ?: return
+                val columns = (parent.layoutManager as? androidx.recyclerview.widget.GridLayoutManager)?.spanCount ?: 1
+                if (item.offset < columns) outRect.top = dp2px(30)
+            }
+            override fun onDraw(canvas: android.graphics.Canvas, parent: RecyclerView, state: RecyclerView.State) {
+                paint.color = requireContext().getColor(R.color.minimal_secondary)
+                paint.textSize = 12 * resources.displayMetrics.scaledDensity
+                for (index in 0 until parent.childCount) {
+                    val child = parent.getChildAt(index)
+                    val item = nodeSections.item(parent.getChildAdapterPosition(child)) ?: continue
+                    if (item.offset != 0) continue
+                    val name = (parentFragment as? ConfigurationFragment)?.pagerAdapter?.groupList?.find { it.id == item.groupId }?.displayName()
+                        ?: proxyGroup.displayName()
+                    val text = getString(R.string.minimal_node_section, name, item.count)
+                    val clipped = android.text.TextUtils.ellipsize(text, android.text.TextPaint(paint), (parent.width - parent.paddingLeft - parent.paddingRight).toFloat(), android.text.TextUtils.TruncateAt.END).toString()
+                    canvas.drawText(clipped, parent.paddingLeft.toFloat() + dp2px(4), child.top.toFloat() - dp2px(8), paint)
+                }
             }
         }
 
         private fun setupLayoutManager() {
             layoutManager = if (DataStore.groupLayoutMode == 1) {
                 // @author 雾晚: Honor manual double-column selection at every width/font size.
-                FixedGridLayoutManager(configurationListView, UiLayoutPolicy.columns(true))
+                FixedGridLayoutManager(configurationListView, DataStore.nodeColumnCount.coerceIn(2, 3)).apply {
+                    spanSizeLookup = object : androidx.recyclerview.widget.GridLayoutManager.SpanSizeLookup() {
+                        override fun getSpanSize(position: Int) = nodeSections.span(position, spanCount)
+                    }
+                }
             } else {
                 FixedLinearLayoutManager(configurationListView)
             }
@@ -2845,6 +2912,19 @@ class ConfigurationFragment @JvmOverloads constructor(
             setupLayoutManager()
             configurationListView.layoutManager = layoutManager
             adapter = ConfigurationAdapter()
+            configurationListView.addItemDecoration(sectionDecoration)
+            adapter?.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
+                private fun rebuild() {
+                    val current = adapter ?: return
+                    nodeSections.update(current.configurationIdList.map { current.configurationList[it]?.groupId ?: proxyGroup.id })
+                    configurationListView.invalidateItemDecorations()
+                    (parentFragment as? ConfigurationFragment)?.refreshNodeSummary()
+                }
+                override fun onChanged() = rebuild()
+                override fun onItemRangeInserted(positionStart: Int, itemCount: Int) = rebuild()
+                override fun onItemRangeRemoved(positionStart: Int, itemCount: Int) = rebuild()
+                override fun onItemRangeMoved(fromPosition: Int, toPosition: Int, itemCount: Int) = rebuild()
+            })
             ProfileManager.addListener(adapter!!)
             GroupManager.addListener(adapter!!)
             configurationListView.adapter = adapter
@@ -3036,12 +3116,7 @@ class ConfigurationFragment @JvmOverloads constructor(
 
         private fun updateListBottomPadding() {
             val list = listView ?: return
-            list.updatePadding(bottom = UiLayoutPolicy.bottomPadding(
-                resources.getDimensionPixelSize(R.dimen.main_list_padding_bottom),
-                bottomBarView?.height ?: 0,
-                dp2px(40),
-                bottomSystemInset
-            ))
+            list.updatePadding(bottom = dp2px(12))
         }
 
         private fun setupAdaptiveListChrome() {
@@ -3061,7 +3136,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                 insets
             }
             if (!select) {
-                // @author 雾晚：StatsBar 已删除，无底部栏视图
+                bottomBarView = (activity as? MainActivity)?.binding?.stats
                 bottomBarLayoutListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
                     updateListBottomPadding()
                 }.also { bottomBarView?.addOnLayoutChangeListener(it) }
@@ -3664,6 +3739,10 @@ class ConfigurationFragment @JvmOverloads constructor(
                 }
 
 
+                if (isAllGroupsTab) {
+                    val groupOrder = SagerDatabase.groupDao.allGroups().mapIndexed { index, group -> group.id to index }.toMap()
+                    newProfiles = newProfiles.sortedBy { groupOrder[it.groupId] ?: Int.MAX_VALUE }
+                }
                 val newProfileMap = newProfiles.associateBy { it.id }
                 val newProfileIds = newProfiles.map { it.id }.distinct()
 
@@ -3889,24 +3968,12 @@ class ConfigurationFragment @JvmOverloads constructor(
                 // @author 雾晚: Keep full accessible state while using inline grid feedback.
                 cardStyle.selection(selected, connected)
                 val ctx = card.context
-                val surface = ctx.getColorAttr(R.attr.colorSurface)
-                card.setCardBackgroundColor(surface)
-                if (DataStore.profileCardStyle == 1) {
-                    val primary = ctx.getColorAttr(R.attr.colorPrimary)
-                    selectedIndicator.isVisible = false
-                    card.cardElevation = 0f
-                    card.strokeWidth = ctx.resources.getDimensionPixelSize(
-                        if (selected) R.dimen.card_stroke_width_selected
-                        else R.dimen.card_stroke_width
-                    )
-                    card.strokeColor =
-                        if (selected) primary else ctx.getColour(R.color.card_stroke)
-                } else {
-                    selectedIndicator.isVisible = selected
-                    card.strokeWidth = 0
-                    card.cardElevation =
-                        ctx.resources.getDimension(R.dimen.profile_card_elevation_classic)
-                }
+                selectedIndicator.isVisible = false
+                card.cardElevation = 0f
+                card.radius = dp2px(8).toFloat()
+                card.strokeWidth = dp2px(1)
+                card.strokeColor = ctx.getColor(R.color.minimal_line)
+                card.setCardBackgroundColor(ctx.getColor(if (selected) R.color.minimal_selected else R.color.minimal_card))
             }
 
             private fun speedTestResultText(proxyEntity: ProxyEntity): String? {
@@ -3943,8 +4010,8 @@ class ConfigurationFragment @JvmOverloads constructor(
                 val secondary = requireContext().getColorAttr(android.R.attr.textColorSecondary)
                 when (proxyEntity.status) {
                     1 -> appendPart(
-                        getString(R.string.available, proxyEntity.ping),
-                        requireContext().getColour(R.color.material_green_500),
+                        "${proxyEntity.ping} ms",
+                        requireContext().getColor(R.color.minimal_secondary),
                     )
 
                     2 -> appendPart(
@@ -3980,13 +4047,8 @@ class ConfigurationFragment @JvmOverloads constructor(
                 profileName.text = bean.displayName()
                 profileName.contentDescription = profileName.text
                 profileType.text = proxyEntity.displayType()
-                val protocolColor = requireContext().getProtocolColor(proxyEntity.type)
-                val chipBg = android.graphics.drawable.GradientDrawable().apply {
-                    cornerRadius = dp2px(6).toFloat()
-                    setColor(ColorUtils.setAlphaComponent(protocolColor, (255 * 0.12).toInt()))
-                }
-                profileType.background = chipBg
-                profileType.setTextColor(protocolColor)
+                profileType.background = null
+                profileType.setTextColor(requireContext().getColor(R.color.minimal_secondary))
 
                 val rx = proxyEntity.rx
                 val tx = proxyEntity.tx
@@ -4263,8 +4325,8 @@ class ConfigurationFragment @JvmOverloads constructor(
             searchView.clearFocus()
             searchView.maxWidth = dp2px(48)
 
-            toolbar.menu.findItem(R.id.action_add)?.isVisible = true
-            toolbar.title = getString(R.string.app_name)
+            toolbar.menu.findItem(R.id.action_add)?.isVisible = false
+            toolbar.title = getString(R.string.tab_nodes)
 
             val primaryColor = when {
                 Theme.isWhiteTheme() -> Color.parseColor("#212121")

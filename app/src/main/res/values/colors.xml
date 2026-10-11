@@ -362,15 +362,15 @@
     <color name="color_white_theme_ripple">#1F000000</color>
 
     <!-- 浅灰主题专用调色盘 -->
-    <color name="color_light_gray_primary">#4B5563</color>
-    <color name="color_light_gray_primary_dark">#374151</color>
-    <color name="color_light_gray_accent">#4B5563</color>
+    <color name="color_light_gray_primary">#646970</color>
+    <color name="color_light_gray_primary_dark">#45494F</color>
+    <color name="color_light_gray_accent">#646970</color>
     <color name="color_light_gray_material_100">#F3F4F6</color>
     <color name="color_light_gray_material_300">#E5E7EB</color>
     <color name="color_light_gray_surface">#FFFFFF</color>
-    <color name="color_light_gray_bg">#F5F5F7</color>
-    <color name="color_light_gray_text_primary">#1F2937</color>
-    <color name="color_light_gray_text_secondary">#6B7280</color>
+    <color name="color_light_gray_bg">#FFFFFF</color>
+    <color name="color_light_gray_text_primary">#18191B</color>
+    <color name="color_light_gray_text_secondary">#70757C</color>
     <color name="color_light_gray_tab_unselected">#6B7280</color>
     <color name="color_light_gray_tab_selected">@color/color_light_gray_primary</color>
     <color name="color_light_gray_ripple">#1A4B5563</color>
