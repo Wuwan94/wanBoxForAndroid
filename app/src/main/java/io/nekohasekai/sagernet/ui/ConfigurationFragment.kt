@@ -679,8 +679,13 @@ class ConfigurationFragment @JvmOverloads constructor(
 
         val primaryTextColor = requireContext().getColorAttr(android.R.attr.textColorPrimary)
         if (!select) {
-            // 节点页只保留浏览/切换/测速，添加功能已移到订阅页
+            toolbar.inflateMenu(R.menu.add_profile_menu)
+            // @author 雾晚：节点页隐藏"添加节点"入口（扫码/剪贴板/文件/手动），
+            // 保留搜索、排序、单双列布局、卡片样式、测速等功能，添加统一到订阅页。
+            toolbar.menu.findItem(R.id.action_add)?.isVisible = false
+            toolbar.menu.findItem(R.id.action_global_mode)?.isChecked = DataStore.globalMode
             toolbar.setOnMenuItemClickListener(this)
+            tintMenuIcons(toolbar.menu, primaryTextColor)
         } else {
             toolbar.setTitle(titleRes)
             toolbar.setNavigationIcon(R.drawable.ic_navigation_close)
@@ -1713,7 +1718,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                     val txBytes = sample.uploadBitsPerSecond / 8
                     runOnMainDispatcher {
                     if (speedTestRunner !== runner) return@runOnMainDispatcher
-                        (activity as? MainActivity)?.binding?.stats?.updateSpeed(txBytes, rxBytes)
+                        // @author 雾晚：测速经 StateFlow，StatsBar 已删除
                         try {
                             (activity as? MainActivity)?.connection?.service?.postNotificationSpeed(
                                 io.nekohasekai.sagernet.aidl.SpeedDisplayData(
@@ -1787,7 +1792,7 @@ class ConfigurationFragment @JvmOverloads constructor(
             } finally {
                 runOnMainDispatcher {
                     if (speedTestRunner !== runner) return@runOnMainDispatcher
-                    (activity as? MainActivity)?.binding?.stats?.updateSpeed(0, 0)
+                    // @author 雾晚：测速经 StateFlow，StatsBar 已删除
                     try {
                         (activity as? MainActivity)?.connection?.service?.postNotificationSpeed(
                             io.nekohasekai.sagernet.aidl.SpeedDisplayData(0, 0, 0, 0, 0, 0)
@@ -1864,7 +1869,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                     val txBytes = sample.uploadBitsPerSecond / 8
                     runOnMainDispatcher {
                     if (speedTestRunner !== runner) return@runOnMainDispatcher
-                        (activity as? MainActivity)?.binding?.stats?.updateSpeed(txBytes, rxBytes)
+                        // @author 雾晚：测速经 StateFlow，StatsBar 已删除
                         try {
                             (activity as? MainActivity)?.connection?.service?.postNotificationSpeed(
                                 io.nekohasekai.sagernet.aidl.SpeedDisplayData(
@@ -1943,7 +1948,7 @@ class ConfigurationFragment @JvmOverloads constructor(
             } finally {
                 runOnMainDispatcher {
                     if (speedTestRunner !== runner) return@runOnMainDispatcher
-                    (activity as? MainActivity)?.binding?.stats?.updateSpeed(0, 0)
+                    // @author 雾晚：测速经 StateFlow，StatsBar 已删除
                     try {
                         (activity as? MainActivity)?.connection?.service?.postNotificationSpeed(
                             io.nekohasekai.sagernet.aidl.SpeedDisplayData(0, 0, 0, 0, 0, 0)
@@ -3056,7 +3061,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                 insets
             }
             if (!select) {
-                bottomBarView = (activity as? MainActivity)?.binding?.stats
+                // @author 雾晚：StatsBar 已删除，无底部栏视图
                 bottomBarLayoutListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
                     updateListBottomPadding()
                 }.also { bottomBarView?.addOnLayoutChangeListener(it) }

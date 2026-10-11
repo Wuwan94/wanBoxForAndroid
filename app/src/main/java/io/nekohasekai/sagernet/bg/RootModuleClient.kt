@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package io.nekohasekai.sagernet.bg
 
+
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import android.os.SystemClock
@@ -25,7 +26,7 @@ object RootModuleClient {
     // @author 雾晚: this is the manager-owned root module, never App private storage.
     @android.annotation.SuppressLint("SdCardPath")
     const val CLI = "/data/adb/modules/wanbox/bin/wanboxctl"
-    private val commands = setOf("status", "module", "logs", "start", "stop", "restart", "reload",
+    private val commands = setOf("status", "module", "logs", "dashboard", "start", "stop", "restart", "reload",
         "config apply", "config validate", "autostart on", "autostart off", "data prepare", "data finish", "data rollback")
     private val changes = Mutex()
     // @author 雾晚: 2s TTL status cache. The home observer, service tiles and node
@@ -40,7 +41,8 @@ object RootModuleClient {
     data class InstallSelection(val id: String, val mode: Int)
     data class Status(val phase: String, val revision: String, val runningRevision: String,
         val profileId: Long, val profileName: String, val stats: RootNotificationSample?, val error: String = "",
-        val installData: InstallSelection? = null) {
+        val installData: InstallSelection? = null,
+        val telemetry: ModuleTelemetry? = null) {
         val connected get() = phase == "connected" && installData == null
         val state get() = if (installData != null) BaseService.State.Stopped else when (phase) {
             "connected" -> BaseService.State.Connected
@@ -72,16 +74,29 @@ object RootModuleClient {
         }
         val stats = state["stats"]?.takeIf { it.isJsonObject && phase == "connected" && selection == null }
             ?.let { RootNotificationSample.parse(RootNotificationSample.PREFIX + it.toString()) }
+        // @author 雾晚：解析模块端遥测，仅 connected 时有效
+        val telemetry = state["telemetry"]?.takeIf { it.isJsonObject && phase == "connected" && selection == null }
+            ?.let {
+                try {
+                    val obj = org.json.JSONObject(it.toString())
+                    ModuleTelemetry.fromJson(obj)
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    null
+                }
+            }
         return Status(phase, state["revision"]?.asString.orEmpty(), state["runningRevision"]?.asString.orEmpty(),
             state["profileId"]?.asLong ?: 0, state["profileName"]?.asString.orEmpty(), stats,
-            state["error"]?.asString.orEmpty().takeIf { it.matches(Regex("[a-z_]{1,80}")) }.orEmpty(), selection)
+            state["error"]?.asString.orEmpty().takeIf { it.matches(Regex("[a-z_]{1,80}")) }.orEmpty(), selection,
+            telemetry)
     }
     suspend fun call(command: String, input: File? = null): Status = withContext(Dispatchers.IO) {
         require(command in commands || command.matches(Regex("data selection-finish [a-f0-9]{32}"))
                 || command.matches(Regex("node select [1-9][0-9]{0,18}")))
         require((command == "config apply" || command == "config validate") == (input != null))
         // @author 雾晚: serve fresh-enough status from the TTL cache; mutations invalidate it.
-        if (command == "status") {
+        // dashboard 也是只读命令，纳入缓存，不当 mutation 清除
+        if (command == "status" || command == "dashboard") {
             val cached = statusCache
             if (cached != null && SystemClock.elapsedRealtime() - statusCacheAt < STATUS_TTL_MS) return@withContext cached
             // Coalesce concurrent fetches: only one su spawn; others share the result.

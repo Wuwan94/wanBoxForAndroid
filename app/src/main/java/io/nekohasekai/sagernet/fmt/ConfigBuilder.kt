@@ -1365,6 +1365,22 @@ fun buildConfig(
             // @author 雾晚: explicit user matches precede rule-set-only fallbacks.
             // Keep userOrder within each tier; custom JSON and scoped rule sets stay explicit.
             // Core DNS/loop protections stay ahead, App-owned fallbacks are appended below.
+            // @author 雾晚：仪表盘运行模式（规则/全局/直连），通过 clash_mode 条件规则实现。
+            // 置于 Core DNS/安全规则之后、普通用户路由之前，确保模式切换不覆盖必要规则。
+            // 运行时通过 Clash API PATCH /configs 切换模式，无需重启核心。
+            if (!forTest && !forExport) {
+                // 全局模式：clash_mode=global 时全部走代理
+                route.rules.add(Rule_DefaultOptions().apply {
+                    clash_mode = "global"
+                    outbound = TAG_PROXY
+                })
+                // 直连模式：clash_mode=direct 时全部直连
+                route.rules.add(Rule_DefaultOptions().apply {
+                    clash_mode = "direct"
+                    outbound = "direct"
+                })
+                // 规则模式（默认）：不添加额外规则，按现有规则路由
+            }
             // 应用用户规则
             var resolvedForGeoIp = false
             for (rule in extraRules) {

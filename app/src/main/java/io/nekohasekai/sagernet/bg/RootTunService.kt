@@ -33,7 +33,11 @@ class RootTunService : Service(), BaseService.Interface {
                 }
             }, sample = {
                 try {
-                    val status = RootModuleClient.call("status")
+                    // @author 雾晚：只在最开头用完整 dashboard 结果
+                    // changedError/changedProfile/snapshot/currentProfile/mixedInboundAuthed
+                    // changeState/cbSelectorUpdate/telemetry/stats/runningName 全部从这个 status 取值
+                    // 不先 status 再 dashboard，避免两代次混合
+                    val status = RootModuleClient.call("dashboard")
                     val changedError = snapshot?.error != status.error
                     val changedProfile = status.connected && (snapshot?.connected != true || snapshot?.profileId != status.profileId)
                     snapshot = status; DataStore.currentProfile = if (status.connected) status.profileId else 0
@@ -41,9 +45,31 @@ class RootTunService : Service(), BaseService.Interface {
                     data.changeState(status.state, if (changedError && status.error.isNotBlank())
                         RootModuleErrors.message(this@RootTunService, status.error) else null)
                     if (changedProfile) data.binder.broadcast { it.cbSelectorUpdate(status.profileId) }
-                    status.stats?.let { stats -> data.binder.broadcast {
-                        it.cbSpeedUpdate(io.nekohasekai.sagernet.aidl.SpeedDisplayData(stats.tx, stats.rx, stats.directTx, stats.directRx, 0, 0))
-                    } }
+                    val telemetry = status.telemetry
+                    // 速度数据：用 dashboard 的 stats，缺失时用 0
+                    val stats = status.stats
+                    val tx = stats?.tx ?: 0L
+                    val rx = stats?.rx ?: 0L
+                    val directTx = stats?.directTx ?: 0L
+                    val directRx = stats?.directRx ?: 0L
+                    // @author 雾晚：仅使用已验证的 runningProfileName
+                    val runningName = status.profileName.takeIf { status.connected } ?: ""
+                    data.binder.broadcast {
+                        it.cbSpeedUpdate(io.nekohasekai.sagernet.aidl.SpeedDisplayData(
+                            txRateProxy = tx,
+                            rxRateProxy = rx,
+                            txRateDirect = directTx,
+                            rxRateDirect = directRx,
+                            txTotal = 0L,
+                            rxTotal = 0L,
+                            vmRSSBytes = telemetry?.vmRSSBytes ?: -1L,
+                            uptimeSeconds = telemetry?.uptimeSeconds ?: -1L,
+                            txTotalModule = telemetry?.txBytes ?: -1L,
+                            rxTotalModule = telemetry?.rxBytes ?: -1L,
+                            connectionCount = telemetry?.connectionCount ?: -1,
+                            runningProfileName = runningName
+                        ))
+                    }
                 } catch (e: CancellationException) { throw e }
                   catch (_: Exception) {
                     snapshot = null; DataStore.currentProfile = 0; DataStore.mixedInboundAuthed = false
