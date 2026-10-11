@@ -2706,15 +2706,15 @@ class ConfigurationFragment @JvmOverloads constructor(
             val currentOrder = if (isAllGroupsTab) DataStore.allGroupsOrder else proxyGroup.order
             when (currentOrder) {
                 GroupOrder.ORIGIN -> {
-                    origin.isChecked = true
+                    origin?.isChecked = true
                 }
 
                 GroupOrder.BY_NAME -> {
-                    byName.isChecked = true
+                    byName?.isChecked = true
                 }
 
                 GroupOrder.BY_DELAY -> {
-                    byDelay.isChecked = true
+                    byDelay?.isChecked = true
                 }
             }
 
@@ -2759,10 +2759,10 @@ class ConfigurationFragment @JvmOverloads constructor(
             val layoutSingle = menu.findItem(R.id.action_layout_single)
             val layoutDouble = menu.findItem(R.id.action_layout_double)
             when (DataStore.groupLayoutMode) {
-                0 -> layoutSingle.isChecked = true
-                1 -> layoutDouble.isChecked = true
+                0 -> layoutSingle?.isChecked = true
+                1 -> layoutDouble?.isChecked = true
             }
-            layoutSingle.setOnMenuItemClickListener {
+            layoutSingle?.setOnMenuItemClickListener {
                 it.isChecked = true
                 if (DataStore.groupLayoutMode != 0) {
                     DataStore.groupLayoutMode = 0
@@ -2770,7 +2770,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                 }
                 true
             }
-            layoutDouble.setOnMenuItemClickListener {
+            layoutDouble?.setOnMenuItemClickListener {
                 it.isChecked = true
                 if (DataStore.groupLayoutMode != 1) {
                     DataStore.groupLayoutMode = 1
@@ -2782,10 +2782,10 @@ class ConfigurationFragment @JvmOverloads constructor(
             val cardClassic = menu.findItem(R.id.action_card_style_classic)
             val cardStroke = menu.findItem(R.id.action_card_style_stroke)
             when (DataStore.profileCardStyle) {
-                1 -> cardStroke.isChecked = true
-                else -> cardClassic.isChecked = true
+                1 -> cardStroke?.isChecked = true
+                else -> cardClassic?.isChecked = true
             }
-            cardClassic.setOnMenuItemClickListener {
+            cardClassic?.setOnMenuItemClickListener {
                 it.isChecked = true
                 if (DataStore.profileCardStyle != 0) {
                     DataStore.profileCardStyle = 0
@@ -2793,7 +2793,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                 }
                 true
             }
-            cardStroke.setOnMenuItemClickListener {
+            cardStroke?.setOnMenuItemClickListener {
                 it.isChecked = true
                 if (DataStore.profileCardStyle != 1) {
                     DataStore.profileCardStyle = 1
