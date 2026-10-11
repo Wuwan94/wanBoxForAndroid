@@ -75,6 +75,16 @@ class SagerNet : Application(),
             }
         }
 
+        if (isMainProcess) {
+            // 主题颜色选择器已移除，强制迁移到浅灰主题
+            try {
+                val theme = io.nekohasekai.sagernet.database.DataStore.appTheme
+                if (theme != io.nekohasekai.sagernet.utils.Theme.LIGHT_GRAY) {
+                    io.nekohasekai.sagernet.database.DataStore.appTheme = io.nekohasekai.sagernet.utils.Theme.LIGHT_GRAY
+                }
+            } catch (_: Exception) { }
+        }
+
         if (isMainProcess || isBgProcess) {
             externalAssets.mkdirs()
             // 官方内核在 PlatformLogWriter != nil 时会为每个 box 强制创建 CacheFile，
