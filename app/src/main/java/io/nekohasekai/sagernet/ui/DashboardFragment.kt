@@ -211,11 +211,101 @@ class DashboardFragment : ToolbarFragment() {
     }
 
     private fun setMode(mode: Int) {
-        // @author 雾晚：仅设置 dashboardMode，不修改 bypass/proxyApps 等 per-app 偏好，
-        // 由 ConfigBuilder 读取 dashboardMode 并应用对应路由模式。
+        // @author 雾晚：通过 Clash API 运行时切换模式，不重启核心。
+        // 0=rule, 1=global, 2=direct
+        val modeStr = when (mode) {
+            MODE_GLOBAL -> "global"
+            MODE_DIRECT -> "direct"
+            else -> "rule"
+        }
+        // 先持久化，失败时回读
+        val oldMode = DataStore.dashboardMode
         DataStore.dashboardMode = mode
-        SagerNet.reloadService()
         updateModeUI()
+
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                if (patchClashMode(modeStr)) {
+                    // 读回确认
+                    val confirmed = getClashMode()
+                    if (confirmed != modeStr) {
+                        throw IllegalStateException("Mode mismatch: expected $modeStr, got $confirmed")
+                    }
+                } else {
+                    throw IllegalStateException("PATCH /configs failed")
+                }
+            } catch (e: Exception) {
+                // 失败回滚 UI 和持久化
+                DataStore.dashboardMode = oldMode
+                lifecycleScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                    updateModeUI()
+                    android.widget.Toast.makeText(
+                        requireContext(),
+                        "模式切换失败：${e.message}",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+    }
+
+    /**
+     * @author 雾晚：通过 loopback Clash API 切换运行模式，不重启核心。
+     * 安全约束：仅访问 127.0.0.1:9090，带 Bearer 鉴权，限制超时与响应体大小，
+     * 禁止远程重定向。
+     */
+    private fun patchClashMode(mode: String): Boolean {
+        return try {
+            val secret = DataStore.clashApiSecret
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                .followRedirects(false)
+                .followSslRedirects(false)
+                .build()
+            val body = okhttp3.RequestBody.create(
+                okhttp3.MediaType.parse("application/json"),
+                "{\"mode\":\"$mode\"}"
+            )
+            val req = okhttp3.Request.Builder()
+                .url("http://127.0.0.1:9090/configs")
+                .patch(body)
+                .header("Authorization", "Bearer $secret")
+                .build()
+            client.newCall(req).execute().use { resp ->
+                // 限制响应体大小，避免大响应耗内存
+                val bodyStr = resp.body?.string()?.take(4096) ?: ""
+                resp.isSuccessful
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * @author 雾晚：读回当前 Clash 模式用于确认。
+     */
+    private fun getClashMode(): String? {
+        return try {
+            val secret = DataStore.clashApiSecret
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                .followRedirects(false)
+                .followSslRedirects(false)
+                .build()
+            val req = okhttp3.Request.Builder()
+                .url("http://127.0.0.1:9090/configs")
+                .header("Authorization", "Bearer $secret")
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return null
+                val bodyStr = resp.body?.string()?.take(4096) ?: return null
+                org.json.JSONObject(bodyStr).optString("mode", null)
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun getCurrentMode(): Int {
