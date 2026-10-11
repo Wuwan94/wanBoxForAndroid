@@ -679,10 +679,8 @@ class ConfigurationFragment @JvmOverloads constructor(
 
         val primaryTextColor = requireContext().getColorAttr(android.R.attr.textColorPrimary)
         if (!select) {
-            toolbar.inflateMenu(R.menu.add_profile_menu)
-            toolbar.menu.findItem(R.id.action_global_mode)?.isChecked = DataStore.globalMode
+            // 节点页只保留浏览/切换/测速，添加功能已移到订阅页
             toolbar.setOnMenuItemClickListener(this)
-            tintMenuIcons(toolbar.menu, primaryTextColor)
         } else {
             toolbar.setTitle(titleRes)
             toolbar.setNavigationIcon(R.drawable.ic_navigation_close)
