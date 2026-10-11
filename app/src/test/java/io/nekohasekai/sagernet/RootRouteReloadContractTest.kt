@@ -24,15 +24,5 @@ class RootRouteReloadContractTest {
             assertFalse(source.contains("if (DataStore.serviceState.started)"))
         }
     }
-    @Test fun foregroundResumeDoesNotKeepExitQueriesOrAddAutomaticLatencyProbe() {
-        val stop = source("ui/MainActivity.kt").substringAfter("override fun onStop()").substringBefore("override fun onDestroy()")
-        assertTrue(stop.contains("binding.stats.onHostStopped()")); assertTrue(stop.contains("connection.disconnect(this)"))
-        val stats = source("widget/StatsBar.kt")
-        val cancel = stats.substringAfter("fun onHostStopped()").substringBefore("private data class ProbeKey")
-        assertTrue(cancel.contains("landingIpJob?.cancel()")); assertTrue(cancel.contains("LandingIpManager.clearCache()"))
-        assertTrue(stats.contains("val queryJob = coroutineContext[Job]"))
-        assertTrue(stats.contains("queryJob?.isActive == true && currentState"))
-        assertFalse(cancel.contains("testConnection("))
-        assertFalse(source("utils/LandingIpManager.kt").contains("req.execute()"))
-    }
+    // @author 雾晚：StatsBar 已删除，相关测试移除
 }
