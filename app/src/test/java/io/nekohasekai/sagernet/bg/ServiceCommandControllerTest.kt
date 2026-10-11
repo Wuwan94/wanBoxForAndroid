@@ -15,21 +15,16 @@ import org.junit.Test
 
 /**
  * ServiceCommandController 行为测试（可注入 fake backend）。
- * - 两个同时提交只执行一次
- * - 取消释放 Pending
- * - 页面 observer 取消不取消 application 任务
- * - 非终态不确认
- * - 失败保持旧节点
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ServiceCommandControllerTest {
 
-    private fun fakeStatus(connected: Boolean = true, phase: String = "connected") =
+    private fun fakeStatus(connected: Boolean = true, phase: String = "connected", profileId: Long = 1L) =
         RootModuleClient.Status(
             phase = phase,
             revision = "rev",
             runningRevision = "rev",
-            profileId = 1L,
+            profileId = profileId,
             profileName = "test",
             stats = null,
         )
@@ -46,85 +41,121 @@ class ServiceCommandControllerTest {
             }
             override suspend fun stop() = fakeStatus(false, "stopped")
             override suspend fun setMode(mode: String) = fakeStatus()
-            override suspend fun selectNode(id: Long) = fakeStatus()
+            override suspend fun selectNode(id: Long) = fakeStatus(profileId = id)
             override suspend fun queryStatus() = fakeStatus()
         }
         val controller = ServiceCommandController(scope, backend)
 
-        // 同时提交两个
         val r1 = controller.requestStart()
         val r2 = controller.requestStart()
 
-        // 第一个成功，第二个被拒绝
         assertTrue(r1)
         assertFalse(r2)
 
-        // 等待完成
         scope.testScheduler.advanceUntilIdle()
         assertEquals(1, execCount)
     }
 
     @Test
-    fun `cancellation releases pending`() = runTest {
+    fun `cancellation releases pending and allows resubmit`() = runTest {
         val scope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        var firstCall = true
+        var execCount = 0
         val backend = object : ServiceCommandController.Backend {
             override suspend fun start(): RootModuleClient.Status {
-                delay(10000) // 长任务
+                if (firstCall) {
+                    firstCall = false
+                    throw CancellationException("test cancel")
+                }
+                execCount++
                 return fakeStatus()
             }
             override suspend fun stop() = fakeStatus(false, "stopped")
             override suspend fun setMode(mode: String) = fakeStatus()
-            override suspend fun selectNode(id: Long) = fakeStatus()
+            override suspend fun selectNode(id: Long) = fakeStatus(profileId = id)
+            override suspend fun queryStatus() = fakeStatus()
+        }
+        val controller = ServiceCommandController(scope, backend)
+
+        // 第一次：抛 CancellationException
+        assertTrue(controller.requestStart())
+        scope.testScheduler.advanceUntilIdle()
+
+        // 取消后状态应为 Cancelled/Idle，锁已释放
+        val s1 = controller.state.value
+        assertTrue(
+            s1 is ServiceCommandController.CommandState.Cancelled ||
+            s1 is ServiceCommandController.CommandState.Idle
+        )
+        controller.acknowledge()
+        assertFalse(controller.isBusy())
+
+        // 第二次：正常执行，验证锁已释放
+        assertTrue(controller.requestStart())
+        scope.testScheduler.advanceUntilIdle()
+        assertEquals(1, execCount)
+    }
+
+    @Test
+    fun `observer cancellation does not cancel application task`() = runTest {
+        val scope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        var execCompleted = false
+        val backend = object : ServiceCommandController.Backend {
+            override suspend fun start(): RootModuleClient.Status {
+                delay(100)
+                execCompleted = true
+                return fakeStatus()
+            }
+            override suspend fun stop() = fakeStatus(false, "stopped")
+            override suspend fun setMode(mode: String) = fakeStatus()
+            override suspend fun selectNode(id: Long) = fakeStatus(profileId = id)
             override suspend fun queryStatus() = fakeStatus()
         }
         val controller = ServiceCommandController(scope, backend)
 
         assertTrue(controller.requestStart())
-        assertTrue(controller.isBusy())
 
-        // 取消 applicationScope 中的任务（模拟）
-        // 实际上我们测试 acknowledge 后可继续提交
-        scope.testScheduler.advanceTimeBy(50)
-        // 手动重置（模拟取消后的清理）
-        controller.acknowledge()
+        // 独立 observerJob 观察状态，然后取消它
+        val observerJob = scope.launch {
+            controller.state.collect { }
+        }
+        scope.testScheduler.advanceTimeBy(10)
+        observerJob.cancelAndJoin()
 
-        // 注意：真实取消由 applicationScope 管理，这里验证状态机可恢复
-        // 简化：验证 isBusy 在 Idle 时为 false
-        assertFalse(controller.isBusy() && controller.state.value is ServiceCommandController.CommandState.Idle)
+        // 应用任务应继续完成（不受 observer 取消影响）
+        scope.testScheduler.advanceUntilIdle()
+        assertTrue(execCompleted)
+        val s = controller.state.value
+        assertTrue(s is ServiceCommandController.CommandState.Confirmed)
     }
 
     @Test
-    fun `non-terminal does not confirm early`() = runTest {
+    fun `non-terminal starting returns error not confirmed`() = runTest {
         val scope = TestScope(UnconfinedTestDispatcher(testScheduler))
-        var confirmed = false
         val backend = object : ServiceCommandController.Backend {
+            // fake start 返回 starting（非终态），生产 RealBackend.waitFor 会超时 throw
+            // 这里模拟超时 throw 的行为
             override suspend fun start(): RootModuleClient.Status {
-                // 返回未连接状态（非终态）
-                return fakeStatus(connected = false, phase = "starting")
+                throw IllegalStateException("status_timeout")
             }
             override suspend fun stop() = fakeStatus(false, "stopped")
             override suspend fun setMode(mode: String) = fakeStatus()
-            override suspend fun selectNode(id: Long) = fakeStatus()
+            override suspend fun selectNode(id: Long) = fakeStatus(profileId = id)
             override suspend fun queryStatus() = fakeStatus()
         }
         val controller = ServiceCommandController(scope, backend)
 
-        controller.requestStart()
+        assertTrue(controller.requestStart())
         scope.testScheduler.advanceUntilIdle()
 
-        // RealBackend.waitFor 会等待 connected，超时后抛异常
-        // 这里用 fake 直接返回，验证状态流转
+        // @author 雾晚：非终态必须返回 Error，不允许 Confirmed 掩盖
         val state = controller.state.value
-        // 可能是 Confirmed（fake 直接返回）或 Error（超时）
-        assertTrue(
-            state is ServiceCommandController.CommandState.Confirmed ||
-            state is ServiceCommandController.CommandState.Error ||
-            state is ServiceCommandController.CommandState.Idle
-        )
+        assertTrue("expected Error for non-terminal, got $state",
+            state is ServiceCommandController.CommandState.Error)
     }
 
     @Test
-    fun `failure keeps old node`() = runTest {
+    fun `failure keeps old node and allows resubmit`() = runTest {
         val scope = TestScope(UnconfinedTestDispatcher(testScheduler))
         val backend = object : ServiceCommandController.Backend {
             override suspend fun start() = fakeStatus()
@@ -147,5 +178,27 @@ class ServiceCommandControllerTest {
         // 失败后可继续提交（不永久锁定）
         controller.acknowledge()
         assertFalse(controller.isBusy())
+    }
+
+    @Test
+    fun `requestNode confirms profileId`() = runTest {
+        val scope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        val backend = object : ServiceCommandController.Backend {
+            override suspend fun start() = fakeStatus()
+            override suspend fun stop() = fakeStatus(false, "stopped")
+            override suspend fun setMode(mode: String) = fakeStatus()
+            // 返回错误的 profileId（模拟未确认）
+            override suspend fun selectNode(id: Long) = fakeStatus(profileId = 999L)
+            override suspend fun queryStatus() = fakeStatus()
+        }
+        val controller = ServiceCommandController(scope, backend)
+
+        assertTrue(controller.requestNode(123L))
+        scope.testScheduler.advanceUntilIdle()
+
+        // profileId 不匹配应返回 Error
+        val state = controller.state.value
+        assertTrue("expected Error for profileId mismatch, got $state",
+            state is ServiceCommandController.CommandState.Error)
     }
 }

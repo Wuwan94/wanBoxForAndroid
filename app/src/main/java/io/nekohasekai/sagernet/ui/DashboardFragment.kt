@@ -135,15 +135,48 @@ class DashboardFragment : ToolbarFragment() {
             }
         }
         // @author 雾晚：观察串行命令状态，UI 只读渲染
+        // Pending 禁用开关并显示连接中/断开中；Confirmed 用携带的 status 同步真实状态；
+        // Error 提示安全错误码并回读真实状态
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
                 io.nekohasekai.sagernet.SagerNet.commandController.state.collect { state ->
                     when (state) {
-                        is io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.Confirmed,
+                        is io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.Pending -> {
+                            // 执行中：禁用开关，显示过渡状态
+                            serviceSwitch?.isEnabled = false
+                            val msg = when (state.kind) {
+                                io.nekohasekai.sagernet.bg.ServiceCommandController.CommandKind.START ->
+                                    getString(R.string.service_state_connecting)
+                                io.nekohasekai.sagernet.bg.ServiceCommandController.CommandKind.STOP ->
+                                    getString(R.string.service_state_stopping)
+                                else -> statusText?.text.toString()
+                            }
+                            statusText?.text = msg
+                        }
+                        is io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.Confirmed -> {
+                            // @author 雾晚：用确认结果中的真实 status 同步，不用旧 MainActivity.serviceState
+                            serviceSwitch?.isEnabled = true
+                            updateServiceStateFromStatus(state.status)
+                            io.nekohasekai.sagernet.SagerNet.commandController.acknowledge()
+                        }
                         is io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.Error -> {
-                            // 后台已确认，同步 UI 并确认
-                            syncSwitchToState()
+                            serviceSwitch?.isEnabled = true
+                            // 安全错误码提示（不暴露原始异常）
+                            val safeMsg = when {
+                                state.message.contains("timeout") -> "操作超时"
+                                state.message.contains("node") -> "节点切换失败"
+                                else -> "操作失败"
+                            }
+                            android.widget.Toast.makeText(context, safeMsg, android.widget.Toast.LENGTH_SHORT).show()
+                            // 回读真实状态
                             updateServiceState()
+                            syncSwitchToState()
+                            io.nekohasekai.sagernet.SagerNet.commandController.acknowledge()
+                        }
+                        is io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.Cancelled -> {
+                            serviceSwitch?.isEnabled = true
+                            updateServiceState()
+                            syncSwitchToState()
                             io.nekohasekai.sagernet.SagerNet.commandController.acknowledge()
                         }
                         else -> {}
@@ -178,6 +211,33 @@ class DashboardFragment : ToolbarFragment() {
     fun onServiceStateChanged(state: BaseService.State) {
         if (!isAdded || view == null) return
         updateServiceState()
+    }
+
+    /**
+     * @author 雾晚：从确认的 Status 同步真实状态，不用旧 MainActivity.serviceState 渲染。
+     */
+    private fun updateServiceStateFromStatus(status: io.nekohasekai.sagernet.bg.RootModuleClient.Status) {
+        val ctx = context ?: return
+        serviceSwitch?.tag = "programmatic"
+        try {
+            when {
+                status.connected -> {
+                    statusText?.text = getString(R.string.service_state_connected)
+                    serviceSwitch?.isChecked = true
+                }
+                status.phase == "starting" -> {
+                    statusText?.text = getString(R.string.service_state_connecting)
+                    serviceSwitch?.isChecked = true
+                }
+                else -> {
+                    statusText?.text = getString(R.string.service_state_idle)
+                    serviceSwitch?.isChecked = false
+                }
+            }
+        } finally {
+            serviceSwitch?.tag = null
+        }
+        updateCurrentNode()
     }
 
     private fun updateServiceState() {

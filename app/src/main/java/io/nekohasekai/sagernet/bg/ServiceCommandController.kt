@@ -75,19 +75,19 @@ class ServiceCommandController(
             timeoutMs: Long,
         ): RootModuleClient.Status {
             val deadline = System.currentTimeMillis() + timeoutMs
-            var last: RootModuleClient.Status? = null
             while (System.currentTimeMillis() < deadline) {
                 delay(500)
-                last = try {
+                val s = try {
                     RootModuleClient.call("status")
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Exception) {
                     null
                 } ?: continue
-                if (predicate(last)) return last
+                if (predicate(s)) return s
             }
-            return last ?: throw IllegalStateException("status_timeout")
+            // @author 雾晚：超时直接 throw，不返回未确认的 last
+            throw IllegalStateException("status_timeout")
         }
     }
 
@@ -148,9 +148,13 @@ class ServiceCommandController(
             backend.queryStatus()
         }
 
-    /** UI 请求切换节点 */
+    /** UI 请求切换节点：确认返回 connected && profileId==目标 */
     fun requestNode(id: Long): Boolean = trySubmit(CommandKind.NODE) {
-        backend.selectNode(id)
+        val s = backend.selectNode(id)
+        if (!s.connected || s.profileId != id) {
+            throw IllegalStateException("node_not_confirmed")
+        }
+        s
     }
 
     /** 确认已处理，回到 Idle */
