@@ -1161,4 +1161,24 @@
     <string name="core_version">核心版本</string>
     <string name="core_version_summary">sing-box 版本</string>
     <string name="github_summary">查看源代码</string>
+
+    <!-- @author 雾晚：设置菜单 -->
+    <string name="settings_menu_per_app_proxy">分应用代理</string>
+    <string name="settings_menu_per_app_proxy_summary">为每个应用指定节点</string>
+    <string name="settings_menu_root_module">Root 模块管理</string>
+    <string name="settings_menu_root_module_summary">模块状态与控制</string>
+    <string name="settings_menu_dns">DNS 设置</string>
+    <string name="settings_menu_dns_summary">DNS 服务器与分流</string>
+    <string name="settings_menu_routing">路由规则</string>
+    <string name="settings_menu_routing_summary">流量路由配置</string>
+    <string name="settings_menu_network_policy">网络自动策略</string>
+    <string name="settings_menu_network_policy_summary">网络切换行为</string>
+    <string name="settings_menu_appearance">主题与外观</string>
+    <string name="settings_menu_appearance_summary">主题、语言与显示</string>
+    <string name="settings_menu_log">日志与诊断</string>
+    <string name="settings_menu_log_summary">日志级别与诊断</string>
+    <string name="settings_menu_backup">备份与恢复</string>
+    <string name="settings_menu_backup_summary">备份与恢复设置</string>
+    <string name="settings_menu_about">关于 wanBox</string>
+    <string name="settings_menu_about_summary">版本与信息</string>
 </resources>

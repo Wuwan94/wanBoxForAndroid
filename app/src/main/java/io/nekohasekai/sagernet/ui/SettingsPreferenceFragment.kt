@@ -34,6 +34,18 @@ import libcore.Libcore
 
 class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataStoreChangeListener {
 
+    companion object {
+        private const val ARG_PREF_RES = "pref_res"
+        // @author 雾晚：支持指定偏好设置 XML，用于设置菜单子页面
+        fun newInstance(@XmlRes prefResId: Int): SettingsPreferenceFragment {
+            return SettingsPreferenceFragment().apply {
+                arguments = android.os.Bundle().apply {
+                    putInt(ARG_PREF_RES, prefResId)
+                }
+            }
+        }
+    }
+
     private lateinit var isProxyApps: SwitchPreference
 
     private lateinit var globalCustomConfig: EditConfigPreference
@@ -89,7 +101,13 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         preferenceManager.preferenceDataStore = DataStore.configurationStore
         DataStore.initGlobal()
-        addPreferencesFromResource(R.xml.global_preferences)
+        // @author 雾晚：支持子页面指定 XML，默认用全局设置
+        val prefRes = arguments?.getInt(ARG_PREF_RES, 0) ?: 0
+        if (prefRes != 0) {
+            addPreferencesFromResource(prefRes)
+        } else {
+            addPreferencesFromResource(R.xml.global_preferences)
+        }
 
         // preview.18 UI 改造：分应用代理入口
         findPreference<Preference>("perAppProxyEntry")?.setOnPreferenceClickListener {

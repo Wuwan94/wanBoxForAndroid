@@ -1276,4 +1276,24 @@
     <string name="core_version">Core Version</string>
     <string name="core_version_summary">sing-box version</string>
     <string name="github_summary">View source code</string>
+
+    <!-- @author 雾晚：设置菜单 -->
+    <string name="settings_menu_per_app_proxy">Per-app Proxy</string>
+    <string name="settings_menu_per_app_proxy_summary">Specify node for each app</string>
+    <string name="settings_menu_root_module">Root Module Management</string>
+    <string name="settings_menu_root_module_summary">Module status and control</string>
+    <string name="settings_menu_dns">DNS Settings</string>
+    <string name="settings_menu_dns_summary">DNS servers and routing</string>
+    <string name="settings_menu_routing">Routing Rules</string>
+    <string name="settings_menu_routing_summary">Traffic routing configuration</string>
+    <string name="settings_menu_network_policy">Network Auto Policy</string>
+    <string name="settings_menu_network_policy_summary">Network switching behavior</string>
+    <string name="settings_menu_appearance">Theme &amp; Appearance</string>
+    <string name="settings_menu_appearance_summary">Theme, language and display</string>
+    <string name="settings_menu_log">Logs &amp; Diagnostics</string>
+    <string name="settings_menu_log_summary">Log level and diagnostics</string>
+    <string name="settings_menu_backup">Backup &amp; Restore</string>
+    <string name="settings_menu_backup_summary">Backup and restore settings</string>
+    <string name="settings_menu_about">About wanBox</string>
+    <string name="settings_menu_about_summary">Version and information</string>
 </resources>
