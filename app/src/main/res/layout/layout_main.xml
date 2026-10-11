@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- @author 雾晚 -->
-<!-- preview.20: 移除 StatsBar 悬浮控制层，内容在底部导航上方 -->
+<!-- preview.20: 内容权重占剩余空间，底部导航 wrap_content，避免遮挡 -->
 <androidx.drawerlayout.widget.DrawerLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
@@ -10,34 +10,32 @@
     app:statusBarBackground="@android:color/transparent"
     tools:openDrawer="start">
 
-    <androidx.coordinatorlayout.widget.CoordinatorLayout
+    <LinearLayout
         android:id="@+id/coordinator"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:fitsSystemWindows="true">
+        android:orientation="vertical">
 
-        <!-- 内容区域：底部约束在导航栏上方 -->
+        <!-- 内容区域：0dp 权重占剩余空间 -->
         <FrameLayout
             android:id="@+id/fragment_holder"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_marginBottom="?attr/actionBarSize"
+            android:layout_height="0dp"
+            android:layout_weight="1"
             android:clipToPadding="false" />
 
-        <!-- preview.18 UI 改造：底部导航 -->
+        <!-- 底部导航：wrap_content，含 gesture inset -->
         <com.google.android.material.bottomnavigation.BottomNavigationView
             android:id="@+id/bottom_nav"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="bottom"
             android:background="#FFFFFF"
-            android:fitsSystemWindows="true"
             app:elevation="8dp"
             app:itemIconTint="#616161"
             app:itemTextColor="#616161"
             app:menu="@menu/bottom_nav_menu" />
 
-    </androidx.coordinatorlayout.widget.CoordinatorLayout>
+    </LinearLayout>
 
     <com.google.android.material.navigation.NavigationView
         android:id="@+id/nav_view"

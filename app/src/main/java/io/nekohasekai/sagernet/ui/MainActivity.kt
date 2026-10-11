@@ -148,11 +148,10 @@ class MainActivity : ThemedActivity(),
                 R.style.Theme_SagerNet_Black
             )
         ) {
+            // @author 雾晚：统一使用 navView，黑色主题通过样式语义保留
             navigation = binding.navView
-            binding.drawerLayout.removeView(binding.navViewBlack)
         } else {
-            navigation = binding.navViewBlack
-            binding.drawerLayout.removeView(binding.navView)
+            navigation = binding.navView
         }
         navigation.setNavigationItemSelectedListener(this)
 
@@ -657,6 +656,10 @@ class MainActivity : ThemedActivity(),
         animate: Boolean = false,
         animateControls: Boolean = animate,
     ) {
+        // @author 雾晚：Stopped/Idle 时清空测速样本
+        if (state == BaseService.State.Stopped || state == BaseService.State.Idle) {
+            _speedStatsFlow.value = null
+        }
         // @author 雾晚：统一更新 serviceState，确保 onServiceConnected/
         // onServiceDisconnected 也能正确同步，避免 Dashboard 读取到过期状态。
         val oldState = serviceState
