@@ -281,8 +281,10 @@ class SagerNet : Application(),
                 } else {
                     // @author 雾晚：热切换失败，保持旧连接与旧选择，不做无意义的全量重载
                     // （全量重载会读取 DataStore.selectedProxy 的旧值，无法切换到目标节点）
-                    // 仅记录错误并通过 onError 通知用户，由用户决定是否重试或手动重载
-                    Logs.e("Node switch not confirmed for target $id, keeping old connection (selectedProxy=$previous)")
+                    // 抛出异常触发 onError 通知用户，由用户决定是否重试或手动重载
+                    val msg = "Node switch not confirmed for target $id, keeping old connection (selectedProxy=$previous)"
+                    Logs.e(msg)
+                    throw java.io.IOException("node_switch_not_confirmed:$id")
                 }
             }, onError = ::reportModuleError)
         }
