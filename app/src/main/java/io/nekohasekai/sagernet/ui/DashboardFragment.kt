@@ -9,6 +9,7 @@ import android.widget.Button
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import com.google.android.material.switchmaterial.SwitchMaterial
@@ -119,29 +120,20 @@ class DashboardFragment : ToolbarFragment() {
         updateServiceState()
         updateCurrentNode()
         updateModeUI()
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
         // @author 雾晚：使用 repeatOnLifecycle(STARTED) 订阅，界面销毁自动取消
         // 无旧值回写，无重复查询，异常/断开清空
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
-                // 单一观察循环，不嵌套启动 lifecycleScope
                 while (true) {
                     updateDashboardOnce()
                     kotlinx.coroutines.delay(1000)
                 }
             }
         }
-        updateServiceState()
-        updateCurrentNode()
-        updateModeUI()
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
-        stopStatsPolling()
         statusText = null
         serviceSwitch = null
         nodeName = null

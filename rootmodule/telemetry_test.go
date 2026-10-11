@@ -123,14 +123,17 @@ func TestFillTelemetry_PIDReuse(t *testing.T) {
 // TestTelemetry_JSONRoundTrip verifies JSON Marshal/Unmarshal
 func TestTelemetry_JSONRoundTrip(t *testing.T) {
 	// Verify Telemetry struct JSON tags work correctly
-	tm := &Telemetry{
-		VmRSSBytes:    1024 * 1024 * 100, // 100MB
-		UptimeSeconds: 3600,
-		TxBytes:       1000,
-		RxBytes:       2000,
-	}
+	// TxBytes/RxBytes are *int64: use local variables and take addresses
+	txVal := int64(1000)
+	rxVal := int64(2000)
 	count := 5
-	tm.ConnectionCount = &count
+	tm := &Telemetry{
+		VmRSSBytes:      1024 * 1024 * 100, // 100MB
+		UptimeSeconds:   3600,
+		TxBytes:         &txVal,
+		RxBytes:         &rxVal,
+		ConnectionCount: &count,
+	}
 
 	// Marshal to JSON
 	data, err := json.Marshal(tm)
