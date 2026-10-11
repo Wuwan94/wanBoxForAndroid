@@ -41,9 +41,35 @@ class RootTunService : Service(), BaseService.Interface {
                     data.changeState(status.state, if (changedError && status.error.isNotBlank())
                         RootModuleErrors.message(this@RootTunService, status.error) else null)
                     if (changedProfile) data.binder.broadcast { it.cbSelectorUpdate(status.profileId) }
-                    status.stats?.let { stats -> data.binder.broadcast {
-                        it.cbSpeedUpdate(io.nekohasekai.sagernet.aidl.SpeedDisplayData(stats.tx, stats.rx, stats.directTx, stats.directRx, 0, 0))
-                    } }
+                    status.stats?.let { stats ->
+                        // @author 雾晚：通过 dashboard 命令获取遥测（:bg 进程内）
+                        // 验证同代次后填充，跨进程经 AIDL 传递到 UI
+                        val telemetry = try {
+                            RootModuleClient.call("dashboard").telemetry
+                        } catch (e: Exception) {
+                            if (e is kotlinx.coroutines.CancellationException) throw e
+                            null
+                        }
+                        // @author 雾晚：仅使用已验证的 runningProfileName，
+                        // 不从未确认的 selectedProxy 冒充当前节点
+                        val runningName = status.profileName.takeIf { status.connected } ?: ""
+                        data.binder.broadcast {
+                            it.cbSpeedUpdate(io.nekohasekai.sagernet.aidl.SpeedDisplayData(
+                                txRateProxy = stats.tx,
+                                rxRateProxy = stats.rx,
+                                txRateDirect = stats.directTx,
+                                rxRateDirect = stats.directRx,
+                                txTotal = 0L, // 保留字段，实际累计用 txTotalModule
+                                rxTotal = 0L,
+                                vmRSSBytes = telemetry?.vmRSSBytes ?: -1L,
+                                uptimeSeconds = telemetry?.uptimeSeconds ?: -1L,
+                                txTotalModule = telemetry?.txBytes ?: -1L,
+                                rxTotalModule = telemetry?.rxBytes ?: -1L,
+                                connectionCount = telemetry?.connectionCount ?: -1,
+                                runningProfileName = runningName
+                            ))
+                        }
+                    }
                 } catch (e: CancellationException) { throw e }
                   catch (_: Exception) {
                     snapshot = null; DataStore.currentProfile = 0; DataStore.mixedInboundAuthed = false

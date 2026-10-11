@@ -367,38 +367,33 @@ class DashboardFragment : ToolbarFragment() {
             return
         }
 
-        // @author 雾晚：通过专用 dashboard 命令获取遥测
-        // 不经过 Status() 快速路径，由 CLI 显式采集
-        val telemetry = withContext(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                io.nekohasekai.sagernet.bg.RootModuleClient.call("dashboard").telemetry
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                null
-            }
-        }
-
+        // @author 雾晚：遥测经 AIDL 从 :bg 进程传递，在 SpeedDisplayData 中
+        // UI 进程直接使用，不跨进程调用 RootModuleClient
         withContext(kotlinx.coroutines.Dispatchers.Main) {
             if (!isAdded) return@withContext
             uploadSpeed?.text = Formatter.formatFileSize(ctx, stats.txRateProxy) + "/s"
             downloadSpeed?.text = Formatter.formatFileSize(ctx, stats.rxRateProxy) + "/s"
-            // @author 雾晚：优先使用模块采集的真实累计（可空），未知显示—
-            uploadTotal?.text = telemetry?.txBytes?.let { "累计 " + Formatter.formatFileSize(ctx, it) }
+            // @author 雾晚：使用模块采集的真实累计（-1=未知），未知显示—
+            uploadTotal?.text = stats.txTotalModuleOrNull()?.let { "累计 " + Formatter.formatFileSize(ctx, it) }
                 ?: "累计 —"
-            downloadTotal?.text = telemetry?.rxBytes?.let { "累计 " + Formatter.formatFileSize(ctx, it) }
+            downloadTotal?.text = stats.rxTotalModuleOrNull()?.let { "累计 " + Formatter.formatFileSize(ctx, it) }
                 ?: "累计 —"
             // @author 雾晚：RSS 未知显示—，不伪造
-            coreMemory?.text = telemetry?.let {
-                if (it.vmRSSBytes > 0) Formatter.formatFileSize(ctx, it.vmRSSBytes) else "—"
-            } ?: "—"
+            coreMemory?.text = if (stats.vmRSSBytes >= 0) {
+                Formatter.formatFileSize(ctx, stats.vmRSSBytes)
+            } else "—"
             // @author 雾晚：连接数 null 显示—，区分未知与真实 0
-            connectionCount?.text = telemetry?.connectionCount?.let { "$it 个" } ?: "—"
+            connectionCount?.text = stats.connectionCountOrNull()?.let { "$it 个" } ?: "—"
             // @author 雾晚：运行时长由模块端提供（ready marker），未知显示—
-            val uptimeSeconds = telemetry?.uptimeSeconds ?: 0L
-            uptimeText?.text = if (uptimeSeconds > 0) {
-                formatDuration(uptimeSeconds * 1000)
+            uptimeText?.text = if (stats.uptimeSeconds >= 0) {
+                formatDuration(stats.uptimeSeconds * 1000)
             } else {
                 "—"
+            }
+            // @author 雾晚：仅显示已验证的 runningProfileName，
+            // 不从未确认的 selectedProxy 冒充
+            if (stats.runningProfileName.isNotBlank()) {
+                nodeName?.text = stats.runningProfileName
             }
         }
     }
