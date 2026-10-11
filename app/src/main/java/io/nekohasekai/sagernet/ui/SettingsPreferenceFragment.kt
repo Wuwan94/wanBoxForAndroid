@@ -96,11 +96,25 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             true
         }
 
+        // @author 雾晚：四组重组 - 关于入口
+        findPreference<Preference>("aboutVersion")?.setOnPreferenceClickListener {
+            // 显示版本信息，已在 summary 中
+            true
+        }
+        findPreference<Preference>("aboutCoreVersion")?.setOnPreferenceClickListener {
+            // 显示核心版本，已在 summary 中
+            true
+        }
+        findPreference<Preference>("aboutGithub")?.setOnPreferenceClickListener {
+            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/Wuwan94/wanBoxForAndroid"))
+            startActivity(intent)
+            true
+        }
+
         val iconColor = Theme.getPrimaryColor(requireContext())
         tintPreferenceIcons(preferenceScreen, iconColor)
 
-        val categoryUI = findPreference<ExpandablePreferenceCategory>("categoryUI")
-
+        // @author 雾晚：四组重组，categoryUI 已合并到 categoryAppearance
         val nightTheme = findPreference<SimpleMenuPreference>(Key.NIGHT_THEME)!!
         nightTheme.setOnPreferenceChangeListener { _, newTheme ->
             Theme.currentNightMode = (newTheme as String).toInt()
@@ -232,7 +246,8 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             true
         }
 
-        val categoryCore = findPreference<ExpandablePreferenceCategory>("categoryCore")
+        // @author 雾晚：四组重组，categoryCore 已合并到 categoryAdvancedGroup
+        val categoryCore = findPreference<ExpandablePreferenceCategory>("categoryAdvancedGroup")
         val rulesProvider = findPreference<SimpleMenuPreference>(Key.RULES_PROVIDER)!!
         categoryCore?.setChildVisibilityRule(Key.RULES_GEOSITE_URL) { DataStore.rulesProvider == 4 }
         categoryCore?.setChildVisibilityRule(Key.RULES_GEOIP_URL) { DataStore.rulesProvider == 4 }
