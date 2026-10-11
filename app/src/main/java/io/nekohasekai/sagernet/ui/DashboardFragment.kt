@@ -9,6 +9,8 @@ import android.widget.Button
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import com.google.android.material.switchmaterial.SwitchMaterial
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
@@ -263,10 +265,8 @@ class DashboardFragment : ToolbarFragment() {
                 .followRedirects(false)
                 .followSslRedirects(false)
                 .build()
-            val body = okhttp3.RequestBody.create(
-                okhttp3.MediaType.parse("application/json"),
-                "{\"mode\":\"$mode\"}"
-            )
+            val body = "{\"mode\":\"$mode\"}"
+                .toRequestBody("application/json".toMediaType())
             val req = okhttp3.Request.Builder()
                 .url("http://127.0.0.1:9090/configs")
                 .patch(body)
