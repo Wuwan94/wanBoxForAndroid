@@ -78,10 +78,7 @@
 
                     </LinearLayout>
 
-                    <!-- Flexible text rows; preserve the FAB clearance. -->
-                    <Space
-                        android:layout_width="72dp"
-                        android:layout_height="1dp" />
+                    <!-- @author 雾晚：FAB 已删除，移除 72dp 占位 -->
 
                     <!-- Flexible text rows; preserve the FAB clearance. -->
                     <androidx.constraintlayout.widget.ConstraintLayout
