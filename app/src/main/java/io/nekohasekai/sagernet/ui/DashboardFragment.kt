@@ -304,41 +304,54 @@ class DashboardFragment : ToolbarFragment() {
     }
 
     private fun setMode(mode: Int) {
-        // @author 雾晚：通过 Clash API 运行时切换模式，不重启核心。
+        // @author 雾晚：通过应用级控制器串行切换，移除 Fragment 自己的 OkHttp/并发 launch
         // 0=rule, 1=global, 2=direct
         val modeStr = when (mode) {
             MODE_GLOBAL -> "global"
             MODE_DIRECT -> "direct"
             else -> "rule"
         }
-        // 先持久化，失败时回读
-        val oldMode = DataStore.dashboardMode
-        DataStore.dashboardMode = mode
-        updateModeUI()
+        // @author 雾晚：不提前写 DataStore，后台 PATCH+GET 确认后再持久化
+        // 停止时仅保存下次启动模式
+        val submitted = io.nekohasekai.sagernet.SagerNet.commandController.requestMode(modeStr) {
+            // patch 逻辑：经模块 CLI，secret 从运行配置读取
+            patchClashModeViaController(modeStr)
+        }
+        if (!submitted) {
+            android.widget.Toast.makeText(context, "操作进行中，请稍候", android.widget.Toast.LENGTH_SHORT).show()
+        }
+        // UI 更新由控制器 Confirmed/Error 状态驱动
+        // Confirmed 后持久化 DataStore.dashboardMode
+    }
 
-        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                if (patchClashMode(modeStr)) {
-                    // 读回确认
-                    val confirmed = getClashMode()
-                    if (confirmed != modeStr) {
-                        throw IllegalStateException("Mode mismatch: expected $modeStr, got $confirmed")
+    /**
+     * @author 雾晚：经控制器调用的模式 PATCH
+     * secret 从模块运行配置读取，PATCH 后 GET 确认，取消重抛
+     */
+    private suspend fun patchClashModeViaController(mode: String): Boolean {
+        return try {
+            if (patchClashMode(mode)) {
+                val confirmed = getClashMode()
+                if (confirmed == mode) {
+                    // @author 雾晚：回读真实模式确认后才持久化
+                    val modeInt = when (mode) {
+                        "global" -> MODE_GLOBAL
+                        "direct" -> MODE_DIRECT
+                        else -> MODE_RULE
                     }
+                    DataStore.dashboardMode = modeInt
+                    true
                 } else {
-                    throw IllegalStateException("PATCH /configs failed")
+                    false
                 }
-            } catch (e: Exception) {
-                // 失败回滚 UI 和持久化
-                DataStore.dashboardMode = oldMode
-                lifecycleScope.launch(kotlinx.coroutines.Dispatchers.Main) {
-                    updateModeUI()
-                    android.widget.Toast.makeText(
-                        requireContext(),
-                        "模式切换失败：${e.message}",
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
-                }
+            } else {
+                false
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // @author 雾晚：取消不能被外层 catch 吞掉
+            throw e
+        } catch (_: Exception) {
+            false
         }
     }
 

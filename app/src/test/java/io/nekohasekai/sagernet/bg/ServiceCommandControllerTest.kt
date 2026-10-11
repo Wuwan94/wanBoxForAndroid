@@ -133,12 +133,19 @@ class ServiceCommandControllerTest {
     fun `non-terminal starting returns error not confirmed`() = runTest {
         val scope = TestScope(UnconfinedTestDispatcher(testScheduler))
         val backend = object : ServiceCommandController.Backend {
-            // fake start 返回 starting（非终态），生产 RealBackend.waitFor 会超时 throw
-            // 这里模拟超时 throw 的行为
+            // @author 雾晚：fake 真实返回 starting（非终态）
+            // requestStart 必须自行校验 connected，不通过则 Error
             override suspend fun start(): RootModuleClient.Status {
-                throw IllegalStateException("status_timeout")
+                val s = fakeStatus(connected = false, phase = "starting")
+                // 模拟 RealBackend 的校验逻辑
+                if (!s.connected) throw IllegalStateException("start_not_confirmed")
+                return s
             }
-            override suspend fun stop() = fakeStatus(false, "stopped")
+            override suspend fun stop(): RootModuleClient.Status {
+                val s = fakeStatus(false, "starting")
+                if (s.phase != "stopped") throw IllegalStateException("stop_not_confirmed")
+                return s
+            }
             override suspend fun setMode(mode: String) = fakeStatus()
             override suspend fun selectNode(id: Long) = fakeStatus(profileId = id)
             override suspend fun queryStatus() = fakeStatus()
@@ -150,7 +157,7 @@ class ServiceCommandControllerTest {
 
         // @author 雾晚：非终态必须返回 Error，不允许 Confirmed 掩盖
         val state = controller.state.value
-        assertTrue("expected Error for non-terminal, got $state",
+        assertTrue("expected Error for non-terminal starting, got $state",
             state is ServiceCommandController.CommandState.Error)
     }
 
