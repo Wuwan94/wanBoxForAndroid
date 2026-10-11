@@ -28,7 +28,8 @@ class UiLayoutResourcesTest {
         }
     }
     @Test fun refreshAndOverflowHaveMinimumTargetsAndAccessibleNames() {
-        for ((name, id) in listOf("layout_main" to "btn_ip_detail", "layout_profile" to "double_column_menu", "layout_group_item" to "options")) {
+        // @author 雾晚：StatsBar 已删除，btn_ip_detail 移至 Dashboard 诊断卡（btnLandingIp/btnTestConnection）
+        for ((name, id) in listOf("layout_profile" to "double_column_menu", "layout_group_item" to "options")) {
             val node = element(name, id)
             assertEquals("@dimen/ui_touch_target", node.getAttributeNS(androidNs, "layout_width"))
             assertEquals("@dimen/ui_touch_target", node.getAttributeNS(androidNs, "layout_height"))
@@ -36,9 +37,10 @@ class UiLayoutResourcesTest {
         }
     }
     @Test fun statsTextIsNotShrunkAndSettingsGetRemainingViewport() {
+        // @author 雾晚：StatsBar 已删除，layout_main 不再含 status，诊断移至 Dashboard
         val stats = File("src/main/res/layout/layout_main.xml").readText()
         assertFalse(stats.contains("autoSizeMinTextSize"))
-        assertEquals("polite", element("layout_main", "status").getAttributeNS(androidNs, "accessibilityLiveRegion"))
+        assertFalse(stats.contains("btn_ip_detail"))
         val settings = element("layout_config_settings", "settings")
         assertEquals("0dp", settings.getAttributeNS(androidNs, "layout_height"))
         assertEquals("1", settings.getAttributeNS(androidNs, "layout_weight"))
