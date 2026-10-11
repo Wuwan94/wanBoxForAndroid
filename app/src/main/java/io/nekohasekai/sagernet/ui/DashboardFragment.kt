@@ -27,6 +27,20 @@ import kotlinx.coroutines.launch
  */
 class DashboardFragment : ToolbarFragment() {
 
+    /**
+     * @author 雾晚：共享的受限 loopback 客户端。
+     * 仅访问 127.0.0.1:9090，5s 超时，禁重定向，不每次新建。
+     */
+    private val loopbackClient: okhttp3.OkHttpClient by lazy {
+        okhttp3.OkHttpClient.Builder()
+            .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+            .callTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+            .followRedirects(false)
+            .followSslRedirects(false)
+            .build()
+    }
+
     private var statusText: TextView? = null
     private var serviceSwitch: SwitchMaterial? = null
     // 防止程序化更新开关状态时触发监听器导致重复启停
@@ -251,6 +265,29 @@ class DashboardFragment : ToolbarFragment() {
         }
     }
 
+
+    /**
+     * @author 雾晚：流式限额读取响应体，避免 body.string().take() 全量读入内存。
+     * 超过限额返回 null（视为未知，不造假）。
+     */
+    private fun readLimitedBody(resp: okhttp3.Response, maxBytes: Long): String? {
+        return try {
+            val source = resp.body?.source() ?: return null
+            val buffer = okio.Buffer()
+            var total: Long = 0
+            while (true) {
+                val read = source.read(buffer, 8192)
+                if (read == -1L) break
+                total += read
+                if (total > maxBytes) return null // 超限，视为未知
+            }
+            buffer.readUtf8()
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            null
+        }
+    }
+
     /**
      * @author 雾晚：通过 loopback Clash API 切换运行模式，不重启核心。
      * 安全约束：仅访问 127.0.0.1:9090，带 Bearer 鉴权，限制超时与响应体大小，
@@ -259,12 +296,6 @@ class DashboardFragment : ToolbarFragment() {
     private fun patchClashMode(mode: String): Boolean {
         return try {
             val secret = DataStore.clashApiSecret
-            val client = okhttp3.OkHttpClient.Builder()
-                .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-                .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-                .followRedirects(false)
-                .followSslRedirects(false)
-                .build()
             val body = "{\"mode\":\"$mode\"}"
                 .toRequestBody("application/json".toMediaType())
             val req = okhttp3.Request.Builder()
@@ -272,12 +303,13 @@ class DashboardFragment : ToolbarFragment() {
                 .patch(body)
                 .header("Authorization", "Bearer $secret")
                 .build()
-            client.newCall(req).execute().use { resp ->
-                // 限制响应体大小，避免大响应耗内存
-                val bodyStr = resp.body?.string()?.take(4096) ?: ""
+            loopbackClient.newCall(req).execute().use { resp ->
+                // PATCH 响应体小，直接关闭即可，不读取内容
                 resp.isSuccessful
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            // @author 雾晚：取消异常必须重新抛出，与 OkHttp 取消联动
+            if (e is kotlinx.coroutines.CancellationException) throw e
             false
         }
     }
@@ -288,22 +320,17 @@ class DashboardFragment : ToolbarFragment() {
     private fun getClashMode(): String? {
         return try {
             val secret = DataStore.clashApiSecret
-            val client = okhttp3.OkHttpClient.Builder()
-                .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-                .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-                .followRedirects(false)
-                .followSslRedirects(false)
-                .build()
             val req = okhttp3.Request.Builder()
                 .url("http://127.0.0.1:9090/configs")
                 .header("Authorization", "Bearer $secret")
                 .build()
-            client.newCall(req).execute().use { resp ->
+            loopbackClient.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) return null
-                val bodyStr = resp.body?.string()?.take(4096) ?: return null
+                val bodyStr = readLimitedBody(resp, 4096) ?: return null
                 org.json.JSONObject(bodyStr).optString("mode", null)
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             null
         }
     }
@@ -372,23 +399,19 @@ class DashboardFragment : ToolbarFragment() {
     private fun getActiveConnectionCount(): Int? {
         return try {
             val secret = DataStore.clashApiSecret
-            val client = okhttp3.OkHttpClient.Builder()
-                .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-                .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-                .followRedirects(false)
-                .followSslRedirects(false)
-                .build()
             val req = okhttp3.Request.Builder()
                 .url("http://127.0.0.1:9090/connections")
                 .header("Authorization", "Bearer $secret")
                 .build()
-            client.newCall(req).execute().use { resp ->
+            loopbackClient.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) return null
-                val bodyStr = resp.body?.string()?.take(65536) ?: return null
+                // @author 雾晚：流式限额 256KB，超限返回 null（未知），不伪造 0
+                val bodyStr = readLimitedBody(resp, 262144) ?: return null
                 val arr = org.json.JSONObject(bodyStr).optJSONArray("connections")
                 arr?.length()
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             null
         }
     }
