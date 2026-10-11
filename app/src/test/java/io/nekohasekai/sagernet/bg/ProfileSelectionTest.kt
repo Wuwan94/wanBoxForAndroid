@@ -35,7 +35,8 @@ class ProfileSelectionTest {
     }
     @Test fun selectionUsesModuleTruthAndAcknowledgementsDoNotUndoNewerIntent() {
         val app = File("src/main/java/io/nekohasekai/sagernet/SagerNet.kt").readText()
-        assertTrue(app.contains("configurationReload.request(immediate = true)"))
+        // 失败时保持旧连接，不调用无意义的全量重载
+        assertTrue(app.contains("keeping old connection"))
         val ui = File("src/main/java/io/nekohasekai/sagernet/ui/ConfigurationFragment.kt").readText()
             .substringAfter("private fun selectProfile(proxyEntity: ProxyEntity)").substringBefore("private fun removeProfile")
         assertTrue(ui.contains("SagerNet.selectProfile(proxyEntity.id)"))

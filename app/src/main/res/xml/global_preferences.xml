@@ -8,7 +8,6 @@
     <moe.matsuri.nb4a.ui.ExpandablePreferenceCategory
         app:key="categoryAppearance"
         app:title="@string/settings_group_appearance">
-        app:title="@string/ui_settings">
 
         <moe.matsuri.nb4a.ui.SimpleMenuPreference
             app:defaultValue="0"
@@ -94,7 +93,6 @@
         app:persistent="false"
         app:title="@string/per_app_proxy"
         app:summary="@string/per_app_proxy_summary" />
-        app:title="@string/mode_and_inbound_settings">
 
         <Preference
             app:icon="@drawable/ic_device_developer_mode"
@@ -186,7 +184,6 @@
     <moe.matsuri.nb4a.ui.ExpandablePreferenceCategory
         app:key="categoryMaintenance"
         app:title="@string/settings_group_maintenance">
-        app:title="@string/observatory_settings">
 
         <moe.matsuri.nb4a.ui.UrlTestPreference
             app:defaultValue="@string/default_connection_test_url"
@@ -253,7 +250,6 @@
     <moe.matsuri.nb4a.ui.ExpandablePreferenceCategory
         app:key="categoryAdvancedGroup"
         app:title="@string/settings_group_advanced">
-        app:title="@string/dns_settings">
 
         <EditTextPreference
             app:defaultValue="https://dns.google/dns-query"
@@ -404,7 +400,6 @@
                 app:useSimpleSummaryProvider="true" />
 
         </moe.matsuri.nb4a.ui.ExpandablePreferenceCategory>
-        app:title="@string/advanced_settings">
 
         <io.nekohasekai.sagernet.widget.SubscriptionUserAgentPreference
             app:icon="@drawable/ic_baseline_http_24"

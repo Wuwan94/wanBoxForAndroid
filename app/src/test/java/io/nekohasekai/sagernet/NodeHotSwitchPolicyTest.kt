@@ -54,10 +54,30 @@ class NodeHotSwitchPolicyTest {
 
     @Test fun profileSelectionTriesHotSwitchBeforeFullReload() {
         val source = File("src/main/java/io/nekohasekai/sagernet/SagerNet.kt").readText()
+        // 热切换优先：先尝试 selectNode
         val hot = source.indexOf("RootModuleClient.selectNode(id)")
-        val fallback = source.indexOf("configurationReload.request(immediate = true)", hot)
-        assertTrue(hot >= 0 && fallback > hot)
-        assertTrue(source.contains("falling back to full reload"))
+        assertTrue(hot >= 0)
+        // 失败时保持旧连接与旧选择，不做无意义的全量重载（旧实现会重载旧配置）
+        assertTrue(source.contains("keeping old connection"))
+        // 成功时才更新 DataStore.selectedProxy
+        assertTrue(source.contains("DataStore.selectedProxy = id"))
+    }
+
+    @Test fun profileSelectionFailureKeepsOldSelection() {
+        // @author 雾晚：失败保持旧连接/选择的行为测试
+        val source = File("src/main/java/io/nekohasekai/sagernet/SagerNet.kt").readText()
+        // 失败分支不应更新 DataStore.selectedProxy
+        val failureBranch = source.substringAfter("keeping old connection")
+        assertFalse(failureBranch.substring(0, 500).contains("DataStore.selectedProxy = id"))
+        // 失败分支不应调用无意义的全量重载
+        assertFalse(source.contains("falling back to full reload"))
+    }
+
+    @Test fun profileSelectionValidatesTargetId() {
+        // @author 雾晚：验证目标 id 的行为测试
+        val client = File("src/main/java/io/nekohasekai/sagernet/bg/RootModuleClient.kt").readText()
+        // selectNode 要求 profileId > 0，防止非法 id
+        assertTrue(client.contains("require(profileId > 0)"))
     }
 
     @Test fun wanboxctlExposesNodeSelectCommand() {

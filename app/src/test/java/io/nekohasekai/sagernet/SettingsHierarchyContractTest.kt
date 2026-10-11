@@ -34,6 +34,8 @@ class SettingsHierarchyContractTest {
         assertFalse(actual.containsKey("rootModuleUpdateData"))
         old.keys().forEach { key ->
             if (key in moduleInapplicable) return@forEach
+            // @author 雾晚：跳过旧分组容器 key，它们已被新分组替代
+            if (key.startsWith("category")) return@forEach
             val before = old.getJSONObject(key); val node = actual.getValue(key)
             if (key == "serviceMode") {
                 assertEquals("Preference", node.tagName)
@@ -55,7 +57,8 @@ class SettingsHierarchyContractTest {
                 }
             }
         }
-        assertEquals("categoryCore", (actual.getValue("categoryFragment").parentNode as Element)
+        // @author 雾晚：四组重组后 categoryFragment 归属 categoryAdvancedGroup
+        assertEquals("categoryAdvancedGroup", (actual.getValue("categoryFragment").parentNode as Element)
             .getAttributeNS("http://schemas.android.com/apk/res-auto", "key"))
     }
 

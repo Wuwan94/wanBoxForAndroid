@@ -96,14 +96,18 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             true
         }
 
-        // @author 雾晚：四组重组 - 关于入口
-        findPreference<Preference>("aboutVersion")?.setOnPreferenceClickListener {
-            // 显示版本信息，已在 summary 中
-            true
+        // @author 雾晚：四组重组 - 关于入口，展示真实版本信息
+        findPreference<Preference>("aboutVersion")?.apply {
+            // 显示真实应用版本
+            summary = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
+            // 不可点击，仅展示
+            isSelectable = false
         }
-        findPreference<Preference>("aboutCoreVersion")?.setOnPreferenceClickListener {
-            // 显示核心版本，已在 summary 中
-            true
+        findPreference<Preference>("aboutCoreVersion")?.apply {
+            // 显示真实 sing-box 核心版本
+            summary = "sing-box v1.15.0-alpha.10"
+            // 不可点击，仅展示
+            isSelectable = false
         }
         findPreference<Preference>("aboutGithub")?.setOnPreferenceClickListener {
             val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/Wuwan94/wanBoxForAndroid"))
