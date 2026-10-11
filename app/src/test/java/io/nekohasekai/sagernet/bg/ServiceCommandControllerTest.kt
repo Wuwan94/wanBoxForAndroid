@@ -7,8 +7,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Test
@@ -31,7 +29,7 @@ class ServiceCommandControllerTest {
 
     @Test
     fun `two simultaneous submits only execute once`() = runTest {
-        val scope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        val scope = this
         var execCount = 0
         val backend = object : ServiceCommandController.Backend {
             override suspend fun start(): RootModuleClient.Status {
@@ -58,7 +56,7 @@ class ServiceCommandControllerTest {
 
     @Test
     fun `cancellation releases pending and allows resubmit`() = runTest {
-        val scope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        val scope = this
         var firstCall = true
         var execCount = 0
         val backend = object : ServiceCommandController.Backend {
@@ -98,7 +96,7 @@ class ServiceCommandControllerTest {
 
     @Test
     fun `observer cancellation does not cancel application task`() = runTest {
-        val scope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        val scope = this
         var execCompleted = false
         val backend = object : ServiceCommandController.Backend {
             override suspend fun start(): RootModuleClient.Status {
@@ -131,7 +129,7 @@ class ServiceCommandControllerTest {
 
     @Test
     fun `non-terminal starting returns error not confirmed`() = runTest {
-        val scope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        val scope = this
         val backend = object : ServiceCommandController.Backend {
             // @author 雾晚：fake 真实返回 starting（非终态）
             // requestStart 必须自行校验 connected，不通过则 Error
@@ -163,7 +161,7 @@ class ServiceCommandControllerTest {
 
     @Test
     fun `failure keeps old node and allows resubmit`() = runTest {
-        val scope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        val scope = this
         val backend = object : ServiceCommandController.Backend {
             override suspend fun start() = fakeStatus()
             override suspend fun stop() = fakeStatus(false, "stopped")
@@ -189,7 +187,7 @@ class ServiceCommandControllerTest {
 
     @Test
     fun `requestNode confirms profileId`() = runTest {
-        val scope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        val scope = this
         val backend = object : ServiceCommandController.Backend {
             override suspend fun start() = fakeStatus()
             override suspend fun stop() = fakeStatus(false, "stopped")
