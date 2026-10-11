@@ -15,6 +15,7 @@ import androidx.preference.*
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
+import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.SpeedTestSettings
 import io.nekohasekai.sagernet.database.DataStore

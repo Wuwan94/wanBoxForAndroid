@@ -66,11 +66,13 @@ class NodeHotSwitchPolicyTest {
     @Test fun profileSelectionFailureKeepsOldSelection() {
         // @author 雾晚：失败保持旧连接/选择的行为测试
         val source = File("src/main/java/io/nekohasekai/sagernet/SagerNet.kt").readText()
-        // 失败分支不应更新 DataStore.selectedProxy
-        val failureBranch = source.substringAfter("keeping old connection")
+        // 失败分支（else）不应更新 DataStore.selectedProxy：取最后一个 keeping old connection 之后的文本
+        val failureBranch = source.substringAfterLast("keeping old connection")
         assertFalse(failureBranch.substring(0, 500).contains("DataStore.selectedProxy = id"))
         // 失败分支不应调用无意义的全量重载
         assertFalse(source.contains("falling back to full reload"))
+        // 成功分支才更新选择
+        assertTrue(source.contains("DataStore.selectedProxy = id"))
     }
 
     @Test fun profileSelectionValidatesTargetId() {
