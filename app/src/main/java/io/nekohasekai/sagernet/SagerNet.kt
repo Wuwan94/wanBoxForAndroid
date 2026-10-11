@@ -279,9 +279,12 @@ class SagerNet : Application(),
                     }
                     io.nekohasekai.sagernet.widget.OwnBoxWidgetProvider.updateWidgets(application)
                 } else {
-                    // @author 雾晚：失败保持旧选择/运行连接，仅提示，不无条件重启
-                    // 明确 node_tag_not_found 才用原子 apply 重建（不提前改全局 selectedProxy）
-                    Logs.e("Node switch not confirmed, keeping old selection $previous")
+                    // @author 雾晚：热切换失败，保持旧连接与旧选择，不做无意义的全量重载
+                    // （全量重载会读取 DataStore.selectedProxy 的旧值，无法切换到目标节点）
+                    // 抛出异常触发 onError 通知用户，由用户决定是否重试或手动重载
+                    val msg = "Node switch not confirmed for target $id, keeping old connection (selectedProxy=$previous)"
+                    Logs.e(msg)
+                    throw java.io.IOException("node_switch_not_confirmed:$id")
                 }
             }, onError = ::reportModuleError)
         }
