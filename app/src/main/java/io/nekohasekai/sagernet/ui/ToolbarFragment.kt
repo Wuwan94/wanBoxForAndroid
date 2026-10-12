@@ -10,6 +10,7 @@ import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.doOnAttach
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import com.google.android.material.appbar.AppBarLayout
@@ -71,7 +72,7 @@ open class ToolbarFragment : Fragment {
                 v.updatePadding(top = bars.top)
                 insets
             }
-            ViewCompat.requestApplyInsets(appbar)
+            appbar.doOnAttach { ViewCompat.requestApplyInsets(it) }
         }
     }
 

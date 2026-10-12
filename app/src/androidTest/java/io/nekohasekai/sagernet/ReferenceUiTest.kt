@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.widget.*
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.platform.app.InstrumentationRegistry
@@ -31,11 +32,19 @@ class ReferenceUiTest {
         }
         fail("UI did not reach expected state")
     }
-    private fun screenshot(name: String) {
+    private fun screenshot(name: String, main: MainActivity) {
         // Allow pending layout and compositor frames to reflect the asserted UI state.
         instrumentation.waitForIdleSync()
         Thread.sleep(250)
         instrumentation.waitForIdleSync()
+        instrumentation.runOnMainSync {
+            val fragment = main.supportFragmentManager.findFragmentById(R.id.fragment_holder) as ToolbarFragment
+            val insets = checkNotNull(main.window.decorView.rootWindowInsets)
+            val bars = insets.getInsets(WindowInsets.Type.statusBars() or WindowInsets.Type.displayCutout())
+            val position = IntArray(2)
+            fragment.toolbar.getLocationOnScreen(position)
+            assertTrue("$name toolbar must remain below the status bar", position[1] >= bars.top)
+        }
         val root = InstrumentationRegistry.getArguments().getString("additionalTestOutputDir")?.let(::File)
             ?: instrumentation.targetContext.getExternalFilesDir(null)!!
         val directory = File(root, "reference-ui").apply { mkdirs() }
@@ -73,7 +82,7 @@ class ReferenceUiTest {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
             val main = activity
             waitFor { main.findViewById<TextView>(R.id.nodeName)?.text?.toString() == names.first() }
-            screenshot("01-dashboard")
+            screenshot("01-dashboard", main)
             instrumentation.runOnMainSync {
                 main.findViewById<View>(R.id.modeDirect).performClick()
             }
@@ -89,7 +98,7 @@ class ReferenceUiTest {
                 fragment.toolbar.findViewById<View>(R.id.action_display_settings).performClick()
             }
             instrumentation.waitForIdleSync()
-            screenshot("02-nodes")
+            screenshot("02-nodes", main)
             instrumentation.runOnMainSync {
                 val choices = allViews(main.binding.fragmentHolder).filterIsInstance<RadioButton>()
                 choices.first { it.text.toString() == "多列" }.performClick()
@@ -109,13 +118,13 @@ class ReferenceUiTest {
                 assertTrue(selected.isEnabled)
                 assertEquals("更新选中 (2)", selected.text.toString())
             }
-            screenshot("03-subscriptions")
+            screenshot("03-subscriptions", main)
             instrumentation.runOnMainSync {
                 main.binding.bottomNav.selectedItemId = R.id.nav_settings
                 main.supportFragmentManager.executePendingTransactions()
             }
             waitFor { allViews(main.binding.fragmentHolder).filterIsInstance<TextView>().any { it.text.toString() == "关于 wanBox" } }
-            screenshot("04-settings")
+            screenshot("04-settings", main)
             instrumentation.runOnMainSync {
                 val dns = allViews(main.binding.fragmentHolder).filterIsInstance<TextView>().first { it.text.toString() == "DNS 设置" }
                 (dns.parent.parent as View).performClick()

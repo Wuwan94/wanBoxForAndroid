@@ -59,6 +59,27 @@ class ReleasePackagesTest(unittest.TestCase):
             with self.subTest(args=args), self.assertRaises(ValueError):
                 release.validate_upgrade(*args)
 
+    def test_build_tools_35_and_37_certificate_formats_require_the_same_single_signer(self):
+        _, certificate = self.outputs()
+        old = "Number of signers: 1\n" + certificate
+        current = old.replace("Signer #1", "V2 Signer:")
+        for output in (old, current, current.replace("V2 Signer:", "V3.1 Signer:")):
+            with self.subTest(output=output):
+                release.verify_signer(output)
+        # Multiple signature schemes may report the same single signing certificate.
+        release.verify_signer(current + "\n" + certificate.replace("Signer #1", "V3 Signer:"))
+        for invalid in (
+                current.replace("Number of signers: 1", "Number of signers: 2"),
+                current.replace(release.RELEASE_CERTIFICATE.lower(), "0" * 64),
+                current + "\n" + certificate.replace("Signer #1", "V3 Signer:")
+                    .replace(release.RELEASE_CERTIFICATE.lower(), "0" * 64),
+                current.replace("V2 Signer:", "Unknown Signer:"),
+                "Source Stamp Signer certificate SHA-256 digest: " + release.RELEASE_CERTIFICATE,
+                current + "\nNumber of signers: 1",
+        ):
+            with self.subTest(output=invalid), self.assertRaises(ValueError):
+                release.verify_signer(invalid)
+
     def test_previous_apk_download_must_match_pinned_checksum(self):
         with tempfile.TemporaryDirectory() as directory:
             target = pathlib.Path(directory) / "previous.apk"

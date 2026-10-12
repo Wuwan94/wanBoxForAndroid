@@ -27,9 +27,19 @@ def apk_fields(badging):
 
 
 def verify_signer(certificates):
-    digests = re.findall(r"Signer #[0-9]+ certificate SHA-256 digest:\s*([0-9a-fA-F:]+)", certificates)
-    if len(digests) != 1 or digests[0].replace(":", "").upper() != RELEASE_CERTIFICATE:
-        raise ValueError("APK must use the original release signing certificate")
+    # Build Tools 37 labels certificates by scheme (e.g. "V2 Signer:").
+    records = re.findall(r"^(.+?) certificate SHA-256 digest:[ \t]*([0-9a-fA-F:]+)[ \t]*$",
+                         certificates, re.MULTILINE)
+    signers = [(label, digest.replace(":", "").upper()) for label, digest in records
+               if label != "Source Stamp Signer"]
+    label_pattern = r"(?:Signer #[0-9]+|V[1-4](?:\.[0-9]+)? Signer(?: #[0-9]+)?:)"
+    counts = re.findall(r"^Number of signers: ([0-9]+)$", certificates, re.MULTILINE)
+    if (not signers or any(not re.fullmatch(label_pattern, label) for label, _ in signers)
+            or (counts and counts != ["1"])
+            or (not counts and len(signers) != 1)
+            or any(digest != RELEASE_CERTIFICATE for _, digest in signers)):
+        raise ValueError("APK must have one signer using the original release signing certificate; "
+                         "observed certificate digests: " + repr(signers))
 
 
 def validate_upgrade(previous_badging, previous_certificates, candidate_badging, candidate_certificates):
