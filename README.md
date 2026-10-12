@@ -3,13 +3,13 @@
 <p align="center">
   <img src="docs/logo.png" width="128" height="128" alt="wanBoxForAndroid Logo">
   <br>
-  <b>面向 Root 设备的独立 Android 代理项目：正式版 v3.0.8，均使用 sing-box v1.15.0-alpha.10</b>
+  <b>面向 Root 设备的独立 Android 代理项目：正式版 v3.0.9，均使用 sing-box v1.15.0-alpha.10</b>
   <br>
-  <b>An independent, root-focused Android proxy project: stable v3.0.8 use sing-box v1.15.0-alpha.10</b>
+  <b>An independent, root-focused Android proxy project: stable v3.0.9 use sing-box v1.15.0-alpha.10</b>
 </p>
 
 <p align="center">
-  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.8"><img src="https://img.shields.io/badge/Stable-v3.0.8-blue.svg?style=flat-square" alt="Latest stable release"></a>
+  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.9"><img src="https://img.shields.io/badge/Stable-v3.0.9-blue.svg?style=flat-square" alt="Latest stable release"></a>
   <a href="https://android-arsenal.com/api?level=21"><img src="https://img.shields.io/badge/Stable%20Android-5.0%2B%20(API%2021%2B)-brightgreen.svg?style=flat-square" alt="Stable minimum Android version"></a>
   <a href="https://android-arsenal.com/api?level=31"><img src="https://img.shields.io/badge/Preview%20Android-12%2B%20(API%2031%2B)-brightgreen.svg?style=flat-square" alt="Preview minimum Android version"></a>
   <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPL--3.0-orange.svg?style=flat-square" alt="License"></a>
