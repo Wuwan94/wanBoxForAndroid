@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 import androidx.annotation.IdRes
 import androidx.core.graphics.ColorUtils
+import androidx.core.view.updateLayoutParams
 import androidx.preference.PreferenceDataStore
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.navigation.NavigationView
@@ -91,6 +92,8 @@ class MainActivity : ThemedActivity(),
     // preview.18 UI 改造：仪表盘支持
     var serviceState: BaseService.State = BaseService.State.Idle
         private set
+    var serviceConnectedAt: Long = 0L
+        private set
     var lastSpeedStats: SpeedDisplayData? = null
         private set
 
@@ -106,6 +109,7 @@ class MainActivity : ThemedActivity(),
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        DataStore.appTheme = Theme.LIGHT_GRAY
         super.onCreate(savedInstanceState)
         if (SagerNet.databaseFailure != null) {
             startActivity(Intent(this, DatabaseRecoveryActivity::class.java))
@@ -147,10 +151,17 @@ class MainActivity : ThemedActivity(),
             binding.drawerLayout.removeView(binding.navView)
         }
         navigation.setNavigationItemSelectedListener(this)
+        binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
 
         // preview.18 UI 改造：底部导航
         binding.bottomNav.setOnItemSelectedListener { item ->
+            supportFragmentManager.popBackStackImmediate(null, androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE)
             displayFragmentWithId(item.itemId)
+        }
+        binding.bottomNav.addOnLayoutChangeListener { _, _, top, _, bottom, _, _, _, _ ->
+            binding.fragmentHolder.updateLayoutParams<android.view.ViewGroup.MarginLayoutParams> {
+                bottomMargin = bottom - top
+            }
         }
 
         if (savedInstanceState == null) {
@@ -165,10 +176,13 @@ class MainActivity : ThemedActivity(),
         onBackPressedDispatcher.addCallback {
             val fragment = supportFragmentManager.findFragmentById(R.id.fragment_holder) as? ToolbarFragment
             if (fragment?.onBackPressed() == true) return@addCallback
-            if (fragment is ConfigurationFragment) {
+            if (supportFragmentManager.backStackEntryCount > 0) {
+                supportFragmentManager.popBackStackImmediate()
+                currentMainFragment = supportFragmentManager.findFragmentById(R.id.fragment_holder) as? ToolbarFragment
+            } else if (fragment is DashboardFragment) {
                 moveTaskToBack(true)
             } else {
-                displayFragmentWithId(R.id.nav_configuration)
+                binding.bottomNav.selectedItemId = R.id.nav_dashboard
             }
         }
 
@@ -541,8 +555,8 @@ class MainActivity : ThemedActivity(),
             R.id.nav_route -> current is RouteFragment
             R.id.nav_settings -> current is SettingsFragment
             R.id.nav_dashboard -> current is DashboardFragment
-            R.id.nav_nodes -> current is ConfigurationFragment
-            R.id.nav_subscriptions -> current is GroupFragment
+            R.id.nav_nodes -> current is NodesFragment
+            R.id.nav_subscriptions -> current is SubscriptionsFragment
             R.id.nav_tools -> current is ToolsFragment
             R.id.nav_logcat -> current is LogcatFragment
             R.id.nav_docs -> current is DocsFragment
@@ -578,11 +592,17 @@ class MainActivity : ThemedActivity(),
     @SuppressLint("CommitTransaction")
     fun displayFragment(fragment: ToolbarFragment) {
         currentMainFragment = fragment
-        supportFragmentManager.beginTransaction()
+        val transaction = supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_holder, fragment)
-            .commitAllowingStateLoss()
+        if (fragment.arguments?.getBoolean("referenceDetail") == true) transaction.addToBackStack("detail")
+        transaction.commitAllowingStateLoss()
         binding.drawerLayout.closeDrawers()
         syncMainControls(fragment, showWhenConnected = false, animate = true)
+    }
+
+    fun openDetail(fragment: ToolbarFragment) {
+        fragment.arguments = (fragment.arguments ?: Bundle()).apply { putBoolean("referenceDetail", true) }
+        displayFragment(fragment)
     }
 
     private fun syncMainControls(
@@ -591,7 +611,8 @@ class MainActivity : ThemedActivity(),
         showWhenConnected: Boolean,
         animate: Boolean,
     ) {
-        val showControls = fragment is ConfigurationFragment || DataStore.showBottomBar
+        val showControls = fragment !is ReferenceFragment &&
+            (fragment is ConfigurationFragment || DataStore.showBottomBar)
         binding.stats.useExternalScrollDriver = fragment is ConfigurationFragment
         binding.stats.syncMainControls(
             showControls,
@@ -619,10 +640,10 @@ class MainActivity : ThemedActivity(),
                 displayFragment(DashboardFragment())
             }
             R.id.nav_nodes -> {
-                displayFragment(ConfigurationFragment())
+                displayFragment(NodesFragment())
             }
             R.id.nav_subscriptions -> {
-                displayFragment(GroupFragment())
+                displayFragment(SubscriptionsFragment())
             }
             R.id.nav_settings -> displayFragment(SettingsFragment())
 
@@ -656,6 +677,10 @@ class MainActivity : ThemedActivity(),
         animateControls: Boolean = animate,
     ) {
         DataStore.serviceState = state
+        serviceState = state
+        if (state == BaseService.State.Connected && serviceConnectedAt == 0L) {
+            serviceConnectedAt = android.os.SystemClock.elapsedRealtime()
+        } else if (state != BaseService.State.Connected) serviceConnectedAt = 0L
         refreshConfigurationProfileState()
         io.nekohasekai.sagernet.widget.OwnBoxWidgetProvider.updateWidgets(this)
 

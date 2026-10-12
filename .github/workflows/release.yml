@@ -253,20 +253,15 @@ jobs:
         with:
           name: root-module
           path: module-artifacts
-      - name: Bundle Module with Manager APK
-        run: |
-          python3 rootmodule/bundle_manager.py --source module-artifacts/wanbox-root-module-arm64-v8a.zip --apk artifacts/*arm64-v8a*.apk --output module-artifacts/wanbox-root-module-with-manager-arm64-v8a.zip
-          python3 -m zipfile -t module-artifacts/wanbox-root-module-with-manager-arm64-v8a.zip
       - name: Prepare APKs and Modules
         run: |
-          mkdir -p apks
-          find artifacts -name "*.apk" -exec cp {} apks/ \;
-          cp module-artifacts/wanbox-root-module-arm64-v8a.zip apks/
-          cp module-artifacts/wanbox-root-module-with-manager-arm64-v8a.zip apks/
+          AAPT=$(find "${ANDROID_HOME}/build-tools" -name aapt | sort -V | tail -n 1)
+          APKSIGNER=$(find "${ANDROID_HOME}/build-tools" -name apksigner | sort -V | tail -n 1)
+          python3 tools/prepare_release_packages.py --apk artifacts/*arm64-v8a*.apk --module module-artifacts/wanbox-root-module-arm64-v8a.zip --output apks --aapt "$AAPT" --apksigner "$APKSIGNER"
           ls -la apks/
           test "$(find apks -maxdepth 1 -name '*.apk' | wc -l)" -eq 1
           test "$(find apks -maxdepth 1 -name '*.zip' | wc -l)" -eq 2
-          (cd apks && sha256sum *.apk *.zip > SHA256SUMS && sha256sum --check SHA256SUMS)
+          (cd apks && sha256sum --check SHA256SUMS)
           cat apks/SHA256SUMS
       - name: Show Release Notes
         run: cat RELEASE_NOTES.md

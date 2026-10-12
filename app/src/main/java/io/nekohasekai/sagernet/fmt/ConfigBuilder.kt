@@ -712,6 +712,7 @@ fun buildConfig(
                     clash_api = ClashAPIOptions().apply {
                         external_controller = "127.0.0.1:9090"
                         secret = DataStore.clashApiSecret
+                        default_mode = listOf("rule", "global", "direct").getOrElse(DataStore.dashboardMode) { "rule" }
                         external_ui = "../files/yacd"
                     }
                 }
@@ -1888,6 +1889,10 @@ fun buildConfig(
             })
 
             route.rules.addAll(0, topRouteRules)
+            route.rules.addAll(topRouteRules.size, listOf(
+                Rule_DefaultOptions().apply { clash_mode = "direct"; outbound = TAG_DIRECT },
+                Rule_DefaultOptions().apply { clash_mode = "global"; outbound = mainProxyTag },
+            ))
 
             if (DataStore.bypassLanInCore) {
                 route.rules.add(Rule_DefaultOptions().apply {
@@ -1971,6 +1976,12 @@ fun buildConfig(
             }
         }
 
+        if (!forTest) {
+            dns.rules.addAll(0, listOf(
+                DNSRule_DefaultOptions().apply { clash_mode = "direct"; server = "dns-direct" },
+                DNSRule_DefaultOptions().apply { clash_mode = "global"; server = "dns-remote" },
+            ))
+        }
         if (!forTest && ipv6Mode == IPv6Mode.DISABLE) {
             dns.rules.add(0, DNSRule_DefaultOptions().apply {
                 query_type = listOf("AAAA")

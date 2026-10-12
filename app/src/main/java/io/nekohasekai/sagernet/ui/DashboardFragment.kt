@@ -1,285 +1,158 @@
 package io.nekohasekai.sagernet.ui
 
 import android.os.Bundle
+import android.os.SystemClock
 import android.text.format.Formatter
-import android.view.LayoutInflater
 import android.view.View
-import android.view.ViewGroup
-import android.widget.Button
-import android.widget.TextView
-import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
-import com.google.android.material.switchmaterial.SwitchMaterial
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.bg.BaseService
-import io.nekohasekai.sagernet.database.DataStore
-import io.nekohasekai.sagernet.database.ProfileManager
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import io.nekohasekai.sagernet.database.*
+import io.nekohasekai.sagernet.databinding.LayoutDashboardBinding
+import kotlinx.coroutines.*
+import java.util.Locale
 
-/**
- * preview.18 UI 改造：仪表盘页。
- * 显示服务状态、当前节点、模式切换（规则/全局/直连）、2x2 数据卡。
- */
-class DashboardFragment : ToolbarFragment() {
+class DashboardFragment : ReferenceFragment() {
+    private var binding: LayoutDashboardBinding? = null
+    private var polling: Job? = null
+    private var suppressSwitch = false
+    private var serviceBusy = false
+    private var pendingServiceTarget: Boolean? = null
+    private var modeBusy = false
+    private var unlock: Job? = null
 
-    private var statusText: TextView? = null
-    private var serviceSwitch: SwitchMaterial? = null
-    // 防止程序化更新开关状态时触发监听器导致重复启停
-    private var suppressSwitchCallback = false
-    // 防重复提交：连接操作进行中时忽略新的点击
-    private var serviceOpInProgress = false
-    private var nodeName: TextView? = null
-    private var nodeInfo: TextView? = null
-    private var uptimeText: TextView? = null
-    private var modeRule: Button? = null
-    private var modeGlobal: Button? = null
-    private var modeDirect: Button? = null
-    private var uploadSpeed: TextView? = null
-    private var uploadTotal: TextView? = null
-    private var downloadSpeed: TextView? = null
-    private var downloadTotal: TextView? = null
-    private var coreMemory: TextView? = null
-    private var connectionCount: TextView? = null
-
-    private var statsJob: Job? = null
-    private var serviceStartTime: Long = 0L
-
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View? {
-        return inflater.inflate(R.layout.layout_dashboard, container, false)
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-
-        statusText = view.findViewById(R.id.statusText)
-        serviceSwitch = view.findViewById(R.id.serviceSwitch)
-        nodeName = view.findViewById(R.id.nodeName)
-        nodeInfo = view.findViewById(R.id.nodeInfo)
-        uptimeText = view.findViewById(R.id.uptimeText)
-        modeRule = view.findViewById(R.id.modeRule)
-        modeGlobal = view.findViewById(R.id.modeGlobal)
-        modeDirect = view.findViewById(R.id.modeDirect)
-        uploadSpeed = view.findViewById(R.id.uploadSpeed)
-        uploadTotal = view.findViewById(R.id.uploadTotal)
-        downloadSpeed = view.findViewById(R.id.downloadSpeed)
-        downloadTotal = view.findViewById(R.id.downloadTotal)
-        coreMemory = view.findViewById(R.id.coreMemory)
-        connectionCount = view.findViewById(R.id.connectionCount)
-
-        serviceSwitch?.setOnCheckedChangeListener { _, isChecked ->
-            if (suppressSwitchCallback) return@setOnCheckedChangeListener
-            if (serviceOpInProgress) {
-                // 操作进行中，恢复开关到实际状态，忽略本次点击
-                syncSwitchToState()
-                return@setOnCheckedChangeListener
+    override fun onViewCreated(view: View, state: Bundle?) {
+        super.onViewCreated(view, state)
+        toolbar.title = "wanBox"
+        toolbar.subtitle = "Root"
+        val ui = LayoutDashboardBinding.inflate(layoutInflater, body, true)
+        binding = ui
+        ui.serviceSwitch.setOnCheckedChangeListener { _, checked ->
+            if (!suppressSwitch && !serviceBusy) {
+                serviceBusy = true
+                pendingServiceTarget = checked
+                ui.serviceSwitch.isEnabled = false
+                if (checked) SagerNet.startService() else SagerNet.stopService()
+                unlock?.cancel()
+                unlock = viewLifecycleOwner.lifecycleScope.launch {
+                    delay(15000)
+                    serviceBusy = false
+                    pendingServiceTarget = null
+                    binding?.serviceSwitch?.isEnabled = true
+                    refreshStatus()
+                }
             }
-            serviceOpInProgress = true
-            if (isChecked) {
-                SagerNet.startService()
-            } else {
-                SagerNet.stopService()
-            }
-            // 等待后台状态回调后清除标记，超时保护
-            view?.postDelayed({
-                serviceOpInProgress = false
-            }, 5000)
         }
-
-        modeRule?.setOnClickListener { setMode(MODE_RULE) }
-        modeGlobal?.setOnClickListener { setMode(MODE_GLOBAL) }
-        modeDirect?.setOnClickListener { setMode(MODE_DIRECT) }
-
-        view.findViewById<View>(R.id.currentNodeLayout)?.setOnClickListener {
-            (activity as? MainActivity)?.navigateToNodes()
-        }
-
-        updateServiceState()
-        updateCurrentNode()
-        updateModeUI()
+        ui.currentNodeLayout.setOnClickListener { (activity as? MainActivity)?.navigateToNodes() }
+        ui.modeRule.setOnClickListener { setMode(0) }
+        ui.modeGlobal.setOnClickListener { setMode(1) }
+        ui.modeDirect.setOnClickListener { setMode(2) }
+        refreshStatus()
+        refreshMode()
     }
 
     override fun onResume() {
         super.onResume()
-        startStatsPolling()
-        updateServiceState()
-        updateCurrentNode()
-        updateModeUI()
-    }
-
-    override fun onPause() {
-        super.onPause()
-        stopStatsPolling()
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        stopStatsPolling()
-        statusText = null
-        serviceSwitch = null
-        nodeName = null
-        nodeInfo = null
-        uptimeText = null
-        modeRule = null
-        modeGlobal = null
-        modeDirect = null
-        uploadSpeed = null
-        uploadTotal = null
-        downloadSpeed = null
-        downloadTotal = null
-        coreMemory = null
-        connectionCount = null
-    }
-
-    private fun updateServiceState() {
-        val state = (activity as? MainActivity)?.serviceState ?: BaseService.State.Idle
-        lifecycleScope.launch {
-            // 后台确认状态后清除操作中标记
-            serviceOpInProgress = false
-            suppressSwitchCallback = true
-            try {
-                when (state) {
-                    BaseService.State.Connected -> {
-                        statusText?.text = getString(R.string.service_state_connected)
-                        if (serviceSwitch?.isChecked == false) serviceSwitch?.isChecked = true
-                    }
-                    BaseService.State.Connecting -> {
-                        statusText?.text = getString(R.string.service_state_connecting)
-                    }
-                    BaseService.State.Stopping -> {
-                        statusText?.text = getString(R.string.service_state_stopping)
-                    }
-                    else -> {
-                        statusText?.text = getString(R.string.service_state_idle)
-                        if (serviceSwitch?.isChecked == true) serviceSwitch?.isChecked = false
+        polling = viewLifecycleOwner.lifecycleScope.launch {
+            var tick = 0
+            while (isActive) {
+                refreshStatus()
+                refreshNodeAndTraffic()
+                if (DataStore.serviceState == BaseService.State.Connected && tick++ % 3 == 0) {
+                    val metrics = ReferenceDashboardBackend.metrics()
+                    binding?.coreMemory?.text = metrics.first?.let { ReferenceUi.quantity(Formatter.formatFileSize(requireContext(), it)) } ?: "—"
+                    binding?.connectionCount?.text = metrics.second?.let { ReferenceUi.quantity("$it 个") } ?: "—"
+                    if (!modeBusy) {
+                        try { DataStore.dashboardMode = ReferenceDashboardBackend.mode(); refreshMode() }
+                        catch (cancel: CancellationException) { throw cancel }
+                        catch (_: Exception) { }
                     }
                 }
-            } finally {
-                suppressSwitchCallback = false
-            }
-        }
-    }
-
-    private fun syncSwitchToState() {
-        val state = (activity as? MainActivity)?.serviceState ?: BaseService.State.Idle
-        suppressSwitchCallback = true
-        try {
-            serviceSwitch?.isChecked = (state == BaseService.State.Connected)
-        } finally {
-            suppressSwitchCallback = false
-        }
-    }
-
-    private fun updateCurrentNode() {
-        lifecycleScope.launch {
-            val profileId = DataStore.selectedProxy
-            if (profileId == 0L) {
-                nodeName?.text = "—"
-                nodeInfo?.text = "—"
-                return@launch
-            }
-            val profile = ProfileManager.getProfile(profileId)
-            nodeName?.text = profile?.displayName() ?: "—"
-            nodeInfo?.text = "—"
-        }
-    }
-
-    private fun updateModeUI() {
-        val mode = getCurrentMode()
-        lifecycleScope.launch {
-            val selectedBg = android.graphics.drawable.ColorDrawable(0xFFE0E0E0.toInt())
-            val normalBg = android.graphics.drawable.ColorDrawable(0x00000000)
-            modeRule?.background = if (mode == MODE_RULE) selectedBg else normalBg
-            modeGlobal?.background = if (mode == MODE_GLOBAL) selectedBg else normalBg
-            modeDirect?.background = if (mode == MODE_DIRECT) selectedBg else normalBg
-        }
-    }
-
-    private fun setMode(mode: Int) {
-        when (mode) {
-            MODE_RULE -> {
-                DataStore.bypass = true
-                DataStore.proxyApps = false
-            }
-            MODE_GLOBAL -> {
-                DataStore.bypass = false
-                DataStore.proxyApps = false
-            }
-            MODE_DIRECT -> {
-                // 直连模式：不断开 Root TUN，仅切换路由为直连
-                DataStore.bypass = true
-                DataStore.proxyApps = false
-            }
-        }
-        DataStore.dashboardMode = mode
-        SagerNet.reloadService()
-        updateModeUI()
-    }
-
-    private fun getCurrentMode(): Int {
-        return DataStore.dashboardMode
-    }
-
-    private fun startStatsPolling() {
-        stopStatsPolling()
-        statsJob = lifecycleScope.launch {
-            while (true) {
-                updateStats()
-                updateUptime()
                 delay(1000)
             }
         }
     }
-
-    private fun stopStatsPolling() {
-        statsJob?.cancel()
-        statsJob = null
+    override fun onPause() { polling?.cancel(); polling = null; super.onPause() }
+    override fun onDestroyView() {
+        polling?.cancel()
+        unlock?.cancel()
+        binding = null
+        super.onDestroyView()
     }
-
-    private fun updateStats() {
-        val activity = activity as? MainActivity ?: return
-        val stats = activity.lastSpeedStats ?: return
-        lifecycleScope.launch {
-            val ctx = context ?: return@launch
-            uploadSpeed?.text = Formatter.formatFileSize(ctx, stats.txRateProxy) + "/s"
-            downloadSpeed?.text = Formatter.formatFileSize(ctx, stats.rxRateProxy) + "/s"
-            uploadTotal?.text = "累计 " + Formatter.formatFileSize(ctx, stats.txTotal)
-            downloadTotal?.text = "累计 " + Formatter.formatFileSize(ctx, stats.rxTotal)
-            coreMemory?.text = "—"
-            connectionCount?.text = "—"
+    private fun refreshStatus() {
+        val ui = binding ?: return
+        val state = DataStore.serviceState
+        ui.statusText.setText(when (state) {
+            BaseService.State.Connected -> R.string.service_state_connected
+            BaseService.State.Connecting -> R.string.service_state_connecting
+            BaseService.State.Stopping -> R.string.service_state_stopping
+            else -> R.string.service_state_idle
+        })
+        suppressSwitch = true
+        ui.serviceSwitch.isChecked = state == BaseService.State.Connected || state == BaseService.State.Connecting
+        suppressSwitch = false
+        if (pendingServiceTarget != null && state != BaseService.State.Connecting &&
+            state != BaseService.State.Stopping && (state == BaseService.State.Connected) == pendingServiceTarget) {
+            serviceBusy = false
+            pendingServiceTarget = null
+            unlock?.cancel()
+        }
+        ui.serviceSwitch.isEnabled = !serviceBusy && state != BaseService.State.Connecting && state != BaseService.State.Stopping
+        val start = (activity as? MainActivity)?.serviceConnectedAt ?: 0L
+        val seconds = if (start > 0L) (SystemClock.elapsedRealtime() - start) / 1000 else 0L
+        ui.uptimeText.text = String.format(Locale.ROOT, "%02d:%02d:%02d",
+            seconds / 3600, seconds % 3600 / 60, seconds % 60)
+        if (state != BaseService.State.Connected) {
+            listOf(ui.uploadSpeed, ui.downloadSpeed, ui.uploadTotal, ui.downloadTotal,
+                ui.coreMemory, ui.connectionCount).forEach { it.text = "—" }
         }
     }
-
-    private fun updateUptime() {
-        lifecycleScope.launch {
-            val state = (activity as? MainActivity)?.serviceState
-            if (state == BaseService.State.Connected && serviceStartTime == 0L) {
-                serviceStartTime = System.currentTimeMillis()
-            } else if (state != BaseService.State.Connected) {
-                serviceStartTime = 0L
-            }
-            uptimeText?.text = if (serviceStartTime > 0) {
-                formatDuration(System.currentTimeMillis() - serviceStartTime)
-            } else {
-                "—"
+    private suspend fun refreshNodeAndTraffic() {
+        val node = withContext(Dispatchers.IO) {
+            val profile = ProfileManager.getProfile(DataStore.selectedProxy)
+            profile to profile?.let { SagerDatabase.groupDao.getById(it.groupId) }
+        }
+        val ui = binding ?: return
+        ui.nodeName.text = node.first?.displayName() ?: "—"
+        ui.nodeInfo.text = node.first?.let { profile ->
+            if (profile.ping > 0) getString(R.string.ref_node_info, node.second?.displayName().orEmpty(), profile.ping)
+            else node.second?.displayName()
+        } ?: "—"
+        if (DataStore.serviceState != BaseService.State.Connected) return
+        val stats = (activity as? MainActivity)?.lastSpeedStats ?: return
+        ui.uploadSpeed.text = ReferenceUi.quantity(Formatter.formatFileSize(requireContext(), stats.txRateProxy) + "/s")
+        ui.downloadSpeed.text = ReferenceUi.quantity(Formatter.formatFileSize(requireContext(), stats.rxRateProxy) + "/s")
+        ui.uploadTotal.text = getString(R.string.ref_total, Formatter.formatFileSize(requireContext(), stats.txTotal))
+        ui.downloadTotal.text = getString(R.string.ref_total, Formatter.formatFileSize(requireContext(), stats.rxTotal))
+    }
+    private fun refreshMode() {
+        binding?.let {
+            listOf(it.modeRule, it.modeGlobal, it.modeDirect).forEachIndexed { index, button ->
+                button.isSelected = index == DataStore.dashboardMode
+                button.isEnabled = !modeBusy
             }
         }
     }
-
-    private fun formatDuration(millis: Long): String {
-        val seconds = millis / 1000
-        val h = seconds / 3600
-        val m = (seconds % 3600) / 60
-        val s = seconds % 60
-        return String.format("%02d:%02d:%02d", h, m, s)
+    private fun setMode(mode: Int) {
+        if (modeBusy) return
+        modeBusy = true
+        refreshMode()
+        val context = requireContext().applicationContext
+        SagerNet.application.applicationScope.launch(Dispatchers.Main.immediate) {
+            try {
+                if (DataStore.serviceState == BaseService.State.Connected) ReferenceDashboardBackend.setMode(mode)
+                DataStore.dashboardMode = mode
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) {
+                android.widget.Toast.makeText(context, error.message ?: "模式切换失败",
+                    android.widget.Toast.LENGTH_LONG).show()
+            } finally {
+                modeBusy = false
+                refreshMode()
+            }
+        }
     }
-
     companion object {
         const val MODE_RULE = 0
         const val MODE_GLOBAL = 1

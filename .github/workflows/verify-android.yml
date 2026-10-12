@@ -14,6 +14,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - name: Verify release package contracts
+        run: |
+          python3 tools/pre-push-check.py
+          python3 -m unittest discover -s tools -p test_prepare_release_packages.py
+          python3 -m unittest discover -s rootmodule -p test_pack.py
       - uses: actions/setup-go@v6
         with:
           go-version: ^1.25
@@ -163,7 +168,8 @@ jobs:
           # @author 雾晚: preserve synthetic native XML material comparisons from the emulator.
           script: |
             WANBOX_INTERNAL_TEST=1 ./gradlew app:connectedOssReleaseAndroidTest -PwanboxInternalTestAbi=x86_64 -PwanboxReleaseTests
-            test "$(find app/build/outputs/connected_android_test_additional_output -name '*.png' | wc -l)" -eq 72
+            test "$(find app/build/outputs/connected_android_test_additional_output -path '*/liquid-glass/*.png' | wc -l)" -eq 72
+            test "$(find app/build/outputs/connected_android_test_additional_output -path '*/reference-ui/*.png' | wc -l)" -eq 4
             WANBOX_INTERNAL_TEST=1 ./gradlew app:connectedOssDebugAndroidTest -PwanboxInternalTestAbi=x86_64
             test "$(find app/build/outputs/connected_android_test_additional_output -name '*.png' | wc -l)" -ge 72
             bash tools/diagnostics/verify_external_control.sh

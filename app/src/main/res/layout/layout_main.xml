@@ -18,6 +18,7 @@
         <androidx.coordinatorlayout.widget.CoordinatorLayout
             android:id="@+id/fragment_holder"
             android:layout_width="match_parent"
+            android:layout_marginBottom="@dimen/ref_nav_height"
             android:layout_height="match_parent" />
 
         <!-- preview.19: 移除悬浮小飞机按钮，连接操作统一在仪表盘 -->
@@ -168,10 +169,17 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom"
-            android:background="#FFFFFF"
-            app:elevation="8dp"
-            app:itemIconTint="#616161"
-            app:itemTextColor="#616161"
+            android:minHeight="@dimen/ref_nav_height"
+            android:background="@color/ref_background"
+            app:elevation="0dp"
+            app:labelVisibilityMode="labeled"
+            app:itemHorizontalTranslationEnabled="false"
+            app:itemIconSize="24dp"
+            app:itemBackground="@drawable/ref_nav_item"
+            app:itemTextAppearanceActive="@style/TextAppearance.WanBox.ReferenceNav"
+            app:itemTextAppearanceInactive="@style/TextAppearance.WanBox.ReferenceNav"
+            app:itemIconTint="@color/ref_nav_tint"
+            app:itemTextColor="@color/ref_nav_tint"
             app:menu="@menu/bottom_nav_menu" />
 
     </androidx.coordinatorlayout.widget.CoordinatorLayout>

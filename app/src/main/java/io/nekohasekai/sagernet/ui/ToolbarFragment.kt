@@ -44,6 +44,10 @@ open class ToolbarFragment : Fragment {
             toolbar.setNavigationOnClickListener {
                 (activity as? MainActivity)?.binding?.drawerLayout?.openDrawer(GravityCompat.START)
             }
+            if (arguments?.getBoolean("referenceDetail") == true) {
+                toolbar.setNavigationIcon(R.drawable.baseline_arrow_back_24)
+                toolbar.setNavigationOnClickListener { requireActivity().onBackPressedDispatcher.onBackPressed() }
+            }
             val primaryTextColor = requireContext().getColorAttr(android.R.attr.textColorPrimary)
             toolbar.setTitleTextColor(primaryTextColor)
             toolbar.navigationIcon?.let {
