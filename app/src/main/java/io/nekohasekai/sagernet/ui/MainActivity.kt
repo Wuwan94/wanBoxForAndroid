@@ -114,7 +114,7 @@ class MainActivity : ThemedActivity(),
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        DataStore.appTheme = Theme.LIGHT_GRAY
+        if (SagerNet.databaseFailure == null) DataStore.appTheme = Theme.LIGHT_GRAY
         super.onCreate(savedInstanceState)
         if (SagerNet.databaseFailure != null) {
             startActivity(Intent(this, DatabaseRecoveryActivity::class.java))

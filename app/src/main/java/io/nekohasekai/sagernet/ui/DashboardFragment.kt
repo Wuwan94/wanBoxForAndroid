@@ -56,7 +56,9 @@ class DashboardFragment : ReferenceFragment() {
                     controller.state.collect { command ->
                         when (command) {
                             is CommandState.Confirmed -> {
-                                activity.onModuleStateConfirmed(command.status)
+                                if (command.kind != CommandKind.MODE) {
+                                    activity.onModuleStateConfirmed(command.status)
+                                }
                                 controller.acknowledge()
                             }
                             is CommandState.Error -> {
