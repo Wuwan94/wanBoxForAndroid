@@ -65,7 +65,12 @@ internal object ReferenceDialogs {
                 bean.serverAddress = host.text.toString().trim()
                 bean.serverPort = number
                 profile.putBean(bean)
-                run(fragment, { ProfileManager.updateProfile(profile) }) { dialog.dismiss() }
+                run(fragment, {
+                    ProfileManager.updateProfile(profile)
+                    if (DataStore.selectedProxy == profile.id && DataStore.serviceState.canStop) {
+                        SagerNet.reloadService()
+                    }
+                }) { dialog.dismiss() }
             }
         }
         dialog.show()

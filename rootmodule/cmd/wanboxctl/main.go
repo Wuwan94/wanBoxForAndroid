@@ -47,7 +47,13 @@ func main() {
 	} else if err = module.IndependentCgroup(); err == nil {
 		err = run(ctx, r, os.Args[1:])
 	}
-	state := r.Status()
+	// @author 雾晚：dashboard 返回绑定同一快照的完整状态，不拼接两代次
+	var state module.State
+	if len(os.Args) == 2 && os.Args[1] == "dashboard" {
+		state = r.DashboardState()
+	} else {
+		state = r.Status()
+	}
 	if len(os.Args) == 2 && os.Args[1] == "logs" {
 		state.Events = r.Events()
 	}
@@ -114,7 +120,7 @@ func run(ctx context.Context, r *module.Runtime, args []string) error {
 	}
 	if len(args) == 1 {
 		switch args[0] {
-		case "status", "module", "logs":
+		case "status", "module", "logs", "dashboard":
 			return nil
 		case "start":
 			return r.Start(ctx)

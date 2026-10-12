@@ -266,9 +266,9 @@ class NodesFragment : ReferenceDataFragment() {
                         } else MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.delete)
                             .setMessage(profile.displayName()).setNegativeButton(android.R.string.cancel, null)
                             .setPositiveButton(android.R.string.ok) { _, _ ->
-                                viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+                                ReferenceDialogs.run(this@NodesFragment, {
                                     ProfileManager.deleteProfile(profile.groupId, profile.id)
-                                }
+                                })
                             }.show()
                         true
                     }

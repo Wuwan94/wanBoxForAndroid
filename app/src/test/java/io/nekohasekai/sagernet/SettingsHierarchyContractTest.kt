@@ -15,6 +15,8 @@ class SettingsHierarchyContractTest {
     private val moduleInapplicable = setOf("showGroupInNotification", "httpProxyBypass", "meteredNetwork",
         "acquireWakeLock", "wakeResetConnections", "networkChangeResetConnections", "showDirectSpeed", "speedInterval",
         "appTheme", "showBottomBar", "showAllGroupsTab")
+    // @author 雾晚：明确授权移除的 UI 项（Root 精简），key 保留迁移兼容
+    private val authorizedUiRemovals = setOf("enableClashAPI", "hideFromRecentApps", "isAutoConnect")
     @Test fun everyOldKeyKeepsItsValueContractAndControlType() {
         val old = JSONObject(javaClass.getResource("/settings-before-3.0.7.json")!!.readText())
         val factory = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
@@ -27,10 +29,16 @@ class SettingsHierarchyContractTest {
             if (key.isNotEmpty()) { assertNull("Duplicate key $key", actual.put(key, element)) }
         }
         // @author 雾晚: input-method routing is an ordinary rule, not a separate preference.
-        assertEquals(old.keySet() - moduleInapplicable, actual.keys)
+        // @author 雾晚：四组重组，分组 key（category*）是 UI 容器，不参与契约对比；允许新增 key（如 About 项）
+        val oldPrefs = old.keySet() - moduleInapplicable - authorizedUiRemovals - old.keySet().filter { it.startsWith("category") }.toSet()
+        val actualPrefs = actual.keys - actual.keys.filter { it.startsWith("category") }.toSet()
+        assertTrue("Missing keys: ${oldPrefs - actualPrefs}", actualPrefs.containsAll(oldPrefs))
         assertFalse(actual.containsKey("rootModuleUpdateData"))
         old.keys().forEach { key ->
             if (key in moduleInapplicable) return@forEach
+            if (key in authorizedUiRemovals) return@forEach
+            // @author 雾晚：跳过旧分组容器 key，它们已被新分组替代
+            if (key.startsWith("category")) return@forEach
             val before = old.getJSONObject(key); val node = actual.getValue(key)
             if (key == "serviceMode") {
                 assertEquals("Preference", node.tagName)
@@ -52,7 +60,8 @@ class SettingsHierarchyContractTest {
                 }
             }
         }
-        assertEquals("categoryCore", (actual.getValue("categoryFragment").parentNode as Element)
+        // @author 雾晚：四组重组后 categoryFragment 归属 categoryAdvancedGroup
+        assertEquals("categoryAdvancedGroup", (actual.getValue("categoryFragment").parentNode as Element)
             .getAttributeNS("http://schemas.android.com/apk/res-auto", "key"))
     }
 

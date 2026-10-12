@@ -239,28 +239,61 @@ class SagerNet : Application(),
         }
         private val profileSelection by lazy {
             io.nekohasekai.sagernet.bg.ProfileSelection(application.applicationScope, save = { id ->
+                // @author 雾晚：运行时先 selectNode 确认返回 connected&&profileId==目标
+                // 之后才持久化 selectedProxy 与发通知；失败保持旧选择/连接并提示
+                // 停止时仅保存选择不启动；取消重抛
                 val previous = DataStore.selectedProxy
-                if (previous != id) {
-                    DataStore.selectedProxy = id
+                val isRunning = try {
+                    io.nekohasekai.sagernet.bg.RootModuleClient.call("status").connected
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    false
                 }
-                // @author 雾晚: hot-switch first: move the module's runtime selector via
-                // Clash API (no core restart). Fall back to a full config apply when the
-                // module is stopped, the tag is unknown, or the switch is not confirmed.
-                val hotSwitched = runCatching {
-                    io.nekohasekai.sagernet.bg.RootModuleClient.selectNode(id)
-                }.onFailure { error ->
-                    val code = (error as? Exception)?.let { io.nekohasekai.sagernet.bg.RootModuleClient.safeError(it) }
-                        ?: "module_operation_failed"
-                    Logs.i("Node hot-switch failed ($code), falling back to full reload")
-                }.isSuccess
-                if (!hotSwitched) {
-                    configurationReload.request(immediate = true)
+                if (!isRunning) {
+                    // 停止时仅保存选择，不启动
+                    if (previous != id) {
+                        DataStore.selectedProxy = id
+                        io.nekohasekai.sagernet.database.ProfileManager.postUpdate(previous, noTraffic = true)
+                    }
+                    io.nekohasekai.sagernet.widget.OwnBoxWidgetProvider.updateWidgets(application)
+                    return@ProfileSelection
                 }
-                if (previous != id) io.nekohasekai.sagernet.database.ProfileManager.postUpdate(previous, noTraffic = true)
-                io.nekohasekai.sagernet.widget.OwnBoxWidgetProvider.updateWidgets(application)
+                // 运行时：通过控制器串行确认
+                val ok = try {
+                    // 直接调用 selectNode 并确认（控制器已处理并发）
+                    val s = io.nekohasekai.sagernet.bg.RootModuleClient.selectNode(id)
+                    s.connected && s.profileId == id
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    val code = io.nekohasekai.sagernet.bg.RootModuleClient.safeError(e)
+                    Logs.e("Node select failed ($code), keeping old connection")
+                    false
+                }
+                if (ok) {
+                    // 确认后才持久化与通知
+                    if (previous != id) {
+                        DataStore.selectedProxy = id
+                        io.nekohasekai.sagernet.database.ProfileManager.postUpdate(previous, noTraffic = true)
+                    }
+                    io.nekohasekai.sagernet.widget.OwnBoxWidgetProvider.updateWidgets(application)
+                } else {
+                    // @author 雾晚：热切换失败，保持旧连接与旧选择，不做无意义的全量重载
+                    // （全量重载会读取 DataStore.selectedProxy 的旧值，无法切换到目标节点）
+                    // 抛出异常触发 onError 通知用户，由用户决定是否重试或手动重载
+                    val msg = "Node switch not confirmed for target $id, keeping old connection (selectedProxy=$previous)"
+                    Logs.e(msg)
+                    throw java.io.IOException("node_switch_not_confirmed:$id")
+                }
             }, onError = ::reportModuleError)
         }
         fun selectProfile(id: Long) { profileSelection.request(id) }
+
+        /** @author 雾晚：应用级串行命令控制器 */
+        val commandController by lazy {
+            io.nekohasekai.sagernet.bg.ServiceCommandController(application.applicationScope)
+        }
 
         private fun moduleCommand(work: suspend () -> Unit) {
             application.applicationScope.launch {

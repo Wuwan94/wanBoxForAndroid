@@ -154,8 +154,8 @@ class ReferenceSettingsFragment : ReferenceFragment() {
                     } catch (cancel: CancellationException) { throw cancel }
                     catch (error: Exception) { status.text = RootModuleErrors.message(requireContext(), error) }
                 }
-                entry("启动模块") { SagerNet.startService() }
-                entry("停止模块") { SagerNet.stopService() }
+                entry("启动模块") { SagerNet.commandController.requestStart() }
+                entry("停止模块") { SagerNet.commandController.requestStop() }
                 entry("重新加载配置") { SagerNet.reloadService() }
                 toggle("开机自动启动", DataStore.persistAcrossReboot) { enabled ->
                     ReferenceDialogs.run(this, { RootModuleClient.setAutoStart(enabled) }) {

@@ -186,13 +186,13 @@ class SubscriptionsFragment : ReferenceDataFragment() {
         MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.ref_auto_update)
             .setItems(options) { _, index ->
                 val targets = groups.filter { it.type == GroupType.SUBSCRIPTION && it.subscription != null }
-                viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+                ReferenceDialogs.run(this, {
                     targets.forEach { group ->
                         group.subscription!!.autoUpdate = index != 0
                         group.subscription!!.autoUpdateDelay = if (index == 2) 360 else 1440
                         GroupManager.updateGroup(group)
                     }
-                }
+                })
             }.show()
     }
 }

@@ -22,9 +22,9 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.asStateFlow
 import androidx.annotation.IdRes
 import androidx.core.graphics.ColorUtils
-import androidx.core.view.updateLayoutParams
 import androidx.preference.PreferenceDataStore
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.navigation.NavigationView
@@ -91,11 +91,16 @@ class MainActivity : ThemedActivity(),
 
     // preview.18 UI 改造：仪表盘支持
     var serviceState: BaseService.State = BaseService.State.Idle
+    // @author 雾晚：服务真实启动时间（毫秒），用于仪表盘运行时长显示
         private set
-    var serviceConnectedAt: Long = 0L
-        private set
-    var lastSpeedStats: SpeedDisplayData? = null
-        private set
+    // @author 雾晚：AIDL 回调的测速数据改为 StateFlow，UI 只读观察
+    // Stopped/Idle 时清空样本
+    private val _speedStatsFlow = kotlinx.coroutines.flow.MutableStateFlow<SpeedDisplayData?>(null)
+    val speedStatsFlow: kotlinx.coroutines.flow.StateFlow<SpeedDisplayData?> = _speedStatsFlow.asStateFlow()
+    // 保留旧字段兼容（已废弃，逐步迁移）
+    var lastSpeedStats: SpeedDisplayData?
+        get() = _speedStatsFlow.value
+        set(value) { _speedStatsFlow.value = value }
 
     fun navigateToNodes() {
         // 跳转到节点页（底部导航的节点 tab）
@@ -144,11 +149,10 @@ class MainActivity : ThemedActivity(),
                 R.style.Theme_SagerNet_Black
             )
         ) {
+            // @author 雾晚：统一使用 navView，黑色主题通过样式语义保留
             navigation = binding.navView
-            binding.drawerLayout.removeView(binding.navViewBlack)
         } else {
-            navigation = binding.navViewBlack
-            binding.drawerLayout.removeView(binding.navView)
+            navigation = binding.navView
         }
         navigation.setNavigationItemSelectedListener(this)
         binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
@@ -157,11 +161,6 @@ class MainActivity : ThemedActivity(),
         binding.bottomNav.setOnItemSelectedListener { item ->
             supportFragmentManager.popBackStackImmediate(null, androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE)
             displayFragmentWithId(item.itemId)
-        }
-        binding.bottomNav.addOnLayoutChangeListener { _, _, top, _, bottom, _, _, _, _ ->
-            binding.fragmentHolder.updateLayoutParams<android.view.ViewGroup.MarginLayoutParams> {
-                bottomMargin = bottom - top
-            }
         }
 
         if (savedInstanceState == null) {
@@ -186,15 +185,6 @@ class MainActivity : ThemedActivity(),
             }
         }
 
-        binding.stats.setOnClickListener {
-            if (DataStore.hapticFeedback) it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            if (DataStore.serviceState.connected) binding.stats.testConnection()
-        }
-        binding.stats.setOnLongClickListener {
-            if (DataStore.hapticFeedback) it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-            startActivity(Intent(this, TrafficChartActivity::class.java))
-            true
-        }
 
         setContentView(binding.root)
         handleTileIntent(intent)
@@ -251,7 +241,6 @@ class MainActivity : ThemedActivity(),
         }
 
         checkClipboardOnResume()
-        binding.stats.refreshDisplay()
         refreshNavMenu(DataStore.enableClashAPI)
     }
 
@@ -550,8 +539,8 @@ class MainActivity : ThemedActivity(),
         val current = currentMainFragment
             ?: supportFragmentManager.findFragmentById(R.id.fragment_holder)
         return when (id) {
-            R.id.nav_configuration -> current is ConfigurationFragment
-            R.id.nav_group -> current is GroupFragment
+            R.id.nav_configuration -> current is NodesFragment
+            R.id.nav_group -> current is SubscriptionsFragment
             R.id.nav_route -> current is RouteFragment
             R.id.nav_settings -> current is SettingsFragment
             R.id.nav_dashboard -> current is DashboardFragment
@@ -592,8 +581,7 @@ class MainActivity : ThemedActivity(),
     @SuppressLint("CommitTransaction")
     fun displayFragment(fragment: ToolbarFragment) {
         currentMainFragment = fragment
-        val transaction = supportFragmentManager.beginTransaction()
-            .replace(R.id.fragment_holder, fragment)
+        val transaction = supportFragmentManager.beginTransaction().replace(R.id.fragment_holder, fragment)
         if (fragment.arguments?.getBoolean("referenceDetail") == true) transaction.addToBackStack("detail")
         transaction.commitAllowingStateLoss()
         binding.drawerLayout.closeDrawers()
@@ -611,16 +599,9 @@ class MainActivity : ThemedActivity(),
         showWhenConnected: Boolean,
         animate: Boolean,
     ) {
-        val showControls = fragment !is ReferenceFragment &&
-            (fragment is ConfigurationFragment || DataStore.showBottomBar)
-        binding.stats.useExternalScrollDriver = fragment is ConfigurationFragment
-        binding.stats.syncMainControls(
-            showControls,
-            DataStore.serviceState,
-            showWhenConnected,
-            animate,
-        )
-        // preview.19: 悬浮按钮已移除
+        val showControls = fragment is ConfigurationFragment || DataStore.showBottomBar
+        // preview.19: 悬浮按钮已移除，StatsBar 已删除
+        // @author 雾晚：诊断入口已移至 Dashboard 诊断卡
     }
 
     private fun refreshConfigurationProfileState() {
@@ -630,7 +611,6 @@ class MainActivity : ThemedActivity(),
     }
 
     fun driveBottomBar(scrollDy: Int) {
-        binding.stats.onListScrolled(scrollDy)
     }
 
     fun displayFragmentWithId(@IdRes id: Int): Boolean {
@@ -648,10 +628,10 @@ class MainActivity : ThemedActivity(),
             R.id.nav_settings -> displayFragment(SettingsFragment())
 
             R.id.nav_configuration -> {
-                displayFragment(ConfigurationFragment())
+                displayFragment(NodesFragment())
             }
 
-            R.id.nav_group -> displayFragment(GroupFragment())
+            R.id.nav_group -> displayFragment(SubscriptionsFragment())
             R.id.nav_route -> displayFragment(RouteFragment())
             R.id.nav_tools -> displayFragment(ToolsFragment())
             R.id.nav_logcat -> displayFragment(LogcatFragment())
@@ -670,26 +650,44 @@ class MainActivity : ThemedActivity(),
         return true
     }
 
+    /**
+     * @author 雾晚：模块状态确认回调（公有，供 Dashboard 调用）。
+     */
+    fun onModuleStateConfirmed(status: io.nekohasekai.sagernet.bg.RootModuleClient.Status) {
+        changeState(status.state)
+    }
+
     private fun changeState(
         state: BaseService.State,
         msg: String? = null,
         animate: Boolean = false,
         animateControls: Boolean = animate,
     ) {
-        DataStore.serviceState = state
+        // @author 雾晚：Stopped/Idle 时清空测速样本
+        if (state == BaseService.State.Stopped || state == BaseService.State.Idle) {
+            _speedStatsFlow.value = null
+        }
+        // @author 雾晚：统一更新 serviceState，确保 onServiceConnected/
+        // onServiceDisconnected 也能正确同步，避免 Dashboard 读取到过期状态。
+        val oldState = serviceState
         serviceState = state
-        if (state == BaseService.State.Connected && serviceConnectedAt == 0L) {
-            serviceConnectedAt = android.os.SystemClock.elapsedRealtime()
-        } else if (state != BaseService.State.Connected) serviceConnectedAt = 0L
+        DataStore.serviceState = state
+        // @author 雾晚：跟踪服务真实启动时间，用于仪表盘运行时长
+        if (state == BaseService.State.Connected && oldState != BaseService.State.Connected) {
+            // @author 雾晚：真实运行时长由模块端 Telemetry 提供，不再用 Activity 内存时间
+        } else if (state == BaseService.State.Idle || state == BaseService.State.Stopped) {
+            // @author 雾晚：断开时模块端清空 Telemetry
+        }
         refreshConfigurationProfileState()
         io.nekohasekai.sagernet.widget.OwnBoxWidgetProvider.updateWidgets(this)
 
         // preview.19: 服务状态由仪表盘处理
-        binding.stats.changeState(state)
         syncMainControls(
             showWhenConnected = state == BaseService.State.Connected,
             animate = animateControls,
         )
+        // @author 雾晚：通知 DashboardFragment 更新状态（生命周期感知）
+        (currentMainFragment as? DashboardFragment)?.onServiceStateChanged(state)
         if (msg != null) snackbar(getString(R.string.vpn_error, msg)).show()
     }
 
@@ -702,7 +700,6 @@ class MainActivity : ThemedActivity(),
     }
 
     override fun stateChanged(state: BaseService.State, profileName: String?, msg: String?) {
-        serviceState = state
         changeState(state, msg, true)
     }
 
@@ -726,8 +723,8 @@ class MainActivity : ThemedActivity(),
     // may NOT called when app is in background
     // ONLY do UI update here, write DB in bg process
     override fun cbSpeedUpdate(stats: SpeedDisplayData) {
-        lastSpeedStats = stats
-        binding.stats.updateSpeed(stats.txRateProxy, stats.rxRateProxy)
+        // @author 雾晚：Stopped/Idle 时清空样本，避免显示旧数据
+        _speedStatsFlow.value = stats
     }
 
     override suspend fun cbTrafficUpdate(data: TrafficDataBatch) {
@@ -745,7 +742,7 @@ class MainActivity : ThemedActivity(),
             ProfileManager.postUpdate(old, true)
             ProfileManager.postUpdate(id, true)
         }
-        if (id == DataStore.selectedProxy) binding.stats.refreshLandingIp(forceRefresh = true)
+        // @author 雾晚：落地 IP 诊断已移至 Dashboard 诊断卡
     }
 
     override fun onPreferenceDataStoreChanged(store: PreferenceDataStore, key: String) {
@@ -753,16 +750,13 @@ class MainActivity : ThemedActivity(),
             if (isDestroyed || isFinishing) return@runOnMainDispatcher
             when (key) {
                 Key.SERVICE_MODE -> {
-                    binding.stats.refreshDisplay()
                     connection.rebindIfServiceChanged(this@MainActivity)
                 }
-                Key.CONNECTION_TEST_URL, Key.CONNECTION_TEST_TIMEOUT -> binding.stats.refreshDisplay()
+                // @author 雾晚：StatsBar 已删除，连接测试配置由 Dashboard 诊断卡处理
                 Key.PROFILE_ID -> {
                     refreshConfigurationProfileState()
-                    binding.stats.refreshDisplay()
                     LandingIpManager.clearCache()
                     if (DataStore.serviceState.connected && DataStore.showLandingIp) {
-                        binding.stats.refreshLandingIp(forceRefresh = true)
                     }
                 }
                 Key.SHOW_BOTTOM_BAR -> {
@@ -808,7 +802,6 @@ class MainActivity : ThemedActivity(),
         installerDataDialog?.dismiss()
         installerDataDialog = null
         if (SagerNet.databaseFailure == null) {
-            binding.stats.onHostStopped()
             connection.updateConnectionId(SagerConnection.CONNECTION_ID_MAIN_ACTIVITY_BACKGROUND)
             connection.disconnect(this) // Module owns the core; no App polling while UI is hidden.
         }

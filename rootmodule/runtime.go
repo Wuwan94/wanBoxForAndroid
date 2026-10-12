@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -63,12 +64,28 @@ type State struct {
 	Core            ProcessIdentity       `json:"core"`
 	Error           string                `json:"error,omitempty"`
 	Stats           json.RawMessage       `json:"stats,omitempty"`
+	Telemetry       *Telemetry            `json:"telemetry,omitempty"`
 	Events          []Event               `json:"events,omitempty"`
 	InstallData     *InstallDataSelection `json:"installData,omitempty"`
 }
 type Event struct {
 	Time int64  `json:"time"`
 	Code string `json:"code"`
+}
+
+// @author 雾晚：模块端遥测字段，可选。
+// 由 Status() 在 Core 进程身份校验通过后填充。
+// 未知时为 nil/0，Kotlin 端显示"—"，不伪造数据。
+type Telemetry struct {
+	// VmRSSBytes: 核心进程 VmRSS（字节），从 /proc/<pid>/status 读取
+	VmRSSBytes int64 `json:"vmRssBytes,omitempty"`
+	// UptimeSeconds: 核心进程运行时长（秒），从 ready marker 计算
+	UptimeSeconds int64 `json:"uptimeSeconds,omitempty"`
+	// TxBytes/RxBytes: 累计上传/下载字节，nil 表示未知（不用 0 冒充）
+	TxBytes *int64 `json:"txBytes,omitempty"`
+	RxBytes *int64 `json:"rxBytes,omitempty"`
+	// ConnectionCount: 活动连接数，nil 表示未知
+	ConnectionCount *int `json:"connectionCount,omitempty"`
 }
 
 func (r *Runtime) Events() []Event {
@@ -408,6 +425,275 @@ func (r *Runtime) Stage(ctx context.Context, s Snapshot) (string, error) {
 	}
 	return rev, nil
 }
+// @author 雾晚：从 /proc/<pid>/status 安全读取 VmRSS（字节）。
+// PID 身份已由 SameProcess 校验，读取前后核对代次。
+// 使用可注入的解析器，便于测试溢出与非法值。
+var vmRSSParser = parseVmRSSFromText
+
+func readVmRSS(pid int) int64 {
+	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/status", pid))
+	if err != nil {
+		return 0
+	}
+	return vmRSSParser(string(data))
+}
+
+// @author 雾晚：从 status 文本解析 VmRSS，处理溢出与非法值。
+func parseVmRSSFromText(text string) int64 {
+	for _, line := range strings.Split(text, "\n") {
+		if strings.HasPrefix(line, "VmRSS:") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				var kb int64
+				if _, err := fmt.Sscanf(fields[1], "%d", &kb); err != nil {
+					return 0
+				}
+				if kb < 0 {
+					return 0
+				}
+				// 溢出检查：kb * 1024 不得超过 MaxInt64
+				if kb > (1<<63-1)/1024 {
+					return 0
+				}
+				return kb * 1024
+			}
+		}
+	}
+	return 0
+}
+
+// @author 雾晚：从 ready marker 文件时间计算核心就绪时长（秒）。
+// Start 是 /proc/<pid>/stat 的启动 ticks（非 RFC3339），不硬猜 HZ。
+// 使用 runtime/ready 文件的修改时间作为可说明的就绪起点，
+// 读取前后验证 SameProcess 与 revision 一致，防止 PID 复用。
+func (r *Runtime) coreReadyDuration(core ProcessIdentity, revision string) int64 {
+	if !SameProcess(core) {
+		return 0
+	}
+	fi, err := os.Stat(r.path("runtime", "ready"))
+	if err != nil {
+		return 0
+	}
+	// 读取后再次验证，防止竞态
+	if !SameProcess(core) {
+		return 0
+	}
+	if rev, _ := r.CurrentRevision(); rev != revision {
+		return 0
+	}
+	d := time.Since(fi.ModTime())
+	if d < 0 {
+		return 0
+	}
+	return int64(d.Seconds())
+}
+
+// @author 雾晚：从运行中配置读取 Clash API secret，仅本地鉴权。
+// 真实路径：generations/<runningRevision>/run/config.json
+// 绑定 revision，有上限流式读取，禁止先全量再检查。
+func (r *Runtime) clashAPISecret(revision string) string {
+	if revision == "" || !revisionName.MatchString(revision) {
+		return ""
+	}
+	path := r.path("generations", revision, "run", "config.json")
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	// 有上限读取：MaxConfigBytes+1，超限明确拒绝
+	limited := io.LimitReader(f, MaxConfigBytes+1)
+	data, err := io.ReadAll(limited)
+	if err != nil || len(data) > MaxConfigBytes {
+		return ""
+	}
+	var config struct {
+		Experimental struct {
+			ClashAPI struct {
+				Secret string `json:"secret"`
+			} `json:"clash_api"`
+		} `json:"experimental"`
+	}
+	if err := json.Unmarshal(data, &config); err != nil {
+		return ""
+	}
+	return config.Experimental.ClashAPI.Secret
+}
+
+// @author 雾晚：共享受限 loopback 客户端，避免每轮新建遗留 idle socket。
+// 禁用环境代理，禁重定向。调用方负责 ctx 超时。
+var loopbackClient = &http.Client{
+	Transport: &http.Transport{
+		Proxy:               nil, // 禁用环境代理，仅 loopback
+		MaxIdleConns:        2,
+		IdleConnTimeout:     10 * time.Second,
+		DisableCompression:  true,
+	},
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		return errors.New("redirect_forbidden")
+	},
+}
+
+// @author 雾晚：通过受限 loopback API 获取连接数与累计流量。
+// 仅访问 127.0.0.1:9090，复用受限客户端，总 ctx 超时 5s，
+// 响应读 max+1 明确拒绝超限。请求后由调用方验证代次。
+func (r *Runtime) queryClashStats(revision string, core ProcessIdentity) (tx, rx *int64, connCount *int) {
+	secret := r.clashAPISecret(revision)
+	if secret == "" {
+		return nil, nil, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://127.0.0.1:9090/connections", nil)
+	if err != nil {
+		return nil, nil, nil
+	}
+	req.Header.Set("Authorization", "Bearer "+secret)
+	// @author 雾晚：复用受限客户端，避免每轮遗留 idle socket
+	resp, err := loopbackClient.Do(req)
+	if err != nil {
+		return nil, nil, nil
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, nil, nil
+	}
+	// 读 max+1 (256KB+1)，超限明确拒绝
+	const maxResp = 262144
+	limited := io.LimitReader(resp.Body, maxResp+1)
+	data, err := io.ReadAll(limited)
+	if err != nil || len(data) > maxResp {
+		return nil, nil, nil
+	}
+	var result struct {
+		UploadTotal   *int64            `json:"uploadTotal"`
+		DownloadTotal *int64            `json:"downloadTotal"`
+		Connections   []json.RawMessage `json:"connections"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, nil, nil
+	}
+	if result.UploadTotal != nil && *result.UploadTotal < 0 {
+		result.UploadTotal = nil
+	}
+	if result.DownloadTotal != nil && *result.DownloadTotal < 0 {
+		result.DownloadTotal = nil
+	}
+	var count *int
+	if result.Connections != nil {
+		c := len(result.Connections)
+		count = &c
+	}
+	return result.UploadTotal, result.DownloadTotal, count
+}
+
+// @author 雾晚：填充本地遥测数据（无 HTTP）。
+// Runtime.Status() 必须保持快速本地检查，不访问网络。
+// Tx/Rx/connectionCount 由专用 dashboard 命令在 CLI 层显式获取，
+// 不经过 Status()，避免守护循环/持锁逻辑被网络等待阻塞。
+func (r *Runtime) fillTelemetry(s *State) {
+	if !SameProcess(s.Core) {
+		s.Telemetry = nil
+		return
+	}
+	revision := s.RunningRevision
+	t := &Telemetry{}
+	// VmRSS：读取后再次验证身份
+	t.VmRSSBytes = readVmRSS(s.Core.PID)
+	if !SameProcess(s.Core) {
+		s.Telemetry = nil
+		return
+	}
+	// 运行时长：ready marker 时间，需验证 revision 一致
+	t.UptimeSeconds = r.coreReadyDuration(s.Core, revision)
+	// Tx/Rx/connectionCount: nil（未知），由 dashboard 命令单独采集
+	// Status() 永不发起 HTTP，保持快速
+	if t.VmRSSBytes > 0 || t.UptimeSeconds > 0 {
+		s.Telemetry = t
+	} else {
+		s.Telemetry = nil
+	}
+}
+
+// @author 雾晚：可注入的 Dashboard 状态采集，用于测试。
+// readStatus: 读取状态；collect: 采集遥测；sameProc: 进程身份校验。
+// 生产代码传入真实实现，测试传入模拟。
+func dashboardStateInternal(
+	readStatus func() State,
+	collect func(snap State) *Telemetry,
+	sameProc func(ProcessIdentity) bool,
+) State {
+	before := readStatus()
+	if before.Phase != "connected" || !sameProc(before.Core) {
+		return before
+	}
+	// 以 before 采集
+	t := collect(before)
+
+	// 无条件回读，严格验证
+	after := readStatus()
+	if after.Phase != before.Phase {
+		after.Telemetry = nil
+		after.Stats = nil
+		return after
+	}
+	if after.Core.PID != before.Core.PID || after.Core.Start != before.Core.Start || after.Core.Executable != before.Core.Executable {
+		after.Telemetry = nil
+		after.Stats = nil
+		return after
+	}
+	if after.RunningRevision != before.RunningRevision {
+		after.Telemetry = nil
+		after.Stats = nil
+		return after
+	}
+	// ProfileID：热切换节点同 PID/revision 也必须识别
+	if after.ProfileID != before.ProfileID {
+		after.Telemetry = nil
+		after.Stats = nil
+		return after
+	}
+	if !sameProc(after.Core) {
+		after.Telemetry = nil
+		after.Stats = nil
+		return after
+	}
+	// 一致：把采集赋给 after
+	if t != nil {
+		after.Telemetry = t
+	}
+	return after
+}
+
+// @author 雾晚：返回绑定同一快照的完整 Dashboard 状态。
+// 生产代码调用可注入版本，传入真实实现。
+func (r *Runtime) DashboardState() State {
+	return dashboardStateInternal(
+		r.Status,
+		func(snap State) *Telemetry {
+			t := &Telemetry{}
+			t.VmRSSBytes = readVmRSS(snap.Core.PID)
+			t.UptimeSeconds = r.coreReadyDuration(snap.Core, snap.RunningRevision)
+			tx, rx, connCount := r.queryClashStats(snap.RunningRevision, snap.Core)
+			t.TxBytes = tx
+			t.RxBytes = rx
+			t.ConnectionCount = connCount
+			if t.VmRSSBytes <= 0 && t.UptimeSeconds <= 0 && tx == nil && rx == nil && connCount == nil {
+				return nil
+			}
+			return t
+		},
+		SameProcess,
+	)
+}
+
+// @author 雾晚：DashboardTelemetry 仅为兼容保留，调用完整 DashboardState。
+// 不另读自己的快照，避免代次混合。
+func (r *Runtime) DashboardTelemetry() *Telemetry {
+	s := r.DashboardState()
+	return s.Telemetry
+}
+
 func (r *Runtime) Status() State {
 	s := State{SchemaVersion: Version, Phase: "stopped"}
 	_ = readJSON(r.path("state.json"), &s, 1<<20)
@@ -437,6 +723,10 @@ func (r *Runtime) Status() State {
 	}
 	if s.Phase != "connected" {
 		s.Stats = nil
+		s.Telemetry = nil
+	} else {
+		// @author 雾晚：已连接时填充遥测，进程身份已校验
+		r.fillTelemetry(&s)
 	}
 	selection, selectionError := r.installSelection()
 	s.InstallData = selection
