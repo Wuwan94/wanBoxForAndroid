@@ -40,8 +40,7 @@ class SettingsHierarchyTest {
             listOf(Key.ACQUIRE_WAKE_LOCK, Key.WAKE_RESET_CONNECTIONS, Key.NETWORK_CHANGE_RESET_CONNECTIONS).forEach {
                 assertNull(screen.findPreference<androidx.preference.Preference>(it))
             }
-            // @author 雾晚：四组重组后 categoryUI 已合并为 categoryAppearance
-            assertEquals("categoryAppearance", screen.findPreference<androidx.preference.Preference>(Key.HIDE_FROM_RECENT_APPS)!!.parent!!.key)
+            // @author 雾晚：Codex 重设计已删除 HIDE_FROM_RECENT_APPS（从任务中隐藏）
             core.setExpanded(false)
         }
     }
