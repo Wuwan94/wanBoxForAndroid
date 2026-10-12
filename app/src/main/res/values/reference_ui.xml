@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ref_background">#FFFFFF</color>
+    <color name="ref_surface">#F7F8FA</color>
+    <color name="ref_selected">#E7E9EC</color>
+    <color name="ref_border">#EDF0F4</color>
+    <color name="ref_text">#111318</color>
+    <color name="ref_secondary">#778294</color>
+    <color name="ref_control">#747B84</color>
+    <dimen name="ref_nav_height">72dp</dimen>
+    <style name="TextAppearance.WanBox.ReferenceTitle" parent="TextAppearance.MaterialComponents.Headline5">
+        <item name="android:textSize">28sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0</item>
+        <item name="android:textColor">@color/ref_text</item>
+    </style>
+    <style name="TextAppearance.WanBox.ReferenceNav" parent="TextAppearance.MaterialComponents.Caption">
+        <item name="android:textSize">11sp</item>
+        <item name="android:letterSpacing">0</item>
+    </style>
+    <string name="ref_subtitle">%1$d 个订阅 · %2$d 个节点</string>
+    <string name="ref_group_count">%1$s · %2$d 个节点</string>
+    <string name="ref_update_selected">更新选中 (%1$d)</string>
+    <string name="ref_update_all">全部更新</string>
+    <string name="ref_update">更新</string>
+    <string name="ref_updated_now">刚刚更新</string>
+    <string name="ref_updated_minutes">%1$d 分钟前</string>
+    <string name="ref_updated_hours">%1$d 小时前</string>
+    <string name="ref_updated_days">%1$d 天前</string>
+    <string name="ref_subscriptions">订阅管理</string>
+    <string name="ref_empty_nodes">暂无节点</string>
+    <string name="ref_no_search_results">未找到匹配节点</string>
+    <string name="ref_empty_subscriptions">暂无订阅</string>
+    <string name="ref_all">全部</string>
+    <string name="ref_search">搜索</string>
+    <string name="ref_auto_update">自动更新</string>
+    <string name="ref_auto_off">关闭</string>
+    <string name="ref_auto_daily">每天</string>
+    <string name="ref_auto_six_hours">每 6 小时</string>
+    <string name="ref_auto_custom">自定义</string>
+    <string name="ref_never_updated">尚未更新</string>
+    <string name="ref_node_meta">%1$d 个节点 · %2$s</string>
+    <string name="ref_node_info">%1$s · %2$d ms</string>
+    <string name="ref_total">累计 %1$s</string>
+    <string name="ref_root_module">Root 模块管理</string>
+    <string name="ref_network">网络自动策略</string>
+    <string name="ref_appearance">主题与外观</string>
+    <string name="ref_diagnostics">日志与诊断</string>
+    <string name="ref_backup">备份与恢复</string>
+    <string name="ref_about">关于 wanBox</string>
+    <string name="ref_update_running">正在更新</string>
+    <string name="ref_selected_node">已选中：%1$s</string>
+    <string name="ref_select_node">选择节点：%1$s</string>
+    <string name="ref_name_size_value">%1$d</string>
+    <string name="ref_edit_hint">节点名称可在编辑中修改</string>
+    <string name="ref_advanced_nodes">导入与高级节点管理</string>
+    <string name="ref_advanced_groups">高级订阅管理</string>
+    <string name="ref_more_settings">更多设置</string>
+    <string name="ref_current_node">当前节点</string>
+    <string name="ref_uptime">运行时长</string>
+    <string name="ref_mode_rule">规则</string>
+    <string name="ref_mode_global">全局</string>
+    <string name="ref_mode_direct">直连</string>
+    <string name="ref_upload">上传</string>
+    <string name="ref_download">下载</string>
+    <string name="ref_memory">核心内存</string>
+    <string name="ref_connections">连接数</string>
+    <string name="ref_route">路由规则</string>
+    <string name="ref_settings">设置</string>
+    <string name="ref_dns">DNS 设置</string>
+</resources>

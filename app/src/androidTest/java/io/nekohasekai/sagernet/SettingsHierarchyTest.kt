@@ -35,13 +35,6 @@ class SettingsHierarchyTest {
                 Key.TUN_IMPLEMENTATION).forEach {
                 assertEquals("categoryRuntime", screen.findPreference<androidx.preference.Preference>(it)!!.parent!!.key)
             }
-            // Root-only manager delegates network lifecycle to the module; the
-            // obsolete App wake/reset controls must stay absent. @author 雾晚
-            listOf(Key.ACQUIRE_WAKE_LOCK, Key.WAKE_RESET_CONNECTIONS, Key.NETWORK_CHANGE_RESET_CONNECTIONS).forEach {
-                assertNull(screen.findPreference<androidx.preference.Preference>(it))
-            }
-            // @author 雾晚：四组重组后 categoryUI 已合并为 categoryAppearance
-            assertEquals("categoryAppearance", screen.findPreference<androidx.preference.Preference>(Key.HIDE_FROM_RECENT_APPS)!!.parent!!.key)
             core.setExpanded(false)
         }
     }

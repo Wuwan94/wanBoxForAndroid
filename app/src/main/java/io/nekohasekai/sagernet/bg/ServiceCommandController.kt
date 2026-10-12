@@ -5,6 +5,8 @@ package io.nekohasekai.sagernet.bg
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -68,12 +70,20 @@ class ServiceCommandController(
             return s
         }
         override suspend fun setMode(mode: String): RootModuleClient.Status {
+            require(mode in listOf("rule", "global", "direct"))
+            val modeIndex = listOf("rule", "global", "direct").indexOf(mode)
+            val current = io.nekohasekai.sagernet.database.DataStore.serviceState
+            if (current == BaseService.State.Idle || current == BaseService.State.Stopped) {
+                io.nekohasekai.sagernet.database.DataStore.dashboardMode = modeIndex
+                return RootModuleClient.Status("stopped", "", "", 0L, "", null)
+            }
             // @author 雾晚：通过模块 CLI 读取运行配置 secret，PATCH+GET 确认
             // 不用 UI 本地 secret，避免与后台失配
-            val ok = patchClashModeViaModule(mode)
+            val ok = withContext(Dispatchers.IO) { patchClashModeViaModule(mode) }
             if (!ok) throw IllegalStateException("mode_patch_failed")
             // 回读真实模式确认
             val s = queryStatus()
+            io.nekohasekai.sagernet.database.DataStore.dashboardMode = modeIndex
             return s
         }
         /**

@@ -10,6 +10,7 @@ import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.doOnAttach
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import com.google.android.material.appbar.AppBarLayout
@@ -44,6 +45,10 @@ open class ToolbarFragment : Fragment {
             toolbar.setNavigationOnClickListener {
                 (activity as? MainActivity)?.binding?.drawerLayout?.openDrawer(GravityCompat.START)
             }
+            if (arguments?.getBoolean("referenceDetail") == true) {
+                toolbar.setNavigationIcon(R.drawable.baseline_arrow_back_24)
+                toolbar.setNavigationOnClickListener { requireActivity().onBackPressedDispatcher.onBackPressed() }
+            }
             val primaryTextColor = requireContext().getColorAttr(android.R.attr.textColorPrimary)
             toolbar.setTitleTextColor(primaryTextColor)
             toolbar.navigationIcon?.let {
@@ -67,7 +72,7 @@ open class ToolbarFragment : Fragment {
                 v.updatePadding(top = bars.top)
                 insets
             }
-            ViewCompat.requestApplyInsets(appbar)
+            appbar.doOnAttach { ViewCompat.requestApplyInsets(it) }
         }
     }
 

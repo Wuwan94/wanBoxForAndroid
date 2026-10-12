@@ -712,6 +712,7 @@ fun buildConfig(
                     clash_api = ClashAPIOptions().apply {
                         external_controller = "127.0.0.1:9090"
                         secret = DataStore.clashApiSecret
+                        default_mode = listOf("rule", "global", "direct").getOrElse(DataStore.dashboardMode) { "rule" }
                         external_ui = "../files/yacd"
                     }
                 }
@@ -1365,22 +1366,6 @@ fun buildConfig(
             // @author 雾晚: explicit user matches precede rule-set-only fallbacks.
             // Keep userOrder within each tier; custom JSON and scoped rule sets stay explicit.
             // Core DNS/loop protections stay ahead, App-owned fallbacks are appended below.
-            // @author 雾晚：仪表盘运行模式（规则/全局/直连），通过 clash_mode 条件规则实现。
-            // 置于 Core DNS/安全规则之后、普通用户路由之前，确保模式切换不覆盖必要规则。
-            // 运行时通过 Clash API PATCH /configs 切换模式，无需重启核心。
-            if (!forTest && !forExport) {
-                // 全局模式：clash_mode=global 时全部走代理
-                route.rules.add(Rule_DefaultOptions().apply {
-                    clash_mode = "global"
-                    outbound = TAG_PROXY
-                })
-                // 直连模式：clash_mode=direct 时全部直连
-                route.rules.add(Rule_DefaultOptions().apply {
-                    clash_mode = "direct"
-                    outbound = "direct"
-                })
-                // 规则模式（默认）：不添加额外规则，按现有规则路由
-            }
             // 应用用户规则
             var resolvedForGeoIp = false
             for (rule in extraRules) {
@@ -1904,6 +1889,10 @@ fun buildConfig(
             })
 
             route.rules.addAll(0, topRouteRules)
+            route.rules.addAll(topRouteRules.size, listOf(
+                Rule_DefaultOptions().apply { clash_mode = "direct"; outbound = TAG_DIRECT },
+                Rule_DefaultOptions().apply { clash_mode = "global"; outbound = mainProxyTag },
+            ))
 
             if (DataStore.bypassLanInCore) {
                 route.rules.add(Rule_DefaultOptions().apply {
@@ -1987,6 +1976,12 @@ fun buildConfig(
             }
         }
 
+        if (!forTest) {
+            dns.rules.addAll(0, listOf(
+                DNSRule_DefaultOptions().apply { clash_mode = "direct"; server = "dns-direct" },
+                DNSRule_DefaultOptions().apply { clash_mode = "global"; server = "dns-remote" },
+            ))
+        }
         if (!forTest && ipv6Mode == IPv6Mode.DISABLE) {
             dns.rules.add(0, DNSRule_DefaultOptions().apply {
                 query_type = listOf("AAAA")

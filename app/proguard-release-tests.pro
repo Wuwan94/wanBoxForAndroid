@@ -70,3 +70,29 @@
 -keep,allowobfuscation class io.nekohasekai.sagernet.utils.BoundedImageDecoder { public *; }
 -keep,allowobfuscation class io.nekohasekai.sagernet.utils.SecureNetwork { public *; }
 -keep,allowobfuscation class moe.matsuri.nb4a.ui.ExpandablePreferenceCategory { public *; }
+# Public entry points exercised by the separate native UI test APK.
+-keep,allowobfuscation class io.nekohasekai.sagernet.ui.MainActivity {
+    public io.nekohasekai.sagernet.databinding.LayoutMainBinding getBinding();
+}
+-keep,allowobfuscation class io.nekohasekai.sagernet.ui.ToolbarFragment {
+    public androidx.appcompat.widget.Toolbar getToolbar();
+}
+-keep,allowobfuscation class io.nekohasekai.sagernet.ui.NodesFragment { public <init>(); }
+-keep,allowobfuscation class io.nekohasekai.sagernet.ui.SettingsFragment { public <init>(); }
+-keep,allowobfuscation class io.nekohasekai.sagernet.ui.ReferenceSettingsFragment { public <init>(); }
+-keep,allowobfuscation class io.nekohasekai.sagernet.databinding.LayoutMainBinding { public *; }
+-keep,allowobfuscation class androidx.recyclerview.widget.GridLayoutManager { public *; }
+-keep,allowobfuscation class androidx.recyclerview.widget.RecyclerView { public *; }
+-keep,allowobfuscation class androidx.fragment.app.FragmentActivity {
+    public androidx.fragment.app.FragmentManager getSupportFragmentManager();
+}
+-keep,allowobfuscation class androidx.fragment.app.FragmentManager {
+    public androidx.fragment.app.Fragment findFragmentById(int);
+    public boolean executePendingTransactions();
+}
+-keep,allowobfuscation class androidx.activity.ComponentActivity {
+    public androidx.activity.OnBackPressedDispatcher getOnBackPressedDispatcher();
+}
+-keep,allowobfuscation class androidx.activity.OnBackPressedDispatcher {
+    public void onBackPressed();
+}

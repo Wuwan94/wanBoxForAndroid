@@ -29,10 +29,17 @@
             android:id="@+id/bottom_nav"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="?attr/colorSurface"
-            app:elevation="8dp"
-            app:itemIconTint="@color/bottom_nav_item_color"
-            app:itemTextColor="@color/bottom_nav_item_color"
+            android:minHeight="@dimen/ref_nav_height"
+            android:background="@color/ref_background"
+            app:elevation="0dp"
+            app:labelVisibilityMode="labeled"
+            app:itemHorizontalTranslationEnabled="false"
+            app:itemIconSize="24dp"
+            app:itemBackground="@drawable/ref_nav_item"
+            app:itemTextAppearanceActive="@style/TextAppearance.WanBox.ReferenceNav"
+            app:itemTextAppearanceInactive="@style/TextAppearance.WanBox.ReferenceNav"
+            app:itemIconTint="@color/ref_nav_tint"
+            app:itemTextColor="@color/ref_nav_tint"
             app:menu="@menu/bottom_nav_menu" />
 
     </LinearLayout>
