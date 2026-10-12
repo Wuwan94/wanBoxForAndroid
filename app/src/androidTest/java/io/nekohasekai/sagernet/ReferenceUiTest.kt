@@ -32,6 +32,10 @@ class ReferenceUiTest {
         fail("UI did not reach expected state")
     }
     private fun screenshot(name: String) {
+        // Allow pending layout and compositor frames to reflect the asserted UI state.
+        instrumentation.waitForIdleSync()
+        Thread.sleep(250)
+        instrumentation.waitForIdleSync()
         val root = InstrumentationRegistry.getArguments().getString("additionalTestOutputDir")?.let(::File)
             ?: instrumentation.targetContext.getExternalFilesDir(null)!!
         val directory = File(root, "reference-ui").apply { mkdirs() }

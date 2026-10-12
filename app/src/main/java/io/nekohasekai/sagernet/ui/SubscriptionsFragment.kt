@@ -108,17 +108,20 @@ class SubscriptionsFragment : ReferenceDataFragment() {
                 LinearLayout.LayoutParams(-1, -2))
             val updating = group.id in GroupUpdater.updating
             val updatedAt = group.subscription?.lastUpdated?.toLong()?.times(1000) ?: 0L
+            val elapsed = (System.currentTimeMillis() - updatedAt).coerceAtLeast(0L)
             val updated = when {
                 updating -> getString(R.string.ref_update_running)
                 updatedAt == 0L -> getString(R.string.ref_never_updated)
-                else -> DateUtils.getRelativeTimeSpanString(updatedAt, System.currentTimeMillis(),
-                    DateUtils.MINUTE_IN_MILLIS).toString()
+                elapsed < DateUtils.MINUTE_IN_MILLIS -> getString(R.string.ref_updated_now)
+                elapsed < DateUtils.HOUR_IN_MILLIS -> getString(R.string.ref_updated_minutes, elapsed / DateUtils.MINUTE_IN_MILLIS)
+                elapsed < DateUtils.DAY_IN_MILLIS -> getString(R.string.ref_updated_hours, elapsed / DateUtils.HOUR_IN_MILLIS)
+                else -> getString(R.string.ref_updated_days, elapsed / DateUtils.DAY_IN_MILLIS)
             }
             labels.addView(ReferenceUi.text(context, getString(R.string.ref_node_meta,
                 profiles.count { it.groupId == group.id }, updated), 12f, true),
                 LinearLayout.LayoutParams(-1, -2).apply { topMargin = ReferenceUi.dp(context, 6) })
             row.addView(labels, LinearLayout.LayoutParams(0, -2, 1f))
-            val update = ReferenceUi.button(context, getString(R.string.group_update), R.drawable.ic_baseline_refresh_24) {
+            val update = ReferenceUi.button(context, getString(R.string.ref_update), R.drawable.ic_baseline_refresh_24) {
                 update(listOf(group))
             }.apply {
                 strokeWidth = 0
@@ -127,7 +130,8 @@ class SubscriptionsFragment : ReferenceDataFragment() {
                 isVisible = group.type == GroupType.SUBSCRIPTION
                 setPadding(ReferenceUi.dp(context, 4), 0, ReferenceUi.dp(context, 4), 0)
                 iconPadding = ReferenceUi.dp(context, 4)
-                contentDescription = "${group.displayName()} ${getString(R.string.group_update)}"
+                maxLines = 1
+                contentDescription = "${group.displayName()} ${getString(R.string.ref_update)}"
             }
             row.addView(update, LinearLayout.LayoutParams(ReferenceUi.dp(context, 76), ReferenceUi.dp(context, 48)))
             row.addView(ReferenceUi.icon(context, R.drawable.ic_baseline_more_vert_24, getString(R.string.more)) {

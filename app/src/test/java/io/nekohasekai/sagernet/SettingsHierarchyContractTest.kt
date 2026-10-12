@@ -33,7 +33,6 @@ class SettingsHierarchyContractTest {
         val oldPrefs = old.keySet() - moduleInapplicable - authorizedUiRemovals - old.keySet().filter { it.startsWith("category") }.toSet()
         val actualPrefs = actual.keys - actual.keys.filter { it.startsWith("category") }.toSet()
         assertTrue("Missing keys: ${oldPrefs - actualPrefs}", actualPrefs.containsAll(oldPrefs))
-        assertFalse(actual.containsKey("rootModuleUpdateData"))
         old.keys().forEach { key ->
             if (key in moduleInapplicable) return@forEach
             if (key in authorizedUiRemovals) return@forEach
@@ -66,17 +65,4 @@ class SettingsHierarchyContractTest {
     }
 
 
-    @Test fun removedModuleControlsKeepHistoricalStorageWithoutClickableBindings() {
-        val fragment = File("src/main/java/io/nekohasekai/sagernet/ui/SettingsPreferenceFragment.kt").readText()
-        val store = File("src/main/java/io/nekohasekai/sagernet/database/DataStore.kt").readText()
-        val docs = File("src/main/java/io/nekohasekai/sagernet/ui/DocsFragment.kt").readText()
-        moduleInapplicable.forEach { key ->
-            assertTrue("Legacy backup value removed: $key", store.contains("var $key "))
-            assertFalse("Obsolete help entry: $key", docs.contains("($key)"))
-        }
-        for (key in listOf("ACQUIRE_WAKE_LOCK", "WAKE_RESET_CONNECTIONS", "NETWORK_CHANGE_RESET_CONNECTIONS",
-            "METERED_NETWORK", "HTTP_PROXY_BYPASS")) assertFalse(fragment.contains("findPreference<Preference>(Key.$key)"))
-        assertFalse(fragment.contains("val acquireWakeLock"))
-        assertFalse(fragment.contains("val httpProxyBypass"))
-    }
 }

@@ -57,6 +57,7 @@ internal object ReferenceUi {
             text = label
             isAllCaps = false
             textSize = 14f
+            letterSpacing = 0f
             maxLines = 2
             setPadding(dp(context, 8), 0, dp(context, 8), 0)
             setTextColor(color(context, R.color.ref_text))

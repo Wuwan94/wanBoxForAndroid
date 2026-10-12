@@ -2,7 +2,6 @@
 package io.nekohasekai.sagernet.ui
 
 import android.annotation.SuppressLint
-import android.app.ActivityManager
 import android.content.Context
 import android.content.BroadcastReceiver
 import android.content.Intent
@@ -215,8 +214,6 @@ class MainActivity : ThemedActivity(),
             onNewIntent(intent)
         }
 
-        refreshNavMenu(DataStore.enableClashAPI)
-
         val isPreRelease = isPreview && (BuildConfig.PRE_VERSION_NAME.contains("preview", true) || BuildConfig.PRE_VERSION_NAME.contains("beta", true) || BuildConfig.PRE_VERSION_NAME.contains("alpha", true))
         if (isPreRelease && DataStore.previewHintDismissedVersion != BuildConfig.PRE_VERSION_NAME) {
             MaterialAlertDialogBuilder(this)
@@ -236,12 +233,7 @@ class MainActivity : ThemedActivity(),
         connection.rebindIfServiceChanged(this)
         MessageStore.setCurrentActivity(this)
 
-        if (DataStore.hideFromRecentApps) {
-            applyHideFromRecentApps(DataStore.hideFromRecentApps)
-        }
-
         checkClipboardOnResume()
-        refreshNavMenu(DataStore.enableClashAPI)
     }
 
     private var lastPromptedClipboard: String = ""
@@ -326,23 +318,6 @@ class MainActivity : ThemedActivity(),
                 animate = false,
             )
         }
-    }
-
-    fun applyHideFromRecentApps(hide: Boolean) {
-        try {
-            val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-            val tasks = activityManager.appTasks
-            if (tasks.isNotEmpty()) {
-                val task = tasks[0]
-                task.setExcludeFromRecents(hide)
-            }
-        } catch (e: Exception) {
-            Logs.w("Failed to set excludeFromRecents: ${e.message}")
-        }
-    }
-
-    fun refreshNavMenu(clashApi: Boolean) {
-        navigation.menu.findItem(R.id.nav_dashboard)?.isVisible = clashApi
     }
 
     private fun handleTileIntent(incoming: Intent?): Boolean {
@@ -599,7 +574,6 @@ class MainActivity : ThemedActivity(),
         showWhenConnected: Boolean,
         animate: Boolean,
     ) {
-        val showControls = fragment is ConfigurationFragment || DataStore.showBottomBar
         // preview.19: 悬浮按钮已移除，StatsBar 已删除
         // @author 雾晚：诊断入口已移至 Dashboard 诊断卡
     }
@@ -757,18 +731,6 @@ class MainActivity : ThemedActivity(),
                     refreshConfigurationProfileState()
                     LandingIpManager.clearCache()
                     if (DataStore.serviceState.connected && DataStore.showLandingIp) {
-                    }
-                }
-                Key.SHOW_BOTTOM_BAR -> {
-                    syncMainControls(
-                        showWhenConnected = DataStore.showBottomBar,
-                        animate = true,
-                    )
-                    when (val fragment = currentMainFragment
-                        ?: supportFragmentManager.findFragmentById(R.id.fragment_holder)
-                    ) {
-                        is GroupFragment -> fragment.updateBottomPadding()
-                        is RouteFragment -> fragment.updateBottomPadding()
                     }
                 }
             }
