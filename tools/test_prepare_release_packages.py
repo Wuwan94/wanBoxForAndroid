@@ -1,4 +1,5 @@
 import hashlib
+import io
 import json
 import pathlib
 import struct
@@ -23,6 +24,7 @@ class ReleasePackagesTest(unittest.TestCase):
         metadata = self.metadata()
         badging = "package: name='%s' versionCode='%s' versionName='%s'" % (
             metadata["PACKAGE_NAME"], int(metadata["VERSION_CODE"]) * 5, metadata["VERSION_NAME"])
+        badging += "\nsdkVersion:'31'"
         cert = "Signer #1 certificate SHA-256 digest: " + release.RELEASE_CERTIFICATE.lower()
         return badging, cert
 
@@ -38,6 +40,36 @@ class ReleasePackagesTest(unittest.TestCase):
                         badging.replace(self.metadata()["VERSION_NAME"], "0.0.0")):
             with self.assertRaises(ValueError):
                 release.validate_identity(invalid, cert, self.metadata())
+
+    def test_upgrade_requires_same_identity_newer_code_and_existing_device_support(self):
+        candidate, cert = self.outputs()
+        previous = candidate.replace("versionCode='1810'", "versionCode='1805'").replace("3.0.9", "3.0.8")
+        release.validate_upgrade(previous, cert, candidate, cert)
+        invalid_cases = [
+            (previous, cert, previous, cert),
+            (candidate, cert, previous, cert),
+            (previous, cert, candidate.replace(self.metadata()["PACKAGE_NAME"], "test.other"), cert),
+            (previous, cert, candidate.replace("sdkVersion:'31'", "sdkVersion:'32'"), cert),
+            (previous, cert, candidate.replace("sdkVersion:'31'", ""), cert),
+            (previous, cert, candidate.replace("1810", "invalid"), cert),
+            (previous, cert.replace(release.RELEASE_CERTIFICATE.lower(), "0" * 64), candidate, cert),
+            (previous, cert, candidate, cert.replace(release.RELEASE_CERTIFICATE.lower(), "0" * 64)),
+        ]
+        for args in invalid_cases:
+            with self.subTest(args=args), self.assertRaises(ValueError):
+                release.validate_upgrade(*args)
+
+    def test_previous_apk_download_must_match_pinned_checksum(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = pathlib.Path(directory) / "previous.apk"
+            with patch.object(release.urllib.request, "urlopen", return_value=io.BytesIO(b"changed asset")):
+                with self.assertRaisesRegex(ValueError, "checksum"):
+                    release.download_previous_apk(target)
+            payload = b"verified fixture"
+            with patch.object(release.urllib.request, "urlopen", return_value=io.BytesIO(payload)), \
+                    patch.object(release, "PREVIOUS_APK_SHA256", hashlib.sha256(payload).hexdigest()):
+                self.assertEqual(target, release.download_previous_apk(target))
+                self.assertEqual(payload, target.read_bytes())
 
     def test_three_packages_contain_identical_apk_and_valid_checksums(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -56,9 +88,13 @@ class ReleasePackagesTest(unittest.TestCase):
                 archive.writestr("AndroidManifest.xml", b"fixture")
                 archive.writestr("lib/arm64-v8a/libgojni.so", elf)
             badging, cert = self.outputs()
-            with patch.object(release.subprocess, "run", side_effect=[
-                    SimpleNamespace(stdout=badging), SimpleNamespace(stdout=cert)]):
+            previous = badging.replace("versionCode='1810'", "versionCode='1805'").replace("3.0.9", "3.0.8")
+            with patch.object(release, "download_previous_apk", return_value=apk) as baseline, \
+                    patch.object(release.subprocess, "run", side_effect=[
+                        SimpleNamespace(stdout=badging), SimpleNamespace(stdout=cert),
+                        SimpleNamespace(stdout=previous), SimpleNamespace(stdout=cert)]):
                 artifacts = release.prepare(apk, module, root / "output", "aapt", "apksigner")
+                baseline.assert_called_once()
             self.assertEqual(3, len(artifacts))
             standalone, pure, combined = artifacts
             with zipfile.ZipFile(pure) as archive:
