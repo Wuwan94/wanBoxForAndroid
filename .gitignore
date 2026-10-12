@@ -21,3 +21,5 @@ jniLibs/
 # submodules
 /external
 .kotlin/
+__pycache__/
+*.pyc
