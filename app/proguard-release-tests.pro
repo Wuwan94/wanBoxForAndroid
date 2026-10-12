@@ -44,6 +44,19 @@
 -keep,allowobfuscation class io.nekohasekai.sagernet.database.PortableBackup { public *; }
 -keep,allowobfuscation class io.nekohasekai.sagernet.database.PortableBackup$* { public *; }
 -keep,allowobfuscation class io.nekohasekai.sagernet.database.DataStore { public *; }
+# @author 雾晚: MinimalUiTest accesses these delegated properties across APK boundaries.
+-keep class io.nekohasekai.sagernet.database.DataStore {
+    public static *** getSelectedProxy(...);
+    public static *** setSelectedProxy(...);
+    public static *** getSelectedGroup(...);
+    public static *** setSelectedGroup(...);
+    public static *** getGroupLayoutMode(...);
+    public static *** setGroupLayoutMode(...);
+    public static *** getNodeColumnCount(...);
+    public static *** setNodeColumnCount(...);
+    public static *** getShowSubscriptionInfoCard(...);
+    public static *** setShowSubscriptionInfoCard(...);
+}
 -keep class io.nekohasekai.sagernet.database.SagerDatabase$Companion { public *; }
 -keep class io.nekohasekai.sagernet.database.preference.PublicDatabase$Companion { public *; }
 -keep,allowobfuscation class io.nekohasekai.sagernet.database.preference.RoomPreferenceDataStore { public *; }

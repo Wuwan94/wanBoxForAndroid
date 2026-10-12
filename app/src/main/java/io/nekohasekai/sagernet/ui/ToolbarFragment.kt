@@ -40,11 +40,16 @@ open class ToolbarFragment : Fragment {
         val tb = view.findViewById<Toolbar?>(R.id.toolbar)
         if (tb != null) {
             toolbar = tb
-            toolbar.setNavigationIcon(R.drawable.ic_navigation_menu)
-            toolbar.setNavigationOnClickListener {
-                (activity as? MainActivity)?.binding?.drawerLayout?.openDrawer(GravityCompat.START)
+            val mainPage = this is DashboardFragment || this is ConfigurationFragment || this is GroupFragment || this is SettingsFragment
+            if (mainPage) {
+                toolbar.navigationIcon = null
+            } else {
+                toolbar.setNavigationIcon(R.drawable.baseline_arrow_back_24)
+                toolbar.setNavigationOnClickListener {
+                    (activity as? MainActivity)?.displayFragmentWithId(R.id.nav_settings)
+                }
             }
-            val primaryTextColor = requireContext().getColorAttr(android.R.attr.textColorPrimary)
+            val primaryTextColor = requireContext().getColor(R.color.minimal_text)
             toolbar.setTitleTextColor(primaryTextColor)
             toolbar.navigationIcon?.let {
                 val tinted = it.mutate()

@@ -1,0 +1,87 @@
+<?xml version="1.0" ?>
+<resources>
+    <color name="minimal_background">#FFFFFF</color>
+    <color name="minimal_card">#FAFAFB</color>
+    <color name="minimal_selected">#F1F2F3</color>
+    <color name="minimal_segment">#F7F7F8</color>
+    <color name="minimal_active">#E7E8EA</color>
+    <color name="minimal_text">#18191B</color>
+    <color name="minimal_secondary">#70757C</color>
+    <color name="minimal_line">#ECEDEF</color>
+    <color name="minimal_icon">#565B63</color>
+    <style name="Widget.WanBox.Minimal.Card" parent="Widget.MaterialComponents.CardView">
+        <item name="cardBackgroundColor">@color/minimal_card</item>
+        <item name="cardCornerRadius">10dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeColor">@color/minimal_line</item>
+        <item name="strokeWidth">1dp</item>
+    </style>
+    <style name="Widget.WanBox.Minimal.Segment" parent="Widget.MaterialComponents.Button.TextButton">
+        <item name="android:textColor">@color/minimal_text</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="cornerRadius">10dp</item>
+    </style>
+    <style name="Widget.WanBox.Minimal.Action" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="android:textColor">@color/minimal_text</item>
+        <item name="iconTint">@color/minimal_icon</item>
+        <item name="strokeColor">@color/minimal_line</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="cornerRadius">8dp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:paddingLeft">8dp</item>
+        <item name="android:paddingRight">8dp</item>
+        <item name="iconSize">20dp</item>
+    </style>
+    <style name="TextAppearance.WanBox.Minimal.Title" parent="TextAppearance.MaterialComponents.Headline6">
+        <item name="android:textSize">26sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/minimal_text</item>
+    </style>
+    <style name="TextAppearance.WanBox.Minimal.Nav" parent="TextAppearance.MaterialComponents.Caption">
+        <item name="android:textSize">11sp</item>
+    </style>
+    <string name="minimal_overview">%1$d 个订阅 · %2$d 个节点</string>
+    <string name="minimal_update_all">全部更新</string>
+    <string name="minimal_update_selected">更新选中 (%1$d)</string>
+    <string name="minimal_never_updated">尚未更新</string>
+    <string name="minimal_just_updated">刚刚更新</string>
+    <string name="minimal_minutes_ago">%1$d 分钟前</string>
+    <string name="minimal_hours_ago">%1$d 小时前</string>
+    <string name="minimal_days_ago">%1$d 天前</string>
+    <string name="minimal_group_summary">%1$d 个节点 · %2$s</string>
+    <string name="minimal_root">Root 模块管理</string>
+    <string name="minimal_dns">DNS 设置</string>
+    <string name="minimal_network">网络自动策略</string>
+    <string name="minimal_appearance">主题与外观</string>
+    <string name="minimal_logs">日志与诊断</string>
+    <string name="minimal_backup">备份与恢复</string>
+    <string name="minimal_about">关于 wanBox</string>
+    <string name="minimal_advanced">高级设置与工具</string>
+    <string name="minimal_auto_update">自动更新</string>
+    <string name="minimal_auto_update_hint">各订阅可分别设置更新周期</string>
+    <string name="minimal_display_hint">名称过长时居中省略</string>
+    <string name="minimal_selected">已选择</string>
+    <string name="minimal_select">选择节点</string>
+    <string name="minimal_settings_empty">暂无订阅，点击右上角添加</string>
+    <string name="minimal_memory">核心内存</string>
+    <string name="minimal_connections">连接数</string>
+    <string name="minimal_upload">上传</string>
+    <string name="minimal_download">下载</string>
+    <string name="minimal_current_node">当前节点</string>
+    <string name="minimal_uptime">运行时长</string>
+    <string name="minimal_total">累计 %1$s</string>
+    <string name="minimal_rule">规则</string>
+    <string name="minimal_global">全局</string>
+    <string name="minimal_direct">直连</string>
+    <string name="minimal_node_section">%1$s · %2$d 个节点</string>
+    <string name="minimal_select_subscription">选择订阅 %1$s</string>
+    <string name="minimal_subscriptions_title">订阅管理</string>
+</resources>

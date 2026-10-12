@@ -15,7 +15,6 @@ import androidx.preference.*
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
-import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.SpeedTestSettings
 import io.nekohasekai.sagernet.database.DataStore
@@ -30,6 +29,7 @@ import android.os.Looper
 import android.widget.Toast
 import java.io.File
 import kotlinx.coroutines.launch
+import androidx.lifecycle.lifecycleScope
 import libcore.Libcore
 
 class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataStoreChangeListener {
@@ -61,7 +61,7 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
         setDivider(null)
         setDividerHeight(0)
         listView.clipToPadding = false
-        listView.setPadding(0, dp2px(8), 0, dp2px(88))
+        listView.setPadding(0, dp2px(8), 0, dp2px(16))
     }
 
     override fun onDestroyView() {
@@ -97,29 +97,11 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             true
         }
 
-        // @author 雾晚：四组重组 - 关于入口，展示真实版本信息
-        findPreference<Preference>("aboutVersion")?.apply {
-            // 显示真实应用版本
-            summary = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
-            // 不可点击，仅展示
-            isSelectable = false
-        }
-        findPreference<Preference>("aboutCoreVersion")?.apply {
-            // @author 雾晚：显示内置 sing-box 版本（模块实际版本需 Root 查询，此处为打包版本）
-            summary = "sing-box v1.15.0-alpha.10 (内置)"
-            // 不可点击，仅展示
-            isSelectable = false
-        }
-        findPreference<Preference>("aboutGithub")?.setOnPreferenceClickListener {
-            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/Wuwan94/wanBoxForAndroid"))
-            startActivity(intent)
-            true
-        }
-
         val iconColor = Theme.getPrimaryColor(requireContext())
         tintPreferenceIcons(preferenceScreen, iconColor)
 
-        // @author 雾晚：四组重组，categoryUI 已合并到 categoryAppearance
+        val categoryUI = findPreference<ExpandablePreferenceCategory>("categoryUI")
+
         val nightTheme = findPreference<SimpleMenuPreference>(Key.NIGHT_THEME)!!
         nightTheme.setOnPreferenceChangeListener { _, newTheme ->
             Theme.currentNightMode = (newTheme as String).toInt()
@@ -243,10 +225,15 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
 
         // preview.17: TUN 实现固定为 Sing-Tun，不再提供选择入口
         val resolveDestination = findPreference<SwitchPreference>(Key.RESOLVE_DESTINATION)!!
-        // @author 雾晚：enableClashAPI 开关已移除（Root 固定启用），导航菜单默认显示
+        val hideFromRecentApps = findPreference<SwitchPreference>(Key.HIDE_FROM_RECENT_APPS)!!
+        val enableClashAPI = findPreference<SwitchPreference>(Key.ENABLE_CLASH_API)!!
+        enableClashAPI.setOnPreferenceChangeListener { _, newValue ->
+            (activity as MainActivity?)?.refreshNavMenu(newValue as Boolean)
+            needReload()
+            true
+        }
 
-        // @author 雾晚：四组重组，categoryCore 已合并到 categoryAdvancedGroup
-        val categoryCore = findPreference<ExpandablePreferenceCategory>("categoryAdvancedGroup")
+        val categoryCore = findPreference<ExpandablePreferenceCategory>("categoryCore")
         val rulesProvider = findPreference<SimpleMenuPreference>(Key.RULES_PROVIDER)!!
         categoryCore?.setChildVisibilityRule(Key.RULES_GEOSITE_URL) { DataStore.rulesProvider == 4 }
         categoryCore?.setChildVisibilityRule(Key.RULES_GEOIP_URL) { DataStore.rulesProvider == 4 }
@@ -337,6 +324,12 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             needReload()
             true
         }
+        hideFromRecentApps.setOnPreferenceChangeListener { _, newValue ->
+            (activity as? MainActivity)?.applyHideFromRecentApps(newValue as Boolean)
+            // needReload()
+            true
+        }
+
         enableTLSFragment.onPreferenceChangeListener = reloadListener
 
         // 恢复默认设置功能
@@ -402,6 +395,55 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
         lanSharingPref?.setOnPreferenceClickListener {
             startActivity(Intent(requireContext(), LanSharingActivity::class.java))
             true
+        }
+        // Keep all preference bindings alive; each new entry reveals its relevant section.
+        val section = arguments?.getString("section")
+        val categories = when (section) {
+            "dns" -> setOf("categoryDNS")
+            "root" -> setOf("categoryMode", "categoryVPN")
+            "network" -> setOf("categoryVPN", "categoryCore")
+            "appearance" -> setOf("categoryUI")
+            else -> null
+        }
+        if (categories != null) {
+            for (index in 0 until preferenceScreen.preferenceCount) {
+                val preference = preferenceScreen.getPreference(index)
+                preference.isVisible = preference.key in categories
+                if (preference.isVisible && preference is ExpandablePreferenceCategory) preference.setExpanded(true)
+            }
+        }
+        if (section == "appearance") {
+            val colors = ColorPickerPreference(requireContext()).apply {
+                key = "minimalThemePicker"
+                title = getString(R.string.theme)
+                order = -1
+                setOnPreferenceChangeListener { _, value ->
+                    val selection = value as ColorPickerPreference.Selection
+                    selection.customColor?.let { DataStore.customThemeColor = it }
+                    DataStore.appTheme = selection.themeId
+                    Theme.applyNightTheme()
+                    requireActivity().recreate()
+                    true
+                }
+            }
+            preferenceScreen.addPreference(colors)
+        }
+        if (section == "root") {
+            val status = Preference(requireContext()).apply {
+                key = "minimalModuleStatus"
+                title = getString(R.string.minimal_root)
+                summary = "—"
+                order = -1
+                isSelectable = false
+            }
+            preferenceScreen.addPreference(status)
+            lifecycleScope.launch {
+                status.summary = try {
+                    val module = io.nekohasekai.sagernet.bg.RootModuleClient.call("status")
+                    getString(if (module.connected) R.string.service_state_connected else R.string.service_state_idle)
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                  catch (e: Exception) { io.nekohasekai.sagernet.bg.RootModuleErrors.message(requireContext(), e) }
+            }
         }
     }
 

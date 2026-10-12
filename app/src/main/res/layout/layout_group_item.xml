@@ -1,142 +1,18 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- @author 雾晚 -->
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/content"
-    style="@style/Widget.SagerNet.CardView.Elevated"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_margin="@dimen/ui_card_gap">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="bottom"
-        android:orientation="vertical">
-
-        <com.google.android.material.progressindicator.LinearProgressIndicator
-            android:id="@+id/subscription_update_progress"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:indeterminate="true"
-            android:visibility="gone"
-            app:indicatorColor="?colorPrimary" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <CheckBox
-                android:id="@+id/group_checkbox"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center_vertical"
-                android:layout_marginStart="8dp"
-                android:visibility="gone" />
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="center_vertical"
-                android:paddingStart="15dp"
-                android:paddingTop="15dp"
-                android:paddingEnd="8dp"
-                android:paddingBottom="12dp">
-
-                <TextView
-                    android:id="@+id/group_name"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginEnd="8dp"
-                    android:textAppearance="?android:attr/textAppearanceMedium"
-                    android:textColor="?android:attr/textColorPrimary"
-                    android:textStyle="bold"
-                    tools:text="@string/group_name" />
-
-                <TextView
-                    android:id="@+id/group_user"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textAppearance="?android:attr/textAppearanceSmall"
-                    android:textColor="?android:attr/textColorSecondary"
-                    tools:text="user name" />
+<?xml version="1.0" ?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:id="@+id/content" style="@style/Widget.WanBox.Minimal.Card" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_margin="4dp" android:clickable="true" android:focusable="true">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+        <com.google.android.material.progressindicator.LinearProgressIndicator android:id="@+id/subscription_update_progress" android:layout_width="match_parent" android:layout_height="2dp" android:indeterminate="true" android:visibility="gone" app:indicatorColor="@color/minimal_icon"/>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="72dp" android:gravity="center_vertical" android:paddingStart="4dp" android:paddingEnd="0dp">
+            <CheckBox android:id="@+id/group_checkbox" android:layout_width="@dimen/ui_touch_target" android:layout_height="@dimen/ui_touch_target" android:buttonTint="@color/minimal_icon"/>
+            <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical" android:paddingVertical="10dp">
+                <TextView android:id="@+id/group_name" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="15sp" android:textStyle="bold" android:textColor="@color/minimal_text" android:maxLines="2" android:ellipsize="end"/>
+                <TextView android:id="@+id/group_user" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="@color/minimal_secondary" android:textSize="12sp" android:visibility="gone"/>
+                <TextView android:id="@+id/group_status" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textSize="12sp" android:textColor="@color/minimal_secondary"/>
+                <TextView android:id="@+id/group_traffic" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textColor="@color/minimal_secondary" android:textSize="11sp" android:visibility="gone"/>
             </LinearLayout>
-
-            <androidx.appcompat.widget.AppCompatImageView
-                android:id="@+id/edit"
-                android:layout_width="@dimen/ui_touch_target"
-                android:layout_height="@dimen/ui_touch_target"
-                android:layout_gravity="top"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/edit"
-                android:focusable="true"
-                android:padding="12dp"
-                app:srcCompat="@drawable/ic_image_edit" />
-
-            <androidx.appcompat.widget.AppCompatImageView
-                android:id="@+id/options"
-                android:layout_width="@dimen/ui_touch_target"
-                android:layout_height="@dimen/ui_touch_target"
-                android:layout_gravity="top"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:focusable="true"
-                android:contentDescription="@string/more"
-                android:nextFocusLeft="@+id/container"
-                android:padding="12dp"
-                app:srcCompat="@drawable/ic_baseline_more_vert_24" />
-
+            <com.google.android.material.button.MaterialButton android:id="@+id/group_update" style="@style/Widget.MaterialComponents.Button.TextButton" android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="48dp" android:paddingHorizontal="4dp" android:text="@string/group_update" android:textSize="12sp" android:textColor="@color/minimal_text" app:icon="@drawable/ic_minimal_refresh" app:iconSize="18dp" app:iconPadding="4dp" app:iconTint="@color/minimal_icon"/>
+            <ImageView android:id="@+id/edit" android:layout_width="@dimen/ui_touch_target" android:layout_height="@dimen/ui_touch_target" android:padding="12dp" android:contentDescription="@string/edit" android:src="@drawable/ic_image_edit" android:visibility="gone"/>
+            <ImageView android:id="@+id/options" android:layout_width="@dimen/ui_touch_target" android:layout_height="@dimen/ui_touch_target" android:padding="14dp" android:background="?attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_baseline_more_vert_24" android:tint="@color/minimal_icon" android:contentDescription="@string/more"/>
         </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_marginLeft="4dp"
-            android:layout_marginRight="4dp"
-            android:layout_marginBottom="4dp"
-            android:gravity="bottom">
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="8dp"
-                android:layout_weight="1"
-                android:gravity="bottom"
-                android:orientation="vertical"
-                android:paddingStart="@dimen/ui_page_padding"
-                android:paddingTop="8dp">
-
-                <TextView
-                    android:id="@+id/group_traffic"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textAppearance="?android:attr/textAppearanceSmall"
-                    android:textColor="?android:textColorSecondary"
-                    android:visibility="gone"
-                    tools:text="@string/subscription_traffic" />
-
-                <TextView
-                    android:id="@+id/group_status"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textAppearance="?android:attr/textAppearanceSmall"
-                    android:textColor="?android:textColorSecondary"
-                    tools:text="@string/group_status_empty" />
-
-            </LinearLayout>
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/group_update"
-                style="?attr/borderlessButtonStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
-                android:text="@string/group_update"
-                android:textColor="?android:textColorSecondary" />
-        </LinearLayout>
-
     </LinearLayout>
-
 </com.google.android.material.card.MaterialCardView>

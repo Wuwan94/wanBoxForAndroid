@@ -37,10 +37,9 @@ class UiLayoutResourcesTest {
         }
     }
     @Test fun statsTextIsNotShrunkAndSettingsGetRemainingViewport() {
-        // @author 雾晚：StatsBar 已删除，layout_main 不再含 status，诊断移至 Dashboard
+        // @author 雾晚：Codex 重设计保留 layout_main 的 btn_ip_detail，仅校验无自动缩小文本
         val stats = File("src/main/res/layout/layout_main.xml").readText()
         assertFalse(stats.contains("autoSizeMinTextSize"))
-        assertFalse(stats.contains("btn_ip_detail"))
         val settings = element("layout_config_settings", "settings")
         assertEquals("0dp", settings.getAttributeNS(androidNs, "layout_height"))
         assertEquals("1", settings.getAttributeNS(androidNs, "layout_weight"))

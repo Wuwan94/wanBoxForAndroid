@@ -6,6 +6,7 @@
     android:id="@+id/content"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    style="@style/Widget.WanBox.Minimal.Card"
     android:layout_margin="@dimen/ui_card_gap"
     android:clickable="true"
     android:focusable="true"
@@ -22,11 +23,13 @@
             android:focusable="false"
             android:orientation="vertical">
 
+
             <LinearLayout
                 android:id="@+id/container"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal">
+            <ImageView android:id="@+id/profile_check" android:layout_width="20dp" android:layout_height="20dp" android:layout_marginStart="12dp" android:layout_gravity="center_vertical" android:contentDescription="@null" android:visibility="gone" android:src="@drawable/ic_minimal_circle"/>
 
                 <LinearLayout
                     android:id="@+id/profile_title_area"
@@ -36,7 +39,7 @@
                     android:layout_weight="1"
                     android:gravity="center_vertical"
                     android:orientation="vertical"
-                    android:paddingStart="12dp"
+                    android:paddingStart="8dp"
                     android:paddingEnd="12dp"
                     android:paddingTop="8dp"
                     android:paddingBottom="8dp">
@@ -46,7 +49,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:minHeight="24dp"
-                        android:textSize="@dimen/ui_text_title"
+                        android:textSize="14sp"
                         android:breakStrategy="simple"
                         android:hyphenationFrequency="none"
                         android:lineBreakStyle="loose"
@@ -183,12 +186,11 @@
                     android:id="@+id/profile_type"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
+                    android:paddingStart="0dp"
+                    android:paddingEnd="0dp"
                     android:paddingTop="2dp"
                     android:paddingBottom="2dp"
                     android:textSize="@dimen/ui_text_caption"
-                    android:textStyle="bold"
                     tools:text="VMESS" />
 
                 <TextView

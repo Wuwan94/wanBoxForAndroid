@@ -26,6 +26,9 @@ import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.widget.ListListener
 import io.nekohasekai.sagernet.widget.QRCodeDialog
 import io.nekohasekai.sagernet.widget.UndoSnackbarManager
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
@@ -37,6 +40,8 @@ import java.util.*
 
 class GroupFragment : ToolbarFragment(R.layout.layout_group),
     Toolbar.OnMenuItemClickListener {
+
+    private fun runOnDefaultDispatcher(block: suspend kotlinx.coroutines.CoroutineScope.() -> Unit) = viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO, block = block)
 
     lateinit var activity: MainActivity
     lateinit var groupListView: RecyclerView
@@ -52,6 +57,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
     fun setSelectionMode(enabled: Boolean) {
         selectionMode = enabled
         if (!enabled) selectedGroupIds.clear()
+        selectionMode = true
         groupAdapter.notifyDataSetChanged()
         updateSelectionUI()
     }
@@ -67,11 +73,11 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
     }
 
     private fun updateSelectionUI() {
-        // 更新标题栏显示选择数量
-        if (selectionMode && selectedGroupIds.isNotEmpty()) {
-            toolbar.title = "${getString(R.string.menu_group)} (${selectedGroupIds.size})"
-        } else {
-            toolbar.setTitle(R.string.menu_group)
+        if (!isToolbarInitialized) return
+        toolbar.setTitle(R.string.minimal_subscriptions_title)
+        view?.findViewById<android.widget.TextView>(R.id.subscriptions_update_selected)?.apply {
+            text = getString(R.string.minimal_update_selected, selectedGroupIds.size)
+            isEnabled = selectedGroupIds.isNotEmpty()
         }
     }
 
@@ -79,10 +85,23 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
         super.onViewCreated(view, savedInstanceState)
         activity = requireActivity() as MainActivity
 
-        ViewCompat.setOnApplyWindowInsetsListener(view, ListListener)
-        toolbar.setTitle(R.string.menu_group)
+        selectionMode = true
+        toolbar.setTitle(R.string.minimal_subscriptions_title)
         toolbar.inflateMenu(R.menu.add_group_menu)
+        toolbar.menu.findItem(R.id.action_update_all).isVisible = false
+        toolbar.menu.findItem(R.id.action_update_selected).isVisible = false
         toolbar.setOnMenuItemClickListener(this)
+        view.findViewById<View>(R.id.subscriptions_update_all).setOnClickListener { onMenuItemClick(toolbar.menu.findItem(R.id.action_update_all)) }
+        view.findViewById<View>(R.id.subscriptions_update_selected).setOnClickListener { onMenuItemClick(toolbar.menu.findItem(R.id.action_update_selected)) }
+        view.findViewById<View>(R.id.subscriptions_auto_update).setOnClickListener {
+            val groups = groupAdapter.groupList.filter { it.type == GroupType.SUBSCRIPTION }
+            if (groups.isEmpty()) { safeSnackbar(R.string.minimal_settings_empty); return@setOnClickListener }
+            MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.minimal_auto_update)
+                .setItems(groups.map { it.displayName() }.toTypedArray()) { _, index ->
+                    startActivity(Intent(requireContext(), GroupSettingsActivity::class.java).putExtra(GroupSettingsActivity.EXTRA_GROUP_ID, groups[index].id))
+                }.setNegativeButton(android.R.string.cancel, null).show()
+        }
+        updateSelectionUI()
 
         groupListView = view.findViewById(R.id.group_list)
         updateBottomPadding()
@@ -91,6 +110,11 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
         groupAdapter = GroupAdapter()
         GroupManager.addListener(groupAdapter)
         groupListView.adapter = groupAdapter
+        groupAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
+            override fun onChanged() = refreshOverview()
+            override fun onItemRangeInserted(positionStart: Int, itemCount: Int) = refreshOverview()
+            override fun onItemRangeRemoved(positionStart: Int, itemCount: Int) = refreshOverview()
+        })
 
         undoManager = UndoSnackbarManager(activity, groupAdapter)
 
@@ -145,7 +169,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
     fun updateBottomPadding() {
         if (!::groupListView.isInitialized) return
         groupListView.clipToPadding = false
-        groupListView.updatePadding(bottom = dp2px(if (DataStore.showBottomBar) 80 else 4))
+        groupListView.updatePadding(bottom = dp2px(8))
     }
 
     override fun onMenuItemClick(item: MenuItem): Boolean {
@@ -233,6 +257,29 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
         return true
     }
 
+    private fun refreshOverview() {
+        if (!::groupAdapter.isInitialized || view == null) return
+        val groups = groupAdapter.groupList
+        selectedGroupIds.retainAll(groups.map { it.id }.toSet())
+        view?.findViewById<android.widget.TextView>(R.id.subscriptions_summary)?.text = getString(R.string.minimal_overview,
+            groups.count { it.type == GroupType.SUBSCRIPTION }, groupAdapter.groupCounts.values.sum().toInt())
+        val empty = groups.isEmpty() || groups.all { it.ungrouped && groupAdapter.groupCounts[it.id] == 0L }
+        view?.findViewById<View>(R.id.subscriptions_empty)?.isVisible = empty
+        groupListView.isVisible = !empty
+        updateSelectionUI()
+    }
+
+    private fun updatedAgo(timestamp: Long): String {
+        if (timestamp <= 0) return getString(R.string.minimal_never_updated)
+        val minutes = ((System.currentTimeMillis() / 1000 - timestamp).coerceAtLeast(0)) / 60
+        return when {
+            minutes < 1 -> getString(R.string.minimal_just_updated)
+            minutes < 60 -> getString(R.string.minimal_minutes_ago, minutes)
+            minutes < 1440 -> getString(R.string.minimal_hours_ago, minutes / 60)
+            else -> getString(R.string.minimal_days_ago, minutes / 1440)
+        }
+    }
+
     private lateinit var selectedGroup: ProxyGroup
 
     private val exportProfiles =
@@ -281,6 +328,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
             groupList.addAll(groups)
             groupListView.post {
                 notifyDataSetChanged()
+                refreshOverview()
             }
         }
 
@@ -393,6 +441,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
                 return
             }
             groupList[index] = group
+            groupCounts = SagerDatabase.proxyDao.countByGroups(groupList.map { it.id }).associate { it.groupId to it.count }
             onMainDispatcher {
                 undoManager.flush()
 
@@ -408,6 +457,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
             }
             onMainDispatcher {
                 notifyItemChanged(index)
+                refreshOverview()
             }
         }
 
@@ -543,11 +593,15 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
         fun bind(group: ProxyGroup, size: Long) {
             proxyGroup = group
 
-            itemView.setOnClickListener { }
+            itemView.setOnClickListener {
+                if (!group.ungrouped) startActivity(Intent(requireContext(), GroupSettingsActivity::class.java).putExtra(GroupSettingsActivity.EXTRA_GROUP_ID, group.id))
+            }
+            (itemView as com.google.android.material.card.MaterialCardView).setCardBackgroundColor(requireContext().getColor(if (group.id in selectedGroupIds) R.color.minimal_selected else R.color.minimal_card))
 
             // preview.18 UI 改造：批量选择勾选框
             val fragment = this@GroupFragment
-            checkBox.visibility = if (fragment.selectionMode) View.VISIBLE else View.GONE
+            checkBox.visibility = if (group.type == GroupType.SUBSCRIPTION) View.VISIBLE else View.INVISIBLE
+            checkBox.contentDescription = getString(R.string.minimal_select_subscription, group.displayName())
             checkBox.setOnCheckedChangeListener(null)
             checkBox.isChecked = fragment.selectedGroupIds.contains(group.id)
             checkBox.setOnCheckedChangeListener { _, isChecked ->
@@ -557,6 +611,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
                     fragment.selectedGroupIds.remove(group.id)
                 }
                 fragment.updateSelectionUI()
+                (itemView as com.google.android.material.card.MaterialCardView).setCardBackgroundColor(requireContext().getColor(if (isChecked) R.color.minimal_selected else R.color.minimal_card))
             }
             itemView.setOnLongClickListener {
                 if (!fragment.selectionMode) {
@@ -567,7 +622,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
             }
 
             val isDisabled = DataStore.isGroupDisabled(proxyGroup.id)
-            editButton.isGone = proxyGroup.ungrouped
+            editButton.isGone = true
             updateButton.isInvisible = proxyGroup.type != GroupType.SUBSCRIPTION
             groupName.text = if (isDisabled) "${proxyGroup.displayName()} ${getString(R.string.group_disabled_status)}" else proxyGroup.displayName()
             itemView.alpha = if (isDisabled) 0.6f else 1.0f
@@ -625,7 +680,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
 
                 subscriptionUpdateProgress.isVisible = false
                 updateButton.isInvisible = proxyGroup.type != GroupType.SUBSCRIPTION
-                editButton.isGone = proxyGroup.ungrouped
+                editButton.isGone = true
             }
 
             val subscription = proxyGroup.subscription
@@ -699,6 +754,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
             }
 
             groupUser.text = subscription?.username ?: ""
+            groupUser.isVisible = !groupUser.text.isNullOrBlank()
 
             // @author 雾晚: use the pre-fetched batch counts; never query per row.
             @Suppress("DEPRECATION") when (group.type) {
@@ -714,12 +770,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
                     groupStatus.text = if (size == 0L) {
                         getString(R.string.group_status_empty_subscription)
                     } else {
-                        val date = Date(group.subscription!!.lastUpdated * 1000L)
-                        getString(
-                            R.string.group_status_proxies_subscription,
-                            size,
-                            "${date.month + 1} - ${date.date}"
-                        )
+                        getString(R.string.minimal_group_summary, size, updatedAgo(group.subscription!!.lastUpdated?.toLong() ?: 0L))
                     }
                 }
             }

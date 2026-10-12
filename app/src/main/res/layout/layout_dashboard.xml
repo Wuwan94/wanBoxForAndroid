@@ -1,405 +1,70 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- @author 雾晚 - preview.18 UI 改造：仪表盘 -->
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#F5F5F5"
-    android:fillViewport="true">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
-
-        <!-- 服务状态卡 -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardBackgroundColor="#FFFFFF"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="0dp"
-            app:strokeColor="#E0E0E0"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <!-- 服务状态行 -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:src="@drawable/ic_baseline_power_24"
-                        app:tint="#616161" />
-
-                    <TextView
-                        android:id="@+id/statusText"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:layout_weight="1"
-                        android:text="未连接"
-                        android:textColor="#212121"
-                        android:textSize="16sp" />
-
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/serviceSwitch"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" />
-                </LinearLayout>
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
-                    android:text="当前节点"
-                    android:textColor="#9E9E9E"
-                    android:textSize="12sp" />
-
-                <LinearLayout
-                    android:id="@+id/currentNodeLayout"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:id="@+id/nodeName"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="—"
-                            android:textColor="#212121"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/nodeInfo"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:text="—"
-                            android:textColor="#757575"
-                            android:textSize="13sp" />
+<?xml version="1.0" ?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@color/minimal_background">
+    <include layout="@layout/layout_appbar"/>
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true" android:clipToPadding="false">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingHorizontal="20dp" android:paddingBottom="16dp">
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Root" android:textColor="@color/minimal_secondary" android:textSize="13sp" android:layout_marginBottom="16dp"/>
+            <com.google.android.material.card.MaterialCardView style="@style/Widget.WanBox.Minimal.Card" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="14dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="16dp">
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:gravity="center_vertical">
+                        <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@drawable/ic_minimal_power" android:contentDescription="@null"/>
+                        <TextView android:id="@+id/statusText" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="12dp" android:text="@string/service_state_idle" android:textStyle="bold" android:textColor="@color/minimal_text" android:textSize="16sp" android:accessibilityLiveRegion="polite"/>
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/serviceSwitch" android:layout_width="wrap_content" android:layout_height="48dp" android:contentDescription="@string/minimal_root" app:useMaterialThemeColors="false" app:thumbTint="@color/minimal_switch_thumb" app:trackTint="@color/minimal_switch_track"/>
                     </LinearLayout>
-
-                    <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:src="@drawable/ic_baseline_chevron_right_24"
-                        app:tint="#9E9E9E" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:text="@string/minimal_current_node" android:textSize="13sp" android:textColor="@color/minimal_secondary"/>
+                    <LinearLayout android:id="@+id/currentNodeLayout" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="72dp" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
+                        <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
+                            <TextView android:id="@+id/nodeName" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="26sp" android:textStyle="bold" android:textColor="@color/minimal_text" android:maxLines="2" android:ellipsize="end"/>
+                            <TextView android:id="@+id/nodeInfo" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="—" android:textColor="@color/minimal_secondary" android:textSize="13sp"/>
+                        </LinearLayout>
+                        <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
+                    </LinearLayout>
+                    <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="12dp" android:background="@color/minimal_line"/>
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:gravity="center_vertical">
+                        <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/minimal_uptime" android:textSize="13sp" android:textColor="@color/minimal_secondary"/>
+                        <TextView android:id="@+id/uptimeText" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="—" android:textColor="@color/minimal_text" android:textSize="14sp"/>
+                    </LinearLayout>
                 </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="运行时长"
-                        android:textColor="#9E9E9E"
-                        android:textSize="13sp" />
-
-                    <TextView
-                        android:id="@+id/uptimeText"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:gravity="end"
-                        android:text="—"
-                        android:textColor="#212121"
-                        android:textSize="13sp" />
-                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+            <LinearLayout android:id="@+id/modeSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/bg_minimal_segment" android:padding="2dp" android:layout_marginBottom="14dp">
+                <Button android:id="@+id/modeRule" style="@style/Widget.WanBox.Minimal.Segment" android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp" android:text="@string/minimal_rule"/>
+                <Button android:id="@+id/modeGlobal" style="@style/Widget.WanBox.Minimal.Segment" android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp" android:text="@string/minimal_global"/>
+                <Button android:id="@+id/modeDirect" style="@style/Widget.WanBox.Minimal.Segment" android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp" android:text="@string/minimal_direct"/>
             </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- 模式切换 -->
-        <LinearLayout
-            android:id="@+id/modeSwitch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            android:background="@drawable/bg_mode_switch"
-            android:orientation="horizontal"
-            android:padding="4dp">
-
-            <Button
-                android:id="@+id/modeRule"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="规则" />
-
-            <Button
-                android:id="@+id/modeGlobal"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="全局" />
-
-            <Button
-                android:id="@+id/modeDirect"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="直连" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:baselineAligned="false" android:layout_marginBottom="12dp">
+                <com.google.android.material.card.MaterialCardView style="@style/Widget.WanBox.Minimal.Card" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="0dp" android:layout_marginEnd="6dp">
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="14dp">
+                        <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@drawable/ic_minimal_upload" android:contentDescription="@null"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/minimal_upload" android:textColor="@color/minimal_secondary" android:textSize="13sp"/>
+                        <TextView android:id="@+id/uploadSpeed" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="—" android:textStyle="bold" android:textSize="24sp" android:textColor="@color/minimal_text"/>
+                        <TextView android:id="@+id/uploadTotal" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="—" android:textColor="@color/minimal_secondary" android:textSize="12sp"/>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+                <com.google.android.material.card.MaterialCardView style="@style/Widget.WanBox.Minimal.Card" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:layout_marginEnd="0dp">
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="14dp">
+                        <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@drawable/ic_minimal_download" android:contentDescription="@null"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/minimal_download" android:textColor="@color/minimal_secondary" android:textSize="13sp"/>
+                        <TextView android:id="@+id/downloadSpeed" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="—" android:textStyle="bold" android:textSize="24sp" android:textColor="@color/minimal_text"/>
+                        <TextView android:id="@+id/downloadTotal" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="—" android:textColor="@color/minimal_secondary" android:textSize="12sp"/>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:baselineAligned="false" android:layout_marginBottom="12dp">
+                <com.google.android.material.card.MaterialCardView style="@style/Widget.WanBox.Minimal.Card" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="0dp" android:layout_marginEnd="6dp">
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="14dp">
+                        <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@drawable/ic_minimal_memory" android:contentDescription="@null"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/minimal_memory" android:textColor="@color/minimal_secondary" android:textSize="13sp"/>
+                        <TextView android:id="@+id/coreMemory" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="—" android:textStyle="bold" android:textSize="24sp" android:textColor="@color/minimal_text"/>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+                <com.google.android.material.card.MaterialCardView style="@style/Widget.WanBox.Minimal.Card" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:layout_marginEnd="0dp">
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="14dp">
+                        <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@drawable/ic_minimal_connections" android:contentDescription="@null"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/minimal_connections" android:textColor="@color/minimal_secondary" android:textSize="13sp"/>
+                        <TextView android:id="@+id/connectionCount" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="—" android:textStyle="bold" android:textSize="24sp" android:textColor="@color/minimal_text"/>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
         </LinearLayout>
-
-        <!-- 2x2 数据卡 -->
-        <GridLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:columnCount="2"
-            android:rowCount="2"
-            android:useDefaultMargins="false">
-
-            <!-- 上传 -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_columnWeight="1"
-                android:layout_marginEnd="6dp"
-                android:layout_marginBottom="12dp"
-                app:cardBackgroundColor="#FFFFFF"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="0dp"
-                app:strokeColor="#E0E0E0"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <ImageView
-                            android:layout_width="20dp"
-                            android:layout_height="20dp"
-                            android:src="@drawable/ic_baseline_upload_24"
-                            app:tint="#616161" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="6dp"
-                            android:text="上传"
-                            android:textColor="#757575"
-                            android:textSize="13sp" />
-                    </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/uploadSpeed"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="—"
-                        android:textColor="#212121"
-                        android:textSize="20sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/uploadTotal"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="累计 —"
-                        android:textColor="#9E9E9E"
-                        android:textSize="12sp" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- 下载 -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_columnWeight="1"
-                android:layout_marginStart="6dp"
-                android:layout_marginBottom="12dp"
-                app:cardBackgroundColor="#FFFFFF"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="0dp"
-                app:strokeColor="#E0E0E0"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <ImageView
-                            android:layout_width="20dp"
-                            android:layout_height="20dp"
-                            android:src="@drawable/ic_baseline_download_24"
-                            app:tint="#616161" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="6dp"
-                            android:text="下载"
-                            android:textColor="#757575"
-                            android:textSize="13sp" />
-                    </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/downloadSpeed"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="—"
-                        android:textColor="#212121"
-                        android:textSize="20sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/downloadTotal"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="累计 —"
-                        android:textColor="#9E9E9E"
-                        android:textSize="12sp" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- 核心内存 -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_columnWeight="1"
-                android:layout_marginEnd="6dp"
-                app:cardBackgroundColor="#FFFFFF"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="0dp"
-                app:strokeColor="#E0E0E0"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <ImageView
-                            android:layout_width="20dp"
-                            android:layout_height="20dp"
-                            android:src="@drawable/ic_baseline_memory_24"
-                            app:tint="#616161" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="6dp"
-                            android:text="核心内存"
-                            android:textColor="#757575"
-                            android:textSize="13sp" />
-                    </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/coreMemory"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="—"
-                        android:textColor="#212121"
-                        android:textSize="20sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- 连接数 -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_columnWeight="1"
-                android:layout_marginStart="6dp"
-                app:cardBackgroundColor="#FFFFFF"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="0dp"
-                app:strokeColor="#E0E0E0"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <ImageView
-                            android:layout_width="20dp"
-                            android:layout_height="20dp"
-                            android:src="@drawable/ic_baseline_hub_24"
-                            app:tint="#616161" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="6dp"
-                            android:text="连接数"
-                            android:textColor="#757575"
-                            android:textSize="13sp" />
-                    </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/connectionCount"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="—"
-                        android:textColor="#212121"
-                        android:textSize="20sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-        </GridLayout>
-
-    </LinearLayout>
-</ScrollView>
+    </ScrollView>
+</LinearLayout>

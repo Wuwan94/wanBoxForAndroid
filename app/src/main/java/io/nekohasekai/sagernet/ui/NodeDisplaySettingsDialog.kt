@@ -2,97 +2,63 @@ package io.nekohasekai.sagernet.ui
 
 import android.app.Dialog
 import android.os.Bundle
+import android.view.View
 import android.widget.RadioGroup
 import android.widget.SeekBar
-import androidx.appcompat.app.AlertDialog
+import android.widget.TextView
 import androidx.fragment.app.DialogFragment
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
 
-/**
- * preview.18 UI 改造：节点页显示设置对话框。
- * 支持列数、节点名称字号、卡片间距、卡片大小的持久化设置。
- */
-class NodeDisplaySettingsDialog : DialogFragment() {
+/** One binding shared by the inline panel and legacy dialog callers. */
+internal object NodeDisplaySettings {
+    fun bind(view: View, changed: () -> Unit) {
+        val columns = view.findViewById<RadioGroup>(R.id.columnCountGroup)
+        val density = view.findViewById<RadioGroup>(R.id.densityGroup)
+        val size = view.findViewById<SeekBar>(R.id.textSizeSeekBar)
+        val spacing = view.findViewById<SeekBar>(R.id.spacingSeekBar)
+        columns.check(when (if (DataStore.groupLayoutMode == 0) 1 else DataStore.nodeColumnCount.coerceIn(2, 3)) {
+            1 -> R.id.radioSingle; 3 -> R.id.radioMulti; else -> R.id.radioDouble
+        })
+        density.check(when (DataStore.nodeCardDensity) { 0 -> R.id.radioSmall; 2 -> R.id.radioLarge; else -> R.id.radioMedium })
+        size.progress = DataStore.nodeNameTextSize.coerceIn(10, 24)
+        spacing.progress = DataStore.nodeCardSpacing.coerceIn(0, 20)
+        fun labels() {
+            view.findViewById<TextView>(R.id.display_text_size_value).text = size.progress.toString()
+            view.findViewById<TextView>(R.id.display_spacing_value).text = spacing.progress.toString()
+        }
+        labels()
+        columns.setOnCheckedChangeListener { _, id ->
+            DataStore.nodeColumnCount = when (id) { R.id.radioSingle -> 1; R.id.radioMulti -> 3; else -> 2 }
+            DataStore.groupLayoutMode = if (DataStore.nodeColumnCount == 1) 0 else 1
+            changed()
+        }
+        density.setOnCheckedChangeListener { _, id ->
+            DataStore.nodeCardDensity = when (id) { R.id.radioSmall -> 0; R.id.radioLarge -> 2; else -> 1 }
+            changed()
+        }
+        fun listener(save: (Int) -> Unit) = object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(bar: SeekBar?, value: Int, fromUser: Boolean) {
+                labels()
+                if (fromUser) { save(value); changed() }
+            }
+            override fun onStartTrackingTouch(bar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(bar: SeekBar?) = Unit
+        }
+        size.setOnSeekBarChangeListener(listener { DataStore.nodeNameTextSize = it })
+        spacing.setOnSeekBarChangeListener(listener { DataStore.nodeCardSpacing = it })
+    }
+}
 
+class NodeDisplaySettingsDialog : DialogFragment() {
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val view = layoutInflater.inflate(R.layout.dialog_node_display_settings, null)
-
-        val columnCountGroup = view.findViewById<RadioGroup>(R.id.columnCountGroup)
-        val textSizeSeekBar = view.findViewById<SeekBar>(R.id.textSizeSeekBar)
-        val spacingSeekBar = view.findViewById<SeekBar>(R.id.spacingSeekBar)
-        val densityGroup = view.findViewById<RadioGroup>(R.id.densityGroup)
-
-        // 初始化当前值
-        when (DataStore.nodeColumnCount) {
-            1 -> columnCountGroup.check(R.id.radioSingle)
-            3 -> columnCountGroup.check(R.id.radioMulti)
-            else -> columnCountGroup.check(R.id.radioDouble)
+        NodeDisplaySettings.bind(view) {
+            val host = parentFragment as? ConfigurationFragment ?: (activity as? MainActivity)?.supportFragmentManager?.findFragmentById(R.id.fragment_holder) as? ConfigurationFragment
+            host?.onDisplaySettingsChanged()
         }
-        textSizeSeekBar.progress = DataStore.nodeNameTextSize
-        spacingSeekBar.progress = DataStore.nodeCardSpacing
-        when (DataStore.nodeCardDensity) {
-            0 -> densityGroup.check(R.id.radioSmall)
-            2 -> densityGroup.check(R.id.radioLarge)
-            else -> densityGroup.check(R.id.radioMedium)
-        }
-
-        // 监听变化并保存
-        columnCountGroup.setOnCheckedChangeListener { _, checkedId ->
-            DataStore.nodeColumnCount = when (checkedId) {
-                R.id.radioSingle -> 1
-                R.id.radioMulti -> 3
-                else -> 2
-            }
-            // 同步更新 groupLayoutMode（0=单列，1=多列）
-            DataStore.groupLayoutMode = if (DataStore.nodeColumnCount == 1) 0 else 1
-            notifySettingsChanged()
-        }
-
-        textSizeSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    DataStore.nodeNameTextSize = progress.coerceAtLeast(10)
-                    notifySettingsChanged()
-                }
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-
-        spacingSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    DataStore.nodeCardSpacing = progress
-                    notifySettingsChanged()
-                }
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-
-        densityGroup.setOnCheckedChangeListener { _, checkedId ->
-            DataStore.nodeCardDensity = when (checkedId) {
-                R.id.radioSmall -> 0
-                R.id.radioLarge -> 2
-                else -> 1
-            }
-            notifySettingsChanged()
-        }
-
-        return AlertDialog.Builder(requireContext())
-            .setTitle(R.string.node_display_settings)
-            .setView(view)
-            .setPositiveButton(android.R.string.ok, null)
-            .create()
-    }
-
-    private fun notifySettingsChanged() {
-        // 通知父 Fragment 刷新布局
-        (parentFragment as? ConfigurationFragment)?.onDisplaySettingsChanged()
-            ?: (activity as? MainActivity)?.let {
-                val fragment = it.supportFragmentManager.findFragmentById(R.id.fragment_holder)
-                (fragment as? ConfigurationFragment)?.onDisplaySettingsChanged()
-            }
+        view.findViewById<View>(R.id.display_settings_close).setOnClickListener { dismiss() }
+        return MaterialAlertDialogBuilder(requireContext()).setView(view).setPositiveButton(android.R.string.ok, null).create()
     }
 }
