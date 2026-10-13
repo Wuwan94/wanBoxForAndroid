@@ -83,3 +83,15 @@
 -keep,allowobfuscation class io.nekohasekai.sagernet.utils.BoundedImageDecoder { public *; }
 -keep,allowobfuscation class io.nekohasekai.sagernet.utils.SecureNetwork { public *; }
 -keep,allowobfuscation class moe.matsuri.nb4a.ui.ExpandablePreferenceCategory { public *; }
+
+# 跨 APK Instrumentation 测试入口：允许重命名，但禁止成员内联、参数移除及签名重写
+-keep,allowobfuscation class io.nekohasekai.sagernet.database.GroupManager {
+    public static final io.nekohasekai.sagernet.database.GroupManager INSTANCE;
+    public java.lang.Object deleteGroup(long, kotlin.coroutines.Continuation);
+}
+
+-keep,allowobfuscation class io.nekohasekai.sagernet.database.ProfileManager {
+    public static final io.nekohasekai.sagernet.database.ProfileManager INSTANCE;
+    public java.lang.Object createProfile(long, io.nekohasekai.sagernet.fmt.AbstractBean, kotlin.coroutines.Continuation);
+    public java.lang.Object updateProfile(io.nekohasekai.sagernet.database.ProxyEntity, kotlin.coroutines.Continuation);
+}
