@@ -155,3 +155,14 @@
 -keep,allowobfuscation class androidx.recyclerview.widget.GridLayoutManager {
     public int getSpanCount();
 }
+
+# MinimalUiTest 检查 RecyclerView 内部待定更新、布局状态与动画器
+-keep,allowobfuscation class androidx.recyclerview.widget.RecyclerView {
+    public boolean isComputingLayout();
+    public boolean hasPendingAdapterUpdates();
+    public androidx.recyclerview.widget.RecyclerView$ItemAnimator getItemAnimator();
+}
+
+-keep,allowobfuscation class androidx.recyclerview.widget.RecyclerView$ItemAnimator {
+    public boolean isRunning();
+}

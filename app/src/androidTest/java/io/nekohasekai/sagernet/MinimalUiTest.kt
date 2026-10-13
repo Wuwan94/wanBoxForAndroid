@@ -7,6 +7,7 @@ import android.widget.CheckBox
 import android.widget.RadioGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import androidx.test.platform.app.InstrumentationRegistry
 import io.nekohasekai.sagernet.database.*
 import io.nekohasekai.sagernet.fmt.shadowsocks.ShadowsocksBean
@@ -15,6 +16,8 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /** Run on a clean emulator; fixtures use reserved invalid hosts, never real subscriptions. */
 class MinimalUiTest {
@@ -116,8 +119,76 @@ class MinimalUiTest {
                 fail("Screen did not become ready at step: $step. Diagnostics: [${diag.take(1024)}]")
             }
 
+            fun awaitFrameRendered(step: String) {
+                idle()
+                repeat(100) {
+                    var settled = false
+                    instrumentation.runOnMainSync {
+                        val decor = host.window?.decorView
+                        val decorReady = decor != null && decor.isLaidOut && !decor.isLayoutRequested
+                        val curFrag = host.supportFragmentManager.findFragmentById(R.id.fragment_holder)
+                        val fragView = curFrag?.view
+                        val fragReady = fragView != null && fragView.isShown && fragView.isLaidOut && !fragView.isLayoutRequested
+
+                        val rv = when (curFrag) {
+                            is ConfigurationFragment -> curFrag.getCurrentGroupFragment()?.configurationListView
+                            is GroupFragment -> fragView?.findViewById<RecyclerView>(R.id.group_list)
+                            else -> null
+                        }
+                        val rvReady = if (rv != null) {
+                            rv.isShown && rv.isLaidOut && !rv.isLayoutRequested &&
+                                !rv.isComputingLayout && !rv.hasPendingAdapterUpdates() &&
+                                rv.itemAnimator?.isRunning != true
+                        } else {
+                            true
+                        }
+
+                        settled = decorReady && fragReady && rvReady
+                    }
+                    if (settled) {
+                        val latch = CountDownLatch(1)
+                        val callback = Runnable { latch.countDown() }
+                        var registered = false
+                        try {
+                            instrumentation.runOnMainSync {
+                                val decor = host.window?.decorView
+                                if (decor != null && decor.isAttachedToWindow && decor.isHardwareAccelerated) {
+                                    decor.viewTreeObserver.registerFrameCommitCallback(callback)
+                                    decor.invalidate()
+                                    registered = true
+                                }
+                            }
+                            if (!registered) {
+                                fail("Window decorView is not attached or hardware accelerated at step: $step")
+                            }
+                            if (latch.await(2000, TimeUnit.MILLISECONDS)) {
+                                idle()
+                                return
+                            } else {
+                                runCatching { screenshot("failure-$step") }
+                                fail("Frame commit timeout at step: $step")
+                            }
+                        } finally {
+                            if (registered) {
+                                instrumentation.runOnMainSync {
+                                    host.window?.decorView?.viewTreeObserver?.unregisterFrameCommitCallback(callback)
+                                }
+                            }
+                        }
+                    }
+                    Thread.sleep(100)
+                }
+                runCatching { screenshot("failure-$step") }
+                fail("UI settled frame timeout at step: $step")
+            }
+
+            fun captureScreen(name: String) {
+                awaitFrameRendered(name)
+                screenshot(name)
+            }
+
             awaitReady("dashboard") { host.findViewById<TextView>(R.id.nodeName)?.text.toString() == "日本 01" }
-            screenshot("01-dashboard")
+            captureScreen("01-dashboard")
 
             instrumentation.runOnMainSync { host.binding.bottomNav.selectedItemId = R.id.nav_nodes }
             awaitReady("nodes") {
@@ -136,12 +207,17 @@ class MinimalUiTest {
                 host.findViewById<View>(R.id.node_display_panel)?.visibility == View.VISIBLE &&
                     fragment?.adapter?.groupFragments?.get(ConfigurationFragment.ALL_GROUPS_SENTINEL_ID)?.adapter?.itemCount == 12
             }
-            screenshot("02-nodes")
+            captureScreen("02-nodes")
 
             instrumentation.runOnMainSync { host.findViewById<RadioGroup>(R.id.columnCountGroup).check(R.id.radioMulti) }
             awaitReady("three-columns") {
                 val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as? ConfigurationFragment
-                fragment?.adapter?.groupFragments?.values?.any { (it.layoutManager as? GridLayoutManager)?.spanCount == 3 } == true
+                val hasAnySpan3 = fragment?.adapter?.groupFragments?.values?.any { (it.layoutManager as? GridLayoutManager)?.spanCount == 3 } == true
+                val allGroupFrag = fragment?.adapter?.groupFragments?.get(ConfigurationFragment.ALL_GROUPS_SENTINEL_ID)
+                val allGroupSpan3 = (allGroupFrag?.layoutManager as? GridLayoutManager)?.spanCount == 3
+                val list = allGroupFrag?.configurationListView
+                val firstProfileName = list?.getChildAt(0)?.findViewById<TextView>(R.id.profile_name)?.text?.toString()
+                hasAnySpan3 && allGroupSpan3 && !firstProfileName.isNullOrBlank()
             }
             idle()
             instrumentation.runOnMainSync {
@@ -150,7 +226,7 @@ class MinimalUiTest {
                 val name = list.getChildAt(0).findViewById<TextView>(R.id.profile_name)
                 assertTrue("Three-column names need readable width", name.width >= (48 * context.resources.displayMetrics.density).toInt())
             }
-            screenshot("02b-nodes-three-columns")
+            captureScreen("02b-nodes-three-columns")
 
             instrumentation.runOnMainSync {
                 host.findViewById<RadioGroup>(R.id.columnCountGroup).check(R.id.radioDouble)
@@ -166,11 +242,16 @@ class MinimalUiTest {
                 assertTrue(host.findViewById<View>(R.id.subscriptions_update_selected).isEnabled)
                 assertEquals("更新选中 (2)", host.findViewById<TextView>(R.id.subscriptions_update_selected).text.toString())
             }
-            screenshot("03-subscriptions")
+            captureScreen("03-subscriptions")
 
             instrumentation.runOnMainSync { host.binding.bottomNav.selectedItemId = R.id.nav_settings }
-            awaitReady("settings") { host.findViewById<View>(R.id.settings_dns) != null }
-            screenshot("04-settings")
+            awaitReady("settings") {
+                val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as? SettingsFragment
+                val dnsView = host.findViewById<View>(R.id.settings_dns)
+                fragment?.toolbar?.title?.toString() == context.getString(R.string.settings) &&
+                    dnsView?.isShown == true
+            }
+            captureScreen("04-settings")
 
             instrumentation.runOnMainSync { host.findViewById<View>(R.id.settings_dns).performClick() }
             awaitReady("dns-open") {
