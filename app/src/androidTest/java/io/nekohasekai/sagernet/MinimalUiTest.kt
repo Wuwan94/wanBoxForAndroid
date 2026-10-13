@@ -28,7 +28,17 @@ class MinimalUiTest {
         val oldColumns = DataStore.nodeColumnCount
         val oldInfo = DataStore.showSubscriptionInfoCard
         var activity: MainActivity? = null
-        val output = File(context.getExternalFilesDir(null), "minimal-ui").apply { mkdirs() }
+
+        val baseOutputDir = InstrumentationRegistry.getArguments().getString("additionalTestOutputDir")?.let { File(it) }
+            ?: context.externalMediaDirs.firstOrNull()?.resolve("additional_test_output")
+            ?: context.getExternalFilesDir(null)
+            ?: context.filesDir
+
+        val output = File(baseOutputDir, "minimal-ui").apply {
+            if (!exists()) mkdirs()
+            assertTrue("Output directory invalid: $absolutePath", isDirectory)
+        }
+
         try {
             runBlocking {
                 for (index in 0 until 6) {
@@ -62,43 +72,74 @@ class MinimalUiTest {
             activity = instrumentation.startActivitySync(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
             val host = activity!!
             fun idle() { instrumentation.waitForIdleSync() }
-            fun awaitReady(predicate: () -> Boolean) {
+
+            fun screenshot(name: String) {
+                idle()
+                val bitmap = checkNotNull(instrumentation.uiAutomation.takeScreenshot()) { "takeScreenshot returned null for $name" }
+                try {
+                    File(output, "$name.webp").outputStream().use { out ->
+                        assertTrue(bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSLESS, 100, out))
+                    }
+                } finally {
+                    bitmap.recycle()
+                }
+            }
+
+            fun awaitReady(step: String, predicate: () -> Boolean) {
                 repeat(100) {
                     var ready = false
                     instrumentation.runOnMainSync { ready = predicate() }
                     if (ready) return
                     Thread.sleep(100)
                 }
-                fail("Screen did not become ready")
-            }
-            fun screenshot(name: String) {
-                idle()
-                instrumentation.uiAutomation.takeScreenshot().let { bitmap ->
-                    File(output, "$name.png").outputStream().use { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
-                    bitmap.recycle()
+                runCatching { screenshot("failure-$step") }
+                var diag = ""
+                instrumentation.runOnMainSync {
+                    runCatching {
+                        val curFrag = host.supportFragmentManager.findFragmentById(R.id.fragment_holder)
+                        val fragName = curFrag?.javaClass?.simpleName ?: "null"
+                        val panelVis = host.findViewById<View>(R.id.node_display_panel)?.visibility ?: -1
+                        val nodesSummary = host.findViewById<TextView>(R.id.nodes_summary)?.text?.toString() ?: "null"
+                        if (curFrag is ConfigurationFragment) {
+                            val pagerItem = runCatching { curFrag.groupPager.currentItem }.getOrDefault(-1)
+                            val groupIds = runCatching { curFrag.adapter.groupList.map { it.id } }.getOrDefault(emptyList())
+                            val allFrag = curFrag.adapter.groupFragments[ConfigurationFragment.ALL_GROUPS_SENTINEL_ID]
+                            val allItemCount = allFrag?.adapter?.itemCount ?: -1
+                            diag = "frag=$fragName, panelVis=$panelVis, pagerItem=$pagerItem, groupIds=$groupIds, allItemCount=$allItemCount, nodesSummary=$nodesSummary"
+                        } else {
+                            diag = "frag=$fragName, panelVis=$panelVis, nodesSummary=$nodesSummary"
+                        }
+                    }.onFailure { e ->
+                        diag = "diag_error=${e.javaClass.simpleName}:${e.message}"
+                    }
                 }
+                fail("Screen did not become ready at step: $step. Diagnostics: [${diag.take(1024)}]")
             }
-            awaitReady { host.findViewById<TextView>(R.id.nodeName)?.text.toString() == "日本 01" }
+
+            awaitReady("dashboard") { host.findViewById<TextView>(R.id.nodeName)?.text.toString() == "日本 01" }
             screenshot("01-dashboard")
+
             instrumentation.runOnMainSync { host.binding.bottomNav.selectedItemId = R.id.nav_nodes }
-            awaitReady {
+            awaitReady("nodes") {
                 val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as? ConfigurationFragment
                 fragment?.isToolbarInitialized == true && fragment.adapter.groupList.isNotEmpty()
             }
+
             instrumentation.runOnMainSync {
                 val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as ConfigurationFragment
                 val all = fragment.adapter.groupList.indexOfFirst { it.id == ConfigurationFragment.ALL_GROUPS_SENTINEL_ID }
                 if (all >= 0) fragment.groupPager.setCurrentItem(all, false)
                 fragment.toolbar.menu.findItem(R.id.action_display_settings).let { fragment.toolbar.menu.performIdentifierAction(it.itemId, 0) }
             }
-            awaitReady {
+            awaitReady("display-panel") {
                 val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as? ConfigurationFragment
                 host.findViewById<View>(R.id.node_display_panel)?.visibility == View.VISIBLE &&
                     fragment?.adapter?.groupFragments?.get(ConfigurationFragment.ALL_GROUPS_SENTINEL_ID)?.adapter?.itemCount == 12
             }
             screenshot("02-nodes")
+
             instrumentation.runOnMainSync { host.findViewById<RadioGroup>(R.id.columnCountGroup).check(R.id.radioMulti) }
-            awaitReady {
+            awaitReady("three-columns") {
                 val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as? ConfigurationFragment
                 fragment?.adapter?.groupFragments?.values?.any { (it.layoutManager as? GridLayoutManager)?.spanCount == 3 } == true
             }
@@ -110,11 +151,12 @@ class MinimalUiTest {
                 assertTrue("Three-column names need readable width", name.width >= (48 * context.resources.displayMetrics.density).toInt())
             }
             screenshot("02b-nodes-three-columns")
+
             instrumentation.runOnMainSync {
                 host.findViewById<RadioGroup>(R.id.columnCountGroup).check(R.id.radioDouble)
                 host.binding.bottomNav.selectedItemId = R.id.nav_subscriptions
             }
-            awaitReady { host.findViewById<TextView>(R.id.subscriptions_summary)?.text?.contains("12") == true }
+            awaitReady("subscriptions") { host.findViewById<TextView>(R.id.subscriptions_summary)?.text?.contains("12") == true }
             instrumentation.runOnMainSync {
                 val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as GroupFragment
                 fragment.toggleGroupSelection(ids[0]); fragment.toggleGroupSelection(ids[1])
@@ -125,11 +167,13 @@ class MinimalUiTest {
                 assertEquals("更新选中 (2)", host.findViewById<TextView>(R.id.subscriptions_update_selected).text.toString())
             }
             screenshot("03-subscriptions")
+
             instrumentation.runOnMainSync { host.binding.bottomNav.selectedItemId = R.id.nav_settings }
-            awaitReady { host.findViewById<View>(R.id.settings_dns) != null }
+            awaitReady("settings") { host.findViewById<View>(R.id.settings_dns) != null }
             screenshot("04-settings")
+
             instrumentation.runOnMainSync { host.findViewById<View>(R.id.settings_dns).performClick() }
-            awaitReady {
+            awaitReady("dns-open") {
                 val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as? SettingsFragment
                 fragment?.childFragmentManager?.findFragmentById(R.id.settings) is SettingsPreferenceFragment
             }
@@ -138,7 +182,7 @@ class MinimalUiTest {
                 assertEquals(context.getString(R.string.minimal_dns), fragment.toolbar.title.toString())
                 assertTrue(fragment.onBackPressed())
             }
-            awaitReady { host.findViewById<View>(R.id.settings_dns) != null }
+            awaitReady("dns-close") { host.findViewById<View>(R.id.settings_dns) != null }
             instrumentation.runOnMainSync {
                 assertTrue(host.binding.bottomNav.menu.findItem(R.id.nav_settings).isChecked)
                 assertTrue(host.binding.fragmentHolder.bottom <= host.binding.bottomNav.top)
