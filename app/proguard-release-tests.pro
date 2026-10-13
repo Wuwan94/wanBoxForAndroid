@@ -95,3 +95,58 @@
     public java.lang.Object createProfile(long, io.nekohasekai.sagernet.fmt.AbstractBean, kotlin.coroutines.Continuation);
     public java.lang.Object updateProfile(io.nekohasekai.sagernet.database.ProxyEntity, kotlin.coroutines.Continuation);
 }
+
+# -----------------------------------------------------------------------------
+# MinimalUiTest 跨 APK 实际引用的 UI / 工具类入口（允许混淆重命名，禁止裁剪/内联/修改签名）
+# -----------------------------------------------------------------------------
+
+-keep,allowobfuscation class io.nekohasekai.sagernet.utils.AppLocale {
+    public static final io.nekohasekai.sagernet.utils.AppLocale INSTANCE;
+    public final void apply(java.lang.String);
+}
+
+-keep,allowobfuscation class io.nekohasekai.sagernet.ui.MainActivity {
+    public final io.nekohasekai.sagernet.databinding.LayoutMainBinding getBinding();
+}
+
+-keep,allowobfuscation class io.nekohasekai.sagernet.databinding.LayoutMainBinding {
+    public final com.google.android.material.bottomnavigation.BottomNavigationView bottomNav;
+    public final androidx.coordinatorlayout.widget.CoordinatorLayout fragmentHolder;
+}
+
+-keep,allowobfuscation class io.nekohasekai.sagernet.ui.ToolbarFragment {
+    public final androidx.appcompat.widget.Toolbar getToolbar();
+    public final boolean isToolbarInitialized();
+}
+
+-keep,allowobfuscation class io.nekohasekai.sagernet.ui.ConfigurationFragment {
+    public static final long ALL_GROUPS_SENTINEL_ID;
+    public final io.nekohasekai.sagernet.ui.ConfigurationFragment$GroupPagerAdapter getAdapter();
+    public final androidx.viewpager2.widget.ViewPager2 getGroupPager();
+    public final io.nekohasekai.sagernet.ui.ConfigurationFragment$GroupFragment getCurrentGroupFragment();
+}
+
+-keep,allowobfuscation class io.nekohasekai.sagernet.ui.ConfigurationFragment$GroupPagerAdapter {
+    public final java.util.ArrayList getGroupList();
+    public final java.util.HashMap getGroupFragments();
+}
+
+-keep,allowobfuscation class io.nekohasekai.sagernet.ui.ConfigurationFragment$GroupFragment {
+    public final io.nekohasekai.sagernet.ui.ConfigurationFragment$GroupFragment$ConfigurationAdapter getAdapter();
+    public final androidx.recyclerview.widget.RecyclerView$LayoutManager getLayoutManager();
+    public final androidx.recyclerview.widget.RecyclerView getConfigurationListView();
+}
+
+-keep,allowobfuscation class io.nekohasekai.sagernet.ui.ConfigurationFragment$GroupFragment$ConfigurationAdapter {
+    public int getItemCount();
+}
+
+-keep,allowobfuscation class io.nekohasekai.sagernet.ui.GroupFragment {
+    public final void toggleGroupSelection(long);
+}
+
+-keep,allowobfuscation class io.nekohasekai.sagernet.ui.SettingsFragment {
+    public boolean onBackPressed();
+}
+
+-keep,allowobfuscation class io.nekohasekai.sagernet.ui.SettingsPreferenceFragment
