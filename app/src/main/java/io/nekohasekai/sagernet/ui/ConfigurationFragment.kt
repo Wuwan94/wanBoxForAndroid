@@ -183,6 +183,18 @@ class ConfigurationFragment @JvmOverloads constructor(
     companion object {
         /** Synthetic ProxyGroup ID used for the "All Groups" tab. Must be negative to avoid DB collision. */
         const val ALL_GROUPS_SENTINEL_ID = -1L
+
+        /**
+         * Reserved stable item ID for ViewPager2 FragmentStateAdapter.
+         * RecyclerView.NO_ID is -1L, matching ALL_GROUPS_SENTINEL_ID and causing
+         * FragmentStateAdapter.updateFragmentMaxLifecycle() to short-circuit on initial page 0.
+         */
+        const val PAGER_STABLE_ALL_GROUPS_ID = Long.MIN_VALUE
+
+        @JvmStatic
+        fun pagerStableIdOf(groupId: Long): Long {
+            return if (groupId == ALL_GROUPS_SENTINEL_ID) PAGER_STABLE_ALL_GROUPS_ID else groupId
+        }
     }
 
     private fun runOnDefaultDispatcher(block: suspend kotlinx.coroutines.CoroutineScope.() -> Unit): kotlinx.coroutines.Job =
@@ -354,8 +366,9 @@ class ConfigurationFragment @JvmOverloads constructor(
             if (pagerAdapter == null) return null
             val pos = if (groupPagerView != null) groupPager.currentItem else adapter.selectedGroupIndex
             val group = adapter.groupList.getOrNull(pos) ?: return null
+            val stableId = pagerStableIdOf(group.id)
             adapter.groupFragments[group.id]
-                ?: (childFragmentManager.findFragmentByTag("f" + group.id) as? GroupFragment)
+                ?: (childFragmentManager.findFragmentByTag("f$stableId") as? GroupFragment)
         } catch (e: Exception) {
             Logs.e(e)
             null
@@ -2524,11 +2537,11 @@ class ConfigurationFragment @JvmOverloads constructor(
         }
 
         override fun getItemId(position: Int): Long {
-            return groupList[position].id
+            return pagerStableIdOf(groupList[position].id)
         }
 
         override fun containsItem(itemId: Long): Boolean {
-            return groupList.any { it.id == itemId }
+            return groupList.any { pagerStableIdOf(it.id) == itemId }
         }
 
         override suspend fun groupAdd(group: ProxyGroup) {

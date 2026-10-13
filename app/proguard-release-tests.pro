@@ -150,3 +150,8 @@
 }
 
 -keep,allowobfuscation class io.nekohasekai.sagernet.ui.SettingsPreferenceFragment
+
+# MinimalUiTest 断言跨 APK 直接调用的外部 RecyclerView 布局管理器方法
+-keep,allowobfuscation class androidx.recyclerview.widget.GridLayoutManager {
+    public int getSpanCount();
+}
