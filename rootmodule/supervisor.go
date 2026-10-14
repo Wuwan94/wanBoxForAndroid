@@ -311,6 +311,11 @@ func (r *Runtime) runGeneration(ctx context.Context, rev string, snapshot Snapsh
 			cancel()
 		case <-probe.tick:
 			if _, e = os.Stat(r.path("runtime", "ready")); e == nil {
+				if alignErr := r.AlignClashMode(childCtx, rev, p); alignErr != nil {
+					startupFailed = true
+					cancel()
+					break
+				}
 				mu.Lock()
 				if s.Phase != "connected" {
 					s.Phase = "connected"

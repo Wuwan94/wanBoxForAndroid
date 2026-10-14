@@ -68,6 +68,7 @@ class RouteRuleCompatibilityTest {
         val previousSettings = io.nekohasekai.sagernet.database.preference.PublicDatabase.kvPairDao.all()
         val previousMode = DataStore.serviceMode
         val previousGlobal = DataStore.globalMode
+        val previousDashboardMode = DataStore.dashboardMode
         val bean = io.nekohasekai.sagernet.fmt.socks.SOCKSBean().apply {
             initializeDefaultValues(); serverAddress = "192.0.2.1"; serverPort = 1080
         }
@@ -138,12 +139,55 @@ class RouteRuleCompatibilityTest {
                 assertTrue(list.none { it.has("override_destination") || it.has("reject_method") })
                 assertEquals(rules, SagerDatabase.rulesDao.allRules())
             }
+            // @author 雾晚: 运行时 (!forExport) 无论 legacy globalMode 为何值，
+            // 均保留完整用户规则，并按安全规则 -> clash_mode 动态条件 -> 用户规则的优先级组织；
+            // 仅在明确导出 (forExport=true) 且 legacy globalMode=true 时执行旧版硬截断契约。
             DataStore.globalMode = true
-            val global = io.nekohasekai.sagernet.fmt.buildConfig(proxy).config
-            assertFalse(global.contains("first.route.invalid")); assertFalse(global.contains("second.route.invalid"))
+            for (dMode in listOf(0, 1, 2)) {
+                DataStore.dashboardMode = dMode
+                val runtimeRoot = JSONObject(io.nekohasekai.sagernet.fmt.buildConfig(proxy, forTest = false, forExport = false).config)
+                val exp = runtimeRoot.optJSONObject("experimental")?.optJSONObject("clash_api")
+                val expectedDefaultMode = when (dMode) {
+                    1 -> "global"
+                    2 -> "direct"
+                    else -> "rule"
+                }
+                assertEquals("Runtime default_mode must map to dashboardMode", expectedDefaultMode, exp?.optString("default_mode"))
+
+                val runtimeRules = runtimeRoot.getJSONObject("route").getJSONArray("rules")
+                val ruleList = (0 until runtimeRules.length()).map { runtimeRules.getJSONObject(it) }
+                val firstUserIdx = ruleList.indexOfFirst { it.optJSONArray("domain")?.toString()?.contains("first.route.invalid") == true }
+                val secondUserIdx = ruleList.indexOfFirst { it.optJSONArray("domain")?.toString()?.contains("second.route.invalid") == true }
+                val globalModeIdx = ruleList.indexOfFirst { it.optString("clash_mode") == "global" }
+                val directModeIdx = ruleList.indexOfFirst { it.optString("clash_mode") == "direct" }
+
+                assertTrue("Runtime must retain first user rule when globalMode is set", firstUserIdx >= 0)
+                assertTrue("Runtime must retain second user rule when globalMode is set", secondUserIdx >= 0)
+                assertTrue("Runtime must contain clash_mode=global rule", globalModeIdx >= 0)
+                assertTrue("Runtime must contain clash_mode=direct rule", directModeIdx >= 0)
+                assertEquals("proxy", ruleList[globalModeIdx].getString("outbound"))
+                assertEquals("direct", ruleList[directModeIdx].getString("outbound"))
+
+                // 优先级断言：clash_mode 条件必须位于显式用户规则之前
+                assertTrue("clash_mode=global must precede first user rule", globalModeIdx < firstUserIdx)
+                assertTrue("clash_mode=direct must precede first user rule", directModeIdx < firstUserIdx)
+                assertTrue("clash_mode=global must precede second user rule", globalModeIdx < secondUserIdx)
+                assertTrue("clash_mode=direct must precede second user rule", directModeIdx < secondUserIdx)
+            }
+
+            // 验证 forExport 契约：legacy globalMode=true 维持历史硬截断；globalMode=false 完整保留
+            val exportGlobalConfig = io.nekohasekai.sagernet.fmt.buildConfig(proxy, forTest = false, forExport = true).config
+            assertFalse("Legacy export globalMode must exclude first user rule", exportGlobalConfig.contains("first.route.invalid"))
+            assertFalse("Legacy export globalMode must exclude second user rule", exportGlobalConfig.contains("second.route.invalid"))
+
+            DataStore.globalMode = false
+            val exportNormalConfig = io.nekohasekai.sagernet.fmt.buildConfig(proxy, forTest = false, forExport = true).config
+            assertTrue("Export with globalMode=false must keep first user rule", exportNormalConfig.contains("first.route.invalid"))
+            assertTrue("Export with globalMode=false must keep second user rule", exportNormalConfig.contains("second.route.invalid"))
         } finally {
             if (selectedTargetId > 0) SagerDatabase.proxyDao.deleteById(selectedTargetId)
             DataStore.serviceMode = previousMode; DataStore.globalMode = previousGlobal
+            DataStore.dashboardMode = previousDashboardMode
             BackupRestore.apply(BackupRestore.Plan(null, null, previousRules, previousSettings), false, true, true)
         }
     }
