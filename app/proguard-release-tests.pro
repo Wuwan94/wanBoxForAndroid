@@ -56,8 +56,8 @@
     public static *** setNodeColumnCount(...);
     public static *** getShowSubscriptionInfoCard(...);
     public static *** setShowSubscriptionInfoCard(...);
-    public static *** getServiceMode(...);
-    public static *** getGlobalAllowInsecure(...);
+    public final java.lang.String getServiceMode();
+    public final boolean getGlobalAllowInsecure();
 }
 -keep class io.nekohasekai.sagernet.database.SagerDatabase$Companion { public *; }
 -keep class io.nekohasekai.sagernet.database.preference.PublicDatabase$Companion { public *; }
