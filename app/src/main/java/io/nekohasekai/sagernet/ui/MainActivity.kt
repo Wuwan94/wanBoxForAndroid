@@ -89,13 +89,14 @@ class MainActivity : ThemedActivity(),
     private var installerDataJob: Job? = null
     private var installerDataDialog: android.app.Dialog? = null
 
-    // preview.18 UI 改造：仪表盘支持
-    var serviceState: BaseService.State = BaseService.State.Idle
-        private set
-    var connectedSince: Long = 0L
-        private set
-    var lastSpeedStats: SpeedDisplayData? = null
-        private set
+    // preview.18 UI 改造：仪表盘支持与遥测会话
+    val telemetrySession = io.nekohasekai.sagernet.bg.TelemetrySession()
+    val serviceState: BaseService.State
+        get() = telemetrySession.serviceState
+    val connectedSince: Long
+        get() = telemetrySession.connectedSince
+    val lastSpeedStats: SpeedDisplayData?
+        get() = telemetrySession.lastSpeedStats
 
     fun navigateToNodes() {
         // 跳转到节点页（底部导航的节点 tab）
@@ -672,9 +673,7 @@ class MainActivity : ThemedActivity(),
         animate: Boolean = false,
         animateControls: Boolean = animate,
     ) {
-        serviceState = state
-        if (state == BaseService.State.Connected && connectedSince == 0L) connectedSince = android.os.SystemClock.elapsedRealtime()
-        if (!state.started) { connectedSince = 0L; lastSpeedStats = null }
+        telemetrySession.onStateChanged(state, android.os.SystemClock.elapsedRealtime())
         DataStore.serviceState = state
         refreshConfigurationProfileState()
         io.nekohasekai.sagernet.widget.OwnBoxWidgetProvider.updateWidgets(this)
@@ -697,9 +696,9 @@ class MainActivity : ThemedActivity(),
     }
 
     override fun stateChanged(state: BaseService.State, profileName: String?, msg: String?) {
-        serviceState = state
         changeState(state, msg, true)
     }
+
 
     val connection = SagerConnection(SagerConnection.CONNECTION_ID_MAIN_ACTIVITY_FOREGROUND, true)
     override fun onServiceConnected(service: ISagerNetService) = changeState(
@@ -712,6 +711,7 @@ class MainActivity : ThemedActivity(),
 
     override fun onServiceDisconnected() = changeState(BaseService.State.Idle)
     override fun onBinderDied() {
+        telemetrySession.onDisconnect()
         connection.disconnect(this)
         connection.connect(this, this)
     }
@@ -721,7 +721,7 @@ class MainActivity : ThemedActivity(),
     // may NOT called when app is in background
     // ONLY do UI update here, write DB in bg process
     override fun cbSpeedUpdate(stats: SpeedDisplayData) {
-        lastSpeedStats = stats
+        telemetrySession.onSpeedUpdate(stats)
         binding.stats.updateSpeed(stats.txRateProxy, stats.rxRateProxy)
     }
 

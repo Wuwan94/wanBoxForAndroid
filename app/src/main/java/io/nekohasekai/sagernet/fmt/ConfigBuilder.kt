@@ -327,6 +327,12 @@ private fun serverHostOf(bean: AbstractBean): String? {
     return fallback
 }
 
+fun clashModeStringOf(dashboardMode: Int): String = when (dashboardMode) {
+    1 -> "global"
+    2 -> "direct"
+    else -> "rule"
+}
+
 fun buildConfig(
     proxy: ProxyEntity, forTest: Boolean = false, forExport: Boolean = false
 ): ConfigBuildResult {
@@ -713,6 +719,7 @@ fun buildConfig(
                         external_controller = "127.0.0.1:9090"
                         secret = DataStore.clashApiSecret
                         external_ui = "../files/yacd"
+                        if (!forExport) default_mode = clashModeStringOf(DataStore.dashboardMode)
                     }
                 }
             }
@@ -1346,8 +1353,8 @@ fun buildConfig(
             }
         }
 
-        // 在应用用户规则之前检查全局模式
-        if (!forTest && DataStore.globalMode) {
+        // @author 雾晚: 仅 export 保留历史全局截断分支；runtime (!forExport) 走动态 clash_mode 规则
+        if (!forTest && forExport && DataStore.globalMode) {
             // 全局模式下的规则处理
             route.rules.add(Rule_DefaultOptions().apply {
                 inbound = listOf("tun-in")
@@ -2032,7 +2039,7 @@ fun buildConfig(
         }
         Logs.i(
             "RouteFinalTrace profileId=${proxy.id} forTest=$forTest " +
-                "globalMode=${!forTest && DataStore.globalMode} selector=$buildSelector " +
+                "legacyExportGlobalMode=${!forTest && forExport && DataStore.globalMode} selector=$buildSelector " +
                 "finalState=$routeFinalState ruleCount=${route.rules.size}"
         )
 

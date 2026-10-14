@@ -115,21 +115,6 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
         }
         val mixedPort = findPreference<EditTextPreference>(Key.MIXED_PORT)!!
         val disableMixedInbound = findPreference<SwitchPreference>(Key.DISABLE_MIXED_INBOUND)!!
-        val autoStart = findPreference<SwitchPreference>(Key.PERSIST_ACROSS_REBOOT)!!
-        autoStart.setOnPreferenceChangeListener { _, value ->
-            SagerNet.application.applicationScope.launch {
-                try {
-                    io.nekohasekai.sagernet.bg.RootModuleClient.setAutoStart(value as Boolean)
-                    DataStore.configurationStore.putBoolean(Key.PERSIST_ACROSS_REBOOT, value)
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { autoStart.isChecked = value }
-                } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-                  catch (e: Exception) {
-                    Handler(Looper.getMainLooper()).post { Toast.makeText(SagerNet.application,
-                        io.nekohasekai.sagernet.bg.RootModuleErrors.message(SagerNet.application, e), Toast.LENGTH_LONG).show() }
-                }
-            }
-            false // Persist only after the module accepted the same value.
-        }
         val serviceMode = findPreference<Preference>(Key.SERVICE_MODE)!!
         serviceMode.summary = getString(R.string.root_module_mode)
         val mixedAuthConfig = findPreference<Preference>(Key.MIXED_AUTH_CONFIG)!!
@@ -225,13 +210,6 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
 
         // preview.17: TUN 实现固定为 Sing-Tun，不再提供选择入口
         val resolveDestination = findPreference<SwitchPreference>(Key.RESOLVE_DESTINATION)!!
-        val hideFromRecentApps = findPreference<SwitchPreference>(Key.HIDE_FROM_RECENT_APPS)!!
-        val enableClashAPI = findPreference<SwitchPreference>(Key.ENABLE_CLASH_API)!!
-        enableClashAPI.setOnPreferenceChangeListener { _, newValue ->
-            (activity as MainActivity?)?.refreshNavMenu(newValue as Boolean)
-            needReload()
-            true
-        }
 
         val categoryCore = findPreference<ExpandablePreferenceCategory>("categoryCore")
         val rulesProvider = findPreference<SimpleMenuPreference>(Key.RULES_PROVIDER)!!
@@ -322,11 +300,6 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             val enabled = newValue as Boolean
             SagerNet.updatePerformancePriorityMode(enabled)
             needReload()
-            true
-        }
-        hideFromRecentApps.setOnPreferenceChangeListener { _, newValue ->
-            (activity as? MainActivity)?.applyHideFromRecentApps(newValue as Boolean)
-            // needReload()
             true
         }
 

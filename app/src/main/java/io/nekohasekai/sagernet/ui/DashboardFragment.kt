@@ -125,16 +125,24 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         text(R.id.downloadSpeed, stats?.let { rate(it.rxRateProxy) } ?: "—")
         text(R.id.uploadTotal, getString(R.string.minimal_total, stats?.let { Formatter.formatFileSize(requireContext(), it.txTotal) } ?: "—"))
         text(R.id.downloadTotal, getString(R.string.minimal_total, stats?.let { Formatter.formatFileSize(requireContext(), it.rxTotal) } ?: "—"))
-        // The v3.0.8 module protocol does not expose memory or connection counts.
-        text(R.id.coreMemory, "—")
-        text(R.id.connectionCount, "—")
-        val seconds = if (host.connectedSince > 0 && state.connected) (SystemClock.elapsedRealtime() - host.connectedSince) / 1000 else null
-        text(R.id.uptimeText, seconds?.let { String.format(Locale.ROOT, "%02d:%02d:%02d", it / 3600, it % 3600 / 60, it % 60) } ?: "—")
+        val memoryText = stats?.let {
+            if (it.vmRSSBytes > 0L) Formatter.formatFileSize(requireContext(), it.vmRSSBytes) else null
+        } ?: "—"
+        text(R.id.coreMemory, memoryText)
+        val connectionsText = stats?.connectionCountOrNull()?.toString() ?: "—"
+        text(R.id.connectionCount, connectionsText)
+        val uptime = stats?.let {
+            if (it.uptimeSeconds >= 0L) {
+                String.format(Locale.ROOT, "%02d:%02d:%02d", it.uptimeSeconds / 3600, it.uptimeSeconds % 3600 / 60, it.uptimeSeconds % 60)
+            } else null
+        } ?: "—"
+        text(R.id.uptimeText, uptime)
     }
 
     override fun onPause() { statsJob?.cancel(); statsJob = null; super.onPause() }
     override fun onDestroyView() {
-        statsJob?.cancel(); nodeJob?.cancel()
+        statsJob?.cancel(); statsJob = null
+        nodeJob?.cancel(); nodeJob = null
         renderedProfile = -1L; renderedState = null; operationUntil = 0L
         super.onDestroyView()
     }

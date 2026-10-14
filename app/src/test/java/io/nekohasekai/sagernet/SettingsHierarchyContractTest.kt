@@ -79,4 +79,44 @@ class SettingsHierarchyContractTest {
         assertFalse(fragment.contains("val acquireWakeLock"))
         assertFalse(fragment.contains("val httpProxyBypass"))
     }
+
+    @Test fun authorizedUiRemovalsArePurgedFromXmlAndFragmentWhileKeepingDataStoreContract() {
+        val factory = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+        val document = factory.newDocumentBuilder().parse(File("src/main/res/xml/global_preferences.xml"))
+        val elements = document.getElementsByTagName("*")
+        val xmlKeys = mutableSetOf<String>()
+        for (i in 0 until elements.length) {
+            val element = elements.item(i) as Element
+            val key = element.getAttributeNS("http://schemas.android.com/apk/res-auto", "key")
+            if (key.isNotEmpty()) xmlKeys.add(key)
+        }
+        for (key in authorizedUiRemovals) {
+            assertFalse("global_preferences.xml must not declare removed key: $key", xmlKeys.contains(key))
+        }
+
+        val fragment = File("src/main/java/io/nekohasekai/sagernet/ui/SettingsPreferenceFragment.kt").readText()
+        for (keyName in listOf("PERSIST_ACROSS_REBOOT", "ENABLE_CLASH_API", "HIDE_FROM_RECENT_APPS")) {
+            assertFalse("Fragment must not look up Key.$keyName", fragment.contains("findPreference<SwitchPreference>(Key.$keyName)"))
+            assertFalse("Fragment must not reference Key.$keyName", fragment.contains("Key.$keyName"))
+        }
+        assertFalse(fragment.contains("val autoStart"))
+        assertFalse(fragment.contains("val enableClashAPI"))
+        assertFalse(fragment.contains("val hideFromRecentApps"))
+
+        val constants = File("src/main/java/io/nekohasekai/sagernet/Constants.kt").readText()
+        assertTrue("Constants must map PERSIST_ACROSS_REBOOT to isAutoConnect",
+            constants.contains("""const val PERSIST_ACROSS_REBOOT = "isAutoConnect""""))
+        assertTrue("Constants must map ENABLE_CLASH_API to enableClashAPI",
+            constants.contains("""const val ENABLE_CLASH_API = "enableClashAPI""""))
+        assertTrue("Constants must map HIDE_FROM_RECENT_APPS to hideFromRecentApps",
+            constants.contains("""const val HIDE_FROM_RECENT_APPS = "hideFromRecentApps""""))
+
+        val store = File("src/main/java/io/nekohasekai/sagernet/database/DataStore.kt").readText()
+        assertTrue("DataStore must keep persistAcrossReboot delegation",
+            store.contains("val persistAcrossReboot by configurationStore.boolean(Key.PERSIST_ACROSS_REBOOT) { false }"))
+        assertTrue("DataStore must keep enableClashAPI delegation",
+            store.contains("var enableClashAPI by configurationStore.boolean(Key.ENABLE_CLASH_API) { true }"))
+        assertTrue("DataStore must keep hideFromRecentApps delegation",
+            store.contains("var hideFromRecentApps by configurationStore.boolean(Key.HIDE_FROM_RECENT_APPS)"))
+    }
 }
