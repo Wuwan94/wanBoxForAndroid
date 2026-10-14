@@ -121,11 +121,13 @@ class SettingsFragment : ToolbarFragment() {
         }
     }
 
-    fun getRenderedSectionKeys(): List<String> =
-        SettingsSectionGroup.entries.map { it.sectionKey }.filter { key ->
-            val b = renderedComposeItemBounds[key]
-            b != null && b.width() > 0f && b.height() > 0f
-        }
+    fun getRenderedSectionKeys(): List<String> {
+        val sectionKeys = SettingsSectionGroup.entries.mapTo(HashSet()) { it.sectionKey }
+        return renderedComposeItemBounds.entries
+            .filter { (key, b) -> key in sectionKeys && b.width() > 0f && b.height() > 0f }
+            .sortedWith(compareBy<Map.Entry<String, RectF>>({ it.value.top }, { it.value.left }))
+            .map { it.key }
+    }
 
     fun hasRenderedItem(key: String): Boolean {
         val b = renderedComposeItemBounds[key] ?: return false

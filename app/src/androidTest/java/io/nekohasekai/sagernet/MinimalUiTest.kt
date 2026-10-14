@@ -267,11 +267,23 @@ class MinimalUiTest {
             }
             instrumentation.runOnMainSync {
                 val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as SettingsFragment
-                assertEquals(
-                    listOf("runtime", "http_tls", "dns", "route", "speedtest", "appearance", "logs", "other"),
-                    fragment.getRenderedSectionKeys()
-                )
+                val expectedSections = listOf("runtime", "http_tls", "dns", "route", "speedtest", "appearance", "logs", "other")
+                assertEquals(expectedSections, fragment.getRenderedSectionKeys())
                 assertTrue(fragment.hasRenderedItem("per_app_proxy"))
+                val orderedHomeRows = listOf("per_app_proxy") + expectedSections
+                val rowBounds = orderedHomeRows.map { key ->
+                    val bounds = checkNotNull(fragment.getComposeItemBounds(key)) { "Missing bounds for $key" }
+                    assertTrue("Row $key must have positive area", bounds.width() > 0f && bounds.height() > 0f)
+                    key to bounds
+                }
+                for (i in 0 until rowBounds.lastIndex) {
+                    val (upperKey, upper) = rowBounds[i]
+                    val (lowerKey, lower) = rowBounds[i + 1]
+                    assertTrue(
+                        "Row $upperKey (${upper.top}..${upper.bottom}) must be above $lowerKey (${lower.top}..${lower.bottom}) without overlap",
+                        upper.top < lower.top && upper.bottom <= lower.top
+                    )
+                }
                 assertEquals(context.getString(R.string.settings_group_dns), fragment.getRenderedItemTitle("dns"))
                 for (removed in listOf("root", "advanced", "serviceMode", "disableMixedInbound", "enableClashAPI", "clashApiFixed")) {
                     assertFalse("Removed entry must not be rendered on settings home: $removed", fragment.hasRenderedItem(removed))
