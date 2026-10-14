@@ -13,24 +13,4 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"/>
-
-    <!-- Keep legacy view IDs declared for resource compatibility while hidden -->
-    <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:visibility="gone"
-        android:orientation="vertical">
-        <View android:id="@+id/settings_apps" android:layout_width="0dp" android:layout_height="0dp"/>
-        <View android:id="@+id/settings_runtime" android:layout_width="0dp" android:layout_height="0dp"/>
-        <View android:id="@+id/settings_http_tls" android:layout_width="0dp" android:layout_height="0dp"/>
-        <View android:id="@+id/settings_root" android:layout_width="0dp" android:layout_height="0dp"/>
-        <View android:id="@+id/settings_dns" android:layout_width="0dp" android:layout_height="0dp"/>
-        <View android:id="@+id/settings_route" android:layout_width="0dp" android:layout_height="0dp"/>
-        <View android:id="@+id/settings_network" android:layout_width="0dp" android:layout_height="0dp"/>
-        <View android:id="@+id/settings_appearance" android:layout_width="0dp" android:layout_height="0dp"/>
-        <View android:id="@+id/settings_logs" android:layout_width="0dp" android:layout_height="0dp"/>
-        <View android:id="@+id/settings_backup" android:layout_width="0dp" android:layout_height="0dp"/>
-        <View android:id="@+id/settings_about" android:layout_width="0dp" android:layout_height="0dp"/>
-        <TextView android:id="@+id/settings_version" android:layout_width="0dp" android:layout_height="0dp"/>
-    </LinearLayout>
 </LinearLayout>

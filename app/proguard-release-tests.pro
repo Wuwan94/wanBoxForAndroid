@@ -56,6 +56,8 @@
     public static *** setNodeColumnCount(...);
     public static *** getShowSubscriptionInfoCard(...);
     public static *** setShowSubscriptionInfoCard(...);
+    public static *** getServiceMode(...);
+    public static *** getGlobalAllowInsecure(...);
 }
 -keep class io.nekohasekai.sagernet.database.SagerDatabase$Companion { public *; }
 -keep class io.nekohasekai.sagernet.database.preference.PublicDatabase$Companion { public *; }
@@ -147,6 +149,11 @@
 
 -keep,allowobfuscation class io.nekohasekai.sagernet.ui.SettingsFragment {
     public boolean onBackPressed();
+    public final boolean isComposeHomeReady();
+    public final java.util.List getRenderedSectionKeys();
+    public final boolean hasRenderedItem(java.lang.String);
+    public final java.lang.String getRenderedItemTitle(java.lang.String);
+    public final android.graphics.RectF getComposeItemBounds(java.lang.String);
 }
 
 -keep,allowobfuscation class io.nekohasekai.sagernet.ui.SettingsPreferenceFragment

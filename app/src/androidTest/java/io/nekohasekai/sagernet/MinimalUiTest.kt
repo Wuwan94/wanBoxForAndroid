@@ -2,6 +2,9 @@ package io.nekohasekai.sagernet
 
 import android.content.Intent
 import android.graphics.Bitmap
+import android.os.SystemClock
+import android.view.InputDevice
+import android.view.MotionEvent
 import android.view.View
 import android.widget.CheckBox
 import android.widget.RadioGroup
@@ -109,6 +112,8 @@ class MinimalUiTest {
                             val allFrag = curFrag.adapter.groupFragments[ConfigurationFragment.ALL_GROUPS_SENTINEL_ID]
                             val allItemCount = allFrag?.adapter?.itemCount ?: -1
                             diag = "frag=$fragName, panelVis=$panelVis, pagerItem=$pagerItem, groupIds=$groupIds, allItemCount=$allItemCount, nodesSummary=$nodesSummary"
+                        } else if (curFrag is SettingsFragment) {
+                            diag = "frag=$fragName, composeReady=${curFrag.isComposeHomeReady()}, sections=${curFrag.getRenderedSectionKeys()}"
                         } else {
                             diag = "frag=$fragName, panelVis=$panelVis, nodesSummary=$nodesSummary"
                         }
@@ -143,7 +148,15 @@ class MinimalUiTest {
                             true
                         }
 
-                        settled = decorReady && fragReady && rvReady
+                        val composeView = if (curFrag is SettingsFragment) fragView?.findViewById<View>(R.id.settings_compose) else null
+                        val composeReady = if (composeView != null) {
+                            composeView.isShown && composeView.isLaidOut && !composeView.isLayoutRequested &&
+                                (curFrag as SettingsFragment).isComposeHomeReady()
+                        } else {
+                            true
+                        }
+
+                        settled = decorReady && fragReady && rvReady && composeReady
                     }
                     if (settled) {
                         val latch = CountDownLatch(1)
@@ -247,23 +260,82 @@ class MinimalUiTest {
             instrumentation.runOnMainSync { host.binding.bottomNav.selectedItemId = R.id.nav_settings }
             awaitReady("settings") {
                 val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as? SettingsFragment
-                val dnsView = host.findViewById<View>(R.id.settings_dns)
+                val composeView = host.findViewById<View>(R.id.settings_compose)
                 fragment?.toolbar?.title?.toString() == context.getString(R.string.settings) &&
-                    dnsView?.isShown == true
-            }
-            captureScreen("04-settings")
-
-            instrumentation.runOnMainSync { host.findViewById<View>(R.id.settings_dns).performClick() }
-            awaitReady("dns-open") {
-                val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as? SettingsFragment
-                fragment?.childFragmentManager?.findFragmentById(R.id.settings) is SettingsPreferenceFragment
+                    composeView?.isShown == true &&
+                    fragment.isComposeHomeReady()
             }
             instrumentation.runOnMainSync {
                 val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as SettingsFragment
-                assertEquals(context.getString(R.string.minimal_dns), fragment.toolbar.title.toString())
+                assertEquals(
+                    listOf("runtime", "http_tls", "dns", "route", "speedtest", "appearance", "logs", "other"),
+                    fragment.getRenderedSectionKeys()
+                )
+                assertTrue(fragment.hasRenderedItem("per_app_proxy"))
+                assertEquals(context.getString(R.string.settings_group_dns), fragment.getRenderedItemTitle("dns"))
+                for (removed in listOf("root", "advanced", "serviceMode", "disableMixedInbound", "enableClashAPI", "clashApiFixed")) {
+                    assertFalse("Removed entry must not be rendered on settings home: $removed", fragment.hasRenderedItem(removed))
+                }
+                assertNull(fragment.toolbar.menu.findItem(R.id.settings_advanced))
+            }
+            captureScreen("04-settings")
+
+            var tapDownTime = 0L
+            var tapX = 0f
+            var tapY = 0f
+            instrumentation.runOnMainSync {
+                val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as SettingsFragment
+                val composeView = checkNotNull(host.findViewById<View>(R.id.settings_compose)) { "settings_compose missing" }
+                assertTrue("settings_compose must be shown", composeView.isShown)
+                val dnsBounds = checkNotNull(fragment.getComposeItemBounds("dns")) { "Compose DNS bounds missing" }
+                assertTrue("Compose DNS bounds must be positive", dnsBounds.width() > 0f && dnsBounds.height() > 0f)
+                tapX = dnsBounds.centerX()
+                tapY = dnsBounds.centerY()
+                assertTrue("DNS tap X within ComposeView", tapX in 0f..composeView.width.toFloat())
+                assertTrue("DNS tap Y within ComposeView", tapY in 0f..composeView.height.toFloat())
+                tapDownTime = SystemClock.uptimeMillis()
+                val down = MotionEvent.obtain(tapDownTime, tapDownTime, MotionEvent.ACTION_DOWN, tapX, tapY, 0).apply {
+                    source = InputDevice.SOURCE_TOUCHSCREEN
+                }
+                assertTrue("ComposeView must accept ACTION_DOWN", composeView.dispatchTouchEvent(down))
+                down.recycle()
+            }
+            idle()
+            instrumentation.runOnMainSync {
+                val composeView = checkNotNull(host.findViewById<View>(R.id.settings_compose)) { "settings_compose missing on ACTION_UP" }
+                val upTime = SystemClock.uptimeMillis()
+                val up = MotionEvent.obtain(tapDownTime, upTime, MotionEvent.ACTION_UP, tapX, tapY, 0).apply {
+                    source = InputDevice.SOURCE_TOUCHSCREEN
+                }
+                assertTrue("ComposeView must accept ACTION_UP", composeView.dispatchTouchEvent(up))
+                up.recycle()
+            }
+
+            awaitReady("dns-open") {
+                val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as? SettingsFragment
+                val prefFrag = fragment?.childFragmentManager?.findFragmentById(R.id.settings) as? SettingsPreferenceFragment
+                prefFrag != null &&
+                    fragment.toolbar.title?.toString() == context.getString(R.string.settings_group_dns) &&
+                    prefFrag.findPreference<androidx.preference.Preference>(Key.REMOTE_DNS)?.isVisible == true
+            }
+            instrumentation.runOnMainSync {
+                val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as SettingsFragment
+                assertEquals(context.getString(R.string.settings_group_dns), fragment.toolbar.title.toString())
+                val prefFrag = fragment.childFragmentManager.findFragmentById(R.id.settings) as SettingsPreferenceFragment
+                assertTrue(prefFrag.findPreference<androidx.preference.Preference>(Key.REMOTE_DNS)!!.isVisible)
+                assertTrue(prefFrag.findPreference<androidx.preference.Preference>(Key.DIRECT_DNS)!!.isVisible)
+                assertTrue(prefFrag.findPreference<androidx.preference.Preference>(Key.ENABLE_FAKEDNS)!!.isVisible)
+                assertNull(prefFrag.findPreference<androidx.preference.Preference>(Key.SERVICE_MODE))
+                assertNull(prefFrag.findPreference<androidx.preference.Preference>(Key.DISABLE_MIXED_INBOUND))
                 assertTrue(fragment.onBackPressed())
             }
-            awaitReady("dns-close") { host.findViewById<View>(R.id.settings_dns) != null }
+            awaitReady("dns-close") {
+                val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as? SettingsFragment
+                val composeView = host.findViewById<View>(R.id.settings_compose)
+                fragment?.toolbar?.title?.toString() == context.getString(R.string.settings) &&
+                    composeView?.isShown == true &&
+                    fragment.isComposeHomeReady()
+            }
             instrumentation.runOnMainSync {
                 assertTrue(host.binding.bottomNav.menu.findItem(R.id.nav_settings).isChecked)
                 assertTrue(host.binding.fragmentHolder.bottom <= host.binding.bottomNav.top)

@@ -21,11 +21,18 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -57,12 +64,19 @@ fun SettingsHomeComposeScreen(
     versionName: String,
     onOpenPerAppProxy: () -> Unit,
     onOpenSection: (String) -> Unit,
+    onItemPositioned: (key: String, title: String, boundsInRoot: Rect) -> Unit = { _, _, _ -> },
+    onDisposeHome: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    DisposableEffect(Unit) {
+        onDispose { onDisposeHome() }
+    }
+
     val bgColor = colorResource(R.color.minimal_background)
     val textColor = colorResource(R.color.minimal_text)
     val secondaryColor = colorResource(R.color.minimal_secondary)
     val lineColor = colorResource(R.color.minimal_line)
+    val perAppTitle = stringResource(R.string.per_app_proxy)
 
     Column(
         modifier = modifier
@@ -77,6 +91,13 @@ fun SettingsHomeComposeScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 56.dp)
+                .testTag("settings_item_per_app_proxy")
+                .semantics(mergeDescendants = true) { contentDescription = perAppTitle }
+                .onGloballyPositioned { coords ->
+                    if (coords.isAttached) {
+                        onItemPositioned("per_app_proxy", perAppTitle, coords.boundsInRoot())
+                    }
+                }
                 .clickable(onClick = onOpenPerAppProxy)
                 .padding(vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -89,7 +110,7 @@ fun SettingsHomeComposeScreen(
             Spacer(modifier = Modifier.width(20.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = stringResource(R.string.per_app_proxy),
+                    text = perAppTitle,
                     color = textColor,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
@@ -113,10 +134,18 @@ fun SettingsHomeComposeScreen(
 
         // 八大一级设置分组列表
         SettingsSectionGroup.entries.forEachIndexed { index, group ->
+            val groupTitle = stringResource(group.titleRes)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 56.dp)
+                    .testTag("settings_section_${group.sectionKey}")
+                    .semantics(mergeDescendants = true) { contentDescription = groupTitle }
+                    .onGloballyPositioned { coords ->
+                        if (coords.isAttached) {
+                            onItemPositioned(group.sectionKey, groupTitle, coords.boundsInRoot())
+                        }
+                    }
                     .clickable { onOpenSection(group.sectionKey) }
                     .padding(vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -129,7 +158,7 @@ fun SettingsHomeComposeScreen(
                 Spacer(modifier = Modifier.width(20.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = stringResource(group.titleRes),
+                        text = groupTitle,
                         color = textColor,
                         fontSize = 16.sp
                     )
@@ -154,6 +183,11 @@ fun SettingsHomeComposeScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 20.dp, bottom = 8.dp)
+                .onGloballyPositioned { coords ->
+                    if (coords.isAttached) {
+                        onItemPositioned("version_footer", versionName, coords.boundsInRoot())
+                    }
+                }
         )
     }
 }
