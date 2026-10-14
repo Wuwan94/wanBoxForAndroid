@@ -1157,6 +1157,12 @@
     <string name="settings_group_maintenance">维护与诊断</string>
     <string name="settings_group_about">关于</string>
     <string name="settings_group_advanced">高级设置</string>
+    <string name="settings_group_http_tls">HTTP/TLS</string>
+    <string name="settings_group_dns">DNS设置</string>
+    <string name="settings_group_routing">路由</string>
+    <string name="settings_group_speedtest">测速</string>
+    <string name="settings_group_logs">日志与诊断</string>
+    <string name="settings_group_other">其他</string>
     <string name="app_version_summary">查看版本信息</string>
     <string name="core_version">核心版本</string>
     <string name="core_version_summary">sing-box 版本</string>

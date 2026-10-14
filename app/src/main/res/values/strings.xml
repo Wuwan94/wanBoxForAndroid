@@ -1272,6 +1272,12 @@
     <string name="settings_group_maintenance">Maintenance &amp; Diagnostics</string>
     <string name="settings_group_about">About</string>
     <string name="settings_group_advanced">Advanced</string>
+    <string name="settings_group_http_tls">HTTP/TLS</string>
+    <string name="settings_group_dns">DNS Settings</string>
+    <string name="settings_group_routing">Routing</string>
+    <string name="settings_group_speedtest">Speed Test</string>
+    <string name="settings_group_logs">Logs &amp; Diagnostics</string>
+    <string name="settings_group_other">Other</string>
     <string name="app_version_summary">View version info</string>
     <string name="core_version">Core Version</string>
     <string name="core_version_summary">sing-box version</string>

@@ -16,7 +16,10 @@ class SettingsHierarchyContractTest {
         "acquireWakeLock", "wakeResetConnections", "networkChangeResetConnections", "showDirectSpeed", "speedInterval",
         "appTheme", "showBottomBar", "showAllGroupsTab")
     // @author 雾晚：明确授权移除的 UI 项（Root 精简），key 保留迁移兼容
-    private val authorizedUiRemovals = setOf("enableClashAPI", "hideFromRecentApps", "isAutoConnect")
+    private val authorizedUiRemovals = setOf(
+        "enableClashAPI", "hideFromRecentApps", "isAutoConnect",
+        "serviceMode", "disableMixedInbound", "clashApiFixed"
+    )
     @Test fun everyOldKeyKeepsItsValueContractAndControlType() {
         val old = JSONObject(javaClass.getResource("/settings-before-3.0.7.json")!!.readText())
         val factory = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
@@ -40,11 +43,6 @@ class SettingsHierarchyContractTest {
             // @author 雾晚：跳过旧分组容器 key，它们已被新分组替代
             if (key.startsWith("category")) return@forEach
             val before = old.getJSONObject(key); val node = actual.getValue(key)
-            if (key == "serviceMode") {
-                assertEquals("Preference", node.tagName)
-                assertEquals("false", node.getAttributeNS("http://schemas.android.com/apk/res-auto", "selectable"))
-                return@forEach
-            }
             if (key == "tunImplementation") {
                 assertEquals("Preference", node.tagName)
                 assertEquals("false", node.getAttributeNS("http://schemas.android.com/apk/res-auto", "selectable"))
@@ -60,8 +58,9 @@ class SettingsHierarchyContractTest {
                 }
             }
         }
-        // @author 雾晚：四组重组后 categoryFragment 归属 categoryAdvancedGroup
-        assertEquals("categoryAdvancedGroup", (actual.getValue("categoryFragment").parentNode as Element)
+        // @author 雾晚：八组收拢后取消独立高级设置分组，categoryFragment 归属 categoryHttpTls
+        assertFalse(actual.containsKey("categoryAdvancedGroup"))
+        assertEquals("categoryHttpTls", (actual.getValue("categoryFragment").parentNode as Element)
             .getAttributeNS("http://schemas.android.com/apk/res-auto", "key"))
     }
 
@@ -118,5 +117,44 @@ class SettingsHierarchyContractTest {
             store.contains("var enableClashAPI by configurationStore.boolean(Key.ENABLE_CLASH_API) { true }"))
         assertTrue("DataStore must keep hideFromRecentApps delegation",
             store.contains("var hideFromRecentApps by configurationStore.boolean(Key.HIDE_FROM_RECENT_APPS)"))
+    }
+
+    @Test
+    fun eightGroupHierarchyAndRetainedSettingsArePresent() {
+        val factory = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+        val document = factory.newDocumentBuilder().parse(File("src/main/res/xml/global_preferences.xml"))
+        val root = document.documentElement
+        val topCategoryKeys = mutableListOf<String>()
+        val childNodes = root.childNodes
+        for (i in 0 until childNodes.length) {
+            val node = childNodes.item(i)
+            if (node is Element && node.tagName == "moe.matsuri.nb4a.ui.ExpandablePreferenceCategory") {
+                topCategoryKeys.add(node.getAttributeNS("http://schemas.android.com/apk/res-auto", "key"))
+            }
+        }
+        assertEquals(
+            listOf(
+                "categoryRuntime",
+                "categoryHttpTls",
+                "categoryDns",
+                "categoryRouting",
+                "categorySpeedTest",
+                "categoryAppearance",
+                "categoryLogsDiagnostics",
+                "categoryOther"
+            ),
+            topCategoryKeys
+        )
+
+        val elements = document.getElementsByTagName("*")
+        val allKeys = mutableSetOf<String>()
+        for (i in 0 until elements.length) {
+            val element = elements.item(i) as Element
+            val key = element.getAttributeNS("http://schemas.android.com/apk/res-auto", "key")
+            if (key.isNotEmpty()) allKeys.add(key)
+        }
+        for (retained in listOf("perAppProxyEntry", "proxyApps", "enableFakeDns", "dualNetworkAcceleration", "globalCustomConfig")) {
+            assertTrue("Retained preference key missing: $retained", allKeys.contains(retained))
+        }
     }
 }

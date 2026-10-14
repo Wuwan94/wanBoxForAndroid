@@ -1,4 +1,4 @@
-// @author 雾晚
+// @author 雾晓
 package io.nekohasekai.sagernet.ui
 
 import android.content.Intent
@@ -114,9 +114,6 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             true
         }
         val mixedPort = findPreference<EditTextPreference>(Key.MIXED_PORT)!!
-        val disableMixedInbound = findPreference<SwitchPreference>(Key.DISABLE_MIXED_INBOUND)!!
-        val serviceMode = findPreference<Preference>(Key.SERVICE_MODE)!!
-        serviceMode.summary = getString(R.string.root_module_mode)
         val mixedAuthConfig = findPreference<Preference>(Key.MIXED_AUTH_CONFIG)!!
         val dnsHosts = findPreference<EditTextPreference>(Key.DNS_HOSTS)!!
         val strictRoute = findPreference<SwitchPreference>(Key.STRICT_ROUTE)!!
@@ -171,7 +168,6 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
 
         mixedPort.setOnBindEditTextListener(EditTextPreferenceModifiers.Port)
         dnsHosts.setOnBindEditTextListener(EditTextPreferenceModifiers.Hosts)
-        dnsHosts.summaryProvider = ListSummaryProvider(maxLines = 1)
 
         speedTestMode.setOnPreferenceChangeListener { _, newValue ->
             SpeedTestSettings.isValidMode(newValue.toString())
@@ -207,20 +203,36 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             newValue
         }
 
-
         // preview.17: TUN 实现固定为 Sing-Tun，不再提供选择入口
         val resolveDestination = findPreference<SwitchPreference>(Key.RESOLVE_DESTINATION)!!
 
-        val categoryCore = findPreference<ExpandablePreferenceCategory>("categoryCore")
+        val categoryRouting = findPreference<ExpandablePreferenceCategory>("categoryRouting")
         val rulesProvider = findPreference<SimpleMenuPreference>(Key.RULES_PROVIDER)!!
-        categoryCore?.setChildVisibilityRule(Key.RULES_GEOSITE_URL) { DataStore.rulesProvider == 4 }
-        categoryCore?.setChildVisibilityRule(Key.RULES_GEOIP_URL) { DataStore.rulesProvider == 4 }
+        categoryRouting?.setChildVisibilityRule(Key.RULES_GEOSITE_URL) { DataStore.rulesProvider == 4 }
+        categoryRouting?.setChildVisibilityRule(Key.RULES_GEOIP_URL) { DataStore.rulesProvider == 4 }
         rulesProvider.setOnPreferenceChangeListener { _, newValue ->
             val provider = (newValue as String).toInt()
-            categoryCore?.setChildVisibilityRule(Key.RULES_GEOSITE_URL) { provider == 4 }
-            categoryCore?.setChildVisibilityRule(Key.RULES_GEOIP_URL) { provider == 4 }
-            categoryCore?.updateChildVisibility(Key.RULES_GEOSITE_URL)
-            categoryCore?.updateChildVisibility(Key.RULES_GEOIP_URL)
+            categoryRouting?.setChildVisibilityRule(Key.RULES_GEOSITE_URL) { provider == 4 }
+            categoryRouting?.setChildVisibilityRule(Key.RULES_GEOIP_URL) { provider == 4 }
+            categoryRouting?.updateChildVisibility(Key.RULES_GEOSITE_URL)
+            categoryRouting?.updateChildVisibility(Key.RULES_GEOIP_URL)
+            true
+        }
+
+        findPreference<Preference>("routeRulesEntry")?.setOnPreferenceClickListener {
+            (activity as? MainActivity)?.displayFragment(RouteFragment())
+            true
+        }
+        findPreference<Preference>("logcatEntry")?.setOnPreferenceClickListener {
+            (activity as? MainActivity)?.displayFragment(LogcatFragment())
+            true
+        }
+        findPreference<Preference>("backupEntry")?.setOnPreferenceClickListener {
+            (activity as? MainActivity)?.displayFragment(SettingsFragment.forSection("backup"))
+            true
+        }
+        findPreference<Preference>("aboutEntry")?.setOnPreferenceClickListener {
+            (activity as? MainActivity)?.displayFragment(AboutFragment())
             true
         }
 
@@ -236,12 +248,6 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             }
         }
         updateMixedPortState()
-        disableMixedInbound.setOnPreferenceChangeListener { _, newValue ->
-            val disabled = newValue as Boolean
-            updateMixedPortState(disabled)
-            needReload()
-            true
-        }
         // 配置身份验证：弹窗编辑混合入站用户名/密码，两项均留空则不启用认证
         fun updateMixedAuthSummary() {
             mixedAuthConfig.summary = DataStore.mixedUsername.takeIf { it.isNotBlank() }
@@ -369,13 +375,18 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             startActivity(Intent(requireContext(), LanSharingActivity::class.java))
             true
         }
+
         // Keep all preference bindings alive; each new entry reveals its relevant section.
         val section = arguments?.getString("section")
         val categories = when (section) {
-            "dns" -> setOf("categoryDNS")
-            "root" -> setOf("categoryMode", "categoryVPN")
-            "network" -> setOf("categoryVPN", "categoryCore")
-            "appearance" -> setOf("categoryUI")
+            "runtime" -> setOf("categoryRuntime")
+            "http_tls" -> setOf("categoryHttpTls")
+            "dns" -> setOf("categoryDns")
+            "route" -> setOf("categoryRouting")
+            "speedtest", "network" -> setOf("categorySpeedTest")
+            "appearance" -> setOf("categoryAppearance")
+            "logs" -> setOf("categoryLogsDiagnostics")
+            "other" -> setOf("categoryOther")
             else -> null
         }
         if (categories != null) {
@@ -400,23 +411,6 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
                 }
             }
             preferenceScreen.addPreference(colors)
-        }
-        if (section == "root") {
-            val status = Preference(requireContext()).apply {
-                key = "minimalModuleStatus"
-                title = getString(R.string.minimal_root)
-                summary = "—"
-                order = -1
-                isSelectable = false
-            }
-            preferenceScreen.addPreference(status)
-            lifecycleScope.launch {
-                status.summary = try {
-                    val module = io.nekohasekai.sagernet.bg.RootModuleClient.call("status")
-                    getString(if (module.connected) R.string.service_state_connected else R.string.service_state_idle)
-                } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-                  catch (e: Exception) { io.nekohasekai.sagernet.bg.RootModuleErrors.message(requireContext(), e) }
-            }
         }
     }
 
@@ -457,13 +451,13 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
         try {
             val cacheDir = SagerNet.application.cacheDir
             clearDirFiles(cacheDir, skipFiles = setOf("neko.log"))
-            
+
             val parentDir = cacheDir.parentFile
             val relativeCache = File(parentDir, "cache")
             if (relativeCache.exists() && relativeCache.isDirectory) {
                 clearDirFiles(relativeCache)
             }
-            
+
             Toast.makeText(requireContext(), R.string.clear_cache_success, Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             Toast.makeText(requireContext(), getString(R.string.clear_cache_failed, e.message), Toast.LENGTH_SHORT).show()
@@ -474,10 +468,10 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
     private fun clearDirFiles(dir: File, skipFiles: Set<String> = emptySet()): Boolean {
         if (dir.isDirectory) {
             val children = dir.list() ?: return true
-            
+
             for (child in children) {
                 val childFile = File(dir, child)
-                
+
                 if (child == "neko.log") {
                     try {
                         childFile.writeText("")
@@ -486,42 +480,20 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
                         e.printStackTrace()
                     }
                 }
-                
+
                 if (child in skipFiles) {
                     continue
                 }
-                
+
                 if (childFile.isDirectory) {
                     clearDirFiles(childFile, skipFiles)
                 } else {
                     childFile.delete()
                 }
             }
-            
+
             return true
         }
         return false
     }
-
-    class ListSummaryProvider(
-        private val maxLines: Int,
-    ) : Preference.SummaryProvider<EditTextPreference> {
-
-        override fun provideSummary(preference: EditTextPreference): CharSequence {
-            val lines = preference.text.orEmpty()
-                .lineSequence()
-                .filter { it.isNotBlank() }
-                .toList()
-            if (lines.isEmpty()) {
-                return preference.context.getString(androidx.preference.R.string.not_set)
-            }
-            return if (lines.size > maxLines) {
-                lines.take(maxLines).joinToString("\n", postfix = "\n...")
-            } else {
-                lines.joinToString("\n")
-            }
-        }
-
-    }
-
 }

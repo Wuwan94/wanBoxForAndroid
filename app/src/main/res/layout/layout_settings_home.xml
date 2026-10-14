@@ -1,84 +1,36 @@
-<?xml version="1.0" ?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@color/minimal_background">
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/minimal_background">
+
     <include layout="@layout/layout_appbar"/>
-    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true">
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingHorizontal="20dp" android:paddingBottom="16dp">
-            <LinearLayout android:id="@+id/settings_apps" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="56dp" android:paddingVertical="10dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_marginEnd="20dp" android:src="@drawable/ic_minimal_apps" android:contentDescription="@null"/>
-                <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/per_app_proxy" android:textColor="@color/minimal_text" android:textSize="16sp" android:textStyle="bold"/>
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="@string/per_app_proxy_summary" android:textColor="@color/minimal_secondary" android:textSize="12sp"/>
-                </LinearLayout>
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
-            </LinearLayout>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/minimal_line"/>
-            <Space android:layout_width="match_parent" android:layout_height="20dp"/>
-            <LinearLayout android:id="@+id/settings_root" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="56dp" android:paddingVertical="10dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_marginEnd="20dp" android:src="@drawable/ic_minimal_root" android:contentDescription="@null"/>
-                <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/minimal_root" android:textColor="@color/minimal_text" android:textSize="16sp"/>
-                </LinearLayout>
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
-            </LinearLayout>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/minimal_line"/>
-            <LinearLayout android:id="@+id/settings_dns" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="56dp" android:paddingVertical="10dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_marginEnd="20dp" android:src="@drawable/ic_minimal_globe" android:contentDescription="@null"/>
-                <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/minimal_dns" android:textColor="@color/minimal_text" android:textSize="16sp"/>
-                </LinearLayout>
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
-            </LinearLayout>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/minimal_line"/>
-            <LinearLayout android:id="@+id/settings_route" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="56dp" android:paddingVertical="10dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_marginEnd="20dp" android:src="@drawable/ic_minimal_connections" android:contentDescription="@null"/>
-                <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/menu_route" android:textColor="@color/minimal_text" android:textSize="16sp"/>
-                </LinearLayout>
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
-            </LinearLayout>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/minimal_line"/>
-            <LinearLayout android:id="@+id/settings_network" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="56dp" android:paddingVertical="10dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_marginEnd="20dp" android:src="@drawable/ic_minimal_wifi" android:contentDescription="@null"/>
-                <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/minimal_network" android:textColor="@color/minimal_text" android:textSize="16sp"/>
-                </LinearLayout>
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
-            </LinearLayout>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/minimal_line"/>
-            <Space android:layout_width="match_parent" android:layout_height="20dp"/>
-            <LinearLayout android:id="@+id/settings_appearance" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="56dp" android:paddingVertical="10dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_marginEnd="20dp" android:src="@drawable/ic_minimal_brush" android:contentDescription="@null"/>
-                <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/minimal_appearance" android:textColor="@color/minimal_text" android:textSize="16sp"/>
-                </LinearLayout>
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
-            </LinearLayout>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/minimal_line"/>
-            <LinearLayout android:id="@+id/settings_logs" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="56dp" android:paddingVertical="10dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_marginEnd="20dp" android:src="@drawable/ic_minimal_subscription" android:contentDescription="@null"/>
-                <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/minimal_logs" android:textColor="@color/minimal_text" android:textSize="16sp"/>
-                </LinearLayout>
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
-            </LinearLayout>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/minimal_line"/>
-            <LinearLayout android:id="@+id/settings_backup" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="56dp" android:paddingVertical="10dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_marginEnd="20dp" android:src="@drawable/ic_minimal_database" android:contentDescription="@null"/>
-                <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/minimal_backup" android:textColor="@color/minimal_text" android:textSize="16sp"/>
-                </LinearLayout>
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
-            </LinearLayout>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/minimal_line"/>
-            <LinearLayout android:id="@+id/settings_about" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="56dp" android:paddingVertical="10dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_marginEnd="20dp" android:src="@drawable/ic_minimal_info" android:contentDescription="@null"/>
-                <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/minimal_about" android:textColor="@color/minimal_text" android:textSize="16sp"/>
-                </LinearLayout>
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
-            </LinearLayout>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/minimal_line"/>
-            <TextView android:id="@+id/settings_version" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:paddingTop="20dp" android:paddingBottom="8dp" android:textColor="@color/minimal_secondary" android:textSize="12sp"/>
-        </LinearLayout>
-    </ScrollView>
+
+    <androidx.compose.ui.platform.ComposeView
+        android:id="@+id/settings_compose"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"/>
+
+    <!-- Keep legacy view IDs declared for resource compatibility while hidden -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        android:orientation="vertical">
+        <View android:id="@+id/settings_apps" android:layout_width="0dp" android:layout_height="0dp"/>
+        <View android:id="@+id/settings_runtime" android:layout_width="0dp" android:layout_height="0dp"/>
+        <View android:id="@+id/settings_http_tls" android:layout_width="0dp" android:layout_height="0dp"/>
+        <View android:id="@+id/settings_root" android:layout_width="0dp" android:layout_height="0dp"/>
+        <View android:id="@+id/settings_dns" android:layout_width="0dp" android:layout_height="0dp"/>
+        <View android:id="@+id/settings_route" android:layout_width="0dp" android:layout_height="0dp"/>
+        <View android:id="@+id/settings_network" android:layout_width="0dp" android:layout_height="0dp"/>
+        <View android:id="@+id/settings_appearance" android:layout_width="0dp" android:layout_height="0dp"/>
+        <View android:id="@+id/settings_logs" android:layout_width="0dp" android:layout_height="0dp"/>
+        <View android:id="@+id/settings_backup" android:layout_width="0dp" android:layout_height="0dp"/>
+        <View android:id="@+id/settings_about" android:layout_width="0dp" android:layout_height="0dp"/>
+        <TextView android:id="@+id/settings_version" android:layout_width="0dp" android:layout_height="0dp"/>
+    </LinearLayout>
 </LinearLayout>
