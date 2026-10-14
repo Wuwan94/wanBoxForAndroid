@@ -28,9 +28,9 @@
 ---
 ## 📖 项目介绍 / Introduction
 
-**wanBoxForAndroid 从 OwnBoxForAndroid 的早期代码基础发展而来，目前由本仓库独立维护，拥有自己的代码、版本发布与功能路线；它不是 OwnBoxForAndroid 的官方版本，也不再以持续同步上游作为项目目标。项目面向 Root Android 设备；当前 v3.0.7 使用独立 Root TUN 模块，App 保留原有管理界面，不再提供普通 VPN 模式。正式版 v3.0.7 新增底部四栏导航（仪表盘/节点/订阅/设置），历史功能范围以其发行说明为准。**
+**wanBoxForAndroid 从 OwnBoxForAndroid 的早期代码基础发展而来，目前由本仓库独立维护，拥有自己的代码、版本发布与功能路线；它不是 OwnBoxForAndroid 的官方版本，也不再以持续同步上游作为项目目标。项目面向 Root Android 设备；当前 v3.0.9 使用独立 Root TUN 模块，App 为四页管理界面（仪表盘/节点/订阅/设置，浅灰简洁风格），不再提供普通 VPN 模式。正式版 v3.0.9 采用四页重设计，历史功能范围以其发行说明为准。**
 
-**wanBoxForAndroid evolved from an early OwnBoxForAndroid codebase and is independently maintained with its own code, releases, and roadmap. It is not an official OwnBoxForAndroid release and does not aim to continuously sync upstream. Current v3.0.7 uses an independent Root TUN module and retains the management UI; ordinary VPN mode is no longer offered. Stable v3.0.7 adds bottom four-tab navigation (Dashboard/Nodes/Subscriptions/Settings).**
+**wanBoxForAndroid evolved from an early OwnBoxForAndroid codebase and is independently maintained with its own code, releases, and roadmap. It is not an official OwnBoxForAndroid release and does not aim to continuously sync upstream. Current v3.0.9 uses an independent Root TUN module with a four-page management UI (Dashboard/Nodes/Subscriptions/Settings) in a light-gray clean style; ordinary VPN mode is no longer offered. Stable v3.0.9 ships a four-page redesign.**
 
 项目起源、当前状态与发展方向详见[项目定位与发展说明](docs/project-positioning.zh-CN.md)。
 
