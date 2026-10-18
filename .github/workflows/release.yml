@@ -283,4 +283,29 @@ jobs:
           prerelease: ${{ contains(github.event.inputs.tag || github.ref_name, 'preview') || contains(github.event.inputs.tag || github.ref_name, 'alpha') || contains(github.event.inputs.tag || github.ref_name, 'beta') }}
           make_latest: ${{ !(contains(github.event.inputs.tag || github.ref_name, 'preview') || contains(github.event.inputs.tag || github.ref_name, 'alpha') || contains(github.event.inputs.tag || github.ref_name, 'beta')) }}
           generate_release_notes: false
+      # @author 雾晚: 正式版只保留最新一版，覆盖上一次；预览版(prerelease=true)一律不动，
+      # 只清理同属正式版的旧 tag；清理失败只告警，不影响已经完成的发布。
+      - name: Prune older stable releases
+        if: success()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          CURRENT_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -u
+          gh api --paginate "repos/$REPO/releases?per_page=100" \
+            --jq '.[] | select(.prerelease == false) | select(.tag_name != env.CURRENT_TAG) | "\(.id) \(.tag_name)"' \
+            > "$RUNNER_TEMP/old-stable.txt"
+          if [ ! -s "$RUNNER_TEMP/old-stable.txt" ]; then
+            echo "No older stable releases to remove."
+            exit 0
+          fi
+          while read -r id tag; do
+            echo "Removing stable release $tag (id=$id)"
+            gh api -X DELETE "repos/$REPO/releases/$id" || echo "::warning::failed to delete release $tag"
+            gh api -X DELETE "repos/$REPO/git/refs/tags/$tag" || echo "::warning::failed to delete tag $tag"
+          done < "$RUNNER_TEMP/old-stable.txt"
+          echo "Remaining releases:"
+          gh api --paginate "repos/$REPO/releases?per_page=100" --jq '.[] | "\(.tag_name) prerelease=\(.prerelease)"'
 
