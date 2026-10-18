@@ -40,9 +40,11 @@ import androidx.compose.ui.unit.sp
 import io.nekohasekai.sagernet.R
 
 /**
- * 一级设置八组结构定义：
- * 【运行、HTTP/TLS、DNS设置、路由、测速、主题与外观、日志与诊断、其他】
- * 已移除独立“Root模块管理”与“高级设置与工具”入口；分应用代理保留在顶部独立入口及运行组内。
+ * 一级设置六组：运行、网络、测速、外观、高级设置、其他。
+ *
+ * DNS 与路由合并为「网络」，HTTP/TLS 与日志诊断合并为「高级设置」，
+ * 分应用代理保留为顶部独立入口。合并只影响一级入口的展示，
+ * 各分区仍由 SettingsPreferenceFragment 按 section 渲染，偏好键不变。
  */
 enum class SettingsSectionGroup(
     val sectionKey: String,
@@ -50,12 +52,10 @@ enum class SettingsSectionGroup(
     @DrawableRes val iconRes: Int
 ) {
     RUNTIME("runtime", R.string.settings_group_runtime, R.drawable.ic_minimal_wifi),
-    HTTP_TLS("http_tls", R.string.settings_group_http_tls, R.drawable.ic_baseline_lock_24),
-    DNS("dns", R.string.settings_group_dns, R.drawable.ic_minimal_globe),
-    ROUTING("route", R.string.settings_group_routing, R.drawable.ic_minimal_connections),
+    NETWORK("network", R.string.settings_group_network, R.drawable.ic_minimal_connections),
     SPEED_TEST("speedtest", R.string.settings_group_speedtest, R.drawable.ic_baseline_speed_24),
     APPEARANCE("appearance", R.string.minimal_appearance, R.drawable.ic_minimal_brush),
-    LOGS_DIAGNOSTICS("logs", R.string.minimal_logs, R.drawable.ic_minimal_subscription),
+    ADVANCED("advanced", R.string.settings_group_advanced, R.drawable.ic_baseline_lock_24),
     OTHER("other", R.string.settings_group_other, R.drawable.ic_minimal_info)
 }
 

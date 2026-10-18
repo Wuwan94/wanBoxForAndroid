@@ -378,14 +378,14 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
 
         // Keep all preference bindings alive; each new entry reveals its relevant section.
         val section = arguments?.getString("section")
+        // 一级入口收敛为六组：DNS 与路由合并到 network，HTTP/TLS 与日志诊断合并到
+        // advanced。合并只隐藏一级入口，偏好键与分区内容不变。
         val categories = when (section) {
             "runtime" -> setOf("categoryRuntime")
-            "http_tls" -> setOf("categoryHttpTls")
-            "dns" -> setOf("categoryDns")
-            "route" -> setOf("categoryRouting")
-            "speedtest", "network" -> setOf("categorySpeedTest")
+            "network" -> setOf("categoryDns", "categoryRouting")
+            "speedtest" -> setOf("categorySpeedTest")
             "appearance" -> setOf("categoryAppearance")
-            "logs" -> setOf("categoryLogsDiagnostics")
+            "advanced" -> setOf("categoryHttpTls", "categoryLogsDiagnostics")
             "other" -> setOf("categoryOther")
             else -> null
         }

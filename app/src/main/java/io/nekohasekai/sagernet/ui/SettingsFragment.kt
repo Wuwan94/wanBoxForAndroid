@@ -5,7 +5,6 @@ import android.content.Intent
 import android.graphics.RectF
 import android.os.Bundle
 import android.view.LayoutInflater
-import android.view.Menu
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.ui.platform.ComposeView
@@ -38,12 +37,6 @@ class SettingsFragment : ToolbarFragment() {
             renderedComposeItemBounds.clear()
             renderedComposeItemTitles.clear()
             toolbar.setTitle(R.string.settings)
-            toolbar.menu.add(Menu.NONE, R.id.nav_tools, Menu.NONE, R.string.menu_tools)
-            toolbar.menu.add(Menu.NONE, R.id.nav_docs, Menu.NONE, R.string.menu_documentation)
-            toolbar.setOnMenuItemClickListener {
-                host.displayFragmentWithId(it.itemId)
-                true
-            }
             view.findViewById<ComposeView>(R.id.settings_compose)?.apply {
                 setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
                 setContent {
@@ -75,12 +68,10 @@ class SettingsFragment : ToolbarFragment() {
             toolbar.setTitle(
                 when (page) {
                     "runtime" -> R.string.settings_group_runtime
-                    "http_tls" -> R.string.settings_group_http_tls
-                    "dns" -> R.string.settings_group_dns
-                    "route" -> R.string.settings_group_routing
-                    "speedtest", "network" -> R.string.settings_group_speedtest
+                    "network" -> R.string.settings_group_network
+                    "speedtest" -> R.string.settings_group_speedtest
                     "appearance" -> R.string.minimal_appearance
-                    "logs" -> R.string.minimal_logs
+                    "advanced" -> R.string.settings_group_advanced
                     "other" -> R.string.settings_group_other
                     "backup" -> R.string.minimal_backup
                     else -> R.string.settings

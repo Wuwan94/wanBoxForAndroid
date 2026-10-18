@@ -344,8 +344,8 @@ class MinimalUiTest {
                         upper.top < lower.top && upper.bottom <= lower.top
                     )
                 }
-                assertEquals(context.getString(R.string.settings_group_dns), fragment.getRenderedItemTitle("dns"))
-                for (removed in listOf("root", "advanced", "serviceMode", "disableMixedInbound", "enableClashAPI", "clashApiFixed")) {
+                assertEquals(context.getString(R.string.settings_group_network), fragment.getRenderedItemTitle("network"))
+                for (removed in listOf("root", "serviceMode", "disableMixedInbound", "enableClashAPI", "clashApiFixed")) {
                     assertFalse("Removed entry must not be rendered on settings home: $removed", fragment.hasRenderedItem(removed))
                 }
                 assertNull(fragment.toolbar.menu.findItem(R.id.settings_advanced))
@@ -359,8 +359,8 @@ class MinimalUiTest {
                 val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as SettingsFragment
                 val composeView = checkNotNull(host.findViewById<View>(R.id.settings_compose)) { "settings_compose missing" }
                 assertTrue("settings_compose must be shown", composeView.isShown)
-                val dnsBounds = checkNotNull(fragment.getComposeItemBounds("dns")) { "Compose DNS bounds missing" }
-                assertTrue("Compose DNS bounds must be positive", dnsBounds.width() > 0f && dnsBounds.height() > 0f)
+                val dnsBounds = checkNotNull(fragment.getComposeItemBounds("network")) { "Compose network bounds missing" }
+                assertTrue("Compose network bounds must be positive", dnsBounds.width() > 0f && dnsBounds.height() > 0f)
                 tapX = dnsBounds.centerX()
                 tapY = dnsBounds.centerY()
                 assertTrue("DNS tap X within ComposeView", tapX in 0f..composeView.width.toFloat())
@@ -387,12 +387,12 @@ class MinimalUiTest {
                 val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as? SettingsFragment
                 val prefFrag = fragment?.childFragmentManager?.findFragmentById(R.id.settings) as? SettingsPreferenceFragment
                 prefFrag != null &&
-                    fragment.toolbar.title?.toString() == context.getString(R.string.settings_group_dns) &&
+                    fragment.toolbar.title?.toString() == context.getString(R.string.settings_group_network) &&
                     prefFrag.findPreference<androidx.preference.Preference>(Key.REMOTE_DNS)?.isVisible == true
             }
             instrumentation.runOnMainSync {
                 val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as SettingsFragment
-                assertEquals(context.getString(R.string.settings_group_dns), fragment.toolbar.title.toString())
+                assertEquals(context.getString(R.string.settings_group_network), fragment.toolbar.title.toString())
                 val prefFrag = fragment.childFragmentManager.findFragmentById(R.id.settings) as SettingsPreferenceFragment
                 assertTrue(prefFrag.findPreference<androidx.preference.Preference>(Key.REMOTE_DNS)!!.isVisible)
                 assertTrue(prefFrag.findPreference<androidx.preference.Preference>(Key.DIRECT_DNS)!!.isVisible)

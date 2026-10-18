@@ -57,7 +57,7 @@
     <string name="minimal_hours_ago">%1$d 小时前</string>
     <string name="minimal_days_ago">%1$d 天前</string>
     <string name="minimal_group_summary">%1$d 个节点 · %2$s</string>
-    <string name="minimal_root">Root 模块管理</string>
+    <string name="minimal_root">服务开关</string>
     <string name="minimal_dns">DNS 设置</string>
     <string name="minimal_network">网络自动策略</string>
     <string name="minimal_appearance">主题与外观</string>

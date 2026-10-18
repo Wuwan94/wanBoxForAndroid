@@ -195,7 +195,7 @@ class DocsFragment : ToolbarFragment(R.layout.layout_docs) {
         )
 
         // 2. VPN 设置
-        allItems.add(DocListItem.Header("2. Root TUN 设置 (Root TUN Settings)", "控制系统虚拟网卡 (TUN) 路由分流、开机自启、局域网共享与 MTU 性能"))
+        allItems.add(DocListItem.Header("2. 网络设置 (Network Settings)", "控制系统虚拟网卡 (TUN) 路由分流、开机自启、局域网共享与 MTU 性能"))
         allItems.add(
             DocListItem.Item(
                 category = "VPN 设置",
@@ -292,9 +292,9 @@ class DocsFragment : ToolbarFragment(R.layout.layout_docs) {
             DocListItem.Item(
                 category = "模式与入站设置",
                 title = "服务模式 (serviceMode)",
-                badge = "仅支持: Root 模块",
-                desc = "App 保留现有管理界面，使用 Magisk / KernelSU 模块独立运行 Root TUN；无 Root 或模块不可用时提示错误，不再回退 VPN。",
-                prosCons = "配置提交后由模块持有核心；App 关闭后无需后台服务。需先安装对应架构模块并授予 Root 权限。",
+                badge = "仅支持: 模块服务",
+                desc = "App 只保留管理界面，代理由配套模块独立运行；模块不可用时提示错误，不回退 VPN 模式。",
+                prosCons = "配置提交后由模块持有核心；App 关闭后无需后台服务。需先安装并启用对应架构的配套模块。",
                 recommendation = "先安装配套模块、提交节点配置，再连接。Android 休眠与厂商网络限制仍可能影响联网。",
                 keywords = "root 模块 magisk kernelsu tun serviceMode",
             )

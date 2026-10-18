@@ -1273,6 +1273,7 @@
     <string name="settings_group_about">About</string>
     <string name="settings_group_advanced">Advanced</string>
     <string name="settings_group_http_tls">HTTP/TLS</string>
+    <string name="settings_group_network">Network</string>
     <string name="settings_group_dns">DNS Settings</string>
     <string name="settings_group_routing">Routing</string>
     <string name="settings_group_speedtest">Speed Test</string>
