@@ -1,30 +1,40 @@
-# wanBox for Android v3.0.10-preview.5 更新说明
+# wanBox for Android v3.0.10-preview.6 更新说明
 
-本版本聚焦界面精简：把前台收敛为轻量管理前端，移除界面中的 Root 标识，并让状态刷新优先走模块推送。内核与节点热切换能力与 preview.4 一致。
+本版本把「数据与职责」真正下沉到模块：节点、订阅、全局配置的真值改由模块保存，App 只负责展示与下发指令，管理面补全为完整的回环 HTTPS 接口，App 侧删除 `su` 传输层。界面、节点热切换、推送状态流与 preview.5 保持一致。
 
 ### 核心变更
 
-* **设置页由八组收敛为六组**：DNS 与路由合并为「网络」，HTTP/TLS 与日志诊断合并为「高级设置」，分应用代理保留顶部独立入口。设置首页右上角的「工具」「文档」入口移除。合并只改变一级入口的可见性，分区与偏好键不变，覆盖升级不影响已保存设置。
-* **移除界面中的 Root 标识**：仪表盘顶部硬编码的 "Root" 小标题删除；服务开关的无障碍描述由「Root 模块管理」改为「服务开关」；模块错误提示不再要求「授予 Root 权限」，改为提示确认模块是否已安装并启用；文档页徽章与说明改为「模块服务」。设备侧仍由模块运行，不引入 VPN 模式，底层能力未变。
-* **状态刷新优先使用模块推送**：绑定后订阅模块 `/v1/events`，事件到达即更新界面，与轮询共用同一应用点。推送在线时跳过轮询，轮询间隔由 2 秒放宽到 5 秒仅作兜底；连接失败或模块为旧版时静默回退，行为与之前一致。
-* **节点切换保持不重启**：热切换仍走 Clash API 选择器，状态由 `runtime/selection.json` 承载，`supervisor` 持久化不会回退选择。本版本在此基础上减少了切换期间的 su 采样竞争。
+* **模块成为节点/订阅/配置的唯一真实数据源**：新增模块内置存储 `store/nodes.json`、`store/subscriptions.json`、`store/config.json` 与 `store/meta.json`，读写走原子替换，与核心进程状态解耦。核心停止、启动失败或模块刚安装时，这些数据照常可读写。
+* **补全模块 HTTPS 管理接口**：在原有 `/v1/health`、`/v1/status`、`/v1/events`、`/v1/select`、`/v1/service/start|stop` 之外，新增：
+  * 节点：`GET /v1/nodes`、`POST /v1/nodes`、`PUT /v1/nodes/{id}`、`DELETE /v1/nodes/{id}`
+  * 订阅：`GET /v1/subscriptions`、`POST /v1/subscriptions`、`POST /v1/subscriptions/{id}/update`、`DELETE /v1/subscriptions/{id}`
+  * 配置：`GET /v1/config`、`PUT /v1/config`
+  * 服务：`POST /v1/service/reload`、`POST /v1/service/autostart`
+  * 数据：`POST /v1/data/prepare|finish|rollback|selection-finish`
+  
+  鉴权方式不变：仅接受回环地址、每次安装独立的 Bearer token、自签证书 SHA-256 钉扎；错误统一返回 `{"schema":1,"ok":false,"error":"<code>"}`。
+* **App 全面切换到 HTTPS 客户端**：`ModuleApiClient` 的请求层泛化为可返回任意 JSON，新增节点、订阅、配置、服务与数据端点的方法；`RootModuleClient` 删除 `ProcessBuilder("su", ...)` 传输层，收敛为 HTTPS 门面，启停、切节点、配置应用、状态查询全部经本客户端。
+* **配置改为「意图下发」**：App 不再生成完整配置快照并强推，只提交路由、入站、DNS、实验项与资源文件；模块读取自身节点数据、合并后生成完整 sing-box 配置，校验通过再走原有的 generation 与 Apply 流程，失败保留上一份有效配置。
+* **节点切换体验不变**：热切换仍走 Clash API 选择器并由 `runtime/selection.json` 承载，不重启核心；事件流优先、轮询兜底的刷新机制保持原样，切换期间上方按钮与节点名不闪烁。
 
 ### 兼容性与产物
 
-* 包名 `com.lit008834.pixel.wanboxforandroid`、原签名、数据库与备份格式不变，可直接覆盖 v3.0.9 与 v3.0.10-preview.4。
-* 仅 arm64-v8a、Android 12+、Root 环境，仍为纯 Root 模块，不提供 VPN 模式。
-* 预览版本 `3.0.10-preview.5`，模块版本代码 `367`，APK 版本代码 `1835`。
+* 包名 `com.lit008834.pixel.wanboxforandroid`、原签名、数据库与备份格式均未改变，可直接覆盖 v3.0.9 与 v3.0.10-preview.5，用户数据与已保存设置保留。
+* 仅 arm64-v8a、Android 12+、Root 环境；仍为纯 Root 模块，不提供 VPN 模式。
+* 预览版本 `3.0.10-preview.6`，模块版本代码 `368`，APK 版本代码 `1840`，内核 `sing-box v1.15.0-alpha.12`。
 * 交付 ARM64 APK、纯 Root 模块、内嵌同一 APK 的整合模块与 `SHA256SUMS`。
 * 预览渠道只保留最新一版：发布本版时会自动清理更早的预览 Release 与 tag，正式版不受影响。
 
 ### 验证边界
 
-* 本地完成 `testOssDebugUnitTest`（313 项）、`testPreviewDebugUnitTest`、`compilePreviewDebugAndroidTestKotlin`、`minifyPreviewReleaseWithR8`、`check_android_security.py`，以及模块的 `go test ./...` 与 11 项 Python 测试，均通过；本地 R8 使用临时密钥，仅验证压缩通过。
+* 模块侧在本地以 Go 1.25.0 完成 `go build ./...`、`go vet ./...` 与存储层运行时测试（含并发读写与锁重入回归），均通过；CI 的 `Native Build (LibCore)` 同样执行 `go test -race` 与 `go vet`，通过。
+* App 侧在 CI 完成 Gradle 编译与 `testPreviewDebugUnitTest`，通过。本次同步更新了 3 个源码契约测试（旧 `config apply` 快照流程 → 新的 `applyConfig` 与配置意图流程），并保留节点 id 的注入防护断言。
 * **尚未在真实 ARM64 Root 设备验证**：模块挂载、TUN 与 auto_redirect 联调、节点切换录屏、杀 App 后代理是否持续、覆盖安装实测均未进行。
-* **仪器测试未运行**：`MinimalUiTest` 的分组断言已随界面改动更新（`dns` → `network`），但本机无模拟器，未实际执行。
-* **推送状态流依赖模块版本**：若设备上仍是 preview.3 及更早的模块（`service.sh` 未改为 `serve`），事件流连不上，会自动回退轮询，但拿不到推送收益。
+* **订阅更新与节点 CRUD 未做设备联调**：接口已实现并有本地单元测试，但尚未用真实订阅 URL 走完整链路。
 
 ### 已知问题
 
-* 节点与订阅数据仍走原有 Room 与快照路径，`/v1/nodes`、`/v1/subscriptions`、`/v1/config` 尚未实现。
-* 启停与配置应用仍经 `su` 调用，`ModuleApiClient` 目前只承担状态流。
+* **首次凭据交付仍在过渡期**：默认的文件桥读取 App 私有目录下的 `module-api.json`，需要模块侧在启动时把 `api.json` 同步到该位置；本版尚未完成这一步同步，若该文件缺失会报 `module_credentials_unavailable`。迁移用的 `SuCredentialBridge` 代码保留但默认不启用。
+* **订阅解析能力有限**：支持 sing-box JSON 节点数组与 base64 节点 URI 列表；Clash YAML 仅解析基础字段（`name`、`type`、`server`、`port`、`cipher`/`uuid`、`password`、`tls`），复杂协议与规则集不下沉。
+* **节点与订阅界面仍以 Room 为草稿**：模块是已生效数据的真值，Room 继续承担离线编辑与备份导入；两者一致性靠显式回灌，暂未做双向自动同步。
+* **`data` 系列端点已就绪但 App 侧旧事务链路仍在**：数据迁移的 HTTP 形态已提供，App 的 `dataUpdate` 目前仍以原有事务为主，后续版本切换。

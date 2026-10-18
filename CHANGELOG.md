@@ -1,8 +1,34 @@
 # wanBoxForAndroid 更新日志（Changelog）
 
-> 维护范围：下列 wanBox 3.0.x 条目按各自 GitHub Release 汇总；详细回归覆盖与兼容/升级信息请见对应版本页面。最新正式版为 v3.0.6，当前预览构建为 v3.0.7-preview.15。项目起源与当前定位见 [README](README.md)。
+> 维护范围：下列 wanBox 3.0.x 条目按各自 GitHub Release 汇总；详细回归覆盖与兼容/升级信息请见对应版本页面。最新正式版为 v3.0.9，当前预览构建为 v3.0.10-preview.6。预览渠道只保留最新一版，更早的预览条目以其发行说明为准。项目起源与当前定位见 [README](README.md)。
 
 ## wanBox 3.0.x 发布记录
+
+### v3.0.10-preview.6（预览版，2026-10-18）
+
+作者：@author 雾晚
+
+- **模块成为节点/订阅/配置的真实数据源**：新增 `store/nodes.json`、`store/subscriptions.json`、`store/config.json` 与 `store/meta.json`，原子写入，与核心生命周期解耦；核心停止或启动失败时数据照常可读写。
+- **补全模块回环 HTTPS 管理接口**：新增 `/v1/nodes`（列表/新增/修改/删除）、`/v1/subscriptions`（列表/新增/更新/删除）、`/v1/config`（读取/应用）、`/v1/service/reload`、`/v1/service/autostart`、`/v1/data/prepare|finish|rollback|selection-finish`；鉴权仍为每安装独立 token + 自签证书钉扎 + 仅回环。
+- **App 删除 `su` 传输层**：`ModuleApiClient` 请求层泛化并新增全部新端点方法，`RootModuleClient` 收敛为 HTTPS 门面；启停、切节点、配置应用与状态查询不再经 Root Shell。
+- **配置改为意图下发**：App 不再生成完整配置快照，只提交路由、入站、DNS、实验项与资源文件，模块合并自身节点数据后生成完整 sing-box 配置并走校验、generation 与 Apply，失败保留上一份有效配置。
+- 节点热切换、事件流优先/轮询兜底、六组设置与移除 Root 标识的界面成果均保持不变；包名、签名、数据库与备份格式兼容，可覆盖 v3.0.9 与 v3.0.10-preview.5。
+- 预览版本 `3.0.10-preview.6`，模块版本代码 `368`，APK 版本代码 `1840`，内核 `sing-box v1.15.0-alpha.12`。
+
+### v3.0.9（正式版，2026-10-12）
+
+作者：@author 雾晚
+
+- 四页 UI 重设计：仪表盘、节点、订阅、设置按浅灰简洁风格重做，去蓝去绿；节点页支持订阅筛选、分组标题、圆形选中标记与实时生效的列数/字号/间距/密度。
+- 设置页提供分应用代理、Root 模块管理、DNS、路由规则、网络自动策略、主题外观、日志诊断、备份恢复与关于九个入口。
+- 底部四个入口统一细线图标；上传、下载与累计流量使用服务回调，未连接时不显示旧采样。
+- 正式版 `versionName=3.0.9`，元数据 `VERSION_CODE=362`，Android `versionCode=1810`，可直接覆盖安装。
+
+### v3.0.8（正式版，2026-10-11）
+
+作者：@author 雾晚
+
+- 直连模式不再停止服务，修复模式切换自动回弹。
 
 ### v3.0.7-preview.15（预览版，2026-10-09）
 

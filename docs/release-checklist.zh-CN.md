@@ -50,3 +50,17 @@
 - **包名/签名不变**：`build.gradle.kts` 与 keystore 固定，覆盖安装不触发签名冲突。
 - **versionCode 递增**：APK 的 versionCode 由 `nb4a.properties` 的 `*_CODE × 5` 计算，每次发布 +1 保证系统认可覆盖升级。
 - **数据兼容**：数据库 schema、便携备份格式、模块数据目录均向后兼容，覆盖安装不丢数据（相关回归见 `PortableBackupCompatibilityTest` 与 `RootModuleDataUpdateTest`）。
+
+## 七、文档同步清单
+
+每次发布前，以下文件必须一起更新，缺一不可：
+
+| 文件 | 更新内容 | 触发渠道 |
+|---|---|---|
+| `PREVIEW_NOTES.md` | 本版预览说明（会成为预览 Release 正文，CI 直接读取该文件） | 预览版 |
+| `RELEASE_NOTES.md` | 本版正式说明（会成为正式 Release 正文） | 正式版 |
+| `CHANGELOG.md` | 顶部追加一条版本记录，并修正首行「最新正式版 / 当前预览构建」 | 两者 |
+| `README.md` | 头部版本行、`Stable` / `Preview` 徽章链接与版本号、内核版本、最低 Android 版本 | 两者 |
+| `docs/project-positioning.zh-CN.md` | 「截至 xxx」段的版本号与架构描述 | 架构有变化时 |
+
+> Release 正文由 CI 从 `PREVIEW_NOTES.md` / `RELEASE_NOTES.md` 复制生成；如果发布后才发现文案过期，需要手动 `PATCH /repos/{owner}/{repo}/releases/{id}` 或到 Release 页面编辑，不会自动重新读取文件。
