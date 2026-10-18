@@ -1,28 +1,40 @@
-# wanBox for Android v3.0.10-preview.1 更新说明
+# wanBox for Android v3.0.10-preview.6 更新说明
 
-本版本为第一批稳定性与数据一致性修复的预览版本（Pre-release），主要修复仪表盘对 Root 模块真实遥测数据的接线、会话状态转换以及未知数据的严格判定。
+本版本把「数据与职责」真正下沉到模块：节点、订阅、全局配置的真值改由模块保存，App 只负责展示与下发指令，管理面补全为完整的回环 HTTPS 接口，App 侧删除 `su` 传输层。界面、节点热切换、推送状态流与 preview.5 保持一致。
 
-### 核心变更说明
-* **接通仪表盘真实核心遥测**：移除仪表盘对核心内存占用与活跃连接数的硬编码，直接读取模块端上报的真实采样数据；模块运行时长改为读取模块核心的实际运行秒数，不再依赖前端界面观测计时。
-* **完善遥测会话状态管理**：在应用层引入遥测会话状态跟踪，仅在服务处于 Connected 状态时接纳并更新速率与状态采样；离开已连接状态时清空旧样本，并拒绝断开或连接中到达的采样，减少重连残留数据；尚未做真实 Root 设备联调。
-* **严格未知语义与防截断校验**：重构底层遥测 JSON 解析逻辑，对缺失字段、非法大数溢出、浮点截断及负值统一归一化为未知（null），在界面准确呈现为破折号，同时完整保留“活跃连接数为真实 0”与“启动初期运行时间为 0”的有效语义。
-* **修复 ALL 分页稳定 ID 冲突**：修正 ViewPager2 分页适配器中全部节点分页（ALL）稳定 ID 与 `RecyclerView.NO_ID` (-1L) 碰撞的问题，将适配器映射 ID 分离至独立保留值，确保首页生命周期正确推进并正常加载列表；逻辑分组 ID、数据库存储及设置项完全保持不变。
-* **对齐 Root 模块预览渠道版本**：修正 Root 模块打包流程中的预览渠道标记，使纯 Root 模块包与内嵌型 Root 模块包的 版本名均与客户端 APK 统一为 3.0.10-preview.1，模块 module.prop 的 versionCode=363 与客户端 APK versionCode=1815 维持精确换算对应关系。
+### 核心变更
 
-* **清理设置废弃项事件绑定**：彻底移除设置页对已下线开关（开机自启/重启保持、Clash API、最近任务隐藏）的无效视图查找与事件监听，修复进入设置页及子项时因找不到对应 Preference 导致的空指针崩溃；不恢复已精简的界面入口，底层历史配置委托与存储结构保持原样向下兼容。
+* **模块成为节点/订阅/配置的唯一真实数据源**：新增模块内置存储 `store/nodes.json`、`store/subscriptions.json`、`store/config.json` 与 `store/meta.json`，读写走原子替换，与核心进程状态解耦。核心停止、启动失败或模块刚安装时，这些数据照常可读写。
+* **补全模块 HTTPS 管理接口**：在原有 `/v1/health`、`/v1/status`、`/v1/events`、`/v1/select`、`/v1/service/start|stop` 之外，新增：
+  * 节点：`GET /v1/nodes`、`POST /v1/nodes`、`PUT /v1/nodes/{id}`、`DELETE /v1/nodes/{id}`
+  * 订阅：`GET /v1/subscriptions`、`POST /v1/subscriptions`、`POST /v1/subscriptions/{id}/update`、`DELETE /v1/subscriptions/{id}`
+  * 配置：`GET /v1/config`、`PUT /v1/config`
+  * 服务：`POST /v1/service/reload`、`POST /v1/service/autostart`
+  * 数据：`POST /v1/data/prepare|finish|rollback|selection-finish`
+  
+  鉴权方式不变：仅接受回环地址、每次安装独立的 Bearer token、自签证书 SHA-256 钉扎；错误统一返回 `{"schema":1,"ok":false,"error":"<code>"}`。
+* **App 全面切换到 HTTPS 客户端**：`ModuleApiClient` 的请求层泛化为可返回任意 JSON，新增节点、订阅、配置、服务与数据端点的方法；`RootModuleClient` 删除 `ProcessBuilder("su", ...)` 传输层，收敛为 HTTPS 门面，启停、切节点、配置应用、状态查询全部经本客户端。
+* **配置改为「意图下发」**：App 不再生成完整配置快照并强推，只提交路由、入站、DNS、实验项与资源文件；模块读取自身节点数据、合并后生成完整 sing-box 配置，校验通过再走原有的 generation 与 Apply 流程，失败保留上一份有效配置。
+* **节点切换体验不变**：热切换仍走 Clash API 选择器并由 `runtime/selection.json` 承载，不重启核心；事件流优先、轮询兜底的刷新机制保持原样，切换期间上方按钮与节点名不闪烁。
 
-### 界面与范围说明
-* **保持既有四页浅灰布局**：本次更新属于底层遥测接线与会话状态修复，完整保留现有的原生 XML 浅灰页面布局结构与交互逻辑，不包含新的 Compose UI 重写或全局样式改造。
-* **保留现有累计流量策略**：本批次不对累计流量策略做任何调整，维持现有会话累计逻辑。
+### 兼容性与产物
 
-### 兼容性与交付产物
-* **覆盖升级目标**：本预览版面向原签名与相同包名（com.lit008834.pixel.wanboxforandroid）构建目标，构建号 PRE_VERSION_CODE=363（对应 Android versionCode=1815），目标支持直接覆盖现有的 v3.0.9 正式版本（发布前需由维护者独立完成签名验证）。
-* **交付发布文件**：
-  * 独立 ARM64 客户端安装包（arm64-v8a APK）
-  * 纯 Root 模块包（适用于 Magisk / KernelSU / APatch）
-  * 内嵌相同 APK 的整合型 Root 模块包
-  * 对应产物的 SHA256SUMS 校验清单文件
+* 包名 `com.lit008834.pixel.wanboxforandroid`、原签名、数据库与备份格式均未改变，可直接覆盖 v3.0.9 与 v3.0.10-preview.5，用户数据与已保存设置保留。
+* 仅 arm64-v8a、Android 12+、Root 环境；仍为纯 Root 模块，不提供 VPN 模式。
+* 预览版本 `3.0.10-preview.6`，模块版本代码 `368`，APK 版本代码 `1840`，内核 `sing-box v1.15.0-alpha.12`。
+* 交付 ARM64 APK、纯 Root 模块、内嵌同一 APK 的整合模块与 `SHA256SUMS`。
+* 预览渠道只保留最新一版：发布本版时会自动清理更早的预览 Release 与 tag，正式版不受影响。
 
-### 注意事项与风险提示
-* **尚未完成物理真机测试**：本版本目前已完成全量 JVM 单元测试与静态代码检查，但**尚未在真实 ARM64 Root 物理设备上进行完整挂载与透明代理联调**。
-* **问题反馈**：若在测试使用过程中遇到模块未能正常暴露状态、连接数显示异常或守护进程意外断开，请保留相关诊断日志并反馈。
+### 验证边界
+
+* 模块侧在本地以 Go 1.25.0 完成 `go build ./...`、`go vet ./...` 与存储层运行时测试（含并发读写与锁重入回归），均通过；CI 的 `Native Build (LibCore)` 同样执行 `go test -race` 与 `go vet`，通过。
+* App 侧在 CI 完成 Gradle 编译与 `testPreviewDebugUnitTest`，通过。本次同步更新了 3 个源码契约测试（旧 `config apply` 快照流程 → 新的 `applyConfig` 与配置意图流程），并保留节点 id 的注入防护断言。
+* **尚未在真实 ARM64 Root 设备验证**：模块挂载、TUN 与 auto_redirect 联调、节点切换录屏、杀 App 后代理是否持续、覆盖安装实测均未进行。
+* **订阅更新与节点 CRUD 未做设备联调**：接口已实现并有本地单元测试，但尚未用真实订阅 URL 走完整链路。
+
+### 已知问题
+
+* **首次凭据交付仍在过渡期**：默认的文件桥读取 App 私有目录下的 `module-api.json`，需要模块侧在启动时把 `api.json` 同步到该位置；本版尚未完成这一步同步，若该文件缺失会报 `module_credentials_unavailable`。迁移用的 `SuCredentialBridge` 代码保留但默认不启用。
+* **订阅解析能力有限**：支持 sing-box JSON 节点数组与 base64 节点 URI 列表；Clash YAML 仅解析基础字段（`name`、`type`、`server`、`port`、`cipher`/`uuid`、`password`、`tls`），复杂协议与规则集不下沉。
+* **节点与订阅界面仍以 Room 为草稿**：模块是已生效数据的真值，Room 继续承担离线编辑与备份导入；两者一致性靠显式回灌，暂未做双向自动同步。
+* **`data` 系列端点已就绪但 App 侧旧事务链路仍在**：数据迁移的 HTTP 形态已提供，App 的 `dataUpdate` 目前仍以原有事务为主，后续版本切换。
