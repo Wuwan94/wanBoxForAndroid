@@ -83,7 +83,12 @@ object RootModuleClient {
         command == "data prepare" -> ModuleApiClient.dataPrepare()
         command == "data finish" -> ModuleApiClient.dataFinish()
         command == "data rollback" -> ModuleApiClient.dataRollback()
-        command.startsWith("node select ") -> ModuleApiClient.selectNode(command.removePrefix("node select ").trim().toLong())
+        command.startsWith("node select") -> {
+            // 注入防护保留：非法 id 一律 IllegalArgumentException，不进入 HTTPS 调用。
+            val id = command.removePrefix("node select").trim().toLongOrNull()
+                ?: throw IllegalArgumentException("node_select_invalid")
+            ModuleApiClient.selectNode(id)
+        }
         command.startsWith("data selection-finish ") -> ModuleApiClient.selectionFinish(command.removePrefix("data selection-finish ").trim())
         command.startsWith("autostart ") -> ModuleApiClient.setAutoStart(command.removePrefix("autostart ").trim() == "on")
         else -> throw IOException("module_command_unsupported")

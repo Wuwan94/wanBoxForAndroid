@@ -16,8 +16,8 @@ class RootRouteReloadContractTest {
         val client = source("bg/RootModuleClient.kt").substringAfter("suspend fun startOrReload(").substringBefore("suspend fun stop()")
         assertTrue(client.contains("if (!startIfStopped) changes.lock()"))
         assertFalse(client.contains("if (onlyIfRunning && !before.state.canStop) return"))
-        assertTrue(client.substringAfter("call(\"config apply\", file)").contains("if (startIfStopped)"))
-        assertTrue(client.indexOf("instance.init()") < client.indexOf("call(\"config apply\", file)"))
+        assertTrue(client.substringAfter("ModuleApiClient.applyConfig(").contains("if (startIfStopped)"))
+        assertTrue(client.contains("ModuleConfigIntent.build(profile)"))
         for (path in listOf("ui/RouteFragment.kt", "ui/RouteSettingsActivity.kt")) {
             val source = source(path)
             assertTrue(source.contains("SagerNet.restartService()"))

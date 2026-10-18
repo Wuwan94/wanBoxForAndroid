@@ -75,7 +75,7 @@ class RootModuleContractTest {
     }
     @Test fun noAppPidOrGlobalBootScriptAndModulePreservesSnapshots() {
         val client = source("bg/RootModuleClient.kt")
-        assertTrue(client.contains("192L * 1024 * 1024")); assertTrue(client.contains("config apply"))
+        assertTrue(client.contains("ModuleApiClient.applyConfig")); assertTrue(client.contains("ModuleConfigIntent.build"))
         assertFalse(client.contains("myPid")); assertFalse(client.contains("librootbox.so"))
         val core = File("../libcore/rootbox.go").readText()
         assertTrue(core.contains("supervisorPID")); assertFalse(core.contains("parentPID"))

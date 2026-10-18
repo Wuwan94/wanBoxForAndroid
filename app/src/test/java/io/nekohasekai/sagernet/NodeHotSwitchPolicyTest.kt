@@ -39,8 +39,8 @@ class NodeHotSwitchPolicyTest {
     @Test fun selectNodeCommandIsWhitelistedAndFast() {
         val source = File("src/main/java/io/nekohasekai/sagernet/bg/RootModuleClient.kt").readText()
         assertTrue(source.contains("suspend fun selectNode(profileId: Long): Status"))
-        assertTrue(source.contains("call(\"node select \$profileId\")"))
-        assertTrue(source.contains("command.startsWith(\"node select \")"))
+        assertTrue(source.contains("ModuleApiClient.selectNode(profileId)"))
+        assertTrue(source.contains("command.startsWith(\"node select\")"))
     }
 
     @Test fun nodeSelectRejectsInjectionBeforeSpawning() = runBlocking {
