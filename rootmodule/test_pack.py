@@ -39,7 +39,8 @@ class PackageTest(unittest.TestCase):
     def test_scripts_are_module_owned_and_do_not_flush_other_routes(self):
         source = pathlib.Path(__file__).parent / 'package'
         service = (source / 'service.sh').read_text()
-        self.assertIn('__internal boot', service)
+        # serve 是当前唯一长期宿主：内部会执行开机自启，代理停止不退出进程。
+        self.assertIn('__internal serve', service)
         self.assertNotIn('/data/adb/service.d', service)
         for file in source.glob('*.sh'):
             text = file.read_text()
