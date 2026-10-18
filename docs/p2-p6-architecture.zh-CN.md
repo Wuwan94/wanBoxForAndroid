@@ -152,10 +152,12 @@ App 最终只保留：节点列表、订阅列表、设置、仪表盘展示。
 - [x] 热切换后 supervisor 覆盖 `state.json`，`Status()` 仍为新节点
 - [x] 跨代次 `selection.json` 不生效
 - [x] alpha.12 二进制 `sing-box check` 两份配置 exit 0
+- [x] `:app:testOssDebugUnitTest` 313 项通过（Gradle 8.10.2 + AGP 8.x + JDK 20 + NDK r27c）
+- [x] `:app:assembleOssDebug` 产出 `wanBoxForAndroid-3.0.9-arm64-v8a-debug.apk`（43 MB）
+- [x] `libcore.aar` 由 alpha.12 源码重新 bind 并参与编译
 
-**待验证（真机/CI）**
+**待验证（真机）**
 
-- [ ] `./gradlew testOssDebugUnitTest assembleDebug`（App 侧未编译）
 - [ ] 真机：同组/跨组/连续快速切换，录屏确认按钮不闪
 - [ ] 真机：杀 App 后模块继续代理，重开 App 状态正确
 - [ ] 真机：`service.sh` 改为 `serve` 后开机自启仍生效

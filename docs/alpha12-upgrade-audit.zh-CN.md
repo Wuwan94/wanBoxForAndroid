@@ -68,7 +68,7 @@ App 侧同时加了一道防抖：`SamplingFailurePolicy` 要求连续 3 次（�
 
 ## 未验证项（必须在真机/CI 完成）
 
-1. **App 未编译**：沙箱无 Android SDK，`RootTunService.kt`、`SamplingFailurePolicy.kt` 及 JVM 测试只做了静态审查，需 `./gradlew testOssDebugUnitTest` 与 `assembleDebug` 验证。
+1. **App 已编译验证**：`libcore.aar` 由 alpha.12 源码重新 bind，`:app:testOssDebugUnitTest` 313 项通过，`:app:assembleOssDebug` 产出 arm64-v8a APK。构建环境为 Gradle 8.10.2 + JDK 20 + NDK r27c，与 CI 的 NDK 25 不同，需以 CI 结果为准。
 2. **内核未在设备运行**：`sing-box check` 只证明配置可解析，不证明 TUN/auto_redirect/iptables 在目标设备可用。
 3. **闪烁是否消失**：需要在真实 ARM64 Root 设备上用录屏对照，至少覆盖：同组切换、跨组切换、连续快速点击、urltest 组回退。
 4. **v3.0.10-preview.3 的既有真机缺口仍在**：该版本发布说明已注明未做模块挂载与覆盖安装实测，本次不改变这一结论。
