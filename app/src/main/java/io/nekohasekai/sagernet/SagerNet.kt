@@ -290,6 +290,9 @@ class SagerNet : Application(),
         }
         fun selectProfile(id: Long) { profileSelection.request(id) }
 
+        internal fun selectProfile(id: Long, onComplete: (Result<Unit>) -> Unit): Boolean =
+            profileSelection.request(id, onComplete)
+
         /** @author 雾晚：应用级串行命令控制器 */
         val commandController by lazy {
             io.nekohasekai.sagernet.bg.ServiceCommandController(application.applicationScope)

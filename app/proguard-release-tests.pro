@@ -126,6 +126,8 @@
     public final io.nekohasekai.sagernet.ui.ConfigurationFragment$GroupPagerAdapter getAdapter();
     public final androidx.viewpager2.widget.ViewPager2 getGroupPager();
     public final io.nekohasekai.sagernet.ui.ConfigurationFragment$GroupFragment getCurrentGroupFragment();
+    public boolean onQueryTextChange(java.lang.String);
+    public boolean onQueryTextSubmit(java.lang.String);
 }
 
 -keep,allowobfuscation class io.nekohasekai.sagernet.ui.ConfigurationFragment$GroupPagerAdapter {
@@ -141,6 +143,12 @@
 
 -keep,allowobfuscation class io.nekohasekai.sagernet.ui.ConfigurationFragment$GroupFragment$ConfigurationAdapter {
     public int getItemCount();
+    public final java.util.List getConfigurationIdList();
+    public final java.util.HashMap getConfigurationList();
+    public final void remove(int);
+    public void undo(java.util.List);
+    public final void filter(java.lang.String, java.util.Set);
+    public static void filter$default(io.nekohasekai.sagernet.ui.ConfigurationFragment$GroupFragment$ConfigurationAdapter, java.lang.String, java.util.Set, int, java.lang.Object);
 }
 
 -keep,allowobfuscation class io.nekohasekai.sagernet.ui.GroupFragment {
@@ -168,6 +176,11 @@
     public boolean isComputingLayout();
     public boolean hasPendingAdapterUpdates();
     public androidx.recyclerview.widget.RecyclerView$ItemAnimator getItemAnimator();
+    public androidx.recyclerview.widget.RecyclerView$ViewHolder findViewHolderForItemId(long);
+}
+
+-keep,allowobfuscation class androidx.recyclerview.widget.RecyclerView$ViewHolder {
+    public final android.view.View itemView;
 }
 
 -keep,allowobfuscation class androidx.recyclerview.widget.RecyclerView$ItemAnimator {

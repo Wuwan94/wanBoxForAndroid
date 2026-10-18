@@ -49,6 +49,7 @@ import kotlinx.coroutines.delay
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceDataStore
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -266,6 +267,7 @@ class ConfigurationFragment @JvmOverloads constructor(
     private val profileStateRequests = Channel<Long>(Channel.CONFLATED)
     private val profileStateGeneration = AtomicLong()
     private val profileStateInitialized = CompletableDeferred<Unit>()
+    private val pendingSelection = PendingProfileSelection()
     private var speedTestJob: Job? = null
     private var batchTestJob: Job? = null
     private var batchTestDialog: android.app.Dialog? = null
@@ -290,6 +292,20 @@ class ConfigurationFragment @JvmOverloads constructor(
         profileStateRequests.trySend(generation)
     }
 
+    private fun selectProfileManually(profileId: Long) {
+        val owner = viewLifecycleOwnerLiveData.value ?: return
+        if (profileId <= 0) return
+        cancelViewTests()
+        val request = pendingSelection.begin(profileId)
+        updateSelectedProxySnapshot(profileId)
+        val accepted = SagerNet.selectProfile(profileId) {
+            owner.lifecycleScope.launch(Dispatchers.Main.immediate) {
+                if (pendingSelection.complete(request)) refreshProfileState()
+            }
+        }
+        if (!accepted && pendingSelection.complete(request)) refreshProfileState()
+    }
+
     private fun startProfileStateActor() {
         lifecycleScope.launch(Dispatchers.Main.immediate) {
             for (generation in profileStateRequests) {
@@ -312,7 +328,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                 }
                 if (generation != profileStateGeneration.get()) continue
                 updateProfileStateSnapshots(
-                    snapshot.selectedProxy,
+                    if (select) snapshot.selectedProxy else pendingSelection.selectedOr(snapshot.selectedProxy),
                     snapshot.currentProfile,
                     snapshot.serviceStarted,
                 )
@@ -449,64 +465,35 @@ class ConfigurationFragment @JvmOverloads constructor(
     private var searchJob: Job? = null
 
     override fun onQueryTextChange(query: String): Boolean {
-        currentSearchQuery = query
-        searchJob?.cancel()
-        searchJob = viewLifecycleOwner.lifecycleScope.launch {
-            if (query.isNotBlank()) {
-                delay(180)
-            }
-            val groupFragment = getCurrentGroupFragment() ?: return@launch
-            val adapter = groupFragment.adapter ?: return@launch
-            val trimmed = query.trim()
-            if (trimmed.isEmpty()) {
-                adapter.filter("")
-            } else {
-                val lower = trimmed.lowercase()
-                val matched = withContext(Dispatchers.Default) {
-                    val all = adapter.allConfigurationIdList
-                    val map = adapter.configurationList
-                    all.filter { id ->
-                        val entity = map[id] ?: return@filter false
-                        (entity.displayName()?.lowercase()?.contains(lower) == true) ||
-                                (entity.displayType()?.lowercase()?.contains(lower) == true) ||
-                                (entity.displayAddress()?.lowercase()?.contains(lower) == true)
-                    }
-                }
-                adapter.applyFilterResult(matched)
-            }
-            updateToolbarMenuTitles()
-        }
+        searchProfiles(query, debounce = true)
         return true
     }
 
     override fun onQueryTextSubmit(query: String): Boolean {
+        searchProfiles(query, debounce = false)
+        return true
+    }
+
+    private fun searchProfiles(query: String, debounce: Boolean) {
         currentSearchQuery = query
         searchJob?.cancel()
-        val groupFragment = getCurrentGroupFragment()
-        val adapter = groupFragment?.adapter
-        if (adapter != null) {
-            val trimmed = query.trim()
-            if (trimmed.isEmpty()) {
-                adapter.filter("")
+        val owner = viewLifecycleOwnerLiveData.value ?: return
+        searchJob = owner.lifecycleScope.launch {
+            if (debounce && query.isNotBlank()) delay(180)
+            val group = getCurrentGroupFragment() ?: return@launch
+            val current = group.adapter ?: return@launch
+            // Only immutable display strings cross the dispatcher boundary.
+            val snapshot = current.searchSnapshot()
+            val matched = withContext(Dispatchers.Default) { matchingNodeIds(snapshot, query) }
+            if (!isActive || currentSearchQuery != query || group.adapter !== current ||
+                getCurrentGroupFragment() !== group || viewLifecycleOwnerLiveData.value !== owner) return@launch
+            if (snapshot == current.searchSnapshot()) {
+                current.applyFilterResult(matched)
             } else {
-                val lower = trimmed.lowercase()
-                viewLifecycleOwner.lifecycleScope.launch {
-                    val matched = withContext(Dispatchers.Default) {
-                        val all = adapter.allConfigurationIdList
-                        val map = adapter.configurationList
-                        all.filter { id ->
-                            val entity = map[id] ?: return@filter false
-                            (entity.displayName()?.lowercase()?.contains(lower) == true) ||
-                                    (entity.displayType()?.lowercase()?.contains(lower) == true) ||
-                                    (entity.displayAddress()?.lowercase()?.contains(lower) == true)
-                        }
-                    }
-                    adapter.applyFilterResult(matched)
-                    updateToolbarMenuTitles()
-                }
+                current.filter(query)
             }
+            updateToolbarMenuTitles()
         }
-        return true
     }
 
     private fun showGroupSettingsConfirmDialog(group: ProxyGroup) {
@@ -699,6 +686,7 @@ class ConfigurationFragment @JvmOverloads constructor(
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        refreshProfileState()
 
         toolbar.inflateMenu(R.menu.add_profile_menu)
         toolbar.menu.findItem(R.id.action_add)?.isVisible = false
@@ -1006,6 +994,8 @@ class ConfigurationFragment @JvmOverloads constructor(
     }
 
     override fun onDestroyView() {
+        pendingSelection.clear()
+        profileStateGeneration.incrementAndGet()
         cancelViewTests()
         searchJob?.cancel()
         searchJob = null
@@ -1415,9 +1405,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                                             groupFragment.adapter?.apply {
                                                 val index = configurationIdList.indexOf(profile.id)
                                                 if (index >= 0) {
-                                                    configurationIdList.removeAt(index)
-                                                    configurationList.remove(profile.id)
-                                                    notifyItemRemoved(index)
+                                                    remove(index)
                                                 }
                                             }
                                         }
@@ -1427,6 +1415,11 @@ class ConfigurationFragment @JvmOverloads constructor(
                                             ProfileManager.deleteProfile2(
                                                 profile.groupId, profile.id
                                             )
+                                        }
+                                        onMainDispatcher {
+                                            pagerAdapter?.groupFragments?.values?.forEach { group ->
+                                                toClear.forEach { group.adapter?.forgetProfile(it.id) }
+                                            }
                                         }
                                     }
                                 }
@@ -2928,10 +2921,8 @@ class ConfigurationFragment @JvmOverloads constructor(
             configurationListView.addItemDecoration(sectionDecoration)
             adapter?.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
                 private fun rebuild() {
-                    val current = adapter ?: return
-                    nodeSections.update(current.configurationIdList.map { current.configurationList[it]?.groupId ?: proxyGroup.id })
-                    configurationListView.invalidateItemDecorations()
-                    (parentFragment as? ConfigurationFragment)?.refreshNodeSummary()
+                    if (adapter?.isSubmittingIds == true) return
+                    rebuildNodeSections()
                 }
                 override fun onChanged() = rebuild()
                 override fun onItemRangeInserted(positionStart: Int, itemCount: Int) = rebuild()
@@ -2957,6 +2948,13 @@ class ConfigurationFragment @JvmOverloads constructor(
                 setupBottomBarScrollDriver()
             }
             updateSubscriptionInfoCard(view)
+        }
+
+        private fun rebuildNodeSections() {
+            val current = adapter ?: return
+            nodeSections.update(current.configurationIdList.map { current.configurationList[it]?.groupId ?: proxyGroup.id })
+            configurationListView.invalidateItemDecorations()
+            (parentFragment as? ConfigurationFragment)?.refreshNodeSummary()
         }
 
         fun updateSubscriptionInfoCard(targetView: View? = this.view) {
@@ -3251,6 +3249,35 @@ class ConfigurationFragment @JvmOverloads constructor(
             val configurationList = HashMap<Long, ProxyEntity>()
             private val pendingTrafficUpdates = HashSet<Long>()
             private val profileStatePayload = Any()
+            private val trafficPayload = Any()
+            private val pendingRemovedIds = HashSet<Long>()
+            private val reloadGeneration = AtomicLong()
+            var isSubmittingIds = false
+                private set
+
+            internal fun searchSnapshot(): List<NodeSearchEntry> = allConfigurationIdList.mapNotNull { id ->
+                if (id in pendingRemovedIds) return@mapNotNull null
+                val profile = configurationList[id] ?: return@mapNotNull null
+                NodeSearchEntry(id, profile.displayName().orEmpty(), profile.displayType().orEmpty(), profile.displayAddress().orEmpty())
+            }
+
+            private fun submitIdList(newIds: List<Long>, changedIds: Set<Long> = emptySet()) {
+                val before = configurationIdList.toList()
+                val after = newIds.distinct().filter { it in configurationList && it !in pendingRemovedIds }
+                if (before == after && changedIds.isEmpty()) return
+                // Retained grid cells may acquire a new neighbour or section span.
+                val changed = if (layoutManager is FixedGridLayoutManager && before != after) after.toSet() else changedIds
+                val diff = DiffUtil.calculateDiff(NodeIdDiff(before, after, changed))
+                configurationIdList.clear()
+                configurationIdList.addAll(after)
+                isSubmittingIds = true
+                try {
+                    diff.dispatchUpdatesTo(this)
+                } finally {
+                    isSubmittingIds = false
+                }
+                rebuildNodeSections()
+            }
 
             private fun getItem(profileId: Long): ProxyEntity {
                 var profile = configurationList[profileId]
@@ -3321,13 +3348,14 @@ class ConfigurationFragment @JvmOverloads constructor(
                 position: Int,
                 payloads: List<Any>,
             ) {
-                if (payloads.isNotEmpty() && payloads.all { it === profileStatePayload }) {
-                    try {
-                        holder.bindProfileState(getItemAt(position))
-                    } catch (ignored: NullPointerException) { // when group deleted
-                    }
-                } else {
+                if (payloads.isEmpty() || payloads.any { it !== profileStatePayload && it !== trafficPayload }) {
                     onBindViewHolder(holder, position)
+                    return
+                }
+                val item = getItemAt(position)
+                if (payloads.any { it === trafficPayload }) bindTrafficUpdate(holder, item)
+                if (payloads.any { it === profileStatePayload }) {
+                    holder.bindProfileState(item)
                 }
             }
 
@@ -3354,24 +3382,28 @@ class ConfigurationFragment @JvmOverloads constructor(
                 visibleHolder: ConfigurationHolder? = null,
             ) {
                 val cached = configurationList[profileId] ?: return
-                val holder = if (visibleHolder != null) {
-                    visibleHolder
-                } else {
-                    configurationListView.findViewHolderForItemId(profileId)
-                        as? ConfigurationHolder ?: return
+                val holder = visibleHolder ?: configurationListView.findViewHolderForItemId(profileId) as? ConfigurationHolder
+                if (holder == null) {
+                    val index = configurationIdList.indexOf(profileId)
+                    if (index >= 0) notifyItemChanged(index, trafficPayload)
+                    return
+                }
+                bindTrafficUpdate(holder, cached)
+            }
+
+            private fun bindTrafficUpdate(holder: ConfigurationHolder, cached: ProxyEntity) {
+                if (!holder.isBoundTo(cached.id)) {
+                    holder.bind(cached)
+                    return
                 }
                 if (holder.lastBoundTx == cached.tx && holder.lastBoundRx == cached.rx) return
 
                 val index = holder.bindingAdapterPosition
                 val previousHasMiddleRow = holder.lastSelfHasMiddleRow
-                val previouslyShowedTraffic = holder.lastBoundTx != Long.MIN_VALUE &&
-                        holder.lastBoundRx != Long.MIN_VALUE &&
-                        holder.lastBoundTx + holder.lastBoundRx != 0L
-                val showTraffic = cached.tx + cached.rx != 0L
 
-                if (previousHasMiddleRow == null || previouslyShowedTraffic != showTraffic) {
+                if (trafficLayoutChanged(previousHasMiddleRow, holder.lastBoundTx, holder.lastBoundRx, cached.tx, cached.rx)) {
                     holder.bind(cached)
-                } else if (showTraffic) {
+                } else {
                     holder.bindTraffic(cached)
                 }
 
@@ -3397,18 +3429,18 @@ class ConfigurationFragment @JvmOverloads constructor(
             }
 
             fun refreshSameRowNeighbours(position: Int) {
-                if (position == RecyclerView.NO_POSITION) return
-                val lm = (layoutManager as? FixedGridLayoutManager) ?: return
-                val spanCount = lm.spanCount
-                val rowCount = lm.rowIndexOf(position)
-                var rowMax = (rowCount + 1) * spanCount - 1
-                if (rowMax >= itemCount) rowMax = itemCount - 1
-                var rowStart = rowCount * spanCount
-                if (rowStart < 0) rowStart = 0
+                val anchorId = configurationIdList.getOrNull(position) ?: return
                 configurationListView.post {
-                    for (i in rowStart..rowMax) {
-                        if (i == position) continue
-                        notifyItemChanged(i)
+                    if (adapter !== this || listView == null) return@post
+                    val lm = layoutManager as? FixedGridLayoutManager ?: return@post
+                    val index = configurationIdList.indexOf(anchorId)
+                    if (index < 0) return@post
+                    val currentRow = lm.rowIndexOf(index)
+                    val currentStart = (currentRow * lm.spanCount).coerceAtLeast(0)
+                    val currentEnd = ((currentRow + 1) * lm.spanCount - 1).coerceAtMost(itemCount - 1)
+                    for (i in currentStart..currentEnd) {
+                        if (i == index) continue
+                        notifyItemChanged(i, NodeContentChanged)
                     }
                 }
             }
@@ -3437,38 +3469,26 @@ class ConfigurationFragment @JvmOverloads constructor(
             private val updated = HashSet<ProxyEntity>()
 
             fun applyFilterResult(matched: List<Long>) {
-                configurationIdList.clear()
-                configurationIdList.addAll(matched)
-                notifyDataSetChanged()
+                submitIdList(matched)
             }
 
-            fun filter(name: String) {
-                val query = name.trim()
-                if (query.isEmpty()) {
-                    configurationIdList.clear()
-                    configurationIdList.addAll(allConfigurationIdList)
-                    notifyDataSetChanged()
-                    return
-                }
-                configurationIdList.clear()
-                val lower = query.lowercase()
-                val matched = allConfigurationIdList.filter { id ->
-                    val entity = configurationList[id] ?: return@filter false
-                    (entity.displayName()?.lowercase()?.contains(lower) == true) ||
-                            (entity.displayType()?.lowercase()?.contains(lower) == true) ||
-                            (entity.displayAddress()?.lowercase()?.contains(lower) == true)
-                }
-                configurationIdList.addAll(matched)
-                notifyDataSetChanged()
+            fun filter(name: String, changedIds: Set<Long> = emptySet()) {
+                submitIdList(matchingNodeIds(searchSnapshot(), name), changedIds)
             }
 
             fun move(from: Int, to: Int) {
-                if (from == to) return
+                if (from == to || from !in configurationIdList.indices || to !in configurationIdList.indices) return
+                reloadGeneration.incrementAndGet()
 
                 if (layoutManager is FixedGridLayoutManager) {
                     moveDualColumn(from, to)
                 } else {
                     moveLinear(from, to)
+                }
+                val visible = configurationIdList.toSet()
+                val ordered = configurationIdList.iterator()
+                for (i in allConfigurationIdList.indices) {
+                    if (allConfigurationIdList[i] in visible) allConfigurationIdList[i] = ordered.next()
                 }
             }
             
@@ -3510,12 +3530,15 @@ class ConfigurationFragment @JvmOverloads constructor(
                 notifyItemMoved(from, to)
             }
 
-            fun commitMove() = runOnDefaultDispatcher {
-                updated.forEach { SagerDatabase.proxyDao.updateProxy(it) }
+            fun commitMove(): Job {
+                val moved = updated.map { profile -> profile.copy().also { it.dirty = profile.dirty } }
                 updated.clear()
-                onMainDispatcher {
-                    if (layoutManager is FixedGridLayoutManager) {
-                        notifyDataSetChanged()
+                return runOnDefaultDispatcher {
+                    moved.forEach { SagerDatabase.proxyDao.updateProxy(it) }
+                    onMainDispatcher {
+                        if (adapter === this@ConfigurationAdapter && listView != null && layoutManager is FixedGridLayoutManager) {
+                            notifyItemRangeChanged(0, itemCount, NodeContentChanged)
+                        }
                     }
                 }
             }
@@ -3559,20 +3582,24 @@ class ConfigurationFragment @JvmOverloads constructor(
             }
 
             fun remove(pos: Int) {
-                if (pos < 0) return
-                configurationIdList.removeAt(pos)
-                notifyItemRemoved(pos)
-                refreshFromPosition(pos - 1)
+                if (pos !in configurationIdList.indices) return
+                reloadGeneration.incrementAndGet()
+                pendingRemovedIds.add(configurationIdList[pos])
+                filter((parentFragment as? ConfigurationFragment)?.currentSearchQuery.orEmpty())
                 updateSubscriptionInfoCard()
             }
 
             override fun undo(actions: List<Pair<Int, ProxyEntity>>) {
                 for ((index, item) in actions) {
                     configurationListView.post {
+                        if (adapter !== this || listView == null) return@post
+                        reloadGeneration.incrementAndGet()
+                        pendingRemovedIds.remove(item.id)
                         configurationList[item.id] = item
-                        configurationIdList.add(index, item.id)
-                        notifyItemInserted(index)
-                        refreshFromPosition(index - 1)
+                        if (item.id !in allConfigurationIdList) {
+                            allConfigurationIdList.add(index.coerceIn(0, allConfigurationIdList.size), item.id)
+                        }
+                        filter((parentFragment as? ConfigurationFragment)?.currentSearchQuery.orEmpty(), setOf(item.id))
                         updateSubscriptionInfoCard()
                     }
                 }
@@ -3587,40 +3614,28 @@ class ConfigurationFragment @JvmOverloads constructor(
             }
 
             override suspend fun onAdd(profile: ProxyEntity) {
-                if (profile.groupId != proxyGroup.id && !configurationIdList.contains(profile.id)) return
+                if (profile.groupId != proxyGroup.id && !isAllGroupsTab) return
 
                 listView?.post {
                     if (adapter !== this || listView == null) return@post
                     if ((undoManagerValue != null)) {
                         undoManager.flush()
                     }
-                    if (configurationIdList.contains(profile.id)) {
-                        configurationList[profile.id] = profile
-                        val index = configurationIdList.indexOf(profile.id)
-                        notifyItemChanged(index)
-                        return@post
-                    }
-                    val pos = itemCount
-                    configurationList[profile.id] = profile
-                    configurationIdList.add(profile.id)
-                    notifyItemInserted(pos)
-                    refreshFromPosition(pos - 1)
-                    updateSubscriptionInfoCard()
+                    runOnDefaultDispatcher { reloadProfiles() }
                 }
             }
 
             override suspend fun onUpdated(profile: ProxyEntity, noTraffic: Boolean) {
-                if (profile.groupId != proxyGroup.id && !configurationIdList.contains(profile.id)) return
+                if (profile.groupId != proxyGroup.id && !isAllGroupsTab) return
                 if (noTraffic) {
                     (parentFragment as? ConfigurationFragment)?.refreshProfileState()
                 }
-                val index = configurationIdList.indexOf(profile.id)
-                if (index < 0) return
                 listView?.post {
                     if (adapter !== this || listView == null) return@post
                     if ((undoManagerValue != null)) {
                         undoManager.flush()
                     }
+                    if (profile.id !in allConfigurationIdList) return@post
                     val cachedProfile = configurationList[profile.id]
                     val updatedProfile = if (noTraffic && cachedProfile != null) {
                         profile.copy(
@@ -3637,15 +3652,10 @@ class ConfigurationFragment @JvmOverloads constructor(
                             cachedProfile.displayName() != updatedProfile.displayName()
                     configurationList[profile.id] = updatedProfile
                     if (noTraffic && !contentChanged) return@post
-
-                    val newHasMiddleRow = hasMiddleRow(updatedProfile)
-                    val holder = layoutManager.findViewByPosition(index)
-                        ?.let { configurationListView.getChildViewHolder(it) } as? ConfigurationHolder
-                    val previous = holder?.lastSelfHasMiddleRow
-                    notifyItemChanged(index)
-                    if (previous != null && previous != newHasMiddleRow) {
-                        refreshSameRowNeighbours(index)
-                    }
+                    reloadGeneration.incrementAndGet()
+                    filter((parentFragment as? ConfigurationFragment)?.currentSearchQuery.orEmpty(), setOf(profile.id))
+                    val index = configurationIdList.indexOf(profile.id)
+                    if (index >= 0) refreshSameRowNeighbours(index)
                 }
             }
 
@@ -3673,17 +3683,20 @@ class ConfigurationFragment @JvmOverloads constructor(
 
             override suspend fun onRemoved(groupId: Long, profileId: Long) {
                 if (groupId != proxyGroup.id && !isAllGroupsTab) return
-                val index = configurationIdList.indexOf(profileId)
-                if (index < 0) return
 
                 listView?.post {
                     if (adapter !== this || listView == null) return@post
-                    configurationIdList.removeAt(index)
-                    configurationList.remove(profileId)
-                    notifyItemRemoved(index)
-                    refreshFromPosition(index - 1)
-                    updateSubscriptionInfoCard()
+                    forgetProfile(profileId)
                 }
+            }
+
+            fun forgetProfile(profileId: Long) {
+                reloadGeneration.incrementAndGet()
+                pendingRemovedIds.remove(profileId)
+                allConfigurationIdList.remove(profileId)
+                configurationList.remove(profileId)
+                filter((parentFragment as? ConfigurationFragment)?.currentSearchQuery.orEmpty())
+                updateSubscriptionInfoCard()
             }
 
             override suspend fun groupAdd(group: ProxyGroup) = Unit
@@ -3702,6 +3715,7 @@ class ConfigurationFragment @JvmOverloads constructor(
             }
 
             fun reloadProfiles() {
+                val generation = reloadGeneration.incrementAndGet()
                 var newProfiles = if (isAllGroupsTab) {
                     // All-groups tab: fetch every profile from non-disabled groups
                     SagerDatabase.proxyDao.getAll().filter { !DataStore.isGroupDisabled(it.groupId) }
@@ -3774,19 +3788,18 @@ class ConfigurationFragment @JvmOverloads constructor(
                 }
 
                 listView?.post {
-                    if (adapter !== this || listView == null) return@post
+                    if (adapter !== this || listView == null || generation != reloadGeneration.get()) return@post
+                    val retainedIds = configurationIdList.toSet()
                     configurationList.clear()
                     configurationList.putAll(newProfileMap)
                     allConfigurationIdList.clear()
                     allConfigurationIdList.addAll(newProfileIds)
-                    configurationIdList.clear()
-                    configurationIdList.addAll(newProfileIds)
-                    notifyDataSetChanged()
+                    filter(pf?.currentSearchQuery.orEmpty(), retainedIds)
 
-                    if (selectedProfileIndex != -1) {
-                        configurationListView.scrollTo(selectedProfileIndex, true)
-                    } else if (newProfiles.isNotEmpty()) {
-                        configurationListView.scrollTo(0, true)
+                    val selectedId = newProfileIds.getOrNull(selectedProfileIndex)
+                    val visibleSelection = configurationIdList.indexOf(selectedId)
+                    if (selected && visibleSelection >= 0) {
+                        configurationListView.scrollTo(visibleSelection, true)
                     }
                     updateSubscriptionInfoCard()
 
@@ -3804,6 +3817,7 @@ class ConfigurationFragment @JvmOverloads constructor(
             var lastSelfHasMiddleRow: Boolean? = null
             var lastBoundTx = Long.MIN_VALUE
             var lastBoundRx = Long.MIN_VALUE
+            fun isBoundTo(profileId: Long): Boolean = ::entity.isInitialized && entity.id == profileId
             private fun showNodeCascadingMenu(anchor: View, proxyEntity: ProxyEntity) {
                 if (select) return
                 activeNodePopupMenu?.dismiss()
@@ -3915,8 +3929,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                 if (SagerNet.isTv && DataStore.selectedProxy == proxyEntity.id) {
                     if (DataStore.serviceState.started) SagerNet.stopService() else SagerNet.startService()
                 } else {
-                    pf.updateSelectedProxySnapshot(proxyEntity.id)
-                    SagerNet.selectProfile(proxyEntity.id)
+                    pf.selectProfileManually(proxyEntity.id)
                 }
             }
 

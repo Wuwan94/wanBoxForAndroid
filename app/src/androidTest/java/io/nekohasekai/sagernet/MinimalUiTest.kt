@@ -222,6 +222,66 @@ class MinimalUiTest {
             }
             captureScreen("02-nodes")
 
+            instrumentation.runOnMainSync {
+                val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as ConfigurationFragment
+                fragment.onQueryTextChange("日本")
+                fragment.onQueryTextSubmit("香港")
+            }
+            awaitReady("latest-node-search") {
+                val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as ConfigurationFragment
+                val current = fragment.getCurrentGroupFragment()?.adapter
+                current?.itemCount == 2 && current.configurationIdList.all {
+                    current.configurationList[it]?.displayName()?.contains("香港") == true
+                }
+            }
+            instrumentation.runOnMainSync {
+                val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as ConfigurationFragment
+                fragment.onQueryTextSubmit("")
+            }
+            awaitReady("cleared-node-search") {
+                val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as ConfigurationFragment
+                fragment.getCurrentGroupFragment()?.adapter?.itemCount == 12
+            }
+            var removedProfile: ProxyEntity? = null
+            var originalNodeIds: List<Long> = emptyList()
+            instrumentation.runOnMainSync {
+                val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as ConfigurationFragment
+                val current = fragment.getCurrentGroupFragment()!!.adapter!!
+                originalNodeIds = current.configurationIdList.toList()
+                removedProfile = current.configurationList[originalNodeIds.first()]
+                assertNotNull(removedProfile)
+                current.remove(0)
+                current.filter("")
+                assertEquals(11, current.itemCount)
+                assertFalse(current.configurationIdList.contains(removedProfile!!.id))
+                current.undo(listOf(0 to removedProfile!!))
+            }
+            awaitReady("node-removal-undo") {
+                val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as ConfigurationFragment
+                fragment.getCurrentGroupFragment()?.adapter?.configurationIdList == originalNodeIds
+            }
+            val renamed = removedProfile!!
+            val oldName = renamed.requireBean().name
+            try {
+                renamed.requireBean().name = "同 ID 内容更新"
+                runBlocking { ProfileManager.updateProfile(renamed) }
+                awaitReady("same-node-content-update") {
+                    val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as ConfigurationFragment
+                    val list = fragment.getCurrentGroupFragment()?.configurationListView
+                    val row = list?.findViewHolderForItemId(renamed.id)?.itemView
+                    row?.findViewById<TextView>(R.id.profile_name)?.text?.toString() == "同 ID 内容更新"
+                }
+            } finally {
+                renamed.requireBean().name = oldName
+                runBlocking { ProfileManager.updateProfile(renamed) }
+            }
+            awaitReady("restored-node-content") {
+                val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as ConfigurationFragment
+                val list = fragment.getCurrentGroupFragment()?.configurationListView
+                val row = list?.findViewHolderForItemId(renamed.id)?.itemView
+                row?.findViewById<TextView>(R.id.profile_name)?.text?.toString() == oldName
+            }
+
             instrumentation.runOnMainSync { host.findViewById<RadioGroup>(R.id.columnCountGroup).check(R.id.radioMulti) }
             awaitReady("three-columns") {
                 val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as? ConfigurationFragment
