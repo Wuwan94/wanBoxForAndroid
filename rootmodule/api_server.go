@@ -178,6 +178,10 @@ func (r *Runtime) Serve(ctx context.Context, bootReady func() bool) error {
 	if e != nil {
 		return e
 	}
+	// 先交付一次：即使随后绑定失败，App 也能读到当前凭据并看到真实错误。
+	if e = r.DeliverAPIConfig(cfg); e != nil {
+		r.recordEvent("api_credential_delivery_failed")
+	}
 	if _, e = r.ensureAPICertificate(); e != nil {
 		return e
 	}
@@ -187,12 +191,16 @@ func (r *Runtime) Serve(ctx context.Context, bootReady func() bool) error {
 	}
 	listener, e := net.Listen("tcp", cfg.Listen)
 	if e != nil {
-		// 管理接口起不来不能拖垮代理：仍然执行开机自启并常驻，
-		// 等下次开机重新绑定，避免模块因端口占用整体失效。
-		r.recordEvent("api_listen_failed")
-		go func() { _ = r.Boot(ctx, bootReady) }()
-		<-ctx.Done()
-		return nil
+		// 上次记录的端口可能被其它进程占用，退回系统分配端口重试一次，
+		// 避免整个管理面因一个端口冲突而永久失效。
+		if listener, e = net.Listen("tcp", "127.0.0.1:0"); e != nil {
+			// 管理接口起不来不能拖垮代理：仍然执行开机自启并常驻，
+			// 等下次开机重新绑定，避免模块因端口占用整体失效。
+			r.recordEvent("api_listen_failed")
+			go func() { _ = r.Boot(ctx, bootReady) }()
+			<-ctx.Done()
+			return nil
+		}
 	}
 	server := &http.Server{
 		Handler:           r.apiHandler(cfg),
@@ -215,8 +223,14 @@ func (r *Runtime) Serve(ctx context.Context, bootReady func() bool) error {
 			_ = server.Close()
 			return errors.New("api_config_write_failed")
 		}
+		// 端口变化后必须重新交付，否则 App 仍拿着旧地址连不上。
+		if e = r.DeliverAPIConfig(cfg); e != nil {
+			r.recordEvent("api_credential_delivery_failed")
+		}
 	}
 	go func() { _ = r.Boot(ctx, bootReady) }()
+	// 管理端可能重装或清除数据，定期补交付一次凭据，避免 App 拿着被删掉的文件报不可用。
+	go r.credentialDeliveryLoop(ctx, cfg)
 	select {
 	case <-ctx.Done():
 	case e = <-serveErr:

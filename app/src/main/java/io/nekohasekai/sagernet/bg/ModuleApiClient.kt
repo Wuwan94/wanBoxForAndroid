@@ -42,7 +42,7 @@ import javax.net.ssl.X509TrustManager
  */
 object ModuleApiClient {
 
-    /** 首次凭据交付。默认经 FileCredentialBridge（零 Root）；SuCredentialBridge 仅作迁移期兜底。 */
+    /** 首次凭据交付。零 Root：只读模块写入 App 私有目录的凭据文件，不经过 su。 */
     interface CredentialBridge {
         suspend fun load(): Credentials
     }
@@ -109,7 +109,7 @@ object ModuleApiClient {
     @Volatile private var cachedStatus: RootModuleClient.Status? = null
     @Volatile private var cachedAt = 0L
 
-    var bridge: CredentialBridge = FileCredentialBridge()
+    var bridge: CredentialBridge = ManagedFilesCredentialBridge()
 
     fun invalidateStatusCache() {
         cachedStatus = null
@@ -262,29 +262,43 @@ object ModuleApiClient {
 
     private suspend fun raw(method: String, path: String, body: String?): String =
         withContext(Dispatchers.IO) {
-            val creds = ensureCredentials()
-            val builder = Request.Builder()
-                .url(creds.baseUrl + path)
-                .header("Authorization", "Bearer ${creds.token}")
-            when (method) {
-                "GET" -> builder.get()
-                "DELETE" -> builder.delete()
-                else -> builder.method(method, (body ?: "{}").toRequestBody("application/json".toMediaType()))
-            }
-            val response = client(creds).newCall(builder.build()).execute()
-            response.use {
-                if (it.code == 401) {
-                    invalidateCredentials()
-                    throw IOException("module_api_unauthorized")
-                }
-                val text = it.body?.string().orEmpty()
-                if (!it.isSuccessful) {
-                    val code = runCatching { JSONObject(text).optString("error") }.getOrNull()
-                    throw IOException(code?.takeIf { c -> c.matches(Regex("[a-z_]{1,80}")) } ?: "module_api_http_${it.code}")
-                }
-                text
+            try {
+                execute(method, path, body)
+            } catch (e: ModuleApiException) {
+                throw e
+            } catch (e: IOException) {
+                // 模块重启后端口会变，App 重装后凭据文件会被替换：丢掉缓存重读一次再试。
+                invalidateCredentials()
+                execute(method, path, body)
             }
         }
+
+    private suspend fun execute(method: String, path: String, body: String?): String {
+        val creds = ensureCredentials()
+        val builder = Request.Builder()
+            .url(creds.baseUrl + path)
+            .header("Authorization", "Bearer ${creds.token}")
+        when (method) {
+            "GET" -> builder.get()
+            "DELETE" -> builder.delete()
+            else -> builder.method(method, (body ?: "{}").toRequestBody("application/json".toMediaType()))
+        }
+        val response = client(creds).newCall(builder.build()).execute()
+        response.use {
+            if (it.code == 401) {
+                invalidateCredentials()
+                throw ModuleApiException("module_api_unauthorized")
+            }
+            val text = it.body?.string().orEmpty()
+            if (!it.isSuccessful) {
+                val code = runCatching { JSONObject(text).optString("error") }.getOrNull()
+                throw ModuleApiException(
+                    code?.takeIf { c -> c.matches(Regex("[a-z_]{1,80}")) } ?: "module_api_http_${it.code}"
+                )
+            }
+            return text
+        }
+    }
 
     private suspend fun ensureCredentials(): Credentials {
         credentials?.let { return it }
@@ -335,32 +349,37 @@ object ModuleApiClient {
     }
 
     /**
-     * 零 Root 凭据交付：模块在 service.sh 启动时（root）把 api.json 同步到
-     * App 的 noBackupFilesDir/module-api.json，App 以普通文件读取，不再走 su。
+     * 零 Root 凭据交付：模块在 serve 启动、端口变化和 App 重装后把 api.json 写进下面这些
+     * 位置，App 只做普通文件读取，全程不执行 su，也不申请超级用户。
+     * 顺序：no_backup → files → 外置私有目录；前两者由模块改属主，后者由系统授权。
      */
-    class FileCredentialBridge : CredentialBridge {
+    class ManagedFilesCredentialBridge : CredentialBridge {
         override suspend fun load(): Credentials = withContext(Dispatchers.IO) {
-            val f = File(io.nekohasekai.sagernet.SagerNet.application.noBackupFilesDir, "module-api.json")
-            val text = if (f.isFile) f.readText() else throw IOException("module_credentials_unavailable")
-            parseCredentialText(text)
+            for (file in candidates()) {
+                if (!file.isFile) continue
+                val text = runCatching { file.readText() }.getOrNull() ?: continue
+                val parsed = runCatching { parseCredentialText(text) }.getOrNull() ?: continue
+                return@withContext parsed
+            }
+            throw IOException("module_credentials_unavailable")
+        }
+
+        private fun candidates(): List<File> {
+            val context = io.nekohasekai.sagernet.SagerNet.application
+            return buildList {
+                add(File(context.noBackupFilesDir, CREDENTIAL_FILE))
+                add(File(context.filesDir, CREDENTIAL_FILE))
+                context.getExternalFilesDir(null)?.let { add(File(it, CREDENTIAL_FILE)) }
+            }
+        }
+
+        private companion object {
+            const val CREDENTIAL_FILE = "module-api.json"
         }
     }
 
-    /** 迁移期兜底：仅当 FileCredentialBridge 不可用且设备仍授权 Root 时启用。默认不使用。 */
-    class SuCredentialBridge : CredentialBridge {
-        @android.annotation.SuppressLint("SdCardPath")
-        override suspend fun load(): Credentials = withContext(Dispatchers.IO) {
-            val process = try {
-                ProcessBuilder("su", "-c", "cat /data/adb/wanbox/api.json").start()
-            } catch (_: IOException) {
-                throw IOException("module_credentials_unavailable")
-            }
-            val text = process.inputStream.bufferedReader().use { it.readText() }
-            process.waitFor()
-            if (process.exitValue() != 0 || text.isBlank()) throw IOException("module_credentials_unavailable")
-            parseCredentialText(text)
-        }
-    }
+    /** 模块返回的业务错误（HTTP 错误码或 `error` 字段），不触发重试。 */
+    class ModuleApiException(val code: String) : IOException(code)
 
     private fun parseCredentialText(text: String): Credentials {
         val json = JSONObject(text)

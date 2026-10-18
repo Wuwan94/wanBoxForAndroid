@@ -1,40 +1,33 @@
-# wanBox for Android v3.0.10-preview.6 更新说明
+# wanBox for Android v3.0.10-preview.7 更新说明
 
-本版本把「数据与职责」真正下沉到模块：节点、订阅、全局配置的真值改由模块保存，App 只负责展示与下发指令，管理面补全为完整的回环 HTTPS 接口，App 侧删除 `su` 传输层。界面、节点热切换、推送状态流与 preview.5 保持一致。
+本版本修复 preview.6 的致命故障：模块已安装、Root 也已授权，但 App 仍提示「模块服务暂时不可用」。根因是管理接口的凭据从未交付到 App 可读的位置——模块只把 `api.json` 写在 `/data/adb/wanbox/`（0700 root），而 App 在 preview.6 里改为只读自己的私有目录，这条链路断在最后一环。
 
 ### 核心变更
 
-* **模块成为节点/订阅/配置的唯一真实数据源**：新增模块内置存储 `store/nodes.json`、`store/subscriptions.json`、`store/config.json` 与 `store/meta.json`，读写走原子替换，与核心进程状态解耦。核心停止、启动失败或模块刚安装时，这些数据照常可读写。
-* **补全模块 HTTPS 管理接口**：在原有 `/v1/health`、`/v1/status`、`/v1/events`、`/v1/select`、`/v1/service/start|stop` 之外，新增：
-  * 节点：`GET /v1/nodes`、`POST /v1/nodes`、`PUT /v1/nodes/{id}`、`DELETE /v1/nodes/{id}`
-  * 订阅：`GET /v1/subscriptions`、`POST /v1/subscriptions`、`POST /v1/subscriptions/{id}/update`、`DELETE /v1/subscriptions/{id}`
-  * 配置：`GET /v1/config`、`PUT /v1/config`
-  * 服务：`POST /v1/service/reload`、`POST /v1/service/autostart`
-  * 数据：`POST /v1/data/prepare|finish|rollback|selection-finish`
-  
-  鉴权方式不变：仅接受回环地址、每次安装独立的 Bearer token、自签证书 SHA-256 钉扎；错误统一返回 `{"schema":1,"ok":false,"error":"<code>"}`。
-* **App 全面切换到 HTTPS 客户端**：`ModuleApiClient` 的请求层泛化为可返回任意 JSON，新增节点、订阅、配置、服务与数据端点的方法；`RootModuleClient` 删除 `ProcessBuilder("su", ...)` 传输层，收敛为 HTTPS 门面，启停、切节点、配置应用、状态查询全部经本客户端。
-* **配置改为「意图下发」**：App 不再生成完整配置快照并强推，只提交路由、入站、DNS、实验项与资源文件；模块读取自身节点数据、合并后生成完整 sing-box 配置，校验通过再走原有的 generation 与 Apply 流程，失败保留上一份有效配置。
-* **节点切换体验不变**：热切换仍走 Clash API 选择器并由 `runtime/selection.json` 承载，不重启核心；事件流优先、轮询兜底的刷新机制保持原样，切换期间上方按钮与节点名不闪烁。
+* **模块主动交付管理凭据（零 Root 的基础）**：`serve` 启动时、端口回写后以及每 5 分钟，把 `{listen, token, certSha256}` 写入 App 的 `no_backup/`、`files/` 与外置私有目录三处；私有目录按 App 数据目录属主 `chown`、`chmod 0600` 并 `restorecon`，外置目录由系统授权。App 只做普通文件读取，全程不执行 `su`、不申请超级用户。
+* **端口占用不再导致管理面永久失效**：`api.json` 记录的端口被占用时，改用系统分配端口重新绑定，随后回写并重新交付凭据。
+* **App 侧凭据查找多路兜底**：按 `no_backup → files → 外置私有目录` 顺序读取，任一可用即连接；覆盖安装、清除数据后模块会在 5 分钟内补交付。
+* **传输层区分两类失败**：业务错误（`409/401` 等固定错误码）直接上报不重试；传输错误（模块重启导致端口变化）丢弃缓存、重读凭据后自动重试一次，界面不再需要手动重进。
+* **清除最后一处会弹 Root 的调用**：`PackageCache` 的跨用户 UID 枚举默认关闭（`allowRootUidLookup = false`），App 侧不再存在任何 `ProcessBuilder("su", ...)`。
+* 节点热切换、事件流优先/轮询兜底、六组设置与界面精简成果全部保持不变。
 
 ### 兼容性与产物
 
-* 包名 `com.lit008834.pixel.wanboxforandroid`、原签名、数据库与备份格式均未改变，可直接覆盖 v3.0.9 与 v3.0.10-preview.5，用户数据与已保存设置保留。
+* 包名 `com.lit008834.pixel.wanboxforandroid`、原签名、数据库与备份格式未变，可直接覆盖 v3.0.9、v3.0.10-preview.5 / preview.6。
+* **升级后无需重装模块**：新模块启动即交付凭据；若先只升级 App，需等模块升级到 preview.7 才能读到凭据文件。
 * 仅 arm64-v8a、Android 12+、Root 环境；仍为纯 Root 模块，不提供 VPN 模式。
-* 预览版本 `3.0.10-preview.6`，模块版本代码 `368`，APK 版本代码 `1840`，内核 `sing-box v1.15.0-alpha.12`。
-* 交付 ARM64 APK、纯 Root 模块、内嵌同一 APK 的整合模块与 `SHA256SUMS`。
-* 预览渠道只保留最新一版：发布本版时会自动清理更早的预览 Release 与 tag，正式版不受影响。
+* 预览版本 `3.0.10-preview.7`，模块版本代码 `369`，APK 版本代码 `1845`，内核 `sing-box v1.15.0-alpha.12`。
+* 交付 ARM64 APK、纯 Root 模块、内嵌同一 APK 的整合模块与 `SHA256SUMS`；预览渠道仍只保留最新一版。
 
 ### 验证边界
 
-* 模块侧在本地以 Go 1.25.0 完成 `go build ./...`、`go vet ./...` 与存储层运行时测试（含并发读写与锁重入回归），均通过；CI 的 `Native Build (LibCore)` 同样执行 `go test -race` 与 `go vet`，通过。
-* App 侧在 CI 完成 Gradle 编译与 `testPreviewDebugUnitTest`，通过。本次同步更新了 3 个源码契约测试（旧 `config apply` 快照流程 → 新的 `applyConfig` 与配置意图流程），并保留节点 id 的注入防护断言。
-* **尚未在真实 ARM64 Root 设备验证**：模块挂载、TUN 与 auto_redirect 联调、节点切换录屏、杀 App 后代理是否持续、覆盖安装实测均未进行。
-* **订阅更新与节点 CRUD 未做设备联调**：接口已实现并有本地单元测试，但尚未用真实订阅 URL 走完整链路。
+* 模块侧本地通过 `go build ./...`（windows 与 linux/arm64 双目标）、`go vet ./...`；属主处理用 `!windows` / `windows` 双实现隔离，桌面开发构建不受影响。
+* CI 的 `Native Build (LibCore)` 执行 `go test -race` 与 `go vet`，App 侧执行 Gradle 编译与 `testPreviewDebugUnitTest`。
+* **未在真实 ARM64 Root 设备验证**：交付文件的属主与 SELinux 上下文、`restorecon` 是否可用、端口占用退避路径，均需真机确认。
+* 若设备上模块数据区已被其它 Root 进程改动，或 App 与外置存储不在同一用户，可能需要手动重启模块一次以补交付。
 
 ### 已知问题
 
-* **首次凭据交付仍在过渡期**：默认的文件桥读取 App 私有目录下的 `module-api.json`，需要模块侧在启动时把 `api.json` 同步到该位置；本版尚未完成这一步同步，若该文件缺失会报 `module_credentials_unavailable`。迁移用的 `SuCredentialBridge` 代码保留但默认不启用。
-* **订阅解析能力有限**：支持 sing-box JSON 节点数组与 base64 节点 URI 列表；Clash YAML 仅解析基础字段（`name`、`type`、`server`、`port`、`cipher`/`uuid`、`password`、`tls`），复杂协议与规则集不下沉。
-* **节点与订阅界面仍以 Room 为草稿**：模块是已生效数据的真值，Room 继续承担离线编辑与备份导入；两者一致性靠显式回灌，暂未做双向自动同步。
-* **`data` 系列端点已就绪但 App 侧旧事务链路仍在**：数据迁移的 HTTP 形态已提供，App 的 `dataUpdate` 目前仍以原有事务为主，后续版本切换。
+* **订阅拉取与节点 CRUD 仍未做真机联调**：接口与本地单测齐备，真实订阅 URL 的全链路未验证。
+* **跨用户 UID 暂缺**：App 已关闭 `su` 枚举，克隆应用/多用户的按应用分流目前只覆盖当前用户；后续由模块 `/v1/uids` 提供。
+* **配置仍以「意图 + 资源文件」下发**：`RootModuleSnapshot` 尚未删除，配置生成进一步收敛见 `docs/refactor-v3.1.zh-CN.md` 的 P1 阶段。

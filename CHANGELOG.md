@@ -1,8 +1,19 @@
 # wanBoxForAndroid 更新日志（Changelog）
 
-> 维护范围：下列 wanBox 3.0.x 条目按各自 GitHub Release 汇总；详细回归覆盖与兼容/升级信息请见对应版本页面。最新正式版为 v3.0.9，当前预览构建为 v3.0.10-preview.6。预览渠道只保留最新一版，更早的预览条目以其发行说明为准。项目起源与当前定位见 [README](README.md)。
+> 维护范围：下列 wanBox 3.0.x 条目按各自 GitHub Release 汇总；详细回归覆盖与兼容/升级信息请见对应版本页面。最新正式版为 v3.0.9，当前预览构建为 v3.0.10-preview.7。预览渠道只保留最新一版，更早的预览条目以其发行说明为准。项目起源与当前定位见 [README](README.md)。
 
 ## wanBox 3.0.x 发布记录
+
+### v3.0.10-preview.7（预览版，2026-10-18）
+
+作者：@author 雾晚
+
+- **修复「模块服务暂时不可用」**：根因是管理凭据只写在 `/data/adb/wanbox/api.json`（0700 root），而 App 只读自身私有目录，交付链路断开。模块现在在 `serve` 启动、端口回写后与每 5 分钟把凭据写入 `no_backup/`、`files/` 与外置私有目录，并 `chown` 到 App uid、`chmod 0600`、`restorecon`。
+- **端口占用退避**：记录的端口被占用时改用系统分配端口重新绑定，回写 `api.json` 并重新交付，管理面不再整体失效。
+- **App 零 Root 读凭据**：`ManagedFilesCredentialBridge` 三路兜底查找；删除 `SuCredentialBridge`，App 内已无 `su` 调用；`PackageCache` 跨用户 UID 枚举默认关闭。
+- **传输层重试**：区分业务错误与传输错误，端口变化/模块重启后自动丢弃缓存重读凭据重试一次。
+- 新增 `docs/refactor-v3.1.zh-CN.md`：记录故障链路、API 契约、App 四页信息架构、必须删除的旧实现与 P0–P3 阶段计划。
+- 预览版本 `3.0.10-preview.7`，模块版本代码 `369`，APK 版本代码 `1845`，内核 `sing-box v1.15.0-alpha.12`。
 
 ### v3.0.10-preview.6（预览版，2026-10-18）
 

@@ -27,6 +27,14 @@ object PackageCache {
     val loaded = Mutex(true)
     var registerd = AtomicBoolean(false)
 
+    /**
+     * App 零 Root：是否允许用 su 枚举跨用户 UID。
+     * 默认关闭——关闭后只覆盖当前用户的 UID，不再触发超级用户授权。
+     * @author 雾晚
+     */
+    @Volatile
+    var allowRootUidLookup = false
+
     // called from init (suspend)
     fun register() {
         if (registerd.getAndSet(true)) return
@@ -101,6 +109,9 @@ object PackageCache {
     }
 
     private fun queryMultiUserUids(): Map<String, List<Int>> {
+        // App 零 Root：默认不做 su 查询，避免任何超级用户授权弹窗。
+        // 跨用户 UID 改由模块侧提供后再合并，此处保持空实现。
+        if (!allowRootUidLookup) return emptyMap()
         fun su(cmd: String): String {
             val p = ProcessBuilder("su", "-c", cmd).start()
             try {
