@@ -16,6 +16,9 @@ class RootTunService : Service(), BaseService.Interface {
     override var upstreamInterfaceName: String? = null
     private var observer: Job? = null
     @Volatile private var snapshot: RootModuleClient.Status? = null
+    // @author 雾晚: 单次采样失败不等于服务断开。节点热切换会并发拉起 su，
+    // 偶发超时若立刻置 Stopped，按钮与节点名会先灭后亮，看起来像重启。
+    private val samplingFailures = SamplingFailurePolicy(threshold = 3)
     override fun createNotification(profileName: String): ServiceNotification = error("Module observer does not own a foreground service")
     override fun acquireWakeLock() = Unit
     override fun currentProfileName() = snapshot?.profileName ?: ""
@@ -38,6 +41,7 @@ class RootTunService : Service(), BaseService.Interface {
                     // changeState/cbSelectorUpdate/telemetry/stats/runningName 全部从这个 status 取值
                     // 不先 status 再 dashboard，避免两代次混合
                     val status = RootModuleClient.call("dashboard")
+                    samplingFailures.onSuccess()
                     val changedError = snapshot?.error != status.error
                     val changedProfile = status.connected && (snapshot?.connected != true || snapshot?.profileId != status.profileId)
                     snapshot = status; DataStore.currentProfile = if (status.connected) status.profileId else 0
@@ -72,8 +76,12 @@ class RootTunService : Service(), BaseService.Interface {
                     }
                 } catch (e: CancellationException) { throw e }
                   catch (_: Exception) {
-                    snapshot = null; DataStore.currentProfile = 0; DataStore.mixedInboundAuthed = false
-                    data.changeState(BaseService.State.Stopped)
+                    // @author 雾晚：连续失败才降级。真实停服由 status 的 phase=stopped
+                    // 正常返回，不会走到这里，因此延迟降级不会掩盖服务已停止。
+                    if (samplingFailures.onFailure()) {
+                        snapshot = null; DataStore.currentProfile = 0; DataStore.mixedInboundAuthed = false
+                        data.changeState(BaseService.State.Stopped)
+                    }
                 }
             }, isInteractive = { SagerNet.power.isInteractive })
             // Bound UI/tile only, never an App background watchdog.
