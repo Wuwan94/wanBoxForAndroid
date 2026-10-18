@@ -166,16 +166,19 @@ func loadAPICertificate(certPath, keyPath string) ([]byte, bool) {
 // 代理服务停止、核心启动失败都不影响管理接口，客户端始终能读状态、改节点。
 func (r *Runtime) Serve(ctx context.Context, bootReady func() bool) error {
 	if e := r.init(); e != nil {
+		Trace("serve: init failed: %v", e)
 		return e
 	}
 	unlock, e := fileLock(r.path("api.lock"))
 	if e != nil {
+		Trace("serve: lock failed (another instance?): %v", e)
 		return errors.New("api_already_running")
 	}
 	defer unlock()
 
 	cfg, e := r.EnsureAPIConfig()
 	if e != nil {
+		Trace("serve: api config failed: %v", e)
 		return e
 	}
 	// 先交付一次：即使随后绑定失败，App 也能读到当前凭据并看到真实错误。
@@ -183,6 +186,7 @@ func (r *Runtime) Serve(ctx context.Context, bootReady func() bool) error {
 	if !delivered {
 		r.recordEvent("api_credential_delivery_failed")
 	}
+	Trace("serve: config ready listen=%s delivered=%v", cfg.Listen, delivered)
 	if _, e = r.ensureAPICertificate(); e != nil {
 		return e
 	}
@@ -192,12 +196,14 @@ func (r *Runtime) Serve(ctx context.Context, bootReady func() bool) error {
 	}
 	listener, e := net.Listen("tcp", cfg.Listen)
 	if e != nil {
+		Trace("serve: listen %s failed: %v, retry ephemeral", cfg.Listen, e)
 		// 上次记录的端口可能被其它进程占用，退回系统分配端口重试一次，
 		// 避免整个管理面因一个端口冲突而永久失效。
 		if listener, e = net.Listen("tcp", "127.0.0.1:0"); e != nil {
 			// 管理接口起不来不能拖垮代理：仍然执行开机自启并常驻，
 			// 等下次开机重新绑定，避免模块因端口占用整体失效。
 			r.recordEvent("api_listen_failed")
+			Trace("serve: listen failed permanently: %v", e)
 			go func() { _ = r.Boot(ctx, bootReady) }()
 			<-ctx.Done()
 			return nil
@@ -222,6 +228,7 @@ func (r *Runtime) Serve(ctx context.Context, bootReady func() bool) error {
 		cfg.Listen = listener.Addr().String()
 		if e = jsonWrite(r.path(apiConfigFile), cfg); e != nil {
 			_ = server.Close()
+			Trace("serve: write api.json failed: %v", e)
 			return errors.New("api_config_write_failed")
 		}
 		// 端口变化后必须重新交付，否则 App 仍拿着旧地址连不上。
@@ -229,6 +236,7 @@ func (r *Runtime) Serve(ctx context.Context, bootReady func() bool) error {
 			r.recordEvent("api_credential_delivery_failed")
 		}
 	}
+	Trace("serve: listening %s", listener.Addr().String())
 	go func() { _ = r.Boot(ctx, bootReady) }()
 	// 管理端可能重装或清除数据，定期补交付一次凭据，避免 App 拿着被删掉的文件报不可用。
 	go r.credentialDeliveryLoop(ctx, cfg, delivered)

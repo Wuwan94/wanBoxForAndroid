@@ -1,8 +1,16 @@
 # wanBoxForAndroid 更新日志（Changelog）
 
-> 维护范围：下列 wanBox 3.0.x 条目按各自 GitHub Release 汇总；详细回归覆盖与兼容/升级信息请见对应版本页面。最新正式版为 v3.0.9，当前预览构建为 v3.0.10-preview.9。预览渠道只保留最新一版，更早的预览条目以其发行说明为准。项目起源与当前定位见 [README](README.md)。
+> 维护范围：下列 wanBox 3.0.x 条目按各自 GitHub Release 汇总；详细回归覆盖与兼容/升级信息请见对应版本页面。最新正式版为 v3.0.9，当前预览构建为 v3.0.10-preview.10。预览渠道只保留最新一版，更早的预览条目以其发行说明为准。项目起源与当前定位见 [README](README.md)。
 
 ## wanBox 3.0.x 发布记录
+
+### v3.0.10-preview.10（预览版，2026-10-19）
+
+作者：@author 雾晚
+
+- **修复 serve 起不来**：`wanboxctl` 进入 `serve` 前的 cgroup 隔离在部分 Android 16 / HyperOS 上失败会直接阻断启动，导致管理面整体不可用。现在 `__internal serve` 在 cgroup 失败时继续启动 HTTPS 接口，其余命令仍按失败处理。
+- **启动追踪**：新增 `/sdcard/wanbox-serve.log`（免 root 可读）与 `/data/adb/wanbox/serve.log`，记录启动参数、euid、cgroup 结果、api.json 状态、监听地址、交付结果与退出原因。
+- 预览版本 `3.0.10-preview.10`，模块版本代码 `372`，APK 版本代码 `1860`。
 
 ### v3.0.10-preview.9（预览版，2026-10-19）
 

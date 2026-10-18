@@ -41,10 +41,20 @@ func main() {
 	// Installed modules and manager staging paths are root-owned. No App-supplied
 	// --module-dir/data-root/command arguments, env overrides or shell execution.
 	r := module.New("/data/adb/wanbox", dir)
+	module.Trace("start euid=%d args=%v", os.Geteuid(), os.Args[1:])
 	var err error
 	if os.Geteuid() != 0 {
 		err = errors.New("root_required")
-	} else if err = module.IndependentCgroup(); err == nil {
+	} else if e := module.IndependentCgroup(); e != nil {
+		// cgroup 隔离失败不应让管理面整体不可用：serve 是唯一长期宿主，
+		// 它必须起来，否则 App 连状态都读不到。其余命令仍按失败处理。
+		module.Trace("cgroup unavailable: %v", e)
+		if len(os.Args) == 3 && os.Args[1] == "__internal" && os.Args[2] == "serve" {
+			err = run(ctx, r, os.Args[1:])
+		} else {
+			err = e
+		}
+	} else {
 		err = run(ctx, r, os.Args[1:])
 	}
 	// @author 雾晚：dashboard 返回绑定同一快照的完整状态，不拼接两代次
@@ -59,6 +69,7 @@ func main() {
 	}
 	module.Response(os.Stdout, state, err)
 	if err != nil {
+		module.Trace("exit error: %v", err)
 		os.Exit(1)
 	}
 }
