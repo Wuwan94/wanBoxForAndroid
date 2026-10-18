@@ -36,7 +36,7 @@ import javax.net.ssl.X509TrustManager
  * - 核心停止时接口仍可访问，因此状态与节点读取不依赖代理是否在跑。
  *
  * 本阶段新增：/v1/nodes、/v1/subscriptions、/v1/config、/v1/service/reload、
- * /v1/data/* 的完整封装；启停/切节点/配置应用/状态查询全部经本客户端。
+ * /v1/data 系列端点的完整封装；启停/切节点/配置应用/状态查询全部经本客户端。
  *
  * @author 雾晚
  */
