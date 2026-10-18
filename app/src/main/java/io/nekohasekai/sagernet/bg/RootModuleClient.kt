@@ -5,7 +5,6 @@ package io.nekohasekai.sagernet.bg
 
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import android.os.SystemClock
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.SagerDatabase
@@ -21,23 +20,11 @@ import java.io.File
 import java.io.IOException
 import java.util.Base64
 
-/** Root-only CLI bridge; the App never owns core processes. @author 雾晚 */
+/** App-side management facade over the module HTTPS API; no Root shell. @author 雾晚 */
 object RootModuleClient {
-    // @author 雾晚: this is the manager-owned root module, never App private storage.
-    @android.annotation.SuppressLint("SdCardPath")
-    const val CLI = "/data/adb/modules/wanbox/bin/wanboxctl"
-    private val commands = setOf("status", "module", "logs", "dashboard", "start", "stop", "restart", "reload",
-        "config apply", "config validate", "autostart on", "autostart off", "data prepare", "data finish", "data rollback")
     private val changes = Mutex()
-    // @author 雾晚: 2s TTL status cache. The home observer, service tiles and node
-    // dialogs all poll status; without this each poll is a `su` round-trip.
-    private const val STATUS_TTL_MS = 2000L
-    @Volatile private var statusCache: Status? = null
-    @Volatile private var statusCacheAt = 0L
-    // @author 雾晚: coalesce concurrent status fetches; each su spawn costs 100-300ms.
-    private val statusMutex = Mutex()
-    /** Drop the cached status; call after any mutation (select/start/stop/reload/apply). */
-    fun invalidateStatusCache() { statusCache = null }
+    /** Drop the cached status (delegated to ModuleApiClient); call after any mutation. */
+    fun invalidateStatusCache() { ModuleApiClient.invalidateStatusCache() }
     data class InstallSelection(val id: String, val mode: Int)
     data class Status(val phase: String, val revision: String, val runningRevision: String,
         val profileId: Long, val profileName: String, val stats: RootNotificationSample?, val error: String = "",
@@ -90,69 +77,16 @@ object RootModuleClient {
             state["error"]?.asString.orEmpty().takeIf { it.matches(Regex("[a-z_]{1,80}")) }.orEmpty(), selection,
             telemetry)
     }
-    suspend fun call(command: String, input: File? = null): Status = withContext(Dispatchers.IO) {
-        require(command in commands || command.matches(Regex("data selection-finish [a-f0-9]{32}"))
-                || command.matches(Regex("node select [1-9][0-9]{0,18}")))
-        require((command == "config apply" || command == "config validate") == (input != null))
-        // @author 雾晚: serve fresh-enough status from the TTL cache; mutations invalidate it.
-        // dashboard 也是只读命令，纳入缓存，不当 mutation 清除
-        if (command == "status" || command == "dashboard") {
-            val cached = statusCache
-            if (cached != null && SystemClock.elapsedRealtime() - statusCacheAt < STATUS_TTL_MS) return@withContext cached
-            // Coalesce concurrent fetches: only one su spawn; others share the result.
-            return@withContext statusMutex.withLock {
-                val recached = statusCache
-                if (recached != null && SystemClock.elapsedRealtime() - statusCacheAt < STATUS_TTL_MS) return@withLock recached
-                doCall(command, input)
-            }
-        }
-        return@withContext doCall(command, input)
-    }
-
-    private suspend fun doCall(command: String, input: File? = null): Status {
-        val process = try { ProcessBuilder("su", "-c", "exec $CLI $command").start() }
-            catch (_: IOException) { throw IOException("root_required") }
-        try {
-            return coroutineScope {
-                val output = async(Dispatchers.IO) {
-                    process.inputStream.use { stream ->
-                        val buffer = java.io.ByteArrayOutputStream()
-                        val chunk = ByteArray(8192)
-                        while (true) {
-                            val count = stream.read(chunk); if (count < 0) break
-                            if (buffer.size() + count > 1_048_576) throw IOException("module_response_too_large")
-                            buffer.write(chunk, 0, count)
-                        }
-                        val bytes = buffer.toByteArray()
-                        if (bytes.size > 1_048_576) throw IOException("module_response_too_large")
-                        bytes.toString(Charsets.UTF_8)
-                    }
-                }
-                val errors = launch(Dispatchers.IO) { process.errorStream.use { it.copyTo(object : java.io.OutputStream() { override fun write(value: Int) = Unit; override fun write(data: ByteArray, offset: Int, length: Int) = Unit }) } }
-                val writer = launch(Dispatchers.IO) { process.outputStream.use { pipe -> input?.inputStream()?.use { it.copyTo(pipe) } } }
-                try {
-                    withTimeout(if (command in setOf("status", "module", "logs") || command.startsWith("node select ")) 15_000L else 720_000L) { runInterruptible(Dispatchers.IO) { process.waitFor() } }
-                    writer.join(); errors.join()
-                    try {
-                        val status = parseResponse(output.await())
-                        if (command == "status") {
-                            statusCache = status
-                            statusCacheAt = SystemClock.elapsedRealtime()
-                        } else {
-                            // Any successful mutation invalidates the cached status.
-                            statusCache = null
-                        }
-                        status
-                    }
-                    catch (e: IOException) { throw e }
-                    catch (_: Exception) { throw IOException("root_or_module_unavailable") }
-                } finally {
-                    process.destroy()
-                    runCatching { process.inputStream.close() }; runCatching { process.errorStream.close() }; runCatching { process.outputStream.close() }
-                    writer.cancel(); errors.cancel(); output.cancel()
-                }
-            }
-        } finally { process.destroy() }
+    suspend fun call(command: String, input: File? = null): Status = when {
+        command == "status" -> ModuleApiClient.status()
+        command == "dashboard" -> ModuleApiClient.dashboard()
+        command == "data prepare" -> ModuleApiClient.dataPrepare()
+        command == "data finish" -> ModuleApiClient.dataFinish()
+        command == "data rollback" -> ModuleApiClient.dataRollback()
+        command.startsWith("node select ") -> ModuleApiClient.selectNode(command.removePrefix("node select ").trim().toLong())
+        command.startsWith("data selection-finish ") -> ModuleApiClient.selectionFinish(command.removePrefix("data selection-finish ").trim())
+        command.startsWith("autostart ") -> ModuleApiClient.setAutoStart(command.removePrefix("autostart ").trim() == "on")
+        else -> throw IOException("module_command_unsupported")
     }
     fun safeError(error: Exception): String = error.message?.takeIf { it.matches(Regex("[a-z_]{1,80}")) } ?: "module_operation_failed"
     suspend fun startOrReload(startIfStopped: Boolean = true) {
@@ -160,7 +94,7 @@ object RootModuleClient {
         if (!startIfStopped) changes.lock()
         else if (!changes.tryLock()) throw IOException("module_busy")
         try {
-            val before = call("status")
+            val before = ModuleApiClient.status()
             // @author 雾晚: rule edits use module truth, never a stale UI/Binder state.
             if (RootModuleDataUpdate.pending()) throw IOException("data_update_pending")
             if (before.phase == "disabled") throw IOException("module_disabled_or_missing")
@@ -169,22 +103,16 @@ object RootModuleClient {
             // @author 雾晚: refresh cross-user UIDs (TTL-cached) so per-app rules
             // cover secondary users / cloned apps.
             runCatching { io.nekohasekai.sagernet.utils.PackageCache.refreshMultiUserUids() }
-            val instance = ProxyInstance(profile)
-            val file = File.createTempFile("module-snapshot-", ".json", SagerNet.application.cacheDir)
-            try {
-                instance.init()
-                file.writeText(RootModuleSnapshot(instance, before.revision).build().toString())
-                if (file.length() > 192L * 1024 * 1024) throw IOException("snapshot_too_large")
-                val applied = call("config apply", file)
-                // Apply owns active-core restart/rollback; passive edits never start a stopped module.
-                if (startIfStopped) {
-                    call("autostart ${if (DataStore.persistAcrossReboot) "on" else "off"}")
-                    if (!applied.state.canStop) call("start")
-                }
-            } finally { file.delete(); instance.close() }
+            // 只下发配置意图：节点 outbounds 由模块 store 权威，App 不再强推完整快照。
+            val applied = ModuleApiClient.applyConfig(ModuleConfigIntent.build(profile))
+            // Apply owns active-core restart/rollback; passive edits never start a stopped module.
+            if (startIfStopped) {
+                ModuleApiClient.setAutoStart(DataStore.persistAcrossReboot)
+                if (!applied.state.canStop) ModuleApiClient.start()
+            }
         } finally { changes.unlock() }
     }
-    suspend fun stop() = changes.withLock { call("stop") }
+    suspend fun stop() = changes.withLock { ModuleApiClient.stop() }
     /**
      * Hot-switch the running core to another node without restart.
      * Serialized with config applies; any failure must make the caller fall back
@@ -193,14 +121,14 @@ object RootModuleClient {
      */
     suspend fun selectNode(profileId: Long): Status {
         require(profileId > 0)
-        return changes.withLock { call("node select $profileId") }
+        return changes.withLock { ModuleApiClient.selectNode(profileId) }
     }
     internal suspend fun finishInstallerSelection(id: String) {
         require(id.matches(Regex("[a-f0-9]{32}")))
-        call("data selection-finish $id")
+        ModuleApiClient.selectionFinish(id)
     }
     internal suspend fun <T> dataUpdate(action: suspend () -> T): T = changes.withLock { action() }
-    suspend fun setAutoStart(enabled: Boolean) = changes.withLock { call("autostart ${if (enabled) "on" else "off"}") }
+    suspend fun setAutoStart(enabled: Boolean) = changes.withLock { ModuleApiClient.setAutoStart(enabled) }
 }
 
 /** Portable snapshot of configs, helpers and resources, independent of App storage. @author 雾晚 */
