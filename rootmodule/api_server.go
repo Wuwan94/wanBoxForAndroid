@@ -265,6 +265,7 @@ func (r *Runtime) apiHandler(cfg APIConfig) http.Handler {
 		writeAPIJSON(w, http.StatusOK, map[string]any{"schema": 1, "ok": true, "state": r.Status()})
 	}))
 	mux.HandleFunc("GET /v1/events", r.apiAuth(cfg, r.apiEvents))
+	r.registerExtraRoutes(mux, cfg)
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		// 只接受回环 Host，防止 DNS rebinding 把外部请求指到本机管理面。
 		if !isLoopbackHost(req.Host) {
