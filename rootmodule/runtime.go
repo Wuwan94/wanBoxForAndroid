@@ -735,6 +735,8 @@ func (r *Runtime) Status() State {
 	} else if selection != nil {
 		s.Error = "install_data_update_pending"
 	}
+	// 热切换结果优先于 supervisor 快照，覆盖两次持久化之间的窗口。
+	r.applyRuntimeSelection(&s)
 	return s
 }
 func (r *Runtime) Enabled() bool {

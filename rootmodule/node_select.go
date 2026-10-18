@@ -169,11 +169,22 @@ func (r *Runtime) SelectNode(ctx context.Context, profileID int64) error {
 		}
 		// Publish the actually running node for UI/notifications; the manager's
 		// persisted selection stays the source of truth for the next apply.
+		// 运行态选择必须先落到 selection.json：supervisor 持有启动时的快照，
+		// 只写 state.json 会在下一次 stats 持久化时被覆盖回旧节点。
+		_ = r.writeRuntimeSelection(runtimeSelection{
+			Revision:    rev,
+			ProfileID:   profileID,
+			ProfileName: pt.Name,
+		})
 		var s State
 		if e := readJSON(r.path("state.json"), &s, 1<<20); e == nil {
 			s.ProfileID = profileID
 			if pt.Name != "" {
 				s.ProfileName = pt.Name
+			}
+			// 立即生效，不等 supervisor 的下一次合并。
+			if s.RunningRevision == "" {
+				s.RunningRevision = rev
 			}
 			_ = jsonWrite(r.path("state.json"), s)
 		}

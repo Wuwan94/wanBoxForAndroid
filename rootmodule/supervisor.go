@@ -39,10 +39,15 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 	snapshot.Files = nil
 	snapshot.Config = nil
 	s := State{SchemaVersion: Version, Phase: "starting", Revision: rev, RunningRevision: rev, ProfileID: snapshot.ProfileID, ProfileName: snapshot.ProfileName, Supervisor: identity}
+	// 本次启动以快照的选择为准，丢弃上一代遗留的热切换记录。
+	r.clearRuntimeSelection()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var mu sync.Mutex
 	persist := func() {
+		// 合并热切换写下的运行态选择，否则每次 stats 持久化都会把
+		// ProfileID 回退成启动时的值，App 侧表现为节点名/勾选跳动。
+		r.applyRuntimeSelection(&s)
 		if jsonWrite(r.path("state.json"), s) != nil {
 			cancel()
 		}
