@@ -274,3 +274,28 @@ jobs:
           draft: false
           prerelease: true
           make_latest: false
+      # @author 雾晚: 预览渠道只保留最新一版。正式版（prerelease=false）一律不动，
+      # 只清理同属 preview 的旧 tag；清理失败只告警，不影响已经完成的发布。
+      - name: Prune older preview releases
+        if: success()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREVIEW_TAG: ${{ env.PREVIEW_TAG }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -u
+          gh api --paginate "repos/$REPO/releases?per_page=100" \
+            --jq '.[] | select(.prerelease == true) | select(.tag_name != env.PREVIEW_TAG) | select(.tag_name | contains("-preview.")) | "\(.id) \(.tag_name)"' \
+            > "$RUNNER_TEMP/old-previews.txt"
+          if [ ! -s "$RUNNER_TEMP/old-previews.txt" ]; then
+            echo "No older preview releases to remove."
+            exit 0
+          fi
+          while read -r id tag; do
+            echo "Removing preview release $tag (id=$id)"
+            gh api -X DELETE "repos/$REPO/releases/$id" || echo "::warning::failed to delete release $tag"
+            gh api -X DELETE "repos/$REPO/git/refs/tags/$tag" || echo "::warning::failed to delete tag $tag"
+          done < "$RUNNER_TEMP/old-previews.txt"
+          echo "Remaining releases:"
+          gh api --paginate "repos/$REPO/releases?per_page=100" --jq '.[] | "\(.tag_name) prerelease=\(.prerelease)"'
