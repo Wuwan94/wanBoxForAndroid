@@ -148,6 +148,14 @@ func run(ctx context.Context, r *module.Runtime, args []string) error {
 		switch args[1] {
 		case "supervise":
 			return r.Supervise(ctx)
+		case "serve":
+			// 长期宿主：管理接口独立于代理服务，核心停止后仍可读状态与改节点。
+			return r.Serve(ctx, func() bool {
+				t, c := context.WithTimeout(ctx, 2*time.Second)
+				defer c()
+				b, e := exec.CommandContext(t, "/system/bin/getprop", "sys.boot_completed").Output()
+				return e == nil && strings.TrimSpace(string(b)) == "1"
+			})
 		case "activate":
 			return r.Activate(ctx, "/data/adb/modules/wanbox")
 		case "install-manager":
