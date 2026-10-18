@@ -179,7 +179,8 @@ func (r *Runtime) Serve(ctx context.Context, bootReady func() bool) error {
 		return e
 	}
 	// 先交付一次：即使随后绑定失败，App 也能读到当前凭据并看到真实错误。
-	if e = r.DeliverAPIConfig(cfg); e != nil {
+	delivered := r.DeliverAPIConfig(cfg) == nil
+	if !delivered {
 		r.recordEvent("api_credential_delivery_failed")
 	}
 	if _, e = r.ensureAPICertificate(); e != nil {
@@ -230,7 +231,7 @@ func (r *Runtime) Serve(ctx context.Context, bootReady func() bool) error {
 	}
 	go func() { _ = r.Boot(ctx, bootReady) }()
 	// 管理端可能重装或清除数据，定期补交付一次凭据，避免 App 拿着被删掉的文件报不可用。
-	go r.credentialDeliveryLoop(ctx, cfg)
+	go r.credentialDeliveryLoop(ctx, cfg, delivered)
 	select {
 	case <-ctx.Done():
 	case e = <-serveErr:

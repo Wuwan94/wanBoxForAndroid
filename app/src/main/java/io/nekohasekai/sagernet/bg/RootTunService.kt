@@ -19,6 +19,9 @@ class RootTunService : Service(), BaseService.Interface {
     // @author 雾晚: 单次采样失败不等于服务断开。节点热切换会并发拉起 su，
     // 偶发超时若立刻置 Stopped，按钮与节点名会先灭后亮，看起来像重启。
     private val samplingFailures = SamplingFailurePolicy(threshold = 3)
+
+    /** 失败原因写日志的节流计数：首次必写，之后每 20 次写一条。 */
+    private var failureLogCount = 0
     override fun createNotification(profileName: String): ServiceNotification = error("Module observer does not own a foreground service")
     override fun acquireWakeLock() = Unit
     override fun currentProfileName() = snapshot?.profileName ?: ""
@@ -75,7 +78,16 @@ class RootTunService : Service(), BaseService.Interface {
             applyStatus(status)
         } catch (e: CancellationException) {
             throw e
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            // 失败原因必须进日志：否则导出的日志里只剩「模块服务暂时不可用」，
+            // 无法区分「凭据文件缺失 / 连接被拒 / 证书不匹配 / 接口 404」。
+            failureLogCount++
+            if (failureLogCount == 1 || failureLogCount % 20 == 0) {
+                io.nekohasekai.sagernet.ktx.Logs.w(
+                    "module status sample failed (#$failureLogCount): " +
+                        (e.message ?: e.javaClass.simpleName), e
+                )
+            }
             // @author 雾晚：连续失败才降级。真实停服由 status 的 phase=stopped
             // 正常返回，不会走到这里，因此延迟降级不会掩盖服务已停止。
             if (samplingFailures.onFailure()) {

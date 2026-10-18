@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -40,16 +41,25 @@ func credentialTargets() []credentialTarget {
 	}
 }
 
-// credentialDeliveryLoop 周期性补交付：覆盖 App 重装、清除数据后私有目录被删的情况。
-func (r *Runtime) credentialDeliveryLoop(ctx context.Context, cfg APIConfig) {
-	ticker := time.NewTicker(5 * time.Minute)
-	defer ticker.Stop()
+// credentialDeliveryLoop 周期性补交付：覆盖 App 首次启动才建目录、重装或清除数据后私有目录被删的情况。
+// 启动后前 5 分钟每 20 秒补一次（App 首次运行才会创建接收目录），之后每 60 秒一次。
+func (r *Runtime) credentialDeliveryLoop(ctx context.Context, cfg APIConfig, delivered bool) {
+	warmupUntil := time.Now().Add(5 * time.Minute)
+	reported := delivered
 	for {
+		interval := time.Minute
+		if time.Now().Before(warmupUntil) {
+			interval = 20 * time.Second
+		}
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
-			_ = r.DeliverAPIConfig(cfg)
+		case <-time.After(interval):
+			if e := r.DeliverAPIConfig(cfg); e == nil && !reported {
+				// 只在“从失败转为成功”时记一次，方便 root 侧排查交付时机。
+				r.recordEvent("credential_delivered")
+				reported = true
+			}
 		}
 	}
 }
@@ -65,14 +75,18 @@ func (r *Runtime) DeliverAPIConfig(cfg APIConfig) error {
 		return e
 	}
 	uid, gid, hasOwner := appDataOwner()
+	appCtx := appDataContext()
 	delivered := 0
 	var lastErr error
 	for _, target := range credentialTargets() {
-		if e := deliverTo(target, payload, uid, gid, hasOwner); e != nil {
+		e := deliverTo(target, payload, uid, gid, hasOwner, appCtx)
+		if e != nil {
 			lastErr = e
+			r.noteDelivery(target.path, e)
 			continue
 		}
 		delivered++
+		r.noteDelivery(target.path, nil)
 	}
 	if delivered == 0 {
 		if lastErr == nil {
@@ -83,7 +97,7 @@ func (r *Runtime) DeliverAPIConfig(cfg APIConfig) error {
 	return nil
 }
 
-func deliverTo(target credentialTarget, payload []byte, uid, gid int, hasOwner bool) error {
+func deliverTo(target credentialTarget, payload []byte, uid, gid int, hasOwner bool, appCtx string) error {
 	dir := filepath.Dir(target.path)
 	if info, e := os.Lstat(dir); e != nil {
 		if target.appOwned {
@@ -109,9 +123,61 @@ func deliverTo(target credentialTarget, payload []byte, uid, gid int, hasOwner b
 		_ = os.Chmod(target.path, 0644)
 	}
 	if target.appOwned {
+		// 先按策略恢复，再强制对齐 App 数据目录的精确上下文（含 MLS 分类）。
+		// Android 13+ 上仅靠 restorecon 常拿不到分类，App 读自己目录里的
+		// root 创建文件会被 SELinux 拒绝，表现为「文件在但读不到」。
 		restoreContext(dir)
+		if appCtx != "" {
+			applyContext(target.path, appCtx)
+		}
 	}
 	return nil
+}
+
+// appDataContext 读取 App 数据目录的 SELinux 上下文，作为凭据文件的目标上下文。
+func appDataContext() string {
+	dir := filepath.Join("/data/user/0", managerPackage)
+	if _, e := os.Stat(dir); e != nil {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	out, e := exec.CommandContext(ctx, "/system/bin/ls", "-Zd", dir).Output()
+	if e != nil {
+		return ""
+	}
+	fields := strings.Fields(string(out))
+	if len(fields) == 0 || !strings.HasPrefix(fields[0], "u:object_r:") {
+		return ""
+	}
+	return fields[0]
+}
+
+// applyContext 把指定上下文写到目标文件；失败不阻断交付，交给 App 侧读取时暴露。
+func applyContext(path, appCtx string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_ = exec.CommandContext(ctx, "/system/bin/chcon", appCtx, path).Run()
+}
+
+// noteDelivery 把每次交付结果追加到模块目录，root 侧可直接查看排查。
+func (r *Runtime) noteDelivery(target string, err error) {
+	line := time.Now().Format(time.RFC3339) + " " + target
+	if err == nil {
+		line += " ok\n"
+	} else {
+		line += " fail " + err.Error() + "\n"
+	}
+	path := r.path("delivery.log")
+	if info, e := os.Stat(path); e == nil && info.Size() > 64<<10 {
+		_ = os.Remove(path)
+	}
+	f, e := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if e != nil {
+		return
+	}
+	defer f.Close()
+	_, _ = f.WriteString(line)
 }
 
 // appDataOwner 通过 App 数据目录的属主推断 uid/gid，避免依赖包管理器。

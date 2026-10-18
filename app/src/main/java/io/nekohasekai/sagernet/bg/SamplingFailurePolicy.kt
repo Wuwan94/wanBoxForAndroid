@@ -18,6 +18,8 @@ internal class SamplingFailurePolicy(private val threshold: Int = 3) {
 
     private var consecutiveFailures = 0
 
+    val failures: Int get() = consecutiveFailures
+
     fun onSuccess() {
         consecutiveFailures = 0
     }
