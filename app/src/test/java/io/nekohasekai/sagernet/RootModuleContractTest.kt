@@ -81,6 +81,7 @@ class RootModuleContractTest {
         assertTrue(core.contains("supervisorPID")); assertFalse(core.contains("parentPID"))
         val boot = source("BootReceiver.kt")
         assertFalse(boot.contains("SagerNet.startService()"))
-        assertTrue(File("../rootmodule/package/service.sh").readText().contains("__internal boot"))
+        // serve 是当前唯一长期宿主：先起管理接口，再按 auto_start 拉起代理。
+        assertTrue(File("../rootmodule/package/service.sh").readText().contains("__internal serve"))
     }
 }
