@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.CertificatePinner
@@ -118,7 +119,8 @@ object ModuleApiClient {
             close(e)
         }
         awaitClose { call?.cancel() }
-    }
+    // SSE 的读取是阻塞调用，必须离开调用方调度器，避免阻塞主线程。
+    }.flowOn(Dispatchers.IO)
 
     /** SSE 帧里是 {"schema":1,"state":{...}}，转成 CLI 同构的响应体复用解析。 */
     private fun payloadOf(line: String): String {

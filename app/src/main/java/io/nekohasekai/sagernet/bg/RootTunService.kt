@@ -22,71 +22,107 @@ class RootTunService : Service(), BaseService.Interface {
     override fun createNotification(profileName: String): ServiceNotification = error("Module observer does not own a foreground service")
     override fun acquireWakeLock() = Unit
     override fun currentProfileName() = snapshot?.profileName ?: ""
+    @Volatile private var sseActive = false
     override fun onBind(intent: Intent): android.os.IBinder? {
         if (observer?.isActive != true) observer = data.serviceScope.launch {
             val networkOwner = Any()
-            RootModuleObservation.run(network = {
-                try {
-                    io.nekohasekai.sagernet.utils.DefaultNetworkListener.start(networkOwner) { network ->
-                        SagerNet.underlyingNetwork = network
+            // @author 雾晚：SSE 是首选状态通道，模块会推送完整快照；连接失败或模块
+            // 仍是旧版时无感回退到 su 轮询，不改变既有行为。
+            val stream = launch { collectStatusEvents() }
+            try {
+                RootModuleObservation.run(network = {
+                    try {
+                        io.nekohasekai.sagernet.utils.DefaultNetworkListener.start(networkOwner) { network ->
+                            SagerNet.underlyingNetwork = network
+                        }
+                        awaitCancellation()
+                    } finally {
+                        withContext(NonCancellable) { io.nekohasekai.sagernet.utils.DefaultNetworkListener.stop(networkOwner) }
                     }
-                    awaitCancellation()
-                } finally {
-                    withContext(NonCancellable) { io.nekohasekai.sagernet.utils.DefaultNetworkListener.stop(networkOwner) }
-                }
-            }, sample = {
-                try {
-                    // @author 雾晚：只在最开头用完整 dashboard 结果
-                    // changedError/changedProfile/snapshot/currentProfile/mixedInboundAuthed
-                    // changeState/cbSelectorUpdate/telemetry/stats/runningName 全部从这个 status 取值
-                    // 不先 status 再 dashboard，避免两代次混合
-                    val status = RootModuleClient.call("dashboard")
-                    samplingFailures.onSuccess()
-                    val changedError = snapshot?.error != status.error
-                    val changedProfile = status.connected && (snapshot?.connected != true || snapshot?.profileId != status.profileId)
-                    snapshot = status; DataStore.currentProfile = if (status.connected) status.profileId else 0
-                    DataStore.mixedInboundAuthed = status.connected && DataStore.mixedInboundNeedsAuth
-                    data.changeState(status.state, if (changedError && status.error.isNotBlank())
-                        RootModuleErrors.message(this@RootTunService, status.error) else null)
-                    if (changedProfile) data.binder.broadcast { it.cbSelectorUpdate(status.profileId) }
-                    val telemetry = status.telemetry
-                    // 速度数据：用 dashboard 的 stats，缺失时用 0
-                    val stats = status.stats
-                    val tx = stats?.tx ?: 0L
-                    val rx = stats?.rx ?: 0L
-                    val directTx = stats?.directTx ?: 0L
-                    val directRx = stats?.directRx ?: 0L
-                    // @author 雾晚：仅使用已验证的 runningProfileName
-                    val runningName = status.profileName.takeIf { status.connected } ?: ""
-                    data.binder.broadcast {
-                        it.cbSpeedUpdate(io.nekohasekai.sagernet.aidl.SpeedDisplayData(
-                            txRateProxy = tx,
-                            rxRateProxy = rx,
-                            txRateDirect = directTx,
-                            rxRateDirect = directRx,
-                            txTotal = 0L,
-                            rxTotal = 0L,
-                            vmRSSBytes = telemetry?.vmRSSBytes ?: -1L,
-                            uptimeSeconds = telemetry?.uptimeSeconds ?: -1L,
-                            txTotalModule = telemetry?.txBytes ?: -1L,
-                            rxTotalModule = telemetry?.rxBytes ?: -1L,
-                            connectionCount = telemetry?.connectionCount ?: -1,
-                            runningProfileName = runningName
-                        ))
-                    }
-                } catch (e: CancellationException) { throw e }
-                  catch (_: Exception) {
-                    // @author 雾晚：连续失败才降级。真实停服由 status 的 phase=stopped
-                    // 正常返回，不会走到这里，因此延迟降级不会掩盖服务已停止。
-                    if (samplingFailures.onFailure()) {
-                        snapshot = null; DataStore.currentProfile = 0; DataStore.mixedInboundAuthed = false
-                        data.changeState(BaseService.State.Stopped)
-                    }
-                }
-            }, isInteractive = { SagerNet.power.isInteractive })
+                }, sample = {
+                    // SSE 在线时由推送驱动，轮询只做兜底，避免两条通道重复写入状态。
+                    if (!sseActive) sampleStatus()
+                }, intervalMs = 5000, isInteractive = { SagerNet.power.isInteractive })
+            } finally {
+                stream.cancel()
+            }
             // Bound UI/tile only, never an App background watchdog.
         }
         return super<BaseService.Interface>.onBind(intent)
+    }
+
+    /** 经模块 HTTPS 事件流接收状态；断开或不可用时退出，由轮询接管。 */
+    private suspend fun collectStatusEvents() {
+        try {
+            ModuleApiClient.events().collect { status ->
+                sseActive = true
+                samplingFailures.onSuccess()
+                applyStatus(status)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // 模块未升级、凭据缺失或流断开：保持轮询路径。
+        } finally {
+            sseActive = false
+        }
+    }
+
+    private suspend fun sampleStatus() {
+        try {
+            val status = RootModuleClient.call("dashboard")
+            samplingFailures.onSuccess()
+            applyStatus(status)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // @author 雾晚：连续失败才降级。真实停服由 status 的 phase=stopped
+            // 正常返回，不会走到这里，因此延迟降级不会掩盖服务已停止。
+            if (samplingFailures.onFailure()) {
+                snapshot = null; DataStore.currentProfile = 0; DataStore.mixedInboundAuthed = false
+                data.changeState(BaseService.State.Stopped)
+            }
+        }
+    }
+
+    /** 状态快照的唯一应用点：轮询与 SSE 共用，保证两条通道行为一致。 */
+    private suspend fun applyStatus(status: RootModuleClient.Status) {
+        // @author 雾晚：只在最开头用完整结果
+        // changedError/changedProfile/snapshot/currentProfile/mixedInboundAuthed
+        // changeState/cbSelectorUpdate/telemetry/stats/runningName 全部从这个 status 取值
+        // 不先 status 再 dashboard，避免两代次混合
+        val changedError = snapshot?.error != status.error
+        val changedProfile = status.connected && (snapshot?.connected != true || snapshot?.profileId != status.profileId)
+        snapshot = status; DataStore.currentProfile = if (status.connected) status.profileId else 0
+        DataStore.mixedInboundAuthed = status.connected && DataStore.mixedInboundNeedsAuth
+        data.changeState(status.state, if (changedError && status.error.isNotBlank())
+            RootModuleErrors.message(this, status.error) else null)
+        if (changedProfile) data.binder.broadcast { it.cbSelectorUpdate(status.profileId) }
+        val telemetry = status.telemetry
+        // 速度数据：用模块上报的 stats，缺失时用 0
+        val stats = status.stats
+        val tx = stats?.tx ?: 0L
+        val rx = stats?.rx ?: 0L
+        val directTx = stats?.directTx ?: 0L
+        val directRx = stats?.directRx ?: 0L
+        // @author 雾晚：仅使用已验证的 runningProfileName
+        val runningName = status.profileName.takeIf { status.connected } ?: ""
+        data.binder.broadcast {
+            it.cbSpeedUpdate(io.nekohasekai.sagernet.aidl.SpeedDisplayData(
+                txRateProxy = tx,
+                rxRateProxy = rx,
+                txRateDirect = directTx,
+                rxRateDirect = directRx,
+                txTotal = 0L,
+                rxTotal = 0L,
+                vmRSSBytes = telemetry?.vmRSSBytes ?: -1L,
+                uptimeSeconds = telemetry?.uptimeSeconds ?: -1L,
+                txTotalModule = telemetry?.txBytes ?: -1L,
+                rxTotalModule = telemetry?.rxBytes ?: -1L,
+                connectionCount = telemetry?.connectionCount ?: -1,
+                runningProfileName = runningName
+            ))
+        }
     }
     // preview.17: 连接测试详细错误状态（负数返回码）
     // UI 层根据返回码显示具体错误信息，而非一律"网络不可用"
