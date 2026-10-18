@@ -56,31 +56,48 @@ func sha256Hex(b []byte) string {
 }
 
 // EnsureAPIConfig 读取或初始化管理接口配置。
-// 已有文件一律不覆盖：token 或证书被重置会让已连接的管理端全部失效。
+//
+// token 一律不覆盖：重置会让已连接的管理端全部失效。
+// 证书指纹则每次启动按实际证书校准：证书文件缺失或损坏时会被重新生成，
+// 若 api.json 仍留着旧指纹，客户端钉扎会全部失败（Certificate pinning failure!），
+// 表现为「模块明明在跑、App 却提示服务不可用」。
 func (r *Runtime) EnsureAPIConfig() (APIConfig, error) {
-	var cfg APIConfig
-	if e := readJSON(r.path(apiConfigFile), &cfg, 1<<20); e == nil {
-		if !validAPIConfig(cfg) {
-			return APIConfig{}, errors.New("api_config_invalid")
-		}
-		return cfg, nil
-	} else if !os.IsNotExist(e) {
-		return APIConfig{}, errors.New("api_config_invalid")
-	}
 	if e := r.init(); e != nil {
 		return APIConfig{}, e
+	}
+	var cfg APIConfig
+	created := false
+	if e := readJSON(r.path(apiConfigFile), &cfg, 1<<20); e != nil {
+		if !os.IsNotExist(e) {
+			return APIConfig{}, errors.New("api_config_invalid")
+		}
+		created = true
+	} else if !validAPIConfig(cfg) {
+		return APIConfig{}, errors.New("api_config_invalid")
 	}
 	certDER, e := r.ensureAPICertificate()
 	if e != nil {
 		return APIConfig{}, e
 	}
-	token := make([]byte, 32)
-	if _, e = rand.Read(token); e != nil {
-		return APIConfig{}, e
+	if created {
+		token := make([]byte, 32)
+		if _, e = rand.Read(token); e != nil {
+			return APIConfig{}, e
+		}
+		cfg = APIConfig{Listen: "127.0.0.1:0", Token: hex.EncodeToString(token)}
 	}
-	cfg = APIConfig{Listen: "127.0.0.1:0", Token: hex.EncodeToString(token), CertSHA256: sha256Hex(certDER)}
-	if e = jsonWrite(r.path(apiConfigFile), cfg); e != nil {
-		return APIConfig{}, e
+	sum := sha256Hex(certDER)
+	if cfg.CertSHA256 != sum {
+		rotated := !created && cfg.CertSHA256 != ""
+		cfg.CertSHA256 = sum
+		if e = jsonWrite(r.path(apiConfigFile), cfg); e != nil {
+			return APIConfig{}, e
+		}
+		if rotated {
+			// 证书被重新生成：记录事件，交付时会把新指纹带给 App。
+			r.recordEvent("api_certificate_rotated")
+			Trace("serve: certificate rotated, fingerprint updated")
+		}
 	}
 	return cfg, nil
 }

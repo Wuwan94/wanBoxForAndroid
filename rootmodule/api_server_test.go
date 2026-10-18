@@ -110,6 +110,39 @@ func TestAPISelectNodeHotSwitches(t *testing.T) {
 	}
 }
 
+// 证书文件丢失后必须把新指纹写回 api.json：
+// 否则服务端用的是新证书、客户端还钉着旧指纹，所有请求都会 Certificate pinning failure。
+func TestAPIConfigRefreshesFingerprintAfterCertificateRotation(t *testing.T) {
+	r, _ := fixture(t)
+	first, e := r.EnsureAPIConfig()
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = os.Remove(r.path(apiCertFile)); e != nil {
+		t.Fatal(e)
+	}
+	if e = os.Remove(r.path(apiKeyFile)); e != nil {
+		t.Fatal(e)
+	}
+	second, e := r.EnsureAPIConfig()
+	if e != nil {
+		t.Fatal(e)
+	}
+	if second.Token != first.Token {
+		t.Fatal("token rotated on certificate repair")
+	}
+	if second.CertSHA256 == first.CertSHA256 {
+		t.Fatal("fingerprint not refreshed after certificate rotation")
+	}
+	der, ok := loadAPICertificate(r.path(apiCertFile), r.path(apiKeyFile))
+	if !ok {
+		t.Fatal("certificate not loadable after repair")
+	}
+	if sha256Hex(der) != second.CertSHA256 {
+		t.Fatal("stored fingerprint does not match served certificate")
+	}
+}
+
 // 凭据初始化必须幂等：重复调用不得轮换 token 或证书，否则已连接的管理端全部失效。
 func TestAPIConfigIsStable(t *testing.T) {
 	r, _ := fixture(t)

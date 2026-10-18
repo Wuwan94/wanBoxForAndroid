@@ -1,8 +1,17 @@
 # wanBoxForAndroid 更新日志（Changelog）
 
-> 维护范围：下列 wanBox 3.0.x 条目按各自 GitHub Release 汇总；详细回归覆盖与兼容/升级信息请见对应版本页面。最新正式版为 v3.0.9，当前预览构建为 v3.0.10-preview.10。预览渠道只保留最新一版，更早的预览条目以其发行说明为准。项目起源与当前定位见 [README](README.md)。
+> 维护范围：下列 wanBox 3.0.x 条目按各自 GitHub Release 汇总；详细回归覆盖与兼容/升级信息请见对应版本页面。最新正式版为 v3.0.9，当前预览构建为 v3.0.10-preview.11。预览渠道只保留最新一版，更早的预览条目以其发行说明为准。项目起源与当前定位见 [README](README.md)。
 
 ## wanBox 3.0.x 发布记录
+
+### v3.0.10-preview.11（预览版，2026-10-19）
+
+作者：@author 雾晚
+
+- **修复证书钉扎失败**：`api.json` 记录的是旧证书指纹、服务端用的却是重新生成的新证书，App 所有请求被 `Certificate pinning failure` 拒绝。现在每次启动按实际证书校准指纹，不一致即写回并重新交付；token 不轮换。
+- 指纹变化记录 `api_certificate_rotated` 事件并写启动追踪。
+- 新增 `TestAPIConfigRefreshesFingerprintAfterCertificateRotation` 回归用例。
+- 预览版本 `3.0.10-preview.11`，模块版本代码 `373`，APK 版本代码 `1865`。
 
 ### v3.0.10-preview.10（预览版，2026-10-19）
 
