@@ -108,6 +108,12 @@ object RootModuleClient {
             // @author 雾晚: refresh cross-user UIDs (TTL-cached) so per-app rules
             // cover secondary users / cloned apps.
             runCatching { io.nekohasekai.sagernet.utils.PackageCache.refreshMultiUserUids() }
+            // 首次迁移：模块 store 为空时把当前节点的 outbounds 一次性灌入模块。
+            // 之后模块是节点真值，App 不再整表回写，避免覆盖模块侧新增/编辑的节点。
+            if (ModuleApiClient.nodes().isEmpty()) {
+                val migrated = ModuleConfigIntent.migrateNodes(profile)
+                if (migrated.isNotEmpty()) ModuleApiClient.replaceNodes(migrated)
+            }
             // 只下发配置意图：节点 outbounds 由模块 store 权威，App 不再强推完整快照。
             val applied = ModuleApiClient.applyConfig(ModuleConfigIntent.build(profile))
             // Apply owns active-core restart/rollback; passive edits never start a stopped module.

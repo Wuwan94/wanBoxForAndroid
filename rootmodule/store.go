@@ -190,6 +190,54 @@ func (s *Store) ListNodes() ([]StoreNode, error) {
 	return s.listNodesLocked()
 }
 
+// ReplaceNodes 原子替换全部节点，供管理端首次迁移或整表回写使用。
+// 缺失或重复的 id 由模块分配，已有 id 保持不变，保证节点选择不被打断。
+func (s *Store) ReplaceNodes(nodes []StoreNode) ([]StoreNode, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(nodes) > 5000 {
+		return nil, errors.New("nodes_too_many")
+	}
+	meta, e := s.readMetaLocked()
+	if e != nil {
+		return nil, e
+	}
+	next := meta.NextNodeID
+	if next < 1 {
+		next = 1
+	}
+	seen := make(map[int64]bool, len(nodes))
+	out := make([]StoreNode, 0, len(nodes))
+	now := time.Now().UnixMilli()
+	for _, n := range nodes {
+		if n.Outbound == nil || !json.Valid(n.Outbound) {
+			return nil, errors.New("node_outbound_invalid")
+		}
+		if n.ID <= 0 || seen[n.ID] {
+			n.ID = next
+			next++
+		} else if n.ID >= next {
+			next = n.ID + 1
+		}
+		seen[n.ID] = true
+		if n.Type == "" {
+			n.Type = "unknown"
+		}
+		if n.UpdatedAt == 0 {
+			n.UpdatedAt = now
+		}
+		out = append(out, n)
+	}
+	if e = s.writeNodesLocked(out); e != nil {
+		return nil, e
+	}
+	meta.NextNodeID = next
+	if e = s.writeMetaLocked(meta); e != nil {
+		return nil, e
+	}
+	return out, nil
+}
+
 // UpsertNode 新增（id<=0）或覆盖（id>0）一个节点，返回持久化后的完整节点。
 func (s *Store) UpsertNode(in StoreNode) (StoreNode, error) {
 	s.mu.Lock()

@@ -17,6 +17,7 @@ import (
 func (r *Runtime) registerExtraRoutes(mux *http.ServeMux, cfg APIConfig) {
 	// ---- 节点 ----
 	mux.HandleFunc("GET /v1/nodes", r.apiAuth(cfg, r.apiListNodes))
+	mux.HandleFunc("PUT /v1/nodes", r.apiAuth(cfg, r.apiReplaceNodes))
 	mux.HandleFunc("POST /v1/nodes", r.apiAuth(cfg, r.apiAddNode))
 	mux.HandleFunc("PUT /v1/nodes/{id}", r.apiAuth(cfg, r.apiPutNode))
 	mux.HandleFunc("DELETE /v1/nodes/{id}", r.apiAuth(cfg, r.apiDeleteNode))
@@ -30,6 +31,9 @@ func (r *Runtime) registerExtraRoutes(mux *http.ServeMux, cfg APIConfig) {
 	// ---- 配置 ----
 	mux.HandleFunc("GET /v1/config", r.apiAuth(cfg, r.apiGetConfig))
 	mux.HandleFunc("PUT /v1/config", r.apiAuth(cfg, r.apiPutConfig))
+	// 只读日志：核心停止时仍返回事件环，App 无需再读 logcat。
+	mux.HandleFunc("GET /v1/logs", r.apiAuth(cfg, r.apiLogs))
+
 	// 重应用当前配置（配置变更后的完整 reload，等价 config apply）
 	mux.HandleFunc("POST /v1/service/reload", r.apiAuth(cfg, r.apiReload))
 	// 自启开关：轻量，只写 boot 标记，不重启核心（原 CLI autostart on/off）
@@ -52,6 +56,43 @@ func (r *Runtime) apiListNodes(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	writeAPIJSON(w, http.StatusOK, map[string]any{"schema": 1, "ok": true, "nodes": nodes})
+}
+
+// apiReplaceNodes 整表替换节点：用于 App 首次从本地库迁移，或订阅全量重建。
+// 只在 store 为空或调用方明确要求整体覆盖时使用，常规增删仍走单条端点。
+func (r *Runtime) apiReplaceNodes(w http.ResponseWriter, req *http.Request) {
+	var body struct {
+		Nodes []StoreNode `json:"nodes"`
+	}
+	if e := json.NewDecoder(http.MaxBytesReader(w, req.Body, 16<<20)).Decode(&body); e != nil {
+		writeAPIError(w, http.StatusBadRequest, "request_invalid")
+		return
+	}
+	nodes, e := r.Store().ReplaceNodes(body.Nodes)
+	if e != nil {
+		writeAPIError(w, http.StatusConflict, e.Error())
+		return
+	}
+	r.recordEvent("nodes_replaced")
+	writeAPIJSON(w, http.StatusOK, map[string]any{"schema": 1, "ok": true, "nodes": nodes, "state": r.Status()})
+}
+
+// apiLogs 返回模块事件环，核心停止时同样可读，替代 App 侧读 logcat。
+func (r *Runtime) apiLogs(w http.ResponseWriter, req *http.Request) {
+	limit := 200
+	if raw := req.URL.Query().Get("lines"); raw != "" {
+		if v, e := strconv.Atoi(raw); e == nil && v > 0 {
+			limit = v
+		}
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+	events := r.Events()
+	if len(events) > limit {
+		events = events[len(events)-limit:]
+	}
+	writeAPIJSON(w, http.StatusOK, map[string]any{"schema": 1, "ok": true, "logs": events})
 }
 
 func (r *Runtime) apiAddNode(w http.ResponseWriter, req *http.Request) {

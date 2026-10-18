@@ -109,6 +109,7 @@
 | 快照 | `RootModuleSnapshot.build()` 整份配置生成、`192MB` 大小校验 | 配置生成下沉模块 |
 | 数据 | Room 作为「已应用」真值、`RootModuleDataUpdate` 的 Room 事务链路 | 真值在模块；Room 仅草稿/备份 |
 | 配置 | App 侧 `ConfigBuilder` 生成的 outbounds 段 | 模块合并节点 |
+| 本地核心 | `BoxInstance` 的 `su -c` 启动分支、`GuardedProcessPool` 本地核心路径 | 核心只由模块运行 |
 | 权限 | `PackageCache.queryMultiUserUids()` 的 su 实现（改为模块 `/v1/uids`） | 零 Root |
 | 页面 | 内存/连接数卡片、密度调节、批量测速面板、主题编辑器 | 精简 IA |
 
@@ -155,5 +156,6 @@ App 侧：`ModuleApiClient.kt`（唯一传输层）、`RootModuleClient.kt`（�
 |---|---|---|
 | P0（preview.7，已完成） | 凭据交付、端口退避、App 零 Root 读取、传输重试、跨用户 UID 关闭 su | 装好即连，无 Root 弹窗 |
 | P1 | 删除 `RootModuleSnapshot` 与快照强推；`PUT /v1/config` 全量接管配置生成 | 改规则/分应用后配置由模块生成，App 不再上传完整 config |
+| P1（已落地部分） | 节点首次迁移 `PUT /v1/nodes`、`GET /v1/logs`、App 仅在 store 为空时整表回写 | 覆盖安装后节点不丢，模块成为节点真值 |
 | P2 | 订阅拉取与筛选全部下沉；`/v1/logs`、`/v1/uids` 补齐；App 删掉 su 残留 | 订阅更新不依赖 App 进程 |
 | P3 | 页面精简到四页 IA，删除密度/批量测速/主题编辑器；Room 降级为草稿 | 冷启动到可操作 < 1.5s，页面数量收敛 |

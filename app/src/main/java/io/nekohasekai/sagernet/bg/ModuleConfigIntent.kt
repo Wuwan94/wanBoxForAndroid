@@ -5,6 +5,7 @@ package io.nekohasekai.sagernet.bg
 import io.nekohasekai.sagernet.bg.proto.ProxyInstance
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ProxyEntity
+import io.nekohasekai.sagernet.database.SagerDatabase
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -58,6 +59,44 @@ object ModuleConfigIntent {
                 intent.put("plugins", JSONArray(plugins.toString()))
             }
             return intent
+        } finally {
+            instance.close()
+        }
+    }
+
+    /**
+     * 首次迁移：把 App 当前配置里的 outbounds 还原成模块节点。
+     *
+     * 只在模块 store 为空时调用一次。outbound 的 tag 由 libcore 的 profileTagMap
+     * 映射回 profileId，因此迁移后节点选择、热切换 tag 与旧配置保持一致。
+     * @author 雾晚
+     */
+    suspend fun migrateNodes(profile: ProxyEntity): List<ModuleApiClient.ModuleNode> {
+        val instance = ProxyInstance(profile)
+        try {
+            instance.init()
+            val tagMap = instance.config.profileTagMap
+            if (tagMap.isEmpty()) return emptyList()
+            val config = com.google.gson.JsonParser.parseString(instance.config.config).asJsonObject
+            val outbounds = config.getAsJsonArray("outbounds") ?: return emptyList()
+            val byTag = outbounds.mapNotNull { it as? com.google.gson.JsonObject }
+                .filter { it.get("tag")?.asString?.isNotBlank() == true }
+                .associateBy { it.get("tag").asString }
+            val names = SagerDatabase.proxyDao.getEntities(tagMap.keys.toList())
+                .associate { it.id to it.displayName() }
+            val now = System.currentTimeMillis() / 1000
+            return tagMap.mapNotNull { (id, tag) ->
+                val outbound = byTag[tag] ?: return@mapNotNull null
+                ModuleApiClient.ModuleNode(
+                    id = id,
+                    type = outbound.get("type")?.asString ?: "unknown",
+                    name = names[id] ?: tag,
+                    group = null,
+                    subscriptionId = 0,
+                    outbound = JSONObject(outbound.toString()),
+                    updatedAt = now,
+                )
+            }
         } finally {
             instance.close()
         }

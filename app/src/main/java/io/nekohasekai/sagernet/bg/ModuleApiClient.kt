@@ -163,6 +163,21 @@ object ModuleApiClient {
     suspend fun addNode(node: ModuleNode): ModuleNode =
         ModuleNode.fromJson(requestJson("POST", "/v1/nodes", node.toJson().toString()).getJSONObject("node"))
 
+    /** 整表替换：只在模块 store 为空（首次迁移）或明确覆盖时使用。 */
+    suspend fun replaceNodes(nodes: List<ModuleNode>): List<ModuleNode> {
+        val array = JSONArray()
+        nodes.forEach { array.put(it.toJson()) }
+        val body = JSONObject().put("nodes", array).toString()
+        val result = requestJson("PUT", "/v1/nodes", body).optJSONArray("nodes") ?: JSONArray()
+        return (0 until result.length()).map { ModuleNode.fromJson(result.getJSONObject(it)) }
+    }
+
+    /** 模块事件环；核心停止时照样可读，替代 App 侧读 logcat。 */
+    suspend fun logs(lines: Int = 200): List<String> {
+        val array = requestJson("GET", "/v1/logs?lines=$lines").optJSONArray("logs") ?: JSONArray()
+        return (0 until array.length()).map { array.getJSONObject(it).toString() }
+    }
+
     suspend fun updateNode(id: Long, node: ModuleNode): ModuleNode =
         ModuleNode.fromJson(requestJson("PUT", "/v1/nodes/$id", node.toJson().toString()).getJSONObject("node"))
 
