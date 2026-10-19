@@ -1,6 +1,6 @@
 id=wanbox
 name=wanBox
-version=v3.0.10-preview.15
+version=v3.0.10-preview.16
 versionCode=26
 author=雾晚
 description=基于 sing-box 内核的透明代理工具

@@ -52,6 +52,7 @@
 - 命令组权威清单：`service catalog node sub mode network app ebpf config logs api`。新增命令组必须同时更新 Go CLI、Android `ModuleApiClient`、WebUI 命令表与传输判断和契约测试。
 - `scripts/` 不承载运行时业务；配置、Catalog、状态和 Service API 业务统一由 Go 实现。
 - 根目录 `service.sh` 负责模块开机桥接；运行时配置、节点切换、订阅事务和调度由 Go 负责。
+- 开机等待只读取 Android 系统 `/system/bin/getprop sys.boot_completed`，仅值 `1` 表示就绪；等待必须可取消且有界，不依赖特定 Root 框架提供 `resetprop`。
 - Go Worker 负责 Android 网络变化采集、Wi-Fi 状态读取和策略评估。
 - `customize.sh` 在已开机安装时不得提前覆盖 live 模块目录；必须等待管理器写入 `update` 标记后再由脱离安装器 cgroup 的 Shell 完成目录切换。任何校验或切换失败都保留 `modules_update`，交回管理器下次开机处理。
 - 设备上的调用形式是 `su -c /data/adb/modules/wanbox/wanboxctl [--json] <命令组> <命令>`；文档和排查步骤按此形式给出，不要写成裸 `wanboxctl`，它不在 PATH 里。
@@ -85,6 +86,7 @@ src/module/service.sh
 - 事件流的服务状态缓存每次发送仍核对当前文件身份与修改时间，不能只信内存 epoch；核心流按启动身份隔离。groups 更新在固定 250ms 窗口合并，实际模式消费原生 SubscribeClashMode，不能从节点分组猜测或遗漏模式变化。
 - Worker 关停只取消 HTTP 订阅的网络下载阶段；下载完成后的持久事务继续按原有有界上下文收尾，不能以缩短关停时间为由中断提交。Android Worker 默认使用 64 MiB 的 Go 软内存目标，显式 GOMEMLIMIT 优先；目标不包含文件映射或 Java 子进程，不在请求后强制 GC。
 - API 启动不主动交付凭据或拉起管理器；首次连接、凭据失效与显式重连由客户端请求固定签名私有交付。成功交付后冷却 30 秒，失败有界退避，拒绝请求不延长窗口。凭据缓存只在这些边界重读，Provider 原子写入必须立即更新同进程缓存；旧请求的 401 不得清除其他请求已经取得的新凭据。主动重连不预先清空可用资料或修改回连地址，须等待新的 Provider 交付；失败不能覆盖并发新交付，不得重发已接受的写入。
+- Android 本地配对回执解析或校验失败时，自动连接可重新请求官方私有 Provider 交付；交付成功前不删除或覆盖旧文件，不隐藏存储 I/O 失败，也不放宽签名、UID、证书或凭据校验。
 - 安装 TLS 证书是本机精确钉扎的身份：Go 探测与 Android 校验证书身份和主机名，不依赖证书日期或设备时钟；不得移除钉扎或以接受任意证书替代。订阅创建、编辑和下载前共用领域设置校验，非法代理模式不得落盘后静默按直连执行，HTTP 不重复实现周期和代理模式规则。
 - 请求正文读取期限由 HTTP Server 管理，不在 handler 中为无正文 GET 设置连接读期限，否则长查询与 SSE 会在 15 秒被标准库取消；SSE 保留心跳、逐帧写入期限与真实断连错误。
 - 设备统计只从 Go 公共命令与真实核心启动采集 `module_active`、`service_start_result`，不增加 Android/WebUI SDK。Worker 以 Root 查询用户 0 的 `ANDROID_ID`，用固定 wanBox 命名空间的 SHA-256 派生设备身份，每个 Worker 成功读取后只缓存在内存；读取失败不得回退随机身份。CLI 不查询设备标识，`config/telemetry/state.json` 只保存每日去重和有界队列，不进入编辑器、日志或诊断包；原始标识不得落盘或上传，Token 只由构建注入。损坏状态不得静默覆盖，系统查询和网络请求不得持有状态锁，上传不得阻塞业务命令。停服入口不得为统计重新启动 Worker，以免停服操作产生后台启动副作用。

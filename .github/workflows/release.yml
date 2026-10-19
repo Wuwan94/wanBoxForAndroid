@@ -51,6 +51,8 @@ jobs:
     with:
       # 发布构建的 versionName 不能带 -ci.<sha> 测试后缀。
       manager-ci: false
+      # 发布构建必须跑完整 Android 验证，不能只构建。
+      verify-android: true
     secrets:
       ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
       ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}

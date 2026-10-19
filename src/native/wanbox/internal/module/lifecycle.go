@@ -426,7 +426,13 @@ func Boot(ctx context.Context, options Options) error {
 	}
 	logService(options, "INFO", "module.boot", "started", "wanBox 开机服务启动")
 	logService(options, "INFO", "module.boot", "waiting", "等待 Android 启动完成")
-	if err := newBootCompletedWaitCommand(ctx).Run(); err != nil {
+	waitContext, cancelWait := context.WithTimeout(ctx, 10*time.Minute)
+	err := waitForBootCompleted(waitContext, func(ctx context.Context) (string, error) {
+		content, err := newBootCompletedReadCommand(ctx).Output()
+		return strings.TrimSpace(string(content)), err
+	}, time.Second)
+	cancelWait()
+	if err != nil {
 		return fmt.Errorf("等待系统启动完成失败: %w", err)
 	}
 	logService(options, "INFO", "module.boot", "ready", "Android 启动完成")
@@ -448,8 +454,31 @@ func Boot(ctx context.Context, options Options) error {
 	return nil
 }
 
-func newBootCompletedWaitCommand(ctx context.Context) *exec.Cmd {
-	return exec.CommandContext(ctx, "resetprop", "-w", "sys.boot_completed", "0")
+func newBootCompletedReadCommand(ctx context.Context) *exec.Cmd {
+	// getprop 是 Android 系统入口，不依赖特定 Root 框架提供 resetprop。
+	return exec.CommandContext(ctx, "/system/bin/getprop", "sys.boot_completed")
+}
+
+func waitForBootCompleted(ctx context.Context, read func(context.Context) (string, error), interval time.Duration) error {
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		state, err := read(ctx)
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(state) == "1" {
+			return nil
+		}
+		timer := time.NewTimer(interval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
 }
 
 func EnsureWorker(ctx context.Context, options Options) error {

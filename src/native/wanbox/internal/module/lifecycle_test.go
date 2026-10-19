@@ -2,6 +2,7 @@ package module
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,11 +15,70 @@ import (
 	"github.com/Wuwan94/wanBoxForAndroid/src/native/wanbox/internal/paths"
 )
 
-func TestBootCompletedWaitCommandWaitsForPropertyToLeaveZero(t *testing.T) {
-	command := newBootCompletedWaitCommand(context.Background())
-	want := []string{"resetprop", "-w", "sys.boot_completed", "0"}
+func TestBootCompletedReadUsesAndroidSystemCommand(t *testing.T) {
+	command := newBootCompletedReadCommand(context.Background())
+	want := []string{"/system/bin/getprop", "sys.boot_completed"}
 	if !reflect.DeepEqual(command.Args, want) {
 		t.Fatalf("boot wait command args = %v, want %v", command.Args, want)
+	}
+}
+
+func TestWaitForBootCompletedRequiresExactReadyProperty(t *testing.T) {
+	states := []string{"", "0", "2", " 1\n"}
+	reads := 0
+	err := waitForBootCompleted(context.Background(), func(context.Context) (string, error) {
+		state := states[reads]
+		reads++
+		return state, nil
+	}, time.Millisecond)
+	if err != nil || reads != len(states) {
+		t.Fatalf("启动等待结果 = %v，读取次数 = %d", err, reads)
+	}
+}
+
+func TestWaitForBootCompletedReturnsImmediatelyWhenReady(t *testing.T) {
+	err := waitForBootCompleted(context.Background(), func(context.Context) (string, error) {
+		return "1", nil
+	}, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestWaitForBootCompletedPropagatesReadFailure(t *testing.T) {
+	want := errors.New("fixture property failure")
+	err := waitForBootCompleted(context.Background(), func(context.Context) (string, error) {
+		return "", want
+	}, time.Hour)
+	if !errors.Is(err, want) {
+		t.Fatalf("属性读取错误未保留: %v", err)
+	}
+}
+
+func TestWaitForBootCompletedHonorsCancellationAndDeadline(t *testing.T) {
+	for _, beforeRead := range []bool{false, true} {
+		ctx, cancel := context.WithCancel(context.Background())
+		if beforeRead {
+			cancel()
+		}
+		reads := 0
+		err := waitForBootCompleted(ctx, func(context.Context) (string, error) {
+			reads++
+			cancel()
+			return "0", nil
+		}, time.Hour)
+		cancel()
+		if !errors.Is(err, context.Canceled) || beforeRead && reads != 0 {
+			t.Fatalf("取消未生效: %v，读取次数 %d", err, reads)
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	err := waitForBootCompleted(ctx, func(context.Context) (string, error) {
+		return "0", nil
+	}, time.Hour)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("超时未生效: %v", err)
 	}
 }
 
