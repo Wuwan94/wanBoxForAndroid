@@ -327,7 +327,7 @@ class MinimalUiTest {
             }
             instrumentation.runOnMainSync {
                 val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as SettingsFragment
-                val expectedSections = listOf("runtime", "http_tls", "dns", "route", "speedtest", "appearance", "logs", "other")
+                val expectedSections = listOf("runtime", "network", "speedtest", "appearance", "advanced", "other")
                 assertEquals(expectedSections, fragment.getRenderedSectionKeys())
                 assertTrue(fragment.hasRenderedItem("per_app_proxy"))
                 val orderedHomeRows = listOf("per_app_proxy") + expectedSections
