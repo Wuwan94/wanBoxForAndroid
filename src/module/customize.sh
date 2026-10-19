@@ -513,6 +513,10 @@ install_bundled_manager() {
       print_ok "管理器安装成功"
     else
       print_warn "管理器安装失败，模块安装继续；未卸载或清除现有应用"
+      ui_print "  常见原因是本版管理器换了签名密钥，或已安装版本 versionCode 更高，"
+      ui_print "  此时 Android 会拒绝覆盖安装，模块与旧管理器将无法通信。"
+      ui_print "  请先备份，再卸载旧管理器并从发布页安装 wanBox.apk："
+      ui_print "    pm uninstall com.lit008834.pixel.wanboxforandroid"
       ui_print "  $install_output"
     fi
   fi

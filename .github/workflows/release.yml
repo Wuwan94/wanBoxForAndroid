@@ -48,6 +48,9 @@ jobs:
     name: 并行构建模块与管理器
     needs: preflight
     uses: ./.github/workflows/build-module.yml
+    with:
+      # 发布构建的 versionName 不能带 -ci.<sha> 测试后缀。
+      manager-ci: false
     secrets:
       ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
       ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -131,6 +134,36 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: 更新模块自更新指针
+        # module.prop 的 updateJson 指向 update-index 分支上的固定地址。
+        # 不能用 releases/latest/download：预览版是 prerelease，latest 只会解析到正式版，
+        # 正式版又没有 update.json，最终 404。
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/update-index"
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git clone --quiet --depth 1 --branch update-index "$remote" "$work" 2>/dev/null; then
+            echo "复用已有的 update-index 分支"
+          else
+            rm -rf "$work"
+            git init -q "$work"
+            git -C "$work" remote add origin "$remote"
+            git -C "$work" symbolic-ref HEAD refs/heads/update-index
+          fi
+          cp update.json "$work/update.json"
+          git -C "$work" add update.json
+          if git -C "$work" diff --cached --quiet; then
+            echo "自更新指针内容未变化，跳过提交"
+            exit 0
+          fi
+          git -C "$work" \
+            -c user.name="github-actions[bot]" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "chore: 自更新指针更新到 ${GITHUB_REF_NAME} [skip ci]"
+          git -C "$work" push --quiet origin update-index
+
       - name: 清理上一次发布，只保留最新一版
         # 同一频道只保留最新一个 release 与 tag。
         # 频道由 tag 后缀决定：-preview / -rc / -beta 归预览，其余归正式。
@@ -166,6 +199,7 @@ jobs:
             fi
             echo "清理旧 $CHANNEL 发布: $tag (id=$id)"
             gh api -X DELETE "repos/$GH_REPO/releases/$id" || true
+            gh api -X DELETE "repos/$GH_REPO/git/refs/tags/$tag" || true
           done
 
       - name: 发布通知到 Telegram

@@ -19,6 +19,11 @@ fun gitCommitCount(): Int {
     }.getOrDefault(1)
 }
 
+// 历史 APK versionCode 峰值 = 1875（preview.13，旧公式 VERSION_CODE × 5，模块 code 375）。
+// 新架构改用提交数编号后必须整体抬到该峰值之上，否则 pm install -r 会因版本降级
+// 报 INSTALL_FAILED_VERSION_DOWNGRADE，用户无法覆盖安装。
+val legacyVersionCodeFloor = 1875
+
 val ciManagerBuild = providers.gradleProperty("wanboxManagerCi").orNull == "true"
 val managerVersion = providers.gradleProperty("wanboxManagerVersion").orNull
     ?: rootProject.file("../module/module.prop").takeIf { it.isFile }?.useLines { lines ->
@@ -44,7 +49,7 @@ android {
         applicationId = "com.lit008834.pixel.wanboxforandroid"
         minSdk = 26
         targetSdk = 37
-        versionCode = gitCommitCount()
+        versionCode = legacyVersionCodeFloor + gitCommitCount()
         versionName = if (ciManagerBuild) "$managerVersion-ci.$managerBuildId" else managerVersion
         ndk {
             abiFilters += "arm64-v8a"

@@ -1,8 +1,8 @@
 id=wanbox
 name=wanBox
-version=v3.0.10-preview.14
+version=v3.0.10-preview.15
 versionCode=26
 author=雾晚
 description=基于 sing-box 内核的透明代理工具
-updateJson=https://github.com/Wuwan94/wanBoxForAndroid/releases/latest/download/update.json
+updateJson=https://raw.githubusercontent.com/Wuwan94/wanBoxForAndroid/update-index/update.json
 webuiIcon=webroot/wanbox/favicon.svg

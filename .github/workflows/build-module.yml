@@ -7,6 +7,10 @@ on:
         description: 是否同时执行 Android 单元测试与 Lint
         type: boolean
         default: false
+      manager-ci:
+        description: 管理器 versionName 是否附加 -ci.<sha> 测试后缀；发布构建必须为 false
+        type: boolean
+        default: true
     secrets:
       ANDROID_KEYSTORE_BASE64:
         required: true
@@ -81,6 +85,7 @@ jobs:
         with:
           build-manager: 'true'
           verify: ${{ inputs.verify-android }}
+          manager-ci: ${{ inputs.manager-ci }}
           signing-keystore-base64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           signing-store-password: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           signing-key-alias: ${{ secrets.ANDROID_KEY_ALIAS }}

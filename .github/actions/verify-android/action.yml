@@ -5,6 +5,9 @@ inputs:
   build-manager:
     description: 是否构建并签名当前源码的 CI 管理器
     default: 'false'
+  manager-ci:
+    description: 是否在 versionName 附加 -ci.<sha> 测试后缀；发布构建必须传 false
+    default: 'true'
   verify:
     description: 是否执行 Android 单元测试与 Lint
     default: 'true'
@@ -62,6 +65,7 @@ runs:
       working-directory: src/android
       env:
         BUILD_MANAGER: ${{ inputs.build-manager }}
+        MANAGER_CI: ${{ inputs.manager-ci }}
         VERIFY_ANDROID: ${{ inputs.verify }}
         ASSEMBLE_DEBUG: ${{ inputs.assemble-debug }}
         MANAGER_VERSION: ${{ steps.meta.outputs.manager_version }}
@@ -70,9 +74,11 @@ runs:
         set --
         if [ "$BUILD_MANAGER" = true ]; then
           set -- :app:assembleRelease :platform:assembleDex \
-            -PwanboxManagerCi=true \
-            -PwanboxManagerBuildId="$BUILD_ID" \
             -PwanboxManagerVersion="$MANAGER_VERSION"
+          # 只有开发包需要 -ci.<sha> 后缀；发布版必须保持干净版本名。
+          if [ "$MANAGER_CI" = true ]; then
+            set -- "$@" -PwanboxManagerCi=true -PwanboxManagerBuildId="$BUILD_ID"
+          fi
         fi
         if [ "$VERIFY_ANDROID" = true ]; then
           set -- "$@" testDebugUnitTest :scripta:editor:testAndroidHostTest :scripta:editor:desktopTest lintDebug :platform:assembleDex
@@ -90,6 +96,8 @@ runs:
         MANAGER_VERSION: ${{ steps.meta.outputs.manager_version }}
         BUILD_ID: ${{ steps.meta.outputs.short_sha }}
         COMMIT_COUNT: ${{ steps.meta.outputs.commit_count }}
+        VERSION_CODE: ${{ steps.meta.outputs.version_code }}
+        MANAGER_CI: ${{ inputs.manager-ci }}
         SIGNING_KEYSTORE_BASE64: ${{ inputs.signing-keystore-base64 }}
         SIGNING_STORE_PASSWORD: ${{ inputs.signing-store-password }}
         SIGNING_KEY_ALIAS: ${{ inputs.signing-key-alias }}
@@ -104,8 +112,12 @@ runs:
 
         APK_INFO="$("$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "$UNSIGNED_APK")"
         printf '%s\n' "$APK_INFO" | grep -F "name='com.lit008834.pixel.wanboxforandroid'"
-        printf '%s\n' "$APK_INFO" | grep -F "versionCode='$COMMIT_COUNT'"
-        printf '%s\n' "$APK_INFO" | grep -F "versionName='${MANAGER_VERSION}-ci.${BUILD_ID}'"
+        printf '%s\n' "$APK_INFO" | grep -F "versionCode='$VERSION_CODE'"
+        if [ "$MANAGER_CI" = true ]; then
+          printf '%s\n' "$APK_INFO" | grep -F "versionName='${MANAGER_VERSION}-ci.${BUILD_ID}'"
+        else
+          printf '%s\n' "$APK_INFO" | grep -F "versionName='${MANAGER_VERSION}'"
+        fi
 
         printf '%s' "$SIGNING_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
 
