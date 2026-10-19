@@ -7,7 +7,6 @@ import okhttp3.Request
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.File
 import java.net.InetAddress
@@ -18,6 +17,9 @@ import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlin.io.path.createTempDirectory
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLException
@@ -41,10 +43,14 @@ class ModulePinningTest {
     @Test fun matchingFingerprintConnectsAndWrongFingerprintFails() {
         val toolName = if (System.getProperty("os.name").lowercase().contains("win")) "keytool.exe" else "keytool"
         val keytool = File(File(System.getProperty("java.home"), "bin"), toolName)
-        assumeTrue("keytool 不可用，跳过真实 TLS 测试", keytool.canExecute())
+        assertTrue("keytool is required for the TLS regression test", keytool.canExecute())
 
-        val dir = createTempDir(prefix = "wanbox-pin-")
+        val dir = createTempDirectory("wanbox-pin-").toFile()
         var serverSocket: SSLServerSocket? = null
+        var serverThread: Thread? = null
+        val activeSocket = AtomicReference<SSLSocket?>(null)
+        val successfulHandshake = CountDownLatch(1)
+        val rejectedHandshake = CountDownLatch(1)
         val serving = AtomicBoolean(true)
         val acceptedHandshakes = AtomicInteger(0)
         val failedHandshakes = AtomicInteger(0)
@@ -79,7 +85,7 @@ class ModulePinningTest {
             // accept 带超时，循环才能在测试结束时退出。
             serverSocket.soTimeout = 200
             val socket = serverSocket
-            thread(isDaemon = true, name = "wanbox-tls") {
+            serverThread = thread(isDaemon = true, name = "wanbox-tls") {
                 while (serving.get()) {
                     val accepted = runCatching { socket.accept() }
                     val client = accepted.getOrNull()
@@ -95,13 +101,19 @@ class ModulePinningTest {
                     }
                     // accept 只完成 TCP 连接，真正的 TLS 握手发生在第一次 I/O；
                     // 必须显式 startHandshake 才能把「握手失败」和「读请求失败」分开统计。
-                    val handshake = runCatching { (client as SSLSocket).startHandshake() }
+                    activeSocket.set(client as SSLSocket)
+                    client.soTimeout = 5_000
+                    val handshake = runCatching { client.startHandshake() }
                     if (handshake.isFailure) {
                         failedHandshakes.incrementAndGet()
                         lastHandshakeError.set(handshake.exceptionOrNull())
+                        rejectedHandshake.countDown()
                         runCatching { client.close() }
+                        activeSocket.compareAndSet(client, null)
                         continue
                     }
+                    acceptedHandshakes.incrementAndGet()
+                    successfulHandshake.countDown()
                     runCatching {
                         client.use {
                             it.soTimeout = 5_000
@@ -121,7 +133,7 @@ class ModulePinningTest {
                             it.outputStream.flush()
                         }
                     }
-                    acceptedHandshakes.incrementAndGet()
+                    activeSocket.compareAndSet(client, null)
                 }
             }
 
@@ -135,17 +147,16 @@ class ModulePinningTest {
                 assertEquals(200, response.code)
                 assertTrue(response.body?.string().orEmpty().contains("\"ok\":true"))
             }
+            assertTrue("server did not confirm the successful handshake", successfulHandshake.await(5, TimeUnit.SECONDS))
             assertEquals("指纹一致时必须完成一次成功握手", 1, acceptedHandshakes.get())
 
             val bad = ModuleApiClient.buildPinnedClient(credentials(port, "0".repeat(64)), 5)
             val failed = runCatching { bad.newCall(request).execute().close() }.exceptionOrNull()
             assertTrue("错误指纹必须握手失败，实际: $failed", failed is SSLException)
             assertFalse("不能把读超时当成握手失败", failed is SocketTimeoutException)
-            // 服务端线程与客户端失败几乎同时发生：轮询等待它记账，避免竞态导致的假阴性。
-            val deadline = System.currentTimeMillis() + 5_000
-            while (failedHandshakes.get() < 1 && System.currentTimeMillis() < deadline) {
-                Thread.sleep(20)
-            }
+            assertTrue("pin failure must retain its certificate cause", generateSequence(failed) { it.cause }
+                .any { it is java.security.cert.CertificateException && it.message == "certificate_pinned_mismatch" })
+            assertTrue("server did not confirm the rejected handshake", rejectedHandshake.await(5, TimeUnit.SECONDS))
             assertTrue(
                 "服务端必须观察到一次失败握手，实际: ${failedHandshakes.get()}，" +
                     "最后异常: ${lastHandshakeError.get()}",
@@ -164,6 +175,9 @@ class ModulePinningTest {
         } finally {
             serving.set(false)
             runCatching { serverSocket?.close() }
+            runCatching { activeSocket.getAndSet(null)?.close() }
+            serverThread?.join(6_000)
+            assertFalse("TLS fixture thread leaked", serverThread?.isAlive == true)
             dir.deleteRecursively()
         }
     }

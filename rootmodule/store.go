@@ -3,8 +3,10 @@
 package module
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"sync"
 	"time"
@@ -470,6 +472,48 @@ func (s *Store) WriteConfig(c StoreConfig) error {
 		return e
 	}
 	return jsonWrite(s.r.path(storeConfigFile), c)
+}
+
+// AtomicWrite can fail syncing the directory after rename; restore exact bytes
+// in that case, so a rejected metadata commit cannot replace the last good file.
+func (s *Store) commitConfig(c StoreConfig) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	path := s.r.path(storeConfigFile)
+	var before []byte
+	existed := false
+	f, err := os.Open(path)
+	if err == nil {
+		existed = true
+		before, err = io.ReadAll(io.LimitReader(f, (8<<20)+1))
+		_ = f.Close()
+		if err != nil || len(before) > 8<<20 {
+			return errors.New("store_unavailable")
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return errors.New("store_unavailable")
+	}
+	if c.SchemaVersion == 0 {
+		c.SchemaVersion = 1
+	}
+	if err = privateDirectory(s.r.path(storeDir)); err != nil {
+		return err
+	}
+	if err = jsonWrite(path, c); err == nil {
+		return nil
+	}
+	if existed {
+		after, readErr := os.ReadFile(path)
+		if readErr == nil && bytes.Equal(after, before) {
+			return errors.New("store_config_commit_failed")
+		}
+		if restore := AtomicWrite(path, before, 0600); restore != nil {
+			return errors.New("store_config_rollback_failed")
+		}
+	} else if restore := os.Remove(path); restore != nil && !errors.Is(restore, os.ErrNotExist) {
+		return errors.New("store_config_rollback_failed")
+	}
+	return errors.New("store_config_commit_failed")
 }
 
 // RecomputeSubscriptionCounts 重算每个订阅的节点数（订阅更新 / 删除节点后调用）。

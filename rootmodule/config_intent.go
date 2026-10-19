@@ -46,14 +46,23 @@ const selectorTag = "proxy"
 
 // ApplyConfigIntent 合并 store 数据生成完整配置并应用。
 // 不传入节点详情：节点真值始终在 store/nodes.json。
-// 注意：不自行 withLock——r.Apply 内部已持有 control.lock，外层再加锁会死锁。
-// App 侧的并发由 ServiceCommandController 串行化；store 各方法自带互斥。
+// Serialize the read/merge/apply/commit operation, including other API clients.
 func (r *Runtime) ApplyConfigIntent(ctx context.Context, intent ConfigIntent) (State, error) {
+	var out State
+	e := r.withLock(func() error {
+		var err error
+		out, err = r.applyConfigIntentLocked(ctx, intent)
+		return err
+	})
+	return out, e
+}
+
+func (r *Runtime) applyConfigIntentLocked(ctx context.Context, intent ConfigIntent) (State, error) {
 	cfg, e := r.Store().ReadConfig()
 	if e != nil {
 		return State{}, e
 	}
-	// 覆盖全局配置字段（只在内存里改，等 buildConfig 通过后才落盘）
+	// Keep the merged intent in memory until core validation/activation succeeds.
 	if intent.Router != nil && json.Valid(intent.Router) {
 		cfg.Router = intent.Router
 	}
@@ -129,9 +138,6 @@ func (r *Runtime) ApplyConfigIntent(ctx context.Context, intent ConfigIntent) (S
 	if e != nil {
 		return State{}, e
 	}
-	if e = r.Store().WriteConfig(cfg); e != nil {
-		return State{}, e
-	}
 
 	// 资源复用：优先 intent 显式携带（首次迁移），否则沿用当前代次
 	files, plugins := intent.Files, intent.Plugins
@@ -163,7 +169,12 @@ func (r *Runtime) ApplyConfigIntent(ctx context.Context, intent ConfigIntent) (S
 		ProfileID:           profileID,
 		ProfileName:         profile.Name,
 	}
-	return r.Apply(ctx, snapshot)
+	return r.applyLocked(ctx, snapshot, func() error {
+		if r.configCommit != nil {
+			return r.configCommit(cfg)
+		}
+		return r.Store().commitConfig(cfg)
+	})
 }
 
 func currentRevisionOrEmpty(r *Runtime) string {

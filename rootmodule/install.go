@@ -274,32 +274,51 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 		// 只有真的动过新 serve 才需要在回滚时收掉，避免误停仍在跑的旧进程。
 		serveStopped := false
 		serveStarted := false
+		rename := os.Rename
+		if r.installRename != nil {
+			rename = r.installRename
+		}
+		restoreStopped := func() error {
+			recovery, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+			var recoveryErr error
+			if serveStopped {
+				if err := old.startServeDetached(recovery); err != nil {
+					recoveryErr = errors.New("install_rollback_serve_failed")
+				}
+			}
+			if wasRunning {
+				if err := start(recovery); err != nil && recoveryErr == nil {
+					recoveryErr = errors.New("install_rollback_start_failed")
+				}
+			}
+			return recoveryErr
+		}
 		// 管理面必须在重命名**之前**停掉：重命名后 /proc/<pid>/exe 会指向 backup
 		// 路径，与 api.pid 里记录的原路径对不上，身份校验必然失败 —— 旧 serve
 		// 停不掉，新 serve 又抢不到 api.lock，热更新后管理面直接失联。
 		if serveWasUp {
-			restore := func() {
-				// 目录还没动，唯一需要还原的是被停掉的核心。
-				if wasRunning {
-					_ = start(context.Background())
-				}
-			}
 			if wasServing {
 				if e = old.stopServe(ctx); e != nil {
-					restore()
+					if err := restoreStopped(); err != nil {
+						return err
+					}
 					return errors.New("serve_stop_failed")
 				}
+				serveStopped = true
 			}
 			if e = old.stopLegacyServe(ctx, legacyServe); e != nil {
-				restore()
+				if err := restoreStopped(); err != nil {
+					return err
+				}
 				return errors.New("serve_stop_failed")
 			}
 			serveStopped = true
 		}
 		if _, e = os.Stat(target); e == nil {
-			if e = os.Rename(target, backup); e != nil {
-				if wasRunning {
-					_ = start(context.Background())
+			if e = rename(target, backup); e != nil {
+				if err := restoreStopped(); err != nil {
+					return err
 				}
 				return errors.New("module_replace_failed")
 			}
@@ -311,37 +330,36 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 			}
 			// 可能已经拉起的新管理面必须先收掉，否则回滚后两个 serve 抢 api.lock。
 			if serveStarted {
-				_ = r.stopServe(context.Background())
+				if err := old.stopServe(context.Background()); err != nil {
+					return errors.New("install_rollback_cleanup_failed")
+				}
 			}
 			if e = os.RemoveAll(target); e != nil {
 				return errors.New("install_rollback_failed")
 			}
 			if hadOld {
-				if e = os.Rename(backup, target); e != nil {
+				if e = rename(backup, target); e != nil {
 					return errors.New("install_rollback_failed")
 				}
 			}
 			// 代码目录已还原：旧管理面必须恢复，App 才能继续连上模块。
-			if serveStopped && hadOld {
-				if e = old.startServeDetached(context.Background()); e != nil {
-					return errors.New("install_rollback_serve_failed")
-				}
-			}
-			if wasRunning && hadOld {
-				if e = start(context.Background()); e != nil {
-					return errors.New("install_rollback_start_failed")
+			if hadOld {
+				if err := restoreStopped(); err != nil {
+					return err
 				}
 			}
 			return errors.New("module_update_failed_rolled_back")
 		}
-		if e = os.Rename(stage, target); e != nil {
+		if e = rename(stage, target); e != nil {
 			if hadOld {
-				if restore := os.Rename(backup, target); restore != nil {
+				if restore := rename(backup, target); restore != nil {
 					return errors.New("install_rollback_failed")
 				}
 			}
-			if wasRunning && hadOld {
-				_ = start(context.Background())
+			if hadOld {
+				if err := restoreStopped(); err != nil {
+					return err
+				}
 			}
 			return errors.New("module_replace_failed")
 		}

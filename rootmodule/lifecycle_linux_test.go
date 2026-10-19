@@ -6,6 +6,7 @@ package module
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -172,6 +173,40 @@ rm -f "$4" "$3"
 	state := r.Status()
 	if state.Phase != "connected" || state.RunningRevision != initial.Revision || state.Revision != initial.Revision {
 		t.Fatal("wrong live revision", state)
+	}
+	if _, e = r.Store().ReplaceNodes([]StoreNode{{ID: 7, Name: "fixture", Outbound: json.RawMessage(`{"type":"direct","tag":"node-7"}`)}}); e != nil {
+		t.Fatal(e)
+	}
+	if e = r.Store().WriteConfig(StoreConfig{SchemaVersion: 1, Log: json.RawMessage(`{"level":"info"}`)}); e != nil {
+		t.Fatal(e)
+	}
+	beforeStore, e := os.ReadFile(r.path(storeConfigFile))
+	if e != nil {
+		t.Fatal(e)
+	}
+	// A config that passes Stage but fails during actual child startup must not
+	// change the Store, and the previous core must be restored and connected.
+	if _, e = r.ApplyConfigIntent(context.Background(), ConfigIntent{ProfileID: 7, Log: json.RawMessage(`{"level":"fail_start"}`)}); e == nil || e.Error() != "new_core_failed_rolled_back" {
+		t.Fatal("failed intent did not restore the running generation", e)
+	}
+	state = r.Status()
+	if state.Phase != "connected" || state.RunningRevision != initial.Revision {
+		t.Fatal("old core was not restored", state)
+	}
+	if after, err := os.ReadFile(r.path(storeConfigFile)); err != nil || string(after) != string(beforeStore) {
+		t.Fatal("failed core changed Store", err)
+	}
+	// Also exercise failure after the new child has become ready.
+	r.configCommit = func(StoreConfig) error { return errors.New("store_config_commit_failed") }
+	if _, e = r.ApplyConfigIntent(context.Background(), ConfigIntent{ProfileID: 7, Log: json.RawMessage(`{"level":"warn"}`)}); e == nil || e.Error() != "store_config_commit_failed" {
+		t.Fatal("metadata commit failure hidden", e)
+	}
+	state = r.Status()
+	if state.Phase != "connected" || state.RunningRevision != initial.Revision {
+		t.Fatal("commit failure did not restore old core", state)
+	}
+	if after, err := os.ReadFile(r.path(storeConfigFile)); err != nil || string(after) != string(beforeStore) {
+		t.Fatal("failed commit changed Store", err)
 	}
 	if e = r.Stop(context.Background()); e != nil {
 		t.Fatal(e)

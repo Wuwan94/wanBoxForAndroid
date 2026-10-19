@@ -123,6 +123,8 @@ type Runtime struct {
 	// 旧管理面兼容探测：preview.11 及更早不写 api.pid，只能按可执行路径反查。
 	installLegacyServe     func() []ProcessIdentity
 	installLegacyServeStop func(context.Context, []ProcessIdentity) error
+	installRename          func(string, string) error
+	configCommit           func(StoreConfig) error
 
 	// Store 必须是同一实例：每次返回新 Store 会让并发请求各自持锁，
 	// 无法串行化对 store/*.json 的读写。
@@ -794,6 +796,17 @@ func (r *Runtime) withDataLock(fn func() error) error {
 func (r *Runtime) Apply(ctx context.Context, s Snapshot) (State, error) {
 	var out State
 	e := r.withLock(func() error {
+		var err error
+		out, err = r.applyLocked(ctx, s, nil)
+		return err
+	})
+	return out, e
+}
+
+// The caller holds control.lock through generation activation and metadata commit.
+func (r *Runtime) applyLocked(ctx context.Context, s Snapshot, commit func() error) (State, error) {
+	var out State
+	e := func() error {
 		old, current, e := r.Current()
 		if e != nil {
 			return e
@@ -812,6 +825,11 @@ func (r *Runtime) Apply(ctx context.Context, s Snapshot) (State, error) {
 		if old != "" && identicalSnapshotContent(current, s) {
 			if e = ctx.Err(); e != nil {
 				return e
+			}
+			if commit != nil {
+				if e = commit(); e != nil {
+					return e
+				}
 			}
 			out = r.Status()
 			return nil
@@ -840,28 +858,41 @@ func (r *Runtime) Apply(ctx context.Context, s Snapshot) (State, error) {
 			}
 			return e
 		}
-		if active {
-			if e = r.start(ctx); e != nil {
-				// Fully tear down a rejected generation before restoring the last working one.
+		rollback := func(cause error) error {
+			if active {
 				if clean := r.stop(context.Background()); clean != nil {
 					return errors.New("rollback_cleanup_failed")
 				}
-				if old != "" {
-					if err := AtomicWrite(r.path("current"), []byte(old), 0600); err != nil {
-						return err
-					}
-					if err := r.start(context.Background()); err != nil {
-						return errors.New("rollback_start_failed")
-					}
+			}
+			if old != "" {
+				if err := AtomicWrite(r.path("current"), []byte(old), 0600); err != nil {
+					return err
 				}
-				return errors.New("new_core_failed_rolled_back")
+			} else if err := os.Remove(r.path("current")); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+			if active && old != "" {
+				if err := r.start(context.Background()); err != nil {
+					return errors.New("rollback_start_failed")
+				}
+			}
+			return cause
+		}
+		if active {
+			if e = r.start(ctx); e != nil {
+				return rollback(errors.New("new_core_failed_rolled_back"))
+			}
+		}
+		if commit != nil {
+			if e = commit(); e != nil {
+				return rollback(e)
 			}
 		}
 		out = r.Status()
 		r.recordEvent("config_applied")
 		r.pruneGenerations()
 		return nil
-	})
+	}()
 	return out, e
 }
 func (r *Runtime) Start(ctx context.Context) error {

@@ -3,11 +3,92 @@
 package module
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"testing"
 )
+
+func TestConfigIntentValidationFailureDoesNotPersist(t *testing.T) {
+	for _, existing := range []bool{false, true} {
+		t.Run(map[bool]string{false: "absent_store", true: "existing_store"}[existing], func(t *testing.T) {
+			r := intentFixture(t)
+			if existing {
+				if _, err := r.ApplyConfigIntent(context.Background(), ConfigIntent{ProfileID: 1}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before, beforeErr := os.ReadFile(r.path(storeConfigFile))
+			rev := currentRevisionOrEmpty(r)
+			validated := false
+			r.Validate = func(context.Context, string, string) error {
+				validated = true
+				return errors.New("core_config_invalid")
+			}
+			_, err := r.ApplyConfigIntent(context.Background(), ConfigIntent{
+				ProfileID: 1,
+				Router:    json.RawMessage(`{"rules":[{"outbound":"missing"}]}`),
+				Log:       json.RawMessage(`{"level":"trace"}`),
+			})
+			if err == nil || err.Error() != "core_config_invalid" || !validated {
+				t.Fatal("must reach the real validation boundary and reject", err)
+			}
+			after, afterErr := os.ReadFile(r.path(storeConfigFile))
+			if !bytes.Equal(before, after) || os.IsNotExist(beforeErr) != os.IsNotExist(afterErr) {
+				t.Fatal("failed validation changed the persisted store")
+			}
+			if currentRevisionOrEmpty(r) != rev {
+				t.Fatal("failed validation changed current generation")
+			}
+		})
+	}
+}
+
+func TestConfigIntentCommitFailureRestoresGeneration(t *testing.T) {
+	r := intentFixture(t)
+	if _, err := r.ApplyConfigIntent(context.Background(), ConfigIntent{ProfileID: 1}); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(r.path(storeConfigFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rev := currentRevisionOrEmpty(r)
+	committed := false
+	r.configCommit = func(StoreConfig) error {
+		committed = true
+		if currentRevisionOrEmpty(r) == rev {
+			t.Fatal("metadata must only commit after generation activation")
+		}
+		return errors.New("store_config_commit_failed")
+	}
+	_, err = r.ApplyConfigIntent(context.Background(), ConfigIntent{ProfileID: 1, Log: json.RawMessage(`{"level":"warn"}`)})
+	if err == nil || err.Error() != "store_config_commit_failed" || !committed {
+		t.Fatal("metadata failure was hidden", err)
+	}
+	if currentRevisionOrEmpty(r) != rev {
+		t.Fatal("metadata failure left a new generation selected")
+	}
+	if after, err := os.ReadFile(r.path(storeConfigFile)); err != nil || !bytes.Equal(before, after) {
+		t.Fatal("metadata failure changed the last good store", err)
+	}
+}
+
+func TestConfigIntentCancelledValidationDoesNotPersist(t *testing.T) {
+	r := intentFixture(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	r.Validate = func(context.Context, string, string) error { cancel(); return nil }
+	rev := currentRevisionOrEmpty(r)
+	if _, err := r.ApplyConfigIntent(ctx, ConfigIntent{ProfileID: 1}); !errors.Is(err, context.Canceled) {
+		t.Fatal("cancellation was not propagated", err)
+	}
+	if _, err := os.Stat(r.path(storeConfigFile)); !os.IsNotExist(err) || currentRevisionOrEmpty(r) != rev {
+		t.Fatal("cancelled intent changed the store or generation", err)
+	}
+}
 
 // 配置意图测试：节点之外的依赖（辅助出站 / 顶层 endpoints / 顶层 log）
 // 必须完整保真，且非法依赖必须被固定错误码拒绝、不得提交新代次。

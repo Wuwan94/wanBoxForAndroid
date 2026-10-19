@@ -212,3 +212,93 @@ func TestCodeUpdateKeepsManagementPlaneAbsentWhenItWasNeverUp(t *testing.T) {
 		t.Fatal("管理面原本离线时不应被拉起")
 	}
 }
+
+func TestCodeUpdateRenameFailureRestoresStoppedServices(t *testing.T) {
+	for _, point := range []string{"retire_old", "activate_new"} {
+		for _, running := range []bool{false, true} {
+			t.Run(point+map[bool]string{false: "_core_stopped", true: "_core_running"}[running], func(t *testing.T) {
+				r, target := serveActivateFixture(t)
+				var order []string
+				r.installRunning = func() bool { return running }
+				r.installServing = func() bool { return true }
+				r.installLegacyServe = func() []ProcessIdentity { return nil }
+				r.installServeStop = func(context.Context) error { order = append(order, "stop_api"); return nil }
+				r.installServeStart = func(ctx context.Context) error {
+					if ctx.Err() != nil {
+						t.Fatal("recovery reused cancelled request", ctx.Err())
+					}
+					if _, err := os.Stat(filepath.Join(target, "old")); err != nil {
+						t.Fatal("restarted before restoring old code", err)
+					}
+					order = append(order, "start_api")
+					return nil
+				}
+				r.installStart = func(context.Context) error { order = append(order, "start_core"); return nil }
+				r.installRename = func(from, to string) error {
+					if (point == "retire_old" && from == target) ||
+						(point == "activate_new" && to == target && strings.HasPrefix(filepath.Base(from), ".wanbox-install-")) {
+						return os.ErrPermission
+					}
+					return os.Rename(from, to)
+				}
+				err := r.Activate(context.Background(), target)
+				if err == nil || err.Error() != "module_replace_failed" {
+					t.Fatal("lost rename error", err)
+				}
+				want := "stop_api,start_api"
+				if running {
+					want += ",start_core"
+				}
+				if strings.Join(order, ",") != want {
+					t.Fatal("stopped services not restored in order", order)
+				}
+			})
+		}
+	}
+}
+
+func TestCodeUpdateReportsManagementRecoveryFailure(t *testing.T) {
+	r, target := serveActivateFixture(t)
+	r.installRunning = func() bool { return true }
+	coreRestored := false
+	r.installStart = func(context.Context) error { coreRestored = true; return nil }
+	r.installServing = func() bool { return true }
+	r.installLegacyServe = func() []ProcessIdentity { return nil }
+	r.installServeStop = func(context.Context) error { return nil }
+	r.installServeStart = func(context.Context) error { return os.ErrPermission }
+	r.installRename = func(string, string) error { return os.ErrPermission }
+	if err := r.Activate(context.Background(), target); err == nil || err.Error() != "install_rollback_serve_failed" {
+		t.Fatal("management recovery failure must not be reported as success", err)
+	}
+	if _, err := os.Stat(filepath.Join(target, "old")); err != nil {
+		t.Fatal("recovery failure discarded old code", err)
+	}
+	if !coreRestored {
+		t.Fatal("API recovery failure must not prevent restoring the core")
+	}
+}
+
+func TestCodeUpdateRecoveryIgnoresCancelledInstallerContext(t *testing.T) {
+	r, target := serveActivateFixture(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	r.installRunning = func() bool { return false }
+	r.installServing = func() bool { return true }
+	r.installLegacyServe = func() []ProcessIdentity { return nil }
+	r.installServeStop = func(context.Context) error { return nil }
+	started := false
+	r.installServeStart = func(recovery context.Context) error {
+		started = true
+		if recovery.Err() != nil {
+			t.Fatal("recovery inherited installer cancellation")
+		}
+		if _, bounded := recovery.Deadline(); !bounded {
+			t.Fatal("unbounded recovery")
+		}
+		return nil
+	}
+	r.installRename = func(string, string) error { cancel(); return context.Canceled }
+	if err := r.Activate(ctx, target); err == nil || err.Error() != "module_replace_failed" || !started {
+		t.Fatal("cancelled installer left API stopped", err)
+	}
+}
