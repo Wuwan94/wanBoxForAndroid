@@ -43,7 +43,7 @@ import java.util.concurrent.Future;
 
 public final class Main {
     public static final String MANAGER_PACKAGE = "com.lit008834.pixel.wanboxforandroid";
-    public static final String MANAGER_CERTIFICATE_SHA256 = "FC120BDF43C9588B88EB2C0CA2048E6276A9D7F18F76D7CBA04CE5C9E5303943";
+    public static final String MANAGER_CERTIFICATE_SHA256 = "fc120bdf43c9588b88eb2c0ca2048e6276a9d7f18f76d7cba04ce5c9e5303943";
     private static final String AUTHORITY = MANAGER_PACKAGE + ".connection";
     private static final int INPUT_LIMIT = 64 * 1024;
     private static final int ICON_SIZE = 128;
