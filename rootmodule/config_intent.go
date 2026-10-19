@@ -129,9 +129,9 @@ func (r *Runtime) ApplyConfigIntent(ctx context.Context, intent ConfigIntent) (S
 	if e != nil {
 		return State{}, e
 	}
-	if e = r.Store().WriteConfig(cfg); e != nil {
-		return State{}, e
-	}
+	// 注意：此时还不落盘。cfg 里的新意图必须等 Apply 真正成功后再持久化 ——
+	// 否则 Apply 失败（校验不通过 / 启动失败回滚）时，这份从未生效的意图
+	// 已经进了 store，下次 reload 会拿它悄悄拼出一份没人验证过的配置。
 
 	// 资源复用：优先 intent 显式携带（首次迁移），否则沿用当前代次
 	files, plugins := intent.Files, intent.Plugins
@@ -163,7 +163,15 @@ func (r *Runtime) ApplyConfigIntent(ctx context.Context, intent ConfigIntent) (S
 		ProfileID:           profileID,
 		ProfileName:         profile.Name,
 	}
-	return r.Apply(ctx, snapshot)
+	state, e := r.Apply(ctx, snapshot)
+	if e != nil {
+		// Apply 失败（含回滚）：新意图不落盘，store 保持上一次生效的配置。
+		return State{}, e
+	}
+	if e = r.Store().WriteConfig(cfg); e != nil {
+		return State{}, e
+	}
+	return state, nil
 }
 
 func currentRevisionOrEmpty(r *Runtime) string {

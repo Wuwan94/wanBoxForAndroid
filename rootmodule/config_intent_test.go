@@ -305,6 +305,38 @@ func TestConfigIntentRejectsUnknownProfileWithoutFallback(t *testing.T) {
 	}
 }
 
+// 配置意图必须等 Apply 真正成功后才落盘：Apply 失败（取消 / 校验失败 / 启动失败回滚）
+// 时 store 保持旧值，否则这份从未生效的意图会在下次 reload 时悄悄生效。
+func TestConfigIntentNotPersistedWhenApplyFails(t *testing.T) {
+	r := intentFixture(t)
+	if _, e := r.ApplyConfigIntent(context.Background(), ConfigIntent{ProfileID: 1}); e != nil {
+		t.Fatal(e)
+	}
+	before, e := os.ReadFile(r.path(storeConfigFile))
+	if e != nil {
+		t.Fatal(e)
+	}
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	changed := ConfigIntent{
+		Router:    json.RawMessage(`{"rules":[{"outbound":"hijack"}]}`),
+		ProfileID: 1,
+	}
+	if _, e = r.ApplyConfigIntent(canceled, changed); e == nil {
+		t.Fatal("取消的上下文必须让 Apply 失败")
+	}
+	if after, e := os.ReadFile(r.path(storeConfigFile)); e != nil || string(after) != string(before) {
+		t.Fatal("Apply 失败时新意图不得落盘")
+	}
+	stored, e := r.Store().ReadConfig()
+	if e != nil {
+		t.Fatal(e)
+	}
+	if len(stored.Router) != 0 {
+		t.Fatal("store 里的 router 不应被改写", stored.Router)
+	}
+}
+
 // 旧版 store/config.json 没有 auxiliaryOutbounds/endpoints/log 字段，
 // 读取必须保持兼容（空值），不得报错。
 func TestStoreConfigReadsLegacyFileWithoutOptionalFields(t *testing.T) {

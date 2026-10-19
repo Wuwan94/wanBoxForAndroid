@@ -298,6 +298,10 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 		}
 		if _, e = os.Stat(target); e == nil {
 			if e = os.Rename(target, backup); e != nil {
+				// 目录没换成，但管理面已被停掉：必须恢复，否则 App 失联。
+				if serveStopped {
+					_ = old.startServeDetached(context.Background())
+				}
 				if wasRunning {
 					_ = start(context.Background())
 				}
@@ -338,6 +342,10 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 			if hadOld {
 				if restore := os.Rename(backup, target); restore != nil {
 					return errors.New("install_rollback_failed")
+				}
+				// 目录已还原成旧代码，被停掉的管理面同样必须恢复。
+				if serveStopped {
+					_ = old.startServeDetached(context.Background())
 				}
 			}
 			if wasRunning && hadOld {

@@ -135,22 +135,19 @@ class ModulePinningTest {
                 assertEquals(200, response.code)
                 assertTrue(response.body?.string().orEmpty().contains("\"ok\":true"))
             }
-            assertEquals("指纹一致时必须完成一次成功握手", 1, acceptedHandshakes.get())
+            // 客户端读到完整响应就返回了，服务端记账在另一个线程：
+            // 必须轮询等待，立即断言会在 CI 上偶发假阴性（这就是这次的竞态）。
+            awaitUntil("指纹一致时必须完成一次成功握手") { acceptedHandshakes.get() >= 1 }
+            assertEquals("成功握手不得重复计数", 1, acceptedHandshakes.get())
 
             val bad = ModuleApiClient.buildPinnedClient(credentials(port, "0".repeat(64)), 5)
             val failed = runCatching { bad.newCall(request).execute().close() }.exceptionOrNull()
             assertTrue("错误指纹必须握手失败，实际: $failed", failed is SSLException)
             assertFalse("不能把读超时当成握手失败", failed is SocketTimeoutException)
             // 服务端线程与客户端失败几乎同时发生：轮询等待它记账，避免竞态导致的假阴性。
-            val deadline = System.currentTimeMillis() + 5_000
-            while (failedHandshakes.get() < 1 && System.currentTimeMillis() < deadline) {
-                Thread.sleep(20)
+            awaitUntil("服务端必须观察到一次失败握手（最后异常: ${lastHandshakeError.get()}）") {
+                failedHandshakes.get() >= 1
             }
-            assertTrue(
-                "服务端必须观察到一次失败握手，实际: ${failedHandshakes.get()}，" +
-                    "最后异常: ${lastHandshakeError.get()}",
-                failedHandshakes.get() >= 1,
-            )
             // 失败发生在握手阶段，服务端不会把这次连接当成可用请求。
             assertEquals("失败握手不得计入成功连接", 1, acceptedHandshakes.get())
 
@@ -166,6 +163,15 @@ class ModulePinningTest {
             runCatching { serverSocket?.close() }
             dir.deleteRecursively()
         }
+    }
+
+    /** 轮询等待服务端线程记账：服务端在另一个线程里计数，客户端不能立即断言。 */
+    private fun awaitUntil(what: String, condition: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (!condition() && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20)
+        }
+        assertTrue(what, condition())
     }
 
     private fun credentials(port: Int, certSha256: String) = ModuleApiClient.Credentials(
