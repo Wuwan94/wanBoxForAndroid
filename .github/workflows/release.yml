@@ -48,6 +48,8 @@ jobs:
     name: 并行构建模块与管理器
     needs: preflight
     uses: ./.github/workflows/build-module.yml
+    with:
+      verify-android: true
     secrets:
       ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
       ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
