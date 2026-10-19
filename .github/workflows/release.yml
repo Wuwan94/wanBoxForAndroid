@@ -131,6 +131,43 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: 清理上一次发布，只保留最新一版
+        # 同一频道只保留最新一个 release 与 tag。
+        # 频道由 tag 后缀决定：-preview / -rc / -beta 归预览，其余归正式。
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          KEEP: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$KEEP" == *-preview* || "$KEEP" == *-rc* || "$KEEP" == *-beta* ]]; then
+            CHANNEL=preview
+          else
+            CHANNEL=stable
+          fi
+          gh api --paginate -X GET "repos/$GH_REPO/releases?per_page=100" \
+            --jq '.[] | [.id, .tag_name] | @tsv' |
+          while IFS=$'\t' read -r id tag; do
+            if [[ -z "$id" || "$tag" == "$KEEP" ]]; then
+              continue
+            fi
+            is_prerelease=false
+            if [[ "$tag" == *-preview* || "$tag" == *-rc* || "$tag" == *-beta* ]]; then
+              is_prerelease=true
+            fi
+            if [[ "$CHANNEL" == preview && "$is_prerelease" == false ]]; then
+              continue
+            fi
+            if [[ "$CHANNEL" == stable && "$is_prerelease" == true ]]; then
+              continue
+            fi
+            if [[ "$tag" == nightly ]]; then
+              continue
+            fi
+            echo "清理旧 $CHANNEL 发布: $tag (id=$id)"
+            gh api -X DELETE "repos/$GH_REPO/releases/$id" || true
+          done
+
       - name: 发布通知到 Telegram
         continue-on-error: true
         uses: cbrgm/telegram-github-action@v1
