@@ -1,8 +1,18 @@
 # wanBoxForAndroid 更新日志（Changelog）
 
-> 维护范围：下列 wanBox 3.0.x 条目按各自 GitHub Release 汇总；详细回归覆盖与兼容/升级信息请见对应版本页面。最新正式版为 v3.0.9，当前预览构建为 v3.0.10-preview.12。预览渠道只保留最新一版，更早的预览条目以其发行说明为准。项目起源与当前定位见 [README](README.md)。
+> 维护范围：下列 wanBox 3.0.x 条目按各自 GitHub Release 汇总；详细回归覆盖与兼容/升级信息请见对应版本页面。最新正式版为 v3.0.9，当前预览构建为 v3.0.10-preview.13。预览渠道只保留最新一版，更早的预览条目以其发行说明为准。项目起源与当前定位见 [README](README.md)。
 
 ## wanBox 3.0.x 发布记录
+
+### v3.0.10-preview.13（预览版，2026-10-19）
+
+作者：@author 雾晚
+
+- **配置意图改为应用成功后才落盘**：`ApplyConfigIntent` 原来在 `Apply` 之前就写 store，Apply 失败（校验不通过 / 启动失败回滚）时这份从未生效的意图已持久化，下次 reload 会悄悄生效。现在严格在 Apply 成功后才落盘。新增 `TestConfigIntentNotPersistedWhenApplyFails`，变异自证必被抓。
+- **热更新异常分支恢复管理服务**：停管理面提前到重命名之前后，两处 `module_replace_failed` 直接返回、丢了已停的管理面，App 失联。两个分支都补了恢复。
+- **消除 TLS 测试断言竞态**：`ModulePinningTest` 在客户端返回后立即断言服务端握手计数（另一线程记账），CI 上偶发假阴性 —— preview.12 首次 CI 失败即死于此。改为带截止时间的轮询等待。
+- 本版包含 preview.12 全部内容（证书钉扎格式修复、端点节点恢复可选、热更新停服顺序、wireguard 端点迁移、禁止静默换节点等）。
+- 预览版本 `3.0.10-preview.13`，模块版本代码 `375`，APK 版本代码 `1875`。本地验证：Go 94 通过（8 个失败为 Windows 平台既有基线）、App 单测 357 通过 / 0 失败 / 0 跳过、androidTest 编译通过；**未做真机联调**。
 
 ### v3.0.10-preview.12（预览版，2026-10-19）
 
