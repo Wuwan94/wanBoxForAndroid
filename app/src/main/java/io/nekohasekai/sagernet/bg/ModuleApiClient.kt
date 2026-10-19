@@ -10,7 +10,6 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import okhttp3.Call
-import okhttp3.CertificatePinner
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -20,6 +19,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
+import java.net.Proxy
 import java.security.MessageDigest
 import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
@@ -47,7 +47,10 @@ object ModuleApiClient {
         suspend fun load(): Credentials
     }
 
-    data class Credentials(val baseUrl: String, val token: String, val certSha256: String)
+    data class Credentials(val baseUrl: String, val token: String, val certSha256: String) {
+        /** 避免整个对象被日志/异常打印时泄露 token。 */
+        override fun toString(): String = "Credentials(baseUrl=$baseUrl, token=<redacted>, certSha256=$certSha256)"
+    }
 
     /** 节点：模块 store 的真实节点形态，App 只做展示与编辑。 */
     data class ModuleNode(
@@ -105,7 +108,7 @@ object ModuleApiClient {
     private const val STATUS_TTL_MS = 2_000L
 
     @Volatile private var credentials: Credentials? = null
-    @Volatile private var client: OkHttpClient? = null
+    private val clients = java.util.EnumMap<ApiTimeout, OkHttpClient>(ApiTimeout::class.java)
     @Volatile private var cachedStatus: RootModuleClient.Status? = null
     @Volatile private var cachedAt = 0L
 
@@ -118,7 +121,7 @@ object ModuleApiClient {
     /** 丢弃凭据；证书或鉴权失败时调用，下次请求重新交付。 */
     fun invalidateCredentials() {
         credentials = null
-        client = null
+        synchronized(clients) { clients.clear() }
         cachedStatus = null
     }
 
@@ -233,7 +236,7 @@ object ModuleApiClient {
                 .header("Authorization", "Bearer ${creds.token}")
                 .header("Accept", "text/event-stream")
                 .build()
-            call = client(creds).newCall(request)
+            call = client(creds, ApiTimeout.STREAM).newCall(request)
             val response = call.execute()
             if (!response.isSuccessful) throw IOException("module_api_http_${response.code}")
             response.use {
@@ -241,8 +244,9 @@ object ModuleApiClient {
                 while (!source.exhausted()) {
                     val line = source.readUtf8LineStrict()
                     if (!line.startsWith("data: ")) continue
-                    val status = runCatching { RootModuleClient.parseResponse(payloadOf(line)) }.getOrNull()
-                    if (status != null) trySend(status)
+                    // 原样交给解析器：不补 ok=true，也不改写版本字段，
+                    // 协议不符时按真实错误关闭事件流。
+                    trySend(RootModuleClient.parseResponse(line.removePrefix("data: ")))
                 }
             }
             close(IOException("module_api_stream_closed"))
@@ -252,15 +256,6 @@ object ModuleApiClient {
         }
         awaitClose { call?.cancel() }
     }.flowOn(Dispatchers.IO)
-
-    private fun payloadOf(line: String): String {
-        val state = JSONObject(line.removePrefix("data: ")).optJSONObject("state") ?: JSONObject()
-        return JSONObject()
-            .put("schemaVersion", 1)
-            .put("ok", true)
-            .put("state", state)
-            .toString()
-    }
 
     // ---- 传输层 ----
 
@@ -277,18 +272,21 @@ object ModuleApiClient {
 
     private suspend fun raw(method: String, path: String, body: String?): String =
         withContext(Dispatchers.IO) {
+            val timeout = timeoutFor(method, path)
             try {
-                execute(method, path, body)
+                execute(method, path, body, timeout)
             } catch (e: ModuleApiException) {
                 throw e
             } catch (e: IOException) {
-                // 模块重启后端口会变，App 重装后凭据文件会被替换：丢掉缓存重读一次再试。
+                // 只重放安全读取：写请求一旦响应丢失，重放会重复创建/重复应用配置。
+                if (method != "GET") throw e
+                // 模块重启后端口会变、证书可能轮换：丢掉缓存重读一次凭据再试。
                 invalidateCredentials()
-                execute(method, path, body)
+                execute(method, path, body, timeout)
             }
         }
 
-    private suspend fun execute(method: String, path: String, body: String?): String {
+    private suspend fun execute(method: String, path: String, body: String?, timeout: ApiTimeout): String {
         val creds = ensureCredentials()
         val builder = Request.Builder()
             .url(creds.baseUrl + path)
@@ -298,7 +296,7 @@ object ModuleApiClient {
             "DELETE" -> builder.delete()
             else -> builder.method(method, (body ?: "{}").toRequestBody("application/json".toMediaType()))
         }
-        val response = client(creds).newCall(builder.build()).execute()
+        val response = client(creds, timeout).newCall(builder.build()).execute()
         response.use {
             if (it.code == 401) {
                 invalidateCredentials()
@@ -322,25 +320,46 @@ object ModuleApiClient {
         return loaded
     }
 
-    private fun client(creds: Credentials): OkHttpClient {
-        client?.let { return it }
+    private fun client(creds: Credentials, timeout: ApiTimeout = ApiTimeout.SHORT): OkHttpClient {
+        clients[timeout]?.let { return it }
+        return buildPinnedClient(creds, timeout.readSeconds).also { clients[timeout] = it }
+    }
+
+    /**
+     * 构建与生产一致的钉扎客户端。仅供本对象的连接池复用与本地 HTTPS 测试直接调用；
+     * 测试用它验证「同一张证书通过、换一张证书失败」，避免用源码字符串断言代替真实 TLS。
+     */
+    internal fun buildPinnedClient(creds: Credentials, readSeconds: Long): OkHttpClient {
         val trust = PinnedTrustManager(creds.certSha256)
         val ssl = SSLContext.getInstance("TLS").apply { init(null, arrayOf(trust), null) }
         return OkHttpClient.Builder()
             .sslSocketFactory(ssl.socketFactory, trust)
             .hostnameVerifier { hostname, _ -> hostname == "127.0.0.1" || hostname == "localhost" }
-            .certificatePinner(
-                CertificatePinner.Builder()
-                    .add(hostOf(creds.baseUrl), "sha256/${creds.certSha256}")
-                    .build()
-            )
+            // 模块下发的 certSha256 是证书 DER 的 SHA-256 小写十六进制，由 PinnedTrustManager 严格比对。
+            // OkHttp 的 CertificatePinner 需要 Base64 SPKI，两种格式不能混用；叠加会导致必然的
+            // Certificate pinning failure，因此这里只用前者。
+            .proxy(Proxy.NO_PROXY)
             .connectTimeout(3, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(readSeconds, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .followRedirects(false)
             .retryOnConnectionFailure(false)
             .build()
-            .also { client = it }
+    }
+
+    /** 管理面请求的三档超时；生命周期动作会等核心启动/停止，远超普通读。 */
+    enum class ApiTimeout(val readSeconds: Long) {
+        SHORT(15),
+        LONG(300),
+        STREAM(0),
+    }
+
+    private fun timeoutFor(method: String, path: String): ApiTimeout = when {
+        path == "/v1/service/start" || path == "/v1/service/stop" -> ApiTimeout.LONG
+        path == "/v1/service/reload" || path == "/v1/config" -> ApiTimeout.LONG
+        path.startsWith("/v1/data/") -> ApiTimeout.LONG
+        path.endsWith("/update") -> ApiTimeout.LONG
+        else -> ApiTimeout.SHORT
     }
 
     private fun hostOf(baseUrl: String): String =
@@ -396,16 +415,23 @@ object ModuleApiClient {
     /** 模块返回的业务错误（HTTP 错误码或 `error` 字段），不触发重试。 */
     class ModuleApiException(val code: String) : IOException(code)
 
-    private fun parseCredentialText(text: String): Credentials {
+    internal fun parseCredentialText(text: String): Credentials {
         val json = JSONObject(text)
-        val listen = json.optString("listen")
-        val token = json.optString("token")
-        val cert = json.optString("certSha256")
-        if (listen.isBlank() || token.length < 32 || cert.length != 64) {
-            throw IOException("module_credentials_invalid")
-        }
+        val listen = json.optString("listen").trim()
+        val token = json.optString("token").trim()
+        val cert = json.optString("certSha256").trim()
+        val match = listenPattern.matchEntire(listen)
+            ?: throw IOException("module_credentials_invalid")
+        val port = match.groupValues[2].toIntOrNull()
+        if (port == null || port !in 1..65535) throw IOException("module_credentials_invalid")
+        if (!hex64Pattern.matches(token)) throw IOException("module_credentials_invalid")
+        if (!hex64Pattern.matches(cert)) throw IOException("module_credentials_invalid")
         return Credentials("https://$listen", token, cert)
     }
+
+    /** 只接受数值 loopback 地址与端口，拒绝主机名、路径和 0 端口。 */
+    private val listenPattern = Regex("""^(127\.0\.0\.1|\[::1]|::1):(\d{1,5})$""")
+    private val hex64Pattern = Regex("^[a-f0-9]{64}$")
 }
 
 /** 供 UI 判断管理面是否可用；不触发 Root 申请。 */

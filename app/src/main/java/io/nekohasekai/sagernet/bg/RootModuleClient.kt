@@ -39,10 +39,19 @@ object RootModuleClient {
     }
     fun parseResponse(text: String): Status {
         val json = JsonParser.parseString(text).asJsonObject
-        if (json["schemaVersion"]?.asInt != 1) throw IOException("module_protocol_mismatch")
-        if (json["ok"]?.asBoolean != true) {
-            val code = json["error"]?.asString.orEmpty()
-            throw IOException(code.takeIf { it.matches(Regex("[a-z_]{1,80}")) } ?: "module_operation_failed")
+        // 模块 HTTP 响应写 schema，早期快照写 schemaVersion；两者都表示协议版本。
+        // 只接受 1，未知版本、类型错误或两字段冲突一律拒绝。
+        if (schemaOf(json) != 1) throw IOException("module_protocol_mismatch")
+        val ok = json["ok"]
+        if (ok != null) {
+            if (!ok.isJsonPrimitive || !ok.asJsonPrimitive.isBoolean) throw IOException("module_protocol_mismatch")
+            if (!ok.asBoolean) {
+                val code = json["error"]?.asString.orEmpty()
+                throw IOException(code.takeIf { it.matches(Regex("[a-z_]{1,80}")) } ?: "module_operation_failed")
+            }
+        } else if (json["state"] == null) {
+            // 没有 ok 也没有 state：既不是响应也不是事件帧。
+            throw IOException("module_protocol_mismatch")
         }
         val state = json.getAsJsonObject("state") ?: throw IOException("module_status_invalid")
         val phase = state["phase"]?.asString ?: throw IOException("module_status_invalid")
@@ -77,6 +86,24 @@ object RootModuleClient {
             state["error"]?.asString.orEmpty().takeIf { it.matches(Regex("[a-z_]{1,80}")) }.orEmpty(), selection,
             telemetry)
     }
+    /** 读取协议版本：兼容 schema（当前）与 schemaVersion（历史），冲突或非法类型直接拒绝。 */
+    private fun schemaOf(json: com.google.gson.JsonObject): Int? {
+        fun read(name: String): Int? {
+            val element = json[name] ?: return null
+            if (element.isJsonNull) return null
+            if (!element.isJsonPrimitive || !element.asJsonPrimitive.isNumber) {
+                throw IOException("module_protocol_mismatch")
+            }
+            return element.asInt
+        }
+        val legacy = read("schemaVersion")
+        val current = read("schema")
+        if (legacy != null && current != null && legacy != current) {
+            throw IOException("module_protocol_mismatch")
+        }
+        return current ?: legacy
+    }
+
     suspend fun call(command: String, input: File? = null): Status = when {
         command == "status" -> ModuleApiClient.status()
         command == "dashboard" -> ModuleApiClient.dashboard()
