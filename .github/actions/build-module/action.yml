@@ -52,7 +52,7 @@ runs:
       shell: bash
       env:
         WANBOX_CI_BUILD_DIR: ${{ runner.temp }}/wanbox-build
-        WANBOX_TELEMETRY_REQUIRED: '1'
+        WANBOX_TELEMETRY_REQUIRED: '0'
         POSTHOG_PROJECT_TOKEN: ${{ inputs.posthog-project-token }}
         POSTHOG_HOST: ${{ inputs.posthog-host }}
       run: |
