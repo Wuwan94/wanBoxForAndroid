@@ -83,11 +83,13 @@ jobs:
           name: module-package
 
       - name: 校验模块包与发布身份
+        if: "!contains(github.ref_name, '-preview') && !contains(github.ref_name, '-rc') && !contains(github.ref_name, '-beta')"
         env:
           TAG: ${{ github.ref_name }}
         run: node .github/scripts/prepare-kernelsu.mjs check "$TAG" "$MODULE_NAME" "$COMMIT_COUNT"
 
       - name: KernelSU 分发预检
+        if: "!contains(github.ref_name, '-preview') && !contains(github.ref_name, '-rc') && !contains(github.ref_name, '-beta')"
         uses: KernelSU-Modules/tools/actions/module-release@ca1187c92135b3c31e48d37e008d61153120a08b
         with:
           zip: ${{ env.MODULE_NAME }}
