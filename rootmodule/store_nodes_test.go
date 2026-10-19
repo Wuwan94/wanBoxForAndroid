@@ -18,6 +18,14 @@ func outbound(tag, kind string) json.RawMessage {
 	return b
 }
 
+func TestStoreIsSharedPerRuntime(t *testing.T) {
+	dir := t.TempDir()
+	r := New(dir, dir)
+	if r.Store() != r.Store() {
+		t.Fatal("Store() must return the same instance so writes share one mutex")
+	}
+}
+
 func TestReplaceNodesAssignsUniqueIDsAndPersists(t *testing.T) {
 	s := newTestStore(t)
 	got, e := s.ReplaceNodes([]StoreNode{

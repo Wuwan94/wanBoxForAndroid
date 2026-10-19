@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -114,6 +115,11 @@ type Runtime struct {
 	installValidate func(context.Context, string, string) error
 	installStart    func(context.Context) error
 	installRunning  func() bool
+
+	// Store 必须是同一实例：每次返回新 Store 会让并发请求各自持锁，
+	// 无法串行化对 store/*.json 的读写。
+	storeOnce sync.Once
+	store     *Store
 }
 
 func New(root, moduleDir string) *Runtime {
@@ -425,6 +431,7 @@ func (r *Runtime) Stage(ctx context.Context, s Snapshot) (string, error) {
 	}
 	return rev, nil
 }
+
 // @author 雾晚：从 /proc/<pid>/status 安全读取 VmRSS（字节）。
 // PID 身份已由 SameProcess 校验，读取前后核对代次。
 // 使用可注入的解析器，便于测试溢出与非法值。
@@ -524,10 +531,10 @@ func (r *Runtime) clashAPISecret(revision string) string {
 // 禁用环境代理，禁重定向。调用方负责 ctx 超时。
 var loopbackClient = &http.Client{
 	Transport: &http.Transport{
-		Proxy:               nil, // 禁用环境代理，仅 loopback
-		MaxIdleConns:        2,
-		IdleConnTimeout:     10 * time.Second,
-		DisableCompression:  true,
+		Proxy:              nil, // 禁用环境代理，仅 loopback
+		MaxIdleConns:       2,
+		IdleConnTimeout:    10 * time.Second,
+		DisableCompression: true,
 	},
 	CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		return errors.New("redirect_forbidden")

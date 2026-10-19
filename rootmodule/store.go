@@ -71,8 +71,12 @@ type Store struct {
 	mu sync.Mutex
 }
 
-// Store 返回 Runtime 绑定的持久层。
-func (r *Runtime) Store() *Store { return &Store{r: r} }
+// Store 返回 Runtime 绑定的持久层（单例）。
+// 同一 Runtime 的所有请求必须共用一把锁，否则并发写 nodes/config 会互相覆盖。
+func (r *Runtime) Store() *Store {
+	r.storeOnce.Do(func() { r.store = &Store{r: r} })
+	return r.store
+}
 
 // ---- 内部辅助（已持锁，不加锁）----
 
