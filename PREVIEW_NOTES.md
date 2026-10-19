@@ -1,33 +1,39 @@
-# wanBox for Android v3.0.10-preview.11 更新说明
+# wanBox for Android v3.0.10-preview.12 更新说明
 
-本版本修掉真机实测定位到的最后一个断点：**证书钉扎失败**。模块的 HTTPS 接口正常监听、凭据文件也已交付，但 `api.json` 里记录的证书指纹与实际服务的证书不是同一张，App 的钉扎校验拒绝连接，界面表现为「模块服务暂时不可用」。
+本版本把「模块装好了但 App 提示模块服务不可用」这条链路彻底收口，并堵掉一个会**静默换节点**的缺陷：用户选 A、实际流量走 B，界面上还完全看不出来。
 
 ### 核心变更
 
-* **证书指纹自愈**：`EnsureAPIConfig` 每次启动都用**实际证书**重新计算 SHA-256，与 `api.json` 中的值比对；不一致就写回并重新交付。之前只要 `api-cert.pem` / `api-key.pem` 缺失或损坏被重新生成，`api.json` 就会留着旧指纹，客户端全部被钉扎拦截。
-* **token 仍然不轮换**：只校准指纹，不重置 token，避免把已经配对成功的管理端全部踢下线。
-* **证书轮换留痕**：指纹变化时记录 `api_certificate_rotated` 事件并写启动追踪，便于以后排查。
-* 新增回归测试 `TestAPIConfigRefreshesFingerprintAfterCertificateRotation`：删除证书文件后重启，断言 token 不变、指纹刷新、且 `api.json` 与实际证书一致。
-* preview.10 的 cgroup 兜底与启动追踪保持不变。
+* **删除与钉扎实现冲突的 `CertificatePinner`**：模块下发的是 DER 的 SHA-256（小写十六进制），OkHttp 的 `CertificatePinner` 要的却是 Base64 SPKI，两套格式混用会无条件拒绝连接。现在只保留 `PinnedTrustManager` 做 DER 比对。
+* **协议版本兼容**：模块 HTTP 响应写 `schema`、历史快照写 `schemaVersion`，两侧都接受；冲突、未知或类型错误一律 `module_protocol_mismatch`，不再误判。
+* **禁止静默换节点**：显式指定的 profile 不在模块节点集合时如实报 `profile_missing`，不再悄悄挑另一个节点顶上。只有 App 未指定时才允许回退到第一个可选节点。
+* **wireguard 端点一次性迁移**：preview.11 的迁移把 wireguard 端点当成普通出站存了下来，重新组装配置时它会写进 `outbounds`，而 sing-box ≥ 1.11 只允许 wireguard 出现在顶层 `endpoints`，`rootbox --check` 必失败、核心起不来。现在读取时回填端点标记并落盘（store `schemaVersion` 1→2，只跑一次，不覆盖用户手工改动）。
+* **App 只补写缺失的那一条**：模块已有节点但缺当前 profile 时，用单条 `POST /v1/nodes` 补写，绝不整表回写——否则用户在模块里新增/编辑过的节点会被 App 的旧配置冲掉。
+* **配置意图依赖保真**：路由/DNS 引用的 direct/bypass 出站、链式 detour、顶层 `endpoints`、顶层 `log` 全部参与拼装，缺一样真实核心校验就会失败。
+* **管理服务生命周期**：`api.pid` 记录 pid + 启动刻度 + 可执行路径，身份不符绝不发信号、也不删别人的记录；`serve-stop` 无记录即成功（幂等）；热更新与卸载都按 `serve-stop → stop` 的顺序停进程，不再把 serve 留在后台。
+* **Store 改为 Runtime 单例**：之前并发请求各持一把锁，写 nodes/config 会互相覆盖。
+* 客户端侧：超时分档（15s / 300s / 流式 0）、强制不走系统代理、SSE 可取消、缓存键纳入证书指纹、凭据日志脱敏。
 
 ### 兼容性与产物
 
-* 包名 `com.lit008834.pixel.wanboxforandroid`、原签名、数据库与备份格式未变，可直接覆盖 v3.0.9 与 v3.0.10-preview.5 ~ preview.10。
+* 包名 `com.lit008834.pixel.wanboxforandroid`、原签名、数据库与备份格式未变，可直接覆盖 v3.0.9 与 v3.0.10-preview.11。
 * 仅 arm64-v8a、Android 12+、Root 环境；仍为纯 Root 模块，不提供 VPN 模式。
-* 预览版本 `3.0.10-preview.11`，模块版本代码 `373`，APK 版本代码 `1865`，内核 `sing-box v1.15.0-alpha.12`。
+* 预览版本 `3.0.10-preview.12`，模块版本代码 `374`，APK 版本代码 `1870`，内核 `sing-box v1.15.0-alpha.12`。
 * 交付 ARM64 APK、纯 Root 模块、内嵌同一 APK 的整合模块与 `SHA256SUMS`；预览渠道仍只保留最新一版。
 
 ### 本地验证
 
 * `go build ./...`（windows 与 linux/arm64 双目标）、`go vet ./...` 全过。
-* `go test -run "TestAPIConfig|TestReplaceNodes"` 全过（含新增的证书轮换用例）。
-* 全量 `go test ./...` 仅剩 Windows 平台既有的 8 个平台相关失败（`root_requires_android_or_linux` / `VmRSS`），与本次改动无关。
+* Go 测试 90 通过；失败的 8 个是 Windows 平台既有基线（`root_requires_android_or_linux` / `VmRSS`），与本次改动无关。
+* App 单测 **357 通过 / 0 失败 / 0 跳过**。
+* 新增用例做了变异自证：失败也落盘、静默回退、跳过 wireguard 迁移、随便拿节点顶上 —— 4/4 均被用例抓到，不是写了就绿的摆设。
+* **本版未做真机联调**，以上均为本地构建与自动化测试结论。
 
 ### 升级与自查
 
 1. 安装 `wanbox-root-module-with-manager-arm64-v8a.zip` 后重启手机（`service.sh` 只在开机执行）。
-2. 打开 App 等待 10 秒；若仍不可用，查看 `/sdcard/wanbox-serve.log`，出现 `certificate rotated` 说明自愈生效过。
-3. Root 侧可对照：`cat /data/adb/wanbox/api.json` 里的 `certSha256` 应与 `/data/adb/wanbox/api-cert.pem` 的哈希一致。
+2. 打开 App 等待 10 秒；若仍不可用，查看 `/sdcard/wanbox-serve.log` 与 `/data/adb/wanbox/delivery.log`。
+3. 若日志出现 `profile_missing`，说明当前选中的节点还没进模块 store，App 会自动补写一次；持续出现请反馈节点来源（手工添加 / 订阅导入）。
 
 ### 已知问题
 

@@ -1,8 +1,22 @@
 # wanBoxForAndroid 更新日志（Changelog）
 
-> 维护范围：下列 wanBox 3.0.x 条目按各自 GitHub Release 汇总；详细回归覆盖与兼容/升级信息请见对应版本页面。最新正式版为 v3.0.9，当前预览构建为 v3.0.10-preview.11。预览渠道只保留最新一版，更早的预览条目以其发行说明为准。项目起源与当前定位见 [README](README.md)。
+> 维护范围：下列 wanBox 3.0.x 条目按各自 GitHub Release 汇总；详细回归覆盖与兼容/升级信息请见对应版本页面。最新正式版为 v3.0.9，当前预览构建为 v3.0.10-preview.12。预览渠道只保留最新一版，更早的预览条目以其发行说明为准。项目起源与当前定位见 [README](README.md)。
 
 ## wanBox 3.0.x 发布记录
+
+### v3.0.10-preview.12（预览版，2026-10-19）
+
+作者：@author 雾晚
+
+- **修复钉扎实现自相矛盾**：删除要求 Base64 SPKI 的 `CertificatePinner`，只保留按 DER SHA-256 比对的 `PinnedTrustManager`。两者格式不可混用，混用会无条件拒绝连接。
+- **禁止静默换节点**：显式指定的 profile 不在模块节点集合时如实报 `profile_missing`；只有 App 未指定时才回退。之前会悄悄挑另一个节点，用户选 A 实际走 B 且无提示。
+- **wireguard 端点一次性迁移**：回填 `endpoint` 标记（store `schemaVersion` 1→2），否则 wireguard 会写进 `outbounds`，sing-box 校验必失败、核心起不来。
+- **App 只补写缺失的那一条**：模块已有节点但缺当前 profile 时走单条 `POST /v1/nodes`，不整表回写，避免冲掉用户在模块里的改动。
+- **配置意图依赖保真**：辅助出站、顶层 `endpoints`、顶层 `log` 全部参与拼装。
+- **管理服务生命周期**：`api.pid` 身份校验、`serve-stop` 幂等、热更新与卸载按 `serve-stop → stop` 停进程。
+- **Store 改为 Runtime 单例**，修复并发请求各自持锁导致的互相覆盖。
+- 协议版本同时接受 `schema` / `schemaVersion`；客户端超时分档、不走系统代理、SSE 可取消、缓存键纳入证书指纹。
+- 预览版本 `3.0.10-preview.12`，模块版本代码 `374`，APK 版本代码 `1870`。本地验证：Go 90 通过（8 个失败为 Windows 平台既有基线）、App 单测 357 通过 / 0 失败 / 0 跳过，4 项变异测试均被抓到；**未做真机联调**。
 
 ### v3.0.10-preview.11（预览版，2026-10-19）
 
