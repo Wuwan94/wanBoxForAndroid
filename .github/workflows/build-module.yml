@@ -48,9 +48,7 @@ jobs:
         uses: ./.github/actions/build-module
         with:
           posthog-project-token: ${{ vars.POSTHOG_PROJECT_TOKEN }}
-          posthog-project-token: ${{ inputs.posthog-project-token }}
           posthog-host: ${{ vars.POSTHOG_HOST }}
-          posthog-host: ${{ inputs.posthog-host }}
 
       - name: 保存已验证的模块内容
         uses: actions/upload-artifact@v7
