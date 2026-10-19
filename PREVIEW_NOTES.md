@@ -8,6 +8,9 @@
 * **协议版本兼容**：模块 HTTP 响应写 `schema`、历史快照写 `schemaVersion`，两侧都接受；冲突、未知或类型错误一律 `module_protocol_mismatch`，不再误判。
 * **禁止静默换节点**：显式指定的 profile 不在模块节点集合时如实报 `profile_missing`，不再悄悄挑另一个节点顶上。只有 App 未指定时才允许回退到第一个可选节点。
 * **wireguard 端点一次性迁移**：preview.11 的迁移把 wireguard 端点当成普通出站存了下来，重新组装配置时它会写进 `outbounds`，而 sing-box ≥ 1.11 只允许 wireguard 出现在顶层 `endpoints`，`rootbox --check` 必失败、核心起不来。现在读取时回填端点标记并落盘（store `schemaVersion` 1→2，只跑一次，不覆盖用户手工改动）。
+* **端点节点恢复可选**：wireguard 这类端点只是必须写在顶层 `endpoints`（内核要求它不能进 `outbounds`），并不代表不能选——内核的 selector 完全可以引用 endpoint 的 tag。之前把端点一律排除在 selector 候选之外，等于 wireguard 节点迁移后依然选不了。现在端点的 tag 正常进 selector 候选与热切换映射。
+* **热更新停服务的顺序修正**：原流程先重命名模块目录、再按原可执行路径核验进程，此时 `/proc/<pid>/exe` 已指向备份目录，身份校验必然不匹配——旧管理面停不掉，新管理面又抢不到 `api.lock`，热更新后 App 直接失联。现在停管理面严格早于目录替换。
+* **补上 preview.11 的升级兼容路径**：旧版管理面不写 `api.pid`，热更新无从知道它的 pid。现在按「可执行文件是本模块的 `wanboxctl` 且命令行是 `__internal serve`」两条硬条件反查，确认身份后再停，绝不按进程名或裸 pid 杀进程。
 * **App 只补写缺失的那一条**：模块已有节点但缺当前 profile 时，用单条 `POST /v1/nodes` 补写，绝不整表回写——否则用户在模块里新增/编辑过的节点会被 App 的旧配置冲掉。
 * **配置意图依赖保真**：路由/DNS 引用的 direct/bypass 出站、链式 detour、顶层 `endpoints`、顶层 `log` 全部参与拼装，缺一样真实核心校验就会失败。
 * **管理服务生命周期**：`api.pid` 记录 pid + 启动刻度 + 可执行路径，身份不符绝不发信号、也不删别人的记录；`serve-stop` 无记录即成功（幂等）；热更新与卸载都按 `serve-stop → stop` 的顺序停进程，不再把 serve 留在后台。

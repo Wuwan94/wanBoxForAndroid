@@ -11,6 +11,9 @@
 - **修复钉扎实现自相矛盾**：删除要求 Base64 SPKI 的 `CertificatePinner`，只保留按 DER SHA-256 比对的 `PinnedTrustManager`。两者格式不可混用，混用会无条件拒绝连接。
 - **禁止静默换节点**：显式指定的 profile 不在模块节点集合时如实报 `profile_missing`；只有 App 未指定时才回退。之前会悄悄挑另一个节点，用户选 A 实际走 B 且无提示。
 - **wireguard 端点一次性迁移**：回填 `endpoint` 标记（store `schemaVersion` 1→2），否则 wireguard 会写进 `outbounds`，sing-box 校验必失败、核心起不来。
+- **端点节点恢复可选**：端点只是必须写在顶层 `endpoints`，并非不能选（内核 selector 可引用 endpoint tag）。之前一律排除会让 wireguard 节点迁移后依然选不了。
+- **热更新停服务顺序修正**：先重命名再核验进程会导致 `/proc/<pid>/exe` 指向备份目录、身份不匹配，旧管理面停不掉且新管理面抢不到 `api.lock`。停管理面改为严格早于目录替换。
+- **补 preview.11 升级兼容路径**：旧版不写 `api.pid`，按「可执行文件是本模块 wanboxctl 且命令行是 `__internal serve`」反查后按身份停。
 - **App 只补写缺失的那一条**：模块已有节点但缺当前 profile 时走单条 `POST /v1/nodes`，不整表回写，避免冲掉用户在模块里的改动。
 - **配置意图依赖保真**：辅助出站、顶层 `endpoints`、顶层 `log` 全部参与拼装。
 - **管理服务生命周期**：`api.pid` 身份校验、`serve-stop` 幂等、热更新与卸载按 `serve-stop → stop` 停进程。
