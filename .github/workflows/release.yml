@@ -152,6 +152,7 @@ jobs:
   kernelsu:
     name: 分发至 KernelSU Modules
     needs: release
+    if: "!contains(github.ref_name, '-preview') && !contains(github.ref_name, '-rc') && !contains(github.ref_name, '-beta')"
     uses: ./.github/workflows/publish-kernelsu.yml
     with:
       tag: ${{ github.ref_name }}
