@@ -27,13 +27,17 @@ class NodeHotSwitchPolicyTest {
         assertTrue(source.contains("secret = DataStore.clashApiSecret"))
     }
 
-    @Test fun snapshotPublishesProfileTagsForHotSwitch() {
-        val source = File("src/main/java/io/nekohasekai/sagernet/bg/RootModuleClient.kt").readText()
-        // Staged via the Files channel (not the strict snapshot schema) so older
-        // modules still accept the snapshot.
-        
-        assertTrue(source.contains("addBytes(\"files/profile_tags.json\""))
-        assertTrue(source.contains("instance.config.profileTagMap"))
+    @Test fun profileTagsComeFromModuleFinalNodeTagsNotAppMapping() {
+        // 节点真值已下沉到模块 store：热切换用的 profileId → tag 映射必须按模块
+        // 最终拼进配置的节点 tag 生成，App 不再上传自己的旧映射（一旦不一致，
+        // 热切换会指向不存在的出站）。
+        val client = File("src/main/java/io/nekohasekai/sagernet/bg/RootModuleClient.kt").readText()
+        assertFalse(client.contains("addBytes(\"files/profile_tags.json\""))
+        val intent = File("../rootmodule/config_intent.go").readText()
+        assertTrue(intent.contains("func profileTagsJSON"))
+        assertTrue(intent.contains("\"files/\"+profileTagFile"))
+        // 只收录非端点节点：端点不进 selector，热切换无从指向。
+        assertTrue(intent.contains("if n.Endpoint {"))
     }
 
     @Test fun selectNodeCommandIsWhitelistedAndFast() {

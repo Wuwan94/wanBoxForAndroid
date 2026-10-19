@@ -7,7 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.MediaType.Companion.toMediaType
@@ -61,6 +61,8 @@ object ModuleApiClient {
         val subscriptionId: Long,
         val outbound: JSONObject,
         val updatedAt: Long,
+        /** 来自配置顶层 endpoints 数组：模块写回 endpoints，不进入 selector 候选。 */
+        val endpoint: Boolean = false,
     ) {
         fun toJson(): JSONObject = JSONObject()
             .put("id", id)
@@ -69,6 +71,7 @@ object ModuleApiClient {
             .put("subscriptionId", subscriptionId)
             .put("outbound", outbound)
             .also { group?.let { g -> it.put("group", g) } }
+            .also { if (endpoint) it.put("endpoint", true) }
 
         companion object {
             fun fromJson(o: JSONObject) = ModuleNode(
@@ -79,6 +82,7 @@ object ModuleApiClient {
                 o.optLong("subscriptionId"),
                 o.optJSONObject("outbound") ?: JSONObject(),
                 o.optLong("updatedAt"),
+                o.optBoolean("endpoint"),
             )
         }
     }
@@ -107,8 +111,21 @@ object ModuleApiClient {
 
     private const val STATUS_TTL_MS = 2_000L
 
+    /**
+     * 客户端缓存的 key 必须带凭据代次（baseUrl + certSha256）：
+     * 模块重启后端口会变、证书会轮换，只按超时档位缓存会复用旧连接池，
+     * 表现为「凭据已更新但仍连不上」。
+     */
+    private data class ClientKey(
+        val baseUrl: String,
+        val certSha256: String,
+        val timeout: ApiTimeout,
+    )
+
     @Volatile private var credentials: Credentials? = null
-    private val clients = java.util.EnumMap<ApiTimeout, OkHttpClient>(ApiTimeout::class.java)
+    /** 凭据读写与清空共用一把锁；[clients] 有自己的锁，两者不嵌套顺序反转。 */
+    private val credentialsLock = Any()
+    private val clients = HashMap<ClientKey, OkHttpClient>()
     @Volatile private var cachedStatus: RootModuleClient.Status? = null
     @Volatile private var cachedAt = 0L
 
@@ -120,7 +137,7 @@ object ModuleApiClient {
 
     /** 丢弃凭据；证书或鉴权失败时调用，下次请求重新交付。 */
     fun invalidateCredentials() {
-        credentials = null
+        synchronized(credentialsLock) { credentials = null }
         synchronized(clients) { clients.clear() }
         cachedStatus = null
     }
@@ -227,35 +244,49 @@ object ModuleApiClient {
 
     // ---- SSE 状态流（沿用 preview.5） ----
 
+    /**
+     * 状态事件流。连接与读取放在 [callbackFlow] 内部独立的 IO 协程里执行：
+     * STREAM 档读超时为 0（无限等待），只有取消 socket 才能唤醒阻塞读，
+     * 所以页面退出时必须能在 awaitClose 里 cancel call + 取消协程。
+     */
     fun events(): Flow<RootModuleClient.Status> = callbackFlow {
-        var call: Call? = null
-        try {
-            val creds = ensureCredentials()
-            val request = Request.Builder()
-                .url(creds.baseUrl + "/v1/events")
-                .header("Authorization", "Bearer ${creds.token}")
-                .header("Accept", "text/event-stream")
-                .build()
-            call = client(creds, ApiTimeout.STREAM).newCall(request)
-            val response = call.execute()
-            if (!response.isSuccessful) throw IOException("module_api_http_${response.code}")
-            response.use {
-                val source = it.body?.source() ?: throw IOException("module_api_empty_stream")
-                while (!source.exhausted()) {
-                    val line = source.readUtf8LineStrict()
-                    if (!line.startsWith("data: ")) continue
-                    // 原样交给解析器：不补 ok=true，也不改写版本字段，
-                    // 协议不符时按真实错误关闭事件流。
-                    trySend(RootModuleClient.parseResponse(line.removePrefix("data: ")))
+        val callRef = java.util.concurrent.atomic.AtomicReference<Call?>(null)
+        val job = launch(Dispatchers.IO) {
+            try {
+                val creds = ensureCredentials()
+                val request = Request.Builder()
+                    .url(creds.baseUrl + "/v1/events")
+                    .header("Authorization", "Bearer ${creds.token}")
+                    .header("Accept", "text/event-stream")
+                    .build()
+                val call = client(creds, ApiTimeout.STREAM).newCall(request)
+                callRef.set(call)
+                val response = call.execute()
+                if (!response.isSuccessful) throw IOException("module_api_http_${response.code}")
+                response.use {
+                    val source = it.body?.source() ?: throw IOException("module_api_empty_stream")
+                    while (!source.exhausted()) {
+                        val line = source.readUtf8LineStrict()
+                        if (!line.startsWith("data: ")) continue
+                        // 原样交给解析器：不补 ok=true，也不改写版本字段，
+                        // 协议不符时按真实错误关闭事件流。
+                        trySend(RootModuleClient.parseResponse(line.removePrefix("data: ")))
+                    }
                 }
+                // 服务端正常结束：按真实原因关闭，不伪造成功。
+                close(IOException("module_api_stream_closed"))
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                close(e)
             }
-            close(IOException("module_api_stream_closed"))
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            close(e)
         }
-        awaitClose { call?.cancel() }
-    }.flowOn(Dispatchers.IO)
+        awaitClose {
+            // 先断 socket（读超时 0 时只有 cancel 能解除阻塞读），再取消协程。
+            callRef.get()?.cancel()
+            job.cancel()
+        }
+    }
 
     // ---- 传输层 ----
 
@@ -314,16 +345,32 @@ object ModuleApiClient {
     }
 
     private suspend fun ensureCredentials(): Credentials {
-        credentials?.let { return it }
+        synchronized(credentialsLock) { credentials }?.let { return it }
         val loaded = bridge.load()
-        credentials = loaded
+        // 并发首次交付只让一个结果生效，避免前后两次读到不同端口/证书。
+        val existing = synchronized(credentialsLock) {
+            val current = credentials
+            if (current != null) current else { credentials = loaded; null }
+        }
+        if (existing != null) return existing
+        // 新代次凭据：旧代次的连接池一律丢弃，杜绝复用过期客户端。
+        synchronized(clients) { clients.clear() }
         return loaded
     }
 
     private fun client(creds: Credentials, timeout: ApiTimeout = ApiTimeout.SHORT): OkHttpClient {
-        clients[timeout]?.let { return it }
-        return buildPinnedClient(creds, timeout.readSeconds).also { clients[timeout] = it }
+        val key = ClientKey(creds.baseUrl, creds.certSha256, timeout)
+        synchronized(clients) {
+            clients[key]?.let { return it }
+            return buildPinnedClient(creds, timeout.readSeconds).also { clients[key] = it }
+        }
     }
+
+    /** 测试缝：与生产走同一条缓存路径，用来验证缓存键带凭据代次。 */
+    internal fun clientForTest(creds: Credentials, timeout: ApiTimeout): OkHttpClient = client(creds, timeout)
+
+    /** 测试缝：缓存条目数（不含任何凭据内容）。 */
+    internal fun cachedClientCount(): Int = synchronized(clients) { clients.size }
 
     /**
      * 构建与生产一致的钉扎客户端。仅供本对象的连接池复用与本地 HTTPS 测试直接调用；

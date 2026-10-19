@@ -28,6 +28,9 @@ const (
 
 // StoreNode 是一个可选择节点的持久化形态。Outbound 是完整的 sing-box
 // outbound 对象（含 tag），由模块在生成配置时原样拼入 outbounds 数组。
+//
+// Endpoint 标记该节点来自配置顶层的 endpoints 数组（如 wireguard 端点）：
+// 生成配置时写回顶层 endpoints，不进入 selector 候选，避免把端点当成可选代理。
 type StoreNode struct {
 	ID             int64           `json:"id"`
 	Type           string          `json:"type"`
@@ -36,6 +39,7 @@ type StoreNode struct {
 	SubscriptionID int64           `json:"subscriptionId,omitempty"`
 	Outbound       json.RawMessage `json:"outbound"`
 	UpdatedAt      int64           `json:"updatedAt"`
+	Endpoint       bool            `json:"endpoint,omitempty"`
 }
 
 // StoreSubscription 是订阅源。URL 仅在模块侧保存与使用，App 只看到元数据。
@@ -50,20 +54,39 @@ type StoreSubscription struct {
 }
 
 // StoreConfig 是除节点以外的全局配置（路由 / 入站 / DNS / 实验项 / 自启 / 性能）。
+//
+// 节点之外的依赖也必须持久化，否则 route/dns 里 reference 的 direct/bypass 出站、
+// 链式 detour、顶层 endpoints 与顶层 log 会在重新组装配置时丢失，
+// 真实核心校验（rootbox --check）必然失败。
+//
+// AuxiliaryOutbounds / Endpoints / Log 均为可选字段：旧版 store/config.json
+// 缺这些字段时读出来就是空，行为与升级前一致（向后兼容）。
 type StoreConfig struct {
-	SchemaVersion       int             `json:"schemaVersion"`
-	Router              json.RawMessage `json:"router,omitempty"`
-	Inbounds            json.RawMessage `json:"inbounds,omitempty"`
-	DNS                 json.RawMessage `json:"dns,omitempty"`
-	Experimental        json.RawMessage `json:"experimental,omitempty"`
-	AutoStart           bool            `json:"autoStart"`
-	PerformancePriority bool            `json:"performancePriority"`
+	SchemaVersion       int               `json:"schemaVersion"`
+	Router              json.RawMessage   `json:"router,omitempty"`
+	Inbounds            json.RawMessage   `json:"inbounds,omitempty"`
+	DNS                 json.RawMessage   `json:"dns,omitempty"`
+	Experimental        json.RawMessage   `json:"experimental,omitempty"`
+	AuxiliaryOutbounds  []json.RawMessage `json:"auxiliaryOutbounds,omitempty"`
+	Endpoints           []json.RawMessage `json:"endpoints,omitempty"`
+	Log                 json.RawMessage   `json:"log,omitempty"`
+	AutoStart           bool              `json:"autoStart"`
+	PerformancePriority bool              `json:"performancePriority"`
 }
 
 type storeMeta struct {
 	NextNodeID         int64 `json:"nextNodeId"`
 	NextSubscriptionID int64 `json:"nextSubscriptionId"`
+	// SchemaVersion 是 store 自身的迁移版本：缺省（0）视为 1，
+	// 一次性迁移（endpoint 标记回填）完成后写 2，迁移不会再跑。
+	SchemaVersion int `json:"schemaVersion,omitempty"`
 }
+
+// 一次性迁移的版本号。preview.11 及更早的 store 没有该字段，按 1 处理。
+const (
+	storeSchemaV1 = 1
+	storeSchemaV2 = 2
+)
 
 // Store 由 Runtime 持有，用自身互斥锁串行化 CRUD，避免与核心 Apply 争抢 control.lock。
 type Store struct {
@@ -80,6 +103,13 @@ func (r *Runtime) Store() *Store {
 
 // ---- 内部辅助（已持锁，不加锁）----
 
+// listNodesLocked 读取节点表，并顺手完成一次性 store 迁移。
+//
+// 迁移背景：preview.11 的迁移只按 outbounds 数组建节点，wireguard 形态的端点被当成
+// 普通出站存了下来（endpoint=false）。sing-box >= 1.11 的 wireguard 只能出现在顶层
+// endpoints，重新组装配置时若写进 outbounds，`rootbox --check` 必然失败、核心起不来。
+// 因此读取时把 type=wireguard 且 endpoint=false 的节点标记为端点并回写（只此一次，
+// 用 store/meta.json 的 schemaVersion 记录），其它类型/其它节点一律不动。
 func (s *Store) listNodesLocked() ([]StoreNode, error) {
 	var nodes []StoreNode
 	if e := readJSON(s.r.path(storeNodesFile), &nodes, 16<<20); e != nil {
@@ -88,7 +118,52 @@ func (s *Store) listNodesLocked() ([]StoreNode, error) {
 		}
 		return nil, errors.New("store_unavailable")
 	}
+	if len(nodes) == 0 {
+		return nodes, nil
+	}
+	meta, e := s.readMetaLocked()
+	if e != nil {
+		return nil, e
+	}
+	if meta.SchemaVersion >= storeSchemaV2 {
+		return nodes, nil
+	}
+	changed := false
+	for i := range nodes {
+		if nodes[i].Endpoint {
+			continue
+		}
+		if storeNodeOutboundType(nodes[i].Outbound) != "wireguard" {
+			continue
+		}
+		nodes[i].Endpoint = true
+		changed = true
+	}
+	if changed {
+		if e = s.writeNodesLocked(nodes); e != nil {
+			return nil, e
+		}
+	}
+	// 迁移标记最后写：写失败时下次读取会再跑一遍（幂等）。
+	meta.SchemaVersion = storeSchemaV2
+	if e = s.writeMetaLocked(meta); e != nil {
+		return nil, e
+	}
 	return nodes, nil
+}
+
+// storeNodeOutboundType 取出 outbound 的 type；不是 JSON 对象或没有 type 时返回空。
+func storeNodeOutboundType(raw json.RawMessage) string {
+	if len(raw) == 0 || !json.Valid(raw) {
+		return ""
+	}
+	var probe struct {
+		Type string `json:"type"`
+	}
+	if json.Unmarshal(raw, &probe) != nil {
+		return ""
+	}
+	return probe.Type
 }
 
 func (s *Store) listSubscriptionsLocked() ([]StoreSubscription, error) {

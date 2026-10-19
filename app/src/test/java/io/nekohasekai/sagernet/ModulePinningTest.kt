@@ -5,17 +5,24 @@ package io.nekohasekai.sagernet
 import io.nekohasekai.sagernet.bg.ModuleApiClient
 import okhttp3.Request
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.File
-import java.io.IOException
 import java.net.InetAddress
+import java.net.SocketException
+import java.net.SocketTimeoutException
 import java.security.KeyStore
 import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLException
 import javax.net.ssl.SSLServerSocket
+import javax.net.ssl.SSLSocket
 import kotlin.concurrent.thread
 
 /**
@@ -23,6 +30,10 @@ import kotlin.concurrent.thread
  *
  * 模块下发的是证书 DER 的 SHA-256 小写十六进制；这里用 keytool 生成自签证书、
  * 起一个真实 TLS 服务，断言「指纹一致能连通、换一张证书必须失败」。
+ *
+ * 服务端必须**循环 accept**直到测试结束：只 accept 一次的话，错指纹的请求没人处理，
+ * 客户端失败原因变成读超时也能满足 IOException 断言，测试就是假阳性。
+ * 这里额外统计成功/失败握手次数，证明失败来自 TLS 握手而不是超时。
  * @author 雾晚
  */
 class ModulePinningTest {
@@ -34,6 +45,11 @@ class ModulePinningTest {
 
         val dir = createTempDir(prefix = "wanbox-pin-")
         var serverSocket: SSLServerSocket? = null
+        val serving = AtomicBoolean(true)
+        val acceptedHandshakes = AtomicInteger(0)
+        val failedHandshakes = AtomicInteger(0)
+        // 服务端观察到的最后一次握手异常，用于失败时定位原因。
+        val lastHandshakeError = AtomicReference<Throwable?>(null)
         try {
             val store = File(dir, "server.p12")
             val process = ProcessBuilder(
@@ -57,28 +73,55 @@ class ModulePinningTest {
                 init(kmf.keyManagers, null, null)
             }
             serverSocket = serverContext.serverSocketFactory.createServerSocket(
-                0, 1, InetAddress.getByName("127.0.0.1")
+                0, 8, InetAddress.getByName("127.0.0.1")
             ) as SSLServerSocket
             val port = serverSocket.localPort
+            // accept 带超时，循环才能在测试结束时退出。
+            serverSocket.soTimeout = 200
+            val socket = serverSocket
             thread(isDaemon = true, name = "wanbox-tls") {
-                runCatching {
-                    serverSocket.accept().use { socket ->
-                        socket.soTimeout = 5_000
-                        val reader = socket.inputStream.bufferedReader()
-                        while (true) {
-                            val line = reader.readLine() ?: break
-                            if (line.isEmpty()) break
+                while (serving.get()) {
+                    val accepted = runCatching { socket.accept() }
+                    val client = accepted.getOrNull()
+                    if (client == null) {
+                        val error = accepted.exceptionOrNull()
+                        when {
+                            !serving.get() -> break
+                            // accept 超时只是为了让循环有机会检查 serving 标记。
+                            error is SocketTimeoutException -> continue
+                            error is SocketException && socket.isClosed -> break
+                            else -> continue
                         }
-                        val body = """{"schema":1,"ok":true}""".toByteArray()
-                        socket.outputStream.write(
-                            ("HTTP/1.1 200 OK\r\n" +
-                                "Content-Type: application/json\r\n" +
-                                "Content-Length: ${body.size}\r\n" +
-                                "Connection: close\r\n\r\n").toByteArray()
-                        )
-                        socket.outputStream.write(body)
-                        socket.outputStream.flush()
                     }
+                    // accept 只完成 TCP 连接，真正的 TLS 握手发生在第一次 I/O；
+                    // 必须显式 startHandshake 才能把「握手失败」和「读请求失败」分开统计。
+                    val handshake = runCatching { (client as SSLSocket).startHandshake() }
+                    if (handshake.isFailure) {
+                        failedHandshakes.incrementAndGet()
+                        lastHandshakeError.set(handshake.exceptionOrNull())
+                        runCatching { client.close() }
+                        continue
+                    }
+                    runCatching {
+                        client.use {
+                            it.soTimeout = 5_000
+                            val reader = it.inputStream.bufferedReader()
+                            while (true) {
+                                val line = reader.readLine() ?: break
+                                if (line.isEmpty()) break
+                            }
+                            val body = """{"schema":1,"ok":true}""".toByteArray()
+                            it.outputStream.write(
+                                ("HTTP/1.1 200 OK\r\n" +
+                                    "Content-Type: application/json\r\n" +
+                                    "Content-Length: ${body.size}\r\n" +
+                                    "Connection: close\r\n\r\n").toByteArray()
+                            )
+                            it.outputStream.write(body)
+                            it.outputStream.flush()
+                        }
+                    }
+                    acceptedHandshakes.incrementAndGet()
                 }
             }
 
@@ -92,10 +135,24 @@ class ModulePinningTest {
                 assertEquals(200, response.code)
                 assertTrue(response.body?.string().orEmpty().contains("\"ok\":true"))
             }
+            assertEquals("指纹一致时必须完成一次成功握手", 1, acceptedHandshakes.get())
 
             val bad = ModuleApiClient.buildPinnedClient(credentials(port, "0".repeat(64)), 5)
             val failed = runCatching { bad.newCall(request).execute().close() }.exceptionOrNull()
-            assertTrue("错误指纹必须握手失败，实际: $failed", failed is IOException)
+            assertTrue("错误指纹必须握手失败，实际: $failed", failed is SSLException)
+            assertFalse("不能把读超时当成握手失败", failed is SocketTimeoutException)
+            // 服务端线程与客户端失败几乎同时发生：轮询等待它记账，避免竞态导致的假阴性。
+            val deadline = System.currentTimeMillis() + 5_000
+            while (failedHandshakes.get() < 1 && System.currentTimeMillis() < deadline) {
+                Thread.sleep(20)
+            }
+            assertTrue(
+                "服务端必须观察到一次失败握手，实际: ${failedHandshakes.get()}，" +
+                    "最后异常: ${lastHandshakeError.get()}",
+                failedHandshakes.get() >= 1,
+            )
+            // 失败发生在握手阶段，服务端不会把这次连接当成可用请求。
+            assertEquals("失败握手不得计入成功连接", 1, acceptedHandshakes.get())
 
             // 指纹格式必须是 64 位小写十六进制：非法格式在凭据解析阶段就被拒绝。
             val invalid = runCatching {
@@ -105,6 +162,7 @@ class ModulePinningTest {
             }.exceptionOrNull()
             assertEquals("module_credentials_invalid", invalid?.message)
         } finally {
+            serving.set(false)
             runCatching { serverSocket?.close() }
             dir.deleteRecursively()
         }

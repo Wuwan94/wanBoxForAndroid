@@ -47,9 +47,10 @@ func main() {
 		err = errors.New("root_required")
 	} else if e := module.IndependentCgroup(); e != nil {
 		// cgroup 隔离失败不应让管理面整体不可用：serve 是唯一长期宿主，
-		// 它必须起来，否则 App 连状态都读不到。其余命令仍按失败处理。
+		// 它必须起来，否则 App 连状态都读不到。serve-stop 是维护/卸载路径的最后
+		// 手段，同样不能因为 cgroup 失败而拒绝执行。其余命令仍按失败处理。
 		module.Trace("cgroup unavailable: %v", e)
-		if len(os.Args) == 3 && os.Args[1] == "__internal" && os.Args[2] == "serve" {
+		if len(os.Args) == 3 && os.Args[1] == "__internal" && (os.Args[2] == "serve" || os.Args[2] == "serve-stop") {
 			err = run(ctx, r, os.Args[1:])
 		} else {
 			err = e
@@ -167,6 +168,10 @@ func run(ctx context.Context, r *module.Runtime, args []string) error {
 				b, e := exec.CommandContext(t, "/system/bin/getprop", "sys.boot_completed").Output()
 				return e == nil && strings.TrimSpace(string(b)) == "1"
 			})
+		case "serve-stop":
+			// 按 api.pid 校验身份后停管理面；没有 pid 文件即成功（幂等）。
+			// 热更新与卸载都走这里，绝不按裸 pid 杀进程。
+			return r.ServeStop(ctx)
 		case "activate":
 			return r.Activate(ctx, "/data/adb/modules/wanbox")
 		case "install-manager":

@@ -254,6 +254,13 @@ func (r *Runtime) Serve(ctx context.Context, bootReady func() bool) error {
 		}
 	}
 	Trace("serve: listening %s", listener.Addr().String())
+	// listener 已绑定且 api.json 的端口已回写：此时管理面才真正可用，
+	// 落盘身份记录供 `__internal serve-stop` 与热更新精确停止（不按裸 pid 杀）。
+	if e = r.writeServeRecord(); e != nil {
+		r.recordEvent("api_pid_write_failed")
+		Trace("serve: write api.pid failed: %v", e)
+	}
+	defer r.clearServeRecord()
 	go func() { _ = r.Boot(ctx, bootReady) }()
 	// 管理端可能重装或清除数据，定期补交付一次凭据，避免 App 拿着被删掉的文件报不可用。
 	go r.credentialDeliveryLoop(ctx, cfg, delivered)

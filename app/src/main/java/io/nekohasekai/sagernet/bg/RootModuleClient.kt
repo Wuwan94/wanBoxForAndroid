@@ -13,6 +13,7 @@ import io.nekohasekai.sagernet.fmt.hysteria.HysteriaBean
 import io.nekohasekai.sagernet.fmt.mieru.MieruBean
 import io.nekohasekai.sagernet.fmt.naive.NaiveBean
 import io.nekohasekai.sagernet.fmt.trojan_go.TrojanGoBean
+import io.nekohasekai.sagernet.ktx.Logs
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -135,11 +136,25 @@ object RootModuleClient {
             // @author 雾晚: refresh cross-user UIDs (TTL-cached) so per-app rules
             // cover secondary users / cloned apps.
             runCatching { io.nekohasekai.sagernet.utils.PackageCache.refreshMultiUserUids() }
-            // 首次迁移：模块 store 为空时把当前节点的 outbounds 一次性灌入模块。
-            // 之后模块是节点真值，App 不再整表回写，避免覆盖模块侧新增/编辑的节点。
-            if (ModuleApiClient.nodes().isEmpty()) {
+            // 节点真值在模块 store：只在模块缺当前 profile 时补，绝不整表回写，
+            // 否则用户在模块里新增/编辑过的节点会被 App 的旧配置冲掉。
+            val known = ModuleApiClient.nodes()
+            if (known.isEmpty()) {
+                // 首次迁移：store 为空时把当前配置的 outbounds/endpoints 一次性灌入。
                 val migrated = ModuleConfigIntent.migrateNodes(profile)
                 if (migrated.isNotEmpty()) ModuleApiClient.replaceNodes(migrated)
+            } else if (known.none { it.id == profile.id }) {
+                // 模块已有节点，但当前选中的 profile 不在其中（App 侧新建/导入后未同步）。
+                // 只补这一条：POST /v1/nodes 对 id>0 是覆盖语义，不会动其它节点。
+                // 补不上就让后面的 applyConfig 如实报 profile_missing —— 显式选择
+                // 的节点绝不能静默换成别的节点。
+                val missing = ModuleConfigIntent.missingProfileNode(
+                    known, ModuleConfigIntent.migrateNodes(profile), profile.id
+                )
+                if (missing != null) {
+                    runCatching { ModuleApiClient.addNode(missing) }
+                        .onFailure { Logs.w("module profile sync failed: " + (it.message ?: it.javaClass.simpleName), it) }
+                }
             }
             // 只下发配置意图：节点 outbounds 由模块 store 权威，App 不再强推完整快照。
             val applied = ModuleApiClient.applyConfig(ModuleConfigIntent.build(profile))
@@ -248,25 +263,10 @@ internal class RootModuleSnapshot(private val instance: ProxyInstance, private v
             addBytes(configName, rewrite(JsonParser.parseString(content)).toString().toByteArray()); plugins.add(plugin)
         } }
         val config = rewrite(JsonParser.parseString(instance.config.config))
-        // @author 雾晚: hot-switch: publish profileId -> outbound tag (+display name) as a
-        // staged file (not the strict snapshot schema) so older modules still accept
-        // the snapshot; the module moves its runtime selector from this map.
-        runCatching {
-            val tagMap = instance.config.profileTagMap
-            if (tagMap.isNotEmpty()) {
-                val names = SagerDatabase.proxyDao.getEntities(tagMap.keys.toList()).associate { it.id to it.displayName() }
-                val profileTags = JsonObject()
-                tagMap.forEach { (id, tag) ->
-                    if (tag.isNotBlank()) {
-                        val entry = JsonObject()
-                        entry.addProperty("tag", tag)
-                        entry.addProperty("name", names[id].orEmpty().take(512))
-                        profileTags.add(id.toString(), entry)
-                    }
-                }
-                if (profileTags.size() > 0) addBytes("files/profile_tags.json", profileTags.toString().toByteArray())
-            }
-        }
+        // profile_tags.json 不再由 App 生成：节点真值在模块 store，热切换用的
+        // profileId → tag 映射必须按模块最终拼进配置的节点 tag 生成
+        // （rootmodule/config_intent.go 的 profileTagsJSON），否则 App 旧映射
+        // 与模块实际 tag 一旦不一致，热切换就会指向不存在的出站。
         val encoded = JsonObject(); files.forEach { (name, bytes) -> encoded.addProperty(name, Base64.getEncoder().encodeToString(bytes)) }
         return JsonObject().apply {
             addProperty("schemaVersion", 1); addProperty("expectedRevision", revision); add("config", config); add("files", encoded); add("plugins", plugins)

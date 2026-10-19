@@ -18,6 +18,62 @@ func outbound(tag, kind string) json.RawMessage {
 	return b
 }
 
+// preview.11 及更早的迁移只按 outbounds 数组建节点，wireguard 形态的端点被当成
+// 普通出站存了下来（endpoint=false）。sing-box >= 1.11 不允许 wireguard 出现在
+// outbounds，重新组装配置必然校验失败、核心起不来。读取时必须一次性回填标记。
+func TestStoreMigratesWireguardNodesToEndpointsOnce(t *testing.T) {
+	s := newTestStore(t)
+	if _, e := s.ReplaceNodes([]StoreNode{
+		{ID: 1, Type: "shadowsocks", Name: "节点", Outbound: outbound("node-1", "shadowsocks")},
+		{ID: 2, Type: "wireguard", Name: "端点", Outbound: outbound("endpoint-1", "wireguard")},
+		{ID: 3, Type: "trojan", Name: "普通", Outbound: outbound("node-3", "trojan")},
+	}); e != nil {
+		t.Fatal(e)
+	}
+	nodes, e := s.ListNodes()
+	if e != nil {
+		t.Fatal(e)
+	}
+	if len(nodes) != 3 {
+		t.Fatal("节点数量错误", len(nodes))
+	}
+	if !nodes[1].Endpoint {
+		t.Fatal("wireguard 节点必须回填端点标记，否则会写进 outbounds 导致核心起不来")
+	}
+	if nodes[0].Endpoint || nodes[2].Endpoint {
+		t.Fatal("非 wireguard 节点不得被误标记", nodes)
+	}
+	// 回填必须落盘，否则下次进程启动又要重新迁移。
+	persisted, e := s.ListNodes()
+	if e != nil {
+		t.Fatal(e)
+	}
+	if !persisted[1].Endpoint {
+		t.Fatal("端点标记未持久化")
+	}
+	// 迁移标记写入后不再重复跑：把标记人为改回 false，再读应保持 false。
+	// （用户手工把端点改成普通节点是合法操作，不能被迁移逻辑反复覆盖。）
+	reverted := persisted
+	reverted[1].Endpoint = false
+	if _, e = s.ReplaceNodes(reverted); e != nil {
+		t.Fatal(e)
+	}
+	again, e := s.ListNodes()
+	if e != nil {
+		t.Fatal(e)
+	}
+	if again[1].Endpoint {
+		t.Fatal("迁移只应跑一次，不得反复覆盖用户改动")
+	}
+	var meta storeMeta
+	if e = readJSON(s.r.path(storeMetaFile), &meta, 4096); e != nil {
+		t.Fatal(e)
+	}
+	if meta.SchemaVersion != storeSchemaV2 {
+		t.Fatal("迁移版本未记录", meta.SchemaVersion)
+	}
+}
+
 func TestStoreIsSharedPerRuntime(t *testing.T) {
 	dir := t.TempDir()
 	r := New(dir, dir)

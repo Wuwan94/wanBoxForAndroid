@@ -115,6 +115,11 @@ type Runtime struct {
 	installValidate func(context.Context, string, string) error
 	installStart    func(context.Context) error
 	installRunning  func() bool
+	// 管理面（serve）的启停同样留测试缝：安装流程必须验证「先停旧 serve、
+	// 再起新 serve、任一步失败都要回滚并恢复旧管理面」，单元测试不能起真进程。
+	installServeStop  func(context.Context) error
+	installServeStart func(context.Context) error
+	installServing    func() bool
 
 	// Store 必须是同一实例：每次返回新 Store 会让并发请求各自持锁，
 	// 无法串行化对 store/*.json 的读写。

@@ -200,6 +200,14 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 			}
 		}
 		old := New(r.Root, target)
+		// 管理面启停的测试缝必须跟着 target 走：新 serve 从 target 起，
+		// 回滚时恢复的旧 serve 也从 target（回滚后的目录）起。
+		if r.installServeStop != nil {
+			old.installServeStop = r.installServeStop
+		}
+		if r.installServeStart != nil {
+			old.installServeStart = r.installServeStart
+		}
 		_, snapshot, e := old.Current()
 		if e != nil {
 			return e
@@ -235,6 +243,11 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 		if r.installStart != nil {
 			start = r.installStart
 		}
+		// 管理面独立于核心：核心停着也必须恢复，否则更新后 App 连状态都读不到。
+		_, wasServing := old.serving()
+		if r.installServing != nil {
+			wasServing = r.installServing()
+		}
 		backup, e := os.MkdirTemp(parent, ".wanbox-previous-")
 		if e != nil {
 			return e
@@ -246,6 +259,10 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 			return e
 		}
 		hadOld := false
+		// 管理面替换的进度：只有真的停过旧 serve 才需要（也才能）恢复它；
+		// 只有真的动过新 serve 才需要在回滚时收掉，避免误停仍在跑的旧进程。
+		serveStopped := false
+		serveStarted := false
 		if _, e = os.Stat(target); e == nil {
 			if e = os.Rename(target, backup); e != nil {
 				if wasRunning {
@@ -259,12 +276,22 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 			if e = old.stop(context.Background()); e != nil {
 				return errors.New("install_rollback_cleanup_failed")
 			}
+			// 可能已经拉起的新管理面必须先收掉，否则回滚后两个 serve 抢 api.lock。
+			if serveStarted {
+				_ = r.stopServe(context.Background())
+			}
 			if e = os.RemoveAll(target); e != nil {
 				return errors.New("install_rollback_failed")
 			}
 			if hadOld {
 				if e = os.Rename(backup, target); e != nil {
 					return errors.New("install_rollback_failed")
+				}
+			}
+			// 代码目录已还原：旧管理面必须恢复，App 才能继续连上模块。
+			if serveStopped && hadOld {
+				if e = old.startServeDetached(context.Background()); e != nil {
+					return errors.New("install_rollback_serve_failed")
 				}
 			}
 			if wasRunning && hadOld {
@@ -287,6 +314,22 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 		}
 		if e = syncDir(parent); e != nil {
 			return rollback()
+		}
+		// 新代码已就位：先按 api.pid 精确停掉旧管理面（不按裸 pid 杀进程），
+		// 再用 detached 方式拉起新的 serve。管理面与核心状态无关：
+		// 即使核心原本是停的，也必须把管理面恢复，否则 App 再也连不上模块。
+		if wasServing {
+			if e = old.stopServe(ctx); e != nil {
+				return rollback()
+			}
+			serveStopped = true
+			if !disabled {
+				// 先标记再启动：即便新 serve 启动失败，回滚也要尝试收掉半个进程。
+				serveStarted = true
+				if e = old.startServeDetached(ctx); e != nil {
+					return rollback()
+				}
+			}
 		}
 		if mode != "preserve" {
 			if pending != nil {
