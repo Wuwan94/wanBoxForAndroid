@@ -1,82 +1,133 @@
-# wanBoxForAndroid
+<p align="center">
+  <img src="docs/public/N.svg" alt="wanBox Logo" width="120" />
+</p>
+
+<h1 align="center">wanBox</h1>
 
 <p align="center">
-  <img src="docs/logo.png" width="128" height="128" alt="wanBoxForAndroid Logo">
-  <br>
-  <b>面向 Root 设备的独立 Android 代理项目：正式版 v3.0.9，预览版 v3.0.10-preview.13，内核 sing-box v1.15.0-alpha.12</b>
-  <br>
-  <b>An independent, root-focused Android proxy project: stable v3.0.9, preview v3.0.10-preview.13, powered by sing-box v1.15.0-alpha.12</b>
+  <strong>Android 系统级 sing-box 透明代理模块</strong><br>
+  eBPF / TUN · 节点与订阅 · 分应用代理 · 共享网络
 </p>
 
 <p align="center">
-  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases"><img src="https://img.shields.io/badge/Stable-v3.0.9-blue.svg?style=flat-square" alt="Latest stable release"></a>
-  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.10-preview.13"><img src="https://img.shields.io/badge/Preview-v3.0.10--preview.13-orange.svg?style=flat-square" alt="Latest preview build"></a>
-  <a href="https://android-arsenal.com/api?level=31"><img src="https://img.shields.io/badge/Android-12%2B%20(API%2031%2B)-brightgreen.svg?style=flat-square" alt="Minimum Android version"></a>
-  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases"><img src="https://img.shields.io/badge/ABI-arm64--v8a-informational.svg?style=flat-square" alt="Supported ABI"></a>
-  <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPL--3.0-orange.svg?style=flat-square" alt="License"></a>
-  <a href="https://t.me/OwnBoxs"><img src="https://img.shields.io/badge/Telegram-@OwnBoxs-2CA5E0.svg?logo=telegram&style=flat-square" alt="Telegram"></a>
+  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases">
+    <img src="https://img.shields.io/github/v/release/Wuwan94/wanBoxForAndroid?style=flat-square&label=Release&color=blue" alt="Latest Release" />
+  </a>
+  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases">
+    <img src="https://img.shields.io/github/downloads/Wuwan94/wanBoxForAndroid/total?style=flat-square&color=green" alt="Downloads" />
+  </a>
+  <img src="https://img.shields.io/badge/Core-sing--box-blueviolet?style=flat-square" alt="sing-box Core" />
+</p>
+
+<p align="center">
+  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases">下载模块与管理器</a> ·
+  <a href="https://www.github.com/Wuwan94/wanBoxForAndroid/">使用文档</a> ·
+  <a href="src/android/">管理器源码</a> ·
+  <a href="https://t.me/OwnBoxs">Telegram</a>
+</p>
+
+<p align="center">
+  中文 | <a href="README_EN.md">English</a>
 </p>
 
 ---
+
+## 项目简介
+
+wanBox 是面向已 Root Android 设备的系统级透明代理模块，支持 **Magisk、KernelSU 与 APatch**。使用 sing-box，通过 eBPF 或 TUN + auto_redirect 接管流量。
+
+日常操作可使用随模块提供的 Android 管理器，也可通过终端式模块 WebUI、CLI 或 sing-box Dashboard 管理。节点与订阅在服务停止时仍可浏览和编辑。
+
+## 界面预览
+
 <div align="center">
+  <img src="docs/public/Screenshot.jpg" width="60%" alt="wanBox Android 管理器界面预览" />
+</div>
 
-## 支持本项目
+## 主要功能
 
-·如果这个项目对你有帮助,请加入 TG 频道就是对我的最大鼓励
+- **透明代理**：eBPF 或 TUN 接管 TCP、UDP 与 DNS，支持热点和 USB 共享网络。
+- **节点与订阅**：导入节点链接、节点文本、Clash YAML 和 sing-box JSON；支持订阅筛选、请求头、流量信息与自动更新。
+- **节点选择与测速**：手动选择或自动优选，服务停止时也可测速。
+- **分应用代理**：黑名单 / 白名单，按 Android 用户分别配置，支持应用分身。
+- **网络策略**：规则、代理、直连与规则（允许广告）模式，按 Wi-Fi 名称和实际出口自动切换。
+- **配置与诊断**：编辑 sing-box 配置、本地规则，查看运行时配置与日志，导出脱敏诊断包。
 
-·If this project helps you, joining our TG channel is the best support you can give me.
+## 安装与开始使用
 
----
-## 📖 项目介绍 / Introduction
+运行环境为 `arm64-v8a` Android 设备与 Magisk、KernelSU 或 APatch，使用 Root 权限接管流量。
 
-**wanBoxForAndroid 从 OwnBoxForAndroid 的早期代码基础发展而来，目前由本仓库独立维护，拥有自己的代码、版本发布与功能路线；它不是 OwnBoxForAndroid 的官方版本，也不再以持续同步上游作为项目目标。项目面向已 Root 的 Android 设备，采用独立 Root TUN 模块承载内核与代理生命周期：模块自行保存节点、订阅与配置，并通过仅限回环的 HTTPS 管理接口对外提供能力，App 只做展示与指令下发，退出或被终止都不影响代理运行，也不提供普通 VPN 模式。当前正式版 v3.0.9，预览版 v3.0.10-preview.6，内核 sing-box v1.15.0-alpha.12，仅发布 arm64-v8a、面向 Android 12 及以上。历史功能范围以各版本发行说明为准。**
+默认使用 eBPF，可在“设置 → 入站设置”中选择 TUN。设备能力要求与安装选项见[安装与升级](https://www.github.com/Wuwan94/wanBoxForAndroid/guide/installation)。
 
-**wanBoxForAndroid evolved from an early OwnBoxForAndroid codebase and is independently maintained with its own code, releases, and roadmap. It is not an official OwnBoxForAndroid release and does not aim to continuously sync upstream. The project targets rooted Android devices and runs its core through an independent Root TUN module: the module owns node, subscription and configuration data and exposes a loopback-only HTTPS management API, while the app only presents state and sends commands, so the proxy keeps running after the app exits or is killed. Ordinary VPN mode is not offered. Current stable v3.0.9, preview v3.0.10-preview.6, powered by sing-box v1.15.0-alpha.12, arm64-v8a only and Android 12 or newer.**
+1. 从 [Releases](https://github.com/Wuwan94/wanBoxForAndroid/releases) 下载 `wanBox_<版本>_<构建号>.zip`，内含模块和 Android 管理器。
+2. 在 Root 管理器中刷入，按提示选择数据保留方式及是否安装管理器；等待安装完成。
+3. 打开 Android 管理器，自动连接模块，在“节点”页导入节点，或在“订阅”页添加订阅。
+4. 在“节点”页选择分组与自动 / 手动节点，返回“仪表盘”开启服务。
 
-项目起源、当前状态与发展方向详见[项目定位与发展说明](docs/project-positioning.zh-CN.md)。
+服务默认手动启动，开机自启可在“设置”中开启。首次配置参阅[快速开始](https://www.github.com/Wuwan94/wanBoxForAndroid/guide/quick-start)。
 
-### 当前架构要点 / Architecture Highlights
+## 使用文档
 
-* **模块拥有代理生命周期**：配置有效后由模块独立启动、监督与停止核心，App 退出、被清理或强行停止都不会中断代理。
-* **模块是数据真值**：节点、订阅与全局配置保存在模块 `store/` 目录，App 只做展示、编辑与指令下发；覆盖升级保留原有数据与设置。
-* **仅限回环的 HTTPS 管理面**：每次安装独立的 Bearer token + 自签证书钉扎，接口包含状态、事件流（SSE）、节点、订阅、配置、启停与热重载；核心停止时接口仍可访问。
-* **节点热切换不重启**：切换经 Clash API 选择器完成，状态由 `runtime/selection.json` 承载，界面按钮与节点名不闪烁。
-* **纯 Root TUN**：不提供 VPN 模式，也不申请 VPN 权限。
+| 内容 | 文档 |
+|---|---|
+| 安装与首次配置 | [安装与升级](https://www.github.com/Wuwan94/wanBoxForAndroid/guide/installation) · [快速开始](https://www.github.com/Wuwan94/wanBoxForAndroid/guide/quick-start) |
+| 节点、订阅与测速 | [节点与订阅](https://www.github.com/Wuwan94/wanBoxForAndroid/guide/nodes-subscriptions) |
+| 入站、分应用与共享网络 | [入站配置](https://www.github.com/Wuwan94/wanBoxForAndroid/config/inbound) · [eBPF](https://www.github.com/Wuwan94/wanBoxForAndroid/config/ebpf) · [TUN](https://www.github.com/Wuwan94/wanBoxForAndroid/config/tun) |
+| 网络自动切换 | [Wi-Fi 自动策略](https://www.github.com/Wuwan94/wanBoxForAndroid/guide/wifi-policy) |
+| 路由、DNS 与策略组 | [配置参考](https://www.github.com/Wuwan94/wanBoxForAndroid/config/singbox) · [策略分组](https://www.github.com/Wuwan94/wanBoxForAndroid/config/policy-groups) |
+| 终端、面板与第三方客户端 | [CLI](https://www.github.com/Wuwan94/wanBoxForAndroid/guide/cli) · [控制面板与 API](https://www.github.com/Wuwan94/wanBoxForAndroid/guide/control-panel) |
+| 故障排查与问题反馈 | [常见问题与诊断](https://www.github.com/Wuwan94/wanBoxForAndroid/guide/faq) |
 
-* **The module owns the proxy lifecycle**: once a config validates, the module starts, supervises and stops the core on its own; killing the app never tears the proxy down.
-* **The module is the source of truth**: nodes, subscriptions and global config live in the module's `store/` directory; the app only presents, edits and sends commands, and upgrades keep existing data.
-* **Loopback-only HTTPS management API**: a per-install bearer token plus self-signed certificate pinning, covering status, an SSE event stream, nodes, subscriptions, config, start/stop and hot reload; the API stays reachable while the core is stopped.
-* **Hot node switching without a restart**: switching goes through the Clash API selector and is persisted in `runtime/selection.json`, so the header button and node name never flicker.
-* **Root TUN only**: no VPN mode and no VPN permission.
+[更新日志](https://www.github.com/Wuwan94/wanBoxForAndroid/changelog) · [隐私政策](https://www.github.com/Wuwan94/wanBoxForAndroid/privacy)
 
----
+## 奶屁伙伴
 
-## 📥 发行版下载 / Downloads
+<p align="center">
+  <a href="https://www.github.com/Wuwan94/wanBoxForAndroid/mascot/dragon"><img src="docs/public/mascots/dragon/base.svg" width="144" alt="薄荷色像素奶屁龙" /></a>
+  <a href="https://www.github.com/Wuwan94/wanBoxForAndroid/mascot/niang"><img src="docs/public/mascots/niang/stickers/16-leave-it.png" width="144" alt="长发蓝蝴蝶结的奶屁娘：交给我" /></a>
+</p>
 
-请前往 **wanBoxForAndroid 自己的 GitHub Releases 页面**下载本仓库发布的 APK，并查看对应版本说明：
+**奶屁龙**，通路工坊的开路员。爱挖洞，也爱打盹，偶尔会把出口挖到饼干柜里。
 
-Download APKs published by **this wanBoxForAndroid repository** and read the release notes on its GitHub Releases page:
+**奶屁娘**，通路工坊的主人。讲究、有点傲娇，嘴上问着“日志呢？”，手里已经递来一杯热饮。
 
-👉 **[前往本仓库 GitHub Releases 下载 / Download from this repository's GitHub Releases](https://github.com/Wuwan94/wanBoxForAndroid/releases)**
+[工坊故事](https://www.github.com/Wuwan94/wanBoxForAndroid/mascot/) · [表情包](https://www.github.com/Wuwan94/wanBoxForAndroid/mascot/stickers) · [股东名册](https://www.github.com/Wuwan94/wanBoxForAndroid/mascot/supporters)
 
----
+## 源码结构
 
-### 📦 安装包架构说明 / Architecture Notes
+```text
+src/module/          模块安装与运行文件
+src/native/wanbox/ Go 原生组件
+src/webui/           终端式模块 WebUI
+src/android/         Android 管理器
+docs/                用户文档站
+tests/               契约与回归测试
+```
 
-从 **v3.0.7-preview.6** 起，本仓库新构建只发布 **arm64-v8a**，面向 Android 12 及以上。内部 x86_64 模拟器测试包不作为下载附件。
+开发流程与验证方法见[贡献指南](CONTRIBUTING.md)，架构和跨组件契约见 [AGENTS.md](AGENTS.md)，管理器构建见 [Android 说明](src/android/README.md)。
 
-From **v3.0.7-preview.6**, new public builds are **arm64-v8a only** and require Android 12 or newer. Internal x86_64 emulator fixtures are not release downloads.
+## 鸣谢
 
-当前版本的 Root 模块、内核与随包可执行文件均为 **arm64-v8a**，**ARMeabi-v7a、x86_64、x86 不再提供新构建**，仅存在于历史版本的发行说明与附件中。
+| 项目 | 用途 |
+|------|------|
+| [reF1nd/sing-box](https://github.com/reF1nd/sing-box) | 当前代理核心 |
+| [SagerNet/sing-box](https://github.com/SagerNet/sing-box) | 上游 sing-box 项目 |
+| [Proxylink](https://github.com/Wuwan94/wanBoxForAndroid) | wanBox 内部节点转换能力的原始项目 |
+| [AsteriskNG](https://github.com/Asterisk4Magisk/AsteriskNG) | Android eBPF 实现参考 |
+| [v2rayNG](https://github.com/2dust/v2rayNG) | 节点解析实现参考 |
 
-The Root module, core, and bundled executables in current versions are **arm64-v8a** only. **ARMeabi-v7a, x86_64 and x86 are no longer built**; they only exist in the release notes and assets of historical versions.
+同时感谢曾为早期版本提供核心能力或实现参考的 [CHIZI-0618/sing-box](https://github.com/CHIZI-0618/sing-box)、[Xray-core](https://github.com/XTLS/Xray-core)、[AndroidTProxyShell](https://github.com/CHIZI-0618/AndroidTProxyShell)、[IPSET_LKM](https://github.com/TanakaLun/IPSET_LKM) 与 [KsuWebUIStandalone](https://github.com/KOWX712/KsuWebUIStandalone)。
 
----
+## 交流与贡献
 
-## 💬 反馈与建议 / Issues & Feedback
+- [Telegram 群组](https://t.me/OwnBoxs)
+- [提交 Issue](https://github.com/Wuwan94/wanBoxForAndroid/issues)
+- [提交 Pull Request](https://github.com/Wuwan94/wanBoxForAndroid/pulls)
 
-遇到任何使用问题、连接异常或有新的功能建议，欢迎前往 **wanBoxForAndroid 自己的仓库议题页**提交反馈：
+## 许可证
 
-If you encounter any issues, connection errors, or have feature requests, please submit an issue to the **wanBoxForAndroid repository**:
+[GPL-3.0 License](LICENSE)
 
-👉 **[前往本仓库提交议题 / Submit an issue to this repository](https://github.com/Wuwan94/wanBoxForAndroid/issues)**
+## Star
+
+[![Star History Chart](https://star-history.dera.page/svg?repos=Wuwan94/wanBoxForAndroid&type=date&legend=top-left)](https://star-history.dera.page/#Wuwan94/wanBoxForAndroid&type=date&legend=top-left)

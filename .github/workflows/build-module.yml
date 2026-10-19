@@ -1,0 +1,136 @@
+name: 并行构建模块与管理器
+
+on:
+  workflow_call:
+    inputs:
+      verify-android:
+        description: 是否同时执行 Android 单元测试与 Lint
+        type: boolean
+        default: false
+    secrets:
+      ANDROID_KEYSTORE_BASE64:
+        required: true
+      ANDROID_KEYSTORE_PASSWORD:
+        required: true
+      ANDROID_KEY_ALIAS:
+        required: true
+      ANDROID_KEY_PASSWORD:
+        required: true
+    outputs:
+      version:
+        value: ${{ jobs.module.outputs.version }}
+      commit_count:
+        value: ${{ jobs.module.outputs.commit_count }}
+      module_name:
+        value: ${{ jobs.module.outputs.module_name }}
+
+permissions:
+  contents: read
+
+jobs:
+  module:
+    name: 验证并构建模块内容
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.pack.outputs.version }}
+      commit_count: ${{ steps.pack.outputs.commit_count }}
+      module_name: ${{ steps.pack.outputs.module_name }}
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: 构建并压缩模块内容
+        id: pack
+        uses: ./.github/actions/build-module
+        with:
+          posthog-project-token: ${{ vars.POSTHOG_PROJECT_TOKEN }}
+          posthog-host: ${{ vars.POSTHOG_HOST }}
+
+      - name: 保存已验证的模块内容
+        uses: actions/upload-artifact@v7
+        with:
+          name: module-content
+          path: ${{ steps.pack.outputs.module_name }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
+          overwrite: true
+
+  android:
+    name: 构建与验证 Android 管理器
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: 拉取 Android 源码与构建配置
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          sparse-checkout: |
+            src/android
+            src/module/config/singbox
+            .github/actions/verify-android
+            .github/scripts
+
+      - name: 构建并签名管理器，按需执行验证
+        uses: ./.github/actions/verify-android
+        with:
+          build-manager: 'true'
+          verify: ${{ inputs.verify-android }}
+          signing-keystore-base64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          signing-store-password: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          signing-key-alias: ${{ secrets.ANDROID_KEY_ALIAS }}
+          signing-key-password: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: 保存本次签名的管理器
+        uses: actions/upload-artifact@v7
+        with:
+          name: manager-binaries
+          path: |
+            src/module/wanBox.apk
+            src/android/platform/build/dex/classes.dex
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
+          overwrite: true
+
+  package:
+    name: 汇合模块与管理器
+    needs: [module, android]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      MODULE_NAME: ${{ needs.module.outputs.module_name }}
+    steps:
+      - name: 拉取打包脚本
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: 下载本次模块内容
+        uses: actions/download-artifact@v8
+        with:
+          name: module-content
+
+      - name: 下载本次签名管理器
+        uses: actions/download-artifact@v8
+        with:
+          name: manager-binaries
+          path: manager
+
+      - name: 完成唯一模块包
+        run: sh .github/scripts/complete-module.sh "$MODULE_NAME" manager/module/wanBox.apk manager/android/platform/build/dex/classes.dex
+
+      - name: 保存最终模块包
+        uses: actions/upload-artifact@v7
+        with:
+          name: module-package
+          path: ${{ env.MODULE_NAME }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
+          overwrite: true

@@ -1,0 +1,428 @@
+package main
+
+import (
+	"context"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/Wuwan94/wanBoxForAndroid/src/native/wanbox/internal/catalog"
+	"github.com/Wuwan94/wanBoxForAndroid/src/native/wanbox/internal/inbound"
+	moduleapp "github.com/Wuwan94/wanBoxForAndroid/src/native/wanbox/internal/module"
+	"github.com/Wuwan94/wanBoxForAndroid/src/native/wanbox/internal/service"
+	"github.com/Wuwan94/wanBoxForAndroid/src/native/wanbox/internal/subscription"
+)
+
+func TestSubscriptionAddRejectsInvalidProxyPolicyBeforeCatalogMutation(t *testing.T) {
+	options := moduleapp.NewOptions(t.TempDir())
+	command := &cli{options: options}
+	err := command.subscription(t.Context(), []string{"add", "--url", "https://example.test/sub", "--via-proxy", "invalid"})
+	structured, ok := errors.AsType[*subscription.Error](err)
+	if !ok || structured.Code != "subscription.proxy_mode_invalid" {
+		t.Fatalf("CLI 未复用订阅领域校验: %v", err)
+	}
+	if _, err := os.Stat(options.CatalogRoot); !os.IsNotExist(err) {
+		t.Fatal("非法设置创建了 Catalog", err)
+	}
+	if err := command.subscription(t.Context(), []string{"add", "--url", "https://example.test/sub", "--interval", "1m"}); err == nil {
+		t.Fatal("CLI 接受过短周期")
+	}
+}
+
+func TestSubscriptionFailureContract(t *testing.T) {
+	for _, state := range []string{"active", "canceled", "timeout"} {
+		for _, wrapped := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/wrapped=%t", state, wrapped), func(t *testing.T) {
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				if state == "canceled" {
+					cancel()
+				} else if state == "timeout" {
+					cancel()
+					ctx, cancel = context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
+					defer cancel()
+				}
+				var failure error = &subscription.Error{
+					Code: "subscription.runtime_sync_failed", Message: "订阅已保存但未同步",
+					Data: map[string]any{"persisted": true, "runtime_sync_pending": true},
+				}
+				if wrapped {
+					failure = fmt.Errorf("更新失败: %w", failure)
+				}
+				capture, err := os.CreateTemp(t.TempDir(), "stdout-")
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer capture.Close()
+				previous := os.Stdout
+				os.Stdout = capture
+				defer func() { os.Stdout = previous }()
+				status := (&cli{}).runCommand(ctx, func(context.Context, []string) error { return failure })
+				payload, err := os.ReadFile(capture.Name())
+				if err != nil {
+					t.Fatal(err)
+				}
+				var response result
+				if err := json.Unmarshal(payload, &response); err != nil {
+					t.Fatalf("stdout 不是单一 JSON: %s: %v", payload, err)
+				}
+				expected, err := json.Marshal(result{Schema: 1, OK: false, Code: "subscription.runtime_sync_failed", Message: "订阅已保存但未同步", Data: map[string]any{"persisted": true, "runtime_sync_pending": true}}, json.Deterministic(true))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if status != 1 || strings.TrimSpace(string(payload)) != string(expected) {
+					t.Fatalf("结构化订阅失败被覆盖: exit=%d response=%s", status, payload)
+				}
+			})
+		}
+	}
+}
+
+func TestCommandCancellationContract(t *testing.T) {
+	for _, test := range []struct {
+		cause   error
+		code    string
+		message string
+		status  int
+	}{
+		{context.Canceled, "command.canceled", "操作已取消", 1},
+		{context.DeadlineExceeded, "command.timeout", "命令执行超时", 124},
+	} {
+		t.Run(test.code, func(t *testing.T) {
+			capture, err := os.CreateTemp(t.TempDir(), "stdout-")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer capture.Close()
+			previous := os.Stdout
+			os.Stdout = capture
+			defer func() { os.Stdout = previous }()
+			status := (&cli{}).runCommand(t.Context(), func(context.Context, []string) error {
+				return fmt.Errorf("等待订阅更新: %w", test.cause)
+			})
+			payload, err := os.ReadFile(capture.Name())
+			if err != nil {
+				t.Fatal(err)
+			}
+			var response result
+			if err := json.Unmarshal(payload, &response); err != nil {
+				t.Fatal(err)
+			}
+			expected, err := json.Marshal(result{Schema: 1, OK: false, Code: test.code, Message: test.message, Data: map[string]any{}}, json.Deterministic(true))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if status != test.status || strings.TrimSpace(string(payload)) != string(expected) {
+				t.Fatalf("取消契约变化: exit=%d response=%s", status, payload)
+			}
+		})
+	}
+}
+
+func TestRuntimeModeFailureKeepsPersistedStateAfterTimeout(t *testing.T) {
+	capture, err := os.CreateTemp(t.TempDir(), "stdout-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer capture.Close()
+	previous := os.Stdout
+	os.Stdout = capture
+	defer func() { os.Stdout = previous }()
+	ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
+	defer cancel()
+	status := (&cli{}).runCommand(ctx, func(context.Context, []string) error {
+		return &service.Error{Code: "mode.runtime_sync_failed", Message: "已保存但未同步", Data: map[string]any{"persisted": true, "mode": "Office"}}
+	})
+	payload, err := os.ReadFile(capture.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var response struct {
+		Schema int    `json:"schema"`
+		OK     bool   `json:"ok"`
+		Code   string `json:"code"`
+		Data   struct {
+			Persisted bool   `json:"persisted"`
+			Mode      string `json:"mode"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(payload, &response); err != nil || status != 1 || response.Schema != 1 || response.OK || response.Code != "mode.runtime_sync_failed" || !response.Data.Persisted || response.Data.Mode != "Office" {
+		t.Fatalf("超时覆盖了持久化失败语义: exit=%d response=%s error=%v", status, payload, err)
+	}
+}
+
+func TestPublicCommandsKeepSingleJSONContract(t *testing.T) {
+	root := t.TempDir()
+	options := moduleapp.NewOptions(root)
+	options.StateFile = filepath.Join(root, "state", "service.json")
+	options.ProgressDir = filepath.Join(root, "state", "subscriptions")
+	options.WorkerPIDFile = filepath.Join(root, "state", "worker.pid")
+	options.WiFiStateFile = filepath.Join(root, "state", "wifi_state")
+	for path, content := range map[string]string{
+		options.ModuleConfig:                             "{\"selection\":{\"group_id\":\"default\"}}",
+		options.InboundConfig:                            `{"backend":"ebpf","root_policy":"default","app":{"enabled":false,"mode":"blacklist","proxy_apps":[],"bypass_apps":[]},"ebpf":{"type":"ebpf","tag":"wanbox-in","local":{"enabled":true},"shared":{"enabled":false}},"tun":{"type":"tun","tag":"wanbox-in","interface_name":"wanbox","address":["172.19.0.1/30"],"auto_route":true,"auto_redirect":true}}`,
+		filepath.Join(options.SingBoxDir, "config.json"): `{"experimental":{"clash_api":{"default_mode":"Rule"}},"route":{"rules":[{"clash_mode":["Rule","Proxy","Direct","RuleAllowAds"]}]}}`,
+	} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := catalog.InitializeGroup(t.Context(), catalog.GroupOptions{Root: options.CatalogRoot, GroupID: "default", Name: "本地配置", Type: "local"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := catalog.AppendNode(t.Context(), catalog.MutationOptions{GroupDir: filepath.Join(options.CatalogRoot, "default"), GroupID: "default", Input: "socks://127.0.0.1:1080#NODE"}); err != nil {
+		t.Fatal(err)
+	}
+	command := &cli{options: options}
+	for _, test := range []struct {
+		args   string
+		code   string
+		status int
+	}{
+		{"service status", "service.status", 0},
+		{"catalog list", "catalog.groups", 0},
+		{"catalog show default", "catalog.show", 0},
+		{"node list", "node.list", 0},
+		{"node current", "node.current", 0},
+		{"node use auto default", "node.selected", 0},
+		{"node use default/NODE", "node.selected", 0},
+		{"sub list", "subscription.list", 0},
+		{"mode", "mode.current", 0},
+		{"mode Proxy", "mode.changed", 0},
+		{"mode RuleAllowAds", "mode.changed", 0},
+		{"mode Rule", "mode.changed", 0},
+		{"mode proxy", "mode.invalid", 1},
+		{"mode Global", "mode.invalid", 1},
+		{"mode AllowAds", "mode.invalid", 1},
+		{"mode Rule extra", "usage.invalid", 2},
+		{"network evaluate --type not_wifi", "network.evaluated", 0},
+		{"app list", "app.list", 0},
+		{"config list", "config.list", 0},
+		{"config read module", "config.read", 0},
+		{"config read module/wifi", "config.read", 0},
+		{"config read module/auto_start", "config.read", 0},
+		{"logs show service", "logs.show", 0},
+		{"node get invalid", "node.ref_invalid", 2},
+		{"catalog show", "usage.invalid", 2},
+		{"node import missing.yaml custom", "usage.invalid", 2},
+	} {
+		t.Run(test.args, func(t *testing.T) {
+			capture, err := os.CreateTemp(t.TempDir(), "stdout-")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer capture.Close()
+			previous := os.Stdout
+			var status int
+			func() {
+				os.Stdout = capture
+				defer func() { os.Stdout = previous }()
+				status = command.run(t.Context(), append([]string{"--json"}, strings.Fields(test.args)...))
+			}()
+			payload, err := os.ReadFile(capture.Name())
+			if err != nil {
+				t.Fatal(err)
+			}
+			var response struct {
+				Schema int            `json:"schema"`
+				OK     bool           `json:"ok"`
+				Code   string         `json:"code"`
+				Data   jsontext.Value `json:"data"`
+			}
+			if err := json.Unmarshal(payload, &response); err != nil {
+				t.Fatalf("stdout 不是单一 JSON: %s: %v", payload, err)
+			}
+			if status != test.status || response.Schema != 1 || response.OK != (status == 0) || response.Code != test.code {
+				t.Fatalf("契约不匹配: exit=%d, %s", status, payload)
+			}
+			if test.args == "service status" {
+				var data map[string]jsontext.Value
+				if err := json.Unmarshal(response.Data, &data); err != nil || string(data["state"]) != `"stopped"` {
+					t.Fatalf("服务状态必须直接位于 data: %s: %v", response.Data, err)
+				}
+				if string(data["configured_outbound_mode"]) != `"Rule"` || string(data["available_outbound_modes"]) != `["Proxy","RuleAllowAds","Rule","Direct"]` {
+					t.Fatalf("模式字段未使用主配置: %s", response.Data)
+				}
+			}
+			if test.code == "mode.changed" {
+				var data struct {
+					Mode string `json:"mode"`
+				}
+				if err := json.Unmarshal(response.Data, &data); err != nil || data.Mode != strings.TrimPrefix(test.args, "mode ") {
+					t.Fatalf("模式名称未原样返回: %s: %v", response.Data, err)
+				}
+			}
+		})
+	}
+}
+
+func TestEBPFDiagnosticJSONContract(t *testing.T) {
+	root := t.TempDir()
+	options := moduleapp.NewOptions(root)
+	options.Telemetry = nil
+	binary := filepath.Join(root, "fake-core")
+	if runtime.GOOS == "windows" {
+		binary += ".exe"
+	}
+	build := exec.Command("go", "build", "-o", binary, "../../internal/inbound/testdata/fake-package")
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("构建诊断 fixture 失败: %v\n%s", err, output)
+	}
+	options.SingBoxPath = binary
+	if err := os.MkdirAll(filepath.Dir(options.InboundConfig), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	command := &cli{options: options}
+	t.Setenv("WANBOX_TEST_COMMAND_MODE", "probe")
+	for _, test := range []struct {
+		name    string
+		backend string
+		result  string
+		raw     bool
+		fail    bool
+		code    string
+		want    string
+	}{
+		{"ebpf", "ebpf", "preflight_passed", false, false, "ebpf.status", "eBPF 能力预检通过"},
+		{"tun", "tun", "preflight_passed", false, false, "ebpf.status", "eBPF 能力预检通过"},
+		{"raw", "tun", "preflight_passed", true, false, "ebpf.status", ""},
+		{"inconclusive", "tun", "inconclusive", false, true, "ebpf.unsupported", "部分必要检查无法确认"},
+		{"unsupported", "ebpf", "unsupported", false, true, "ebpf.unsupported", "缺少必要的 eBPF 能力"},
+		{"nonzero", "tun", "preflight_passed", false, true, "ebpf.unsupported", "诊断命令未正常完成"},
+		{"required-result-without-exit", "tun", "inconclusive", false, false, "ebpf.unsupported", "部分必要检查无法确认"},
+		{"old-result", "ebpf", "supported", false, false, "ebpf.status_invalid", "无法读取 eBPF 诊断报告"},
+		{"invalid-raw", "tun", "supported", true, false, "ebpf.status_invalid", ""},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			config := `{"backend":"` + test.backend + `","root_policy":"default","app":{"enabled":false,"mode":"blacklist","proxy_apps":[],"bypass_apps":[]},"ebpf":{"type":"ebpf","tag":"wanbox-in","local":{"enabled":true},"shared":{"enabled":false}},"tun":{"type":"tun","tag":"wanbox-in","interface_name":"wanbox","address":["172.19.0.1/30"],"auto_route":true,"auto_redirect":true}}`
+			if err := os.WriteFile(options.InboundConfig, []byte(config), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			report := inbound.ProbeReport{Mode: "local", LocalDataPlane: "cgroup", Network: []string{"tcp", "udp"}, Preflight: true, ExactObjectLoad: true, Result: test.result}
+			if test.result == "inconclusive" {
+				report.Summary.RequiredUnknowns = 1
+			} else if test.result == "unsupported" {
+				report.Summary.RequiredFailures = 1
+			}
+			payload, err := json.Marshal(report, json.Deterministic(true))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("WANBOX_TEST_PROBE_REPORT", string(payload))
+			t.Setenv("WANBOX_TEST_PROBE_FAIL", map[bool]string{true: "1", false: "0"}[test.fail])
+			capture, err := os.CreateTemp(t.TempDir(), "stdout-")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer capture.Close()
+			args := []string{"ebpf", "status", "configured"}
+			if test.raw {
+				args = append(args, "--raw")
+			}
+			previous := os.Stdout
+			var status int
+			func() {
+				os.Stdout = capture
+				defer func() { os.Stdout = previous }()
+				status = command.run(t.Context(), args)
+			}()
+			output, err := os.ReadFile(capture.Name())
+			if err != nil {
+				t.Fatal(err)
+			}
+			var response struct {
+				Schema  int    `json:"schema"`
+				OK      bool   `json:"ok"`
+				Code    string `json:"code"`
+				Message string `json:"message"`
+				Data    struct {
+					Mode    string              `json:"mode"`
+					Raw     bool                `json:"raw"`
+					Content string              `json:"content"`
+					Report  inbound.ProbeReport `json:"report"`
+				} `json:"data"`
+			}
+			if err := json.Unmarshal(output, &response); err != nil {
+				t.Fatalf("stdout 不是单一 JSON: %v\n%s", err, output)
+			}
+			if response.Schema != 1 || response.Code != test.code || response.OK != (status == 0) || response.OK != (test.code == "ebpf.status") || response.Data.Raw != test.raw {
+				t.Fatalf("诊断契约错误: exit=%d\n%s", status, output)
+			}
+			message := "eBPF 能力检查完成"
+			if test.code == "ebpf.unsupported" {
+				message = "eBPF 能力检查未通过"
+			} else if test.code == "ebpf.status_invalid" {
+				_, parseErr := inbound.ParseProbeReport(string(payload))
+				message = parseErr.Error()
+			}
+			if response.Message != message || (test.code != "ebpf.status_invalid" && response.Data.Mode != "configured") {
+				t.Fatalf("诊断消息或范围契约变化: %s", output)
+			}
+			if test.raw {
+				if response.Data.Content != string(payload) {
+					t.Fatalf("显式 raw 没有保留原始报告: %s", output)
+				}
+			} else if !strings.Contains(response.Data.Content, test.want) || jsontext.Value(response.Data.Content).IsValid() {
+				t.Fatalf("普通诊断没有返回可读正文: %s", output)
+			}
+			if test.code != "ebpf.status_invalid" && response.Data.Report.Result != test.result {
+				t.Fatalf("机器报告丢失: %s", output)
+			}
+			if current, err := os.ReadFile(options.InboundConfig); err != nil || string(current) != config {
+				t.Fatalf("诊断修改了保存的入站: %v\n%s", err, current)
+			}
+			if _, err := os.Stat(options.RuntimeDir); !os.IsNotExist(err) {
+				t.Fatalf("诊断不应生成运行时或启动服务: %v", err)
+			}
+		})
+	}
+}
+
+func TestSavedWiFiCommandContract(t *testing.T) {
+	root := t.TempDir()
+	binary := filepath.Join(root, "cmd")
+	if runtime.GOOS == "windows" {
+		binary += ".exe"
+	}
+	build := exec.Command("go", "build", "-o", binary, "../../internal/inbound/testdata/fake-package")
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("构建 Wi-Fi fixture 失败: %v\n%s", err, output)
+	}
+	t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("WANBOX_TEST_COMMAND_MODE", "wifi-list")
+	capture, err := os.CreateTemp(root, "stdout-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer capture.Close()
+	previous := os.Stdout
+	os.Stdout = capture
+	defer func() { os.Stdout = previous }()
+	status := (&cli{}).run(t.Context(), []string{"--json", "network", "wifi-list"})
+	content, err := os.ReadFile(capture.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var response struct {
+		Schema int    `json:"schema"`
+		OK     bool   `json:"ok"`
+		Code   string `json:"code"`
+		Data   struct {
+			SSIDs []string `json:"ssids"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(content, &response); err != nil || status != 0 || response.Schema != 1 || !response.OK || response.Code != "network.wifi_list" || len(response.Data.SSIDs) != 1 || response.Data.SSIDs[0] != "Home, Wi-Fi" {
+		t.Fatalf("已保存 Wi-Fi 契约错误: %s %v", content, err)
+	}
+}

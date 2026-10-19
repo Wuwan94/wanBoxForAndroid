@@ -1,0 +1,132 @@
+package com.lit008834.pixel.wanboxforandroid.feature.logs.presentation
+
+import com.lit008834.pixel.wanboxforandroid.core.api.*
+
+import com.lit008834.pixel.wanboxforandroid.feature.logs.data.*
+import kotlinx.coroutines.*
+import org.junit.Assert.*
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+
+class LogsViewModelTest {
+    @get:Rule val folder = TemporaryFolder()
+
+    private fun output(content: String) = apiSuccess("""{"content":"$content"}""")
+
+    @Test fun readFailureIsNotEmptyAndDoesNotAffectAnotherLogType() = runBlocking {
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        try {
+            val client = ModuleApiClient(transport = TestApiTransport { args ->
+                if (args.query["kind"] == "service") error("read failed") else output("")
+            })
+            val vm = LogsViewModel(LogRepository(client, folder.root), scope)
+            vm.refresh(LogType.SERVICE)
+            vm.refresh(LogType.KERNEL)
+            scope.coroutineContext.job.children.toList().joinAll()
+            assertFalse(vm.state.value.service.loading)
+            assertTrue(vm.state.value.service.error.isNotEmpty())
+            assertTrue(vm.state.value.kernel.entries.isEmpty())
+            assertFalse(vm.state.value.kernel.loading)
+            assertEquals("", vm.state.value.kernel.error)
+        } finally { scope.cancel() }
+    }
+
+    @Test fun refreshFailurePreservesLoadedLogsAndCanRecover() = runBlocking {
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        var fail = false
+        try {
+            val client = ModuleApiClient(transport = TestApiTransport { _ ->
+                if (fail) error("read failed") else output("retained")
+            })
+            val vm = LogsViewModel(LogRepository(client, folder.root), scope)
+            vm.refresh(LogType.KERNEL)
+            scope.coroutineContext.job.children.toList().joinAll()
+            fail = true
+            vm.refresh(LogType.KERNEL)
+            scope.coroutineContext.job.children.toList().joinAll()
+            assertEquals("retained", vm.state.value.kernel.entries.single().rawLine)
+            assertTrue(vm.state.value.kernel.error.isNotEmpty())
+            fail = false
+            vm.refresh(LogType.KERNEL)
+            scope.coroutineContext.job.children.toList().joinAll()
+            assertEquals("", vm.state.value.kernel.error)
+        } finally { scope.cancel() }
+    }
+
+    @Test fun clearFailureDoesNotBecomeAReadFailure() = runBlocking {
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        try {
+            val client = ModuleApiClient(transport = TestApiTransport { args ->
+                if (args.method == "DELETE") error("cannot clear") else output("")
+            })
+            val vm = LogsViewModel(LogRepository(client, folder.root), scope)
+            vm.refresh(LogType.KERNEL)
+            scope.coroutineContext.job.children.toList().joinAll()
+            val result = CompletableDeferred<Boolean>()
+            vm.clear(LogType.KERNEL) { result.complete(it) }
+            assertFalse(result.await())
+            assertFalse(vm.state.value.kernel.loading)
+            assertEquals("", vm.state.value.kernel.error)
+            assertTrue(vm.state.value.kernel.entries.isEmpty())
+        } finally { scope.cancel() }
+    }
+
+    @Test fun clearInvalidatesReadsStartedDuringTheWrite() = runBlocking {
+        val clearStarted = CompletableDeferred<Unit>()
+        val clearFinish = CompletableDeferred<Unit>()
+        val readStarted = CompletableDeferred<Unit>()
+        val readFinish = CompletableDeferred<Unit>()
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        try {
+            val client = ModuleApiClient(transport = TestApiTransport { args ->
+                if (args.method == "DELETE") {
+                    clearStarted.complete(Unit); clearFinish.await()
+                } else {
+                    readStarted.complete(Unit)
+                    withContext(NonCancellable) { readFinish.await() }
+                }
+                output("obsolete")
+            })
+            val vm = LogsViewModel(LogRepository(client, folder.root), scope)
+            val done = CompletableDeferred<Boolean>()
+            vm.clear(LogType.KERNEL) { done.complete(it) }
+            clearStarted.await()
+            vm.refresh(LogType.KERNEL)
+            readStarted.await()
+            clearFinish.complete(Unit)
+            assertTrue(done.await())
+            readFinish.complete(Unit)
+            scope.coroutineContext.job.children.toList().joinAll()
+            assertTrue(vm.state.value.kernel.entries.isEmpty())
+            assertEquals("", vm.state.value.kernel.error)
+        } finally { scope.cancel() }
+    }
+
+    @Test fun onlyTheLatestRefreshPublishes() = runBlocking {
+        val firstStarted = CompletableDeferred<Unit>()
+        val firstFinish = CompletableDeferred<Unit>()
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        var calls = 0
+        try {
+            val client = ModuleApiClient(transport = TestApiTransport { _ ->
+                if (++calls == 1) {
+                    firstStarted.complete(Unit)
+                    withContext(NonCancellable) { firstFinish.await() }
+                    output("obsolete")
+                } else output("latest")
+            })
+            val vm = LogsViewModel(LogRepository(client, folder.root), scope)
+            vm.refresh(LogType.KERNEL)
+            firstStarted.await()
+            vm.refresh(LogType.KERNEL)
+            withTimeout(2_000) {
+                while (vm.state.value.kernel.entries.isEmpty()) yield()
+            }
+            firstFinish.complete(Unit)
+            scope.coroutineContext.job.children.toList().joinAll()
+            assertEquals("latest", vm.state.value.kernel.entries.single().rawLine)
+            assertEquals("", vm.state.value.kernel.error)
+        } finally { scope.cancel() }
+    }
+}

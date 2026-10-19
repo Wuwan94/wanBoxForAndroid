@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/KernelSU-Modules/tools/main/schemas/module.schema.json
+schemaVersion: 1
+id: wanbox
+name: wanBox
+summary: Android sing-box 透明代理模块，支持 eBPF、TUN、节点订阅和应用代理。
+description: .github/kernelsu/README.md
+homepage: https://github.com/Wuwan94/wanBoxForAndroid
+support: https://github.com/Wuwan94/wanBoxForAndroid/issues
+icon: .github/kernelsu/icon.png
+tags: [network, proxy]
+authors:
+  - name: 雾晚
+    url: https://github.com/Wuwan94
+starsRepository: Wuwan94/wanBoxForAndroid
+compatibility:
+  architectures: [arm64-v8a]
+release:
+  assetPattern: "wanBox_*.zip"

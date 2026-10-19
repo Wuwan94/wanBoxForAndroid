@@ -1,0 +1,219 @@
+package com.lit008834.pixel.wanboxforandroid.feature.kernel.presentation
+
+import androidx.annotation.StringRes
+import com.lit008834.pixel.wanboxforandroid.R
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.coroutines.CancellationException
+
+/** sing-box Schema 与编辑器共用的 JSON 解析器。 */
+internal val singBoxSchemaJson = Json { ignoreUnknownKeys = true }
+
+internal class SingBoxEditorSchema(private val load: () -> JsonObject) {
+    val root: Result<JsonObject> by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { runCatching(load) }
+    val references: SingBoxSchemaReferenceResolver by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        SingBoxSchemaReferenceResolver(root.getOrThrow())
+    }
+
+    fun forDocument(documentId: String): SingBoxEditorSchema =
+        if (documentId == "inbound" || documentId.startsWith("inbound/")) {
+            SingBoxEditorSchema { editorSchema(root.getOrThrow(), documentId) }
+        } else this
+}
+
+internal fun interface SchemaText {
+    operator fun invoke(@StringRes id: Int, vararg args: Any): String
+}
+
+internal fun SchemaText.typeLabel(type: String): String = when (type) {
+    "string" -> invoke(R.string.schema_type_string)
+    "integer" -> invoke(R.string.schema_type_integer)
+    "number" -> invoke(R.string.schema_type_number)
+    "boolean" -> invoke(R.string.schema_type_boolean)
+    "object" -> invoke(R.string.schema_type_object)
+    "array" -> invoke(R.string.schema_type_array)
+    "null" -> invoke(R.string.schema_type_null)
+    else -> type
+}
+
+/** JSON 文本中的一基行列位置，供补全和校验结果统一使用。 */
+internal data class JsonSourcePosition(
+    val line: Int,
+    val column: Int,
+)
+
+/** 仅解析内置 Schema 的本地 JSON Pointer 引用，不允许访问网络。 */
+internal class SingBoxSchemaReferenceResolver(
+    private val root: JsonObject,
+) {
+    fun referencedSchema(
+        schema: JsonObject,
+        visitedRefs: Set<String>,
+    ): Pair<String, JsonObject>? {
+        val ref = schema["\$ref"]?.jsonPrimitive?.contentOrNull ?: return null
+        if (ref in visitedRefs || !ref.startsWith("#/")) return null
+
+        var target: JsonElement = root
+        ref.removePrefix("#/").split('/').forEach { rawSegment ->
+            val segment = rawSegment.replace("~1", "/").replace("~0", "~")
+            target = when (val current = target) {
+                is JsonObject -> current[segment]
+                is JsonArray -> segment.toIntOrNull()?.let(current::getOrNull)
+                else -> null
+            } ?: return null
+        }
+        return ref to (target as? JsonObject ?: return null)
+    }
+}
+
+/** 将字符偏移转换为一基行列位置。 */
+internal fun sourcePositionAt(text: String, rawOffset: Int): JsonSourcePosition {
+    val offset = rawOffset.coerceIn(0, text.length)
+    var line = 1
+    var lineStart = 0
+    for (index in 0 until offset) {
+        if (text[index] == '\n') {
+            line++
+            lineStart = index + 1
+        }
+    }
+    return JsonSourcePosition(line = line, column = offset - lineStart + 1)
+}
+
+/**
+ * 为有效 JSON 构建 JSON Pointer 到值起始位置的索引。
+ *
+ * `kotlinx.serialization` 负责语法解析；此扫描器只保留位置，避免为 Android
+ * 引入完整 JSON Schema 引擎及其 Jackson 依赖。
+ */
+internal fun buildJsonSourceIndex(
+    text: CharSequence,
+    checkCancellation: () -> Unit = {},
+): Map<String, JsonSourcePosition> = try {
+    JsonSourceIndexer(text, checkCancellation).build()
+} catch (error: CancellationException) {
+    throw error
+} catch (_: IllegalArgumentException) {
+    emptyMap()
+} catch (_: IllegalStateException) {
+    emptyMap()
+}
+
+private class JsonSourceIndexer(
+    private val text: CharSequence,
+    private val checkCancellation: () -> Unit,
+) {
+    private val positions = linkedMapOf<String, JsonSourcePosition>()
+    private var index = 0
+    private var line = 1
+    private var column = 1
+
+    fun build(): Map<String, JsonSourcePosition> {
+        checkCancellation()
+        skipWhitespace()
+        parseValue("")
+        return positions
+    }
+
+    private fun parseValue(path: String) {
+        checkCancellation()
+        skipWhitespace()
+        positions.putIfAbsent(path, JsonSourcePosition(line, column))
+        when (peek()) {
+            '{' -> parseObject(path)
+            '[' -> parseArray(path)
+            '"' -> consumeString(decode = false)
+            else -> consumePrimitive()
+        }
+    }
+
+    private fun parseObject(path: String) {
+        advance()
+        skipWhitespace()
+        if (consumeIf('}')) return
+
+        while (index < text.length) {
+            skipWhitespace()
+            val key = consumeString()
+            skipWhitespace()
+            require(consumeIf(':')) { "对象字段缺少冒号" }
+            parseValue("$path/${escapePointerSegment(key)}")
+            skipWhitespace()
+            if (consumeIf('}')) return
+            require(consumeIf(',')) { "对象字段缺少逗号" }
+        }
+        throw IllegalArgumentException("对象未闭合")
+    }
+
+    private fun parseArray(path: String) {
+        advance()
+        skipWhitespace()
+        if (consumeIf(']')) return
+
+        var itemIndex = 0
+        while (index < text.length) {
+            parseValue("$path/$itemIndex")
+            itemIndex++
+            skipWhitespace()
+            if (consumeIf(']')) return
+            require(consumeIf(',')) { "数组元素缺少逗号" }
+        }
+        throw IllegalArgumentException("数组未闭合")
+    }
+
+    private fun consumeString(decode: Boolean = true): String {
+        val start = index
+        require(consumeIf('"')) { "字符串应以引号开始" }
+        var escaped = false
+        while (index < text.length) {
+            val current = advance()
+            if (!escaped && current == '"') {
+                if (!decode) return ""
+                val literal = text.subSequence(start, index).toString()
+                return singBoxSchemaJson.parseToJsonElement(literal).jsonPrimitive.content
+            }
+            escaped = !escaped && current == '\\'
+            if (current != '\\') escaped = false
+        }
+        throw IllegalArgumentException("字符串未闭合")
+    }
+
+    private fun consumePrimitive() {
+        val start = index
+        while (index < text.length && text[index] !in ",]}" && !text[index].isWhitespace()) {
+            advance()
+        }
+        require(index > start) { "缺少 JSON 值" }
+    }
+
+    private fun skipWhitespace() {
+        while (index < text.length && text[index].isWhitespace()) advance()
+    }
+
+    private fun peek(): Char? = text.getOrNull(index)
+
+    private fun consumeIf(expected: Char): Boolean {
+        if (peek() != expected) return false
+        advance()
+        return true
+    }
+
+    private fun advance(): Char {
+        if (index and 1023 == 0) checkCancellation()
+        val current = text[index++]
+        if (current == '\n') {
+            line++
+            column = 1
+        } else {
+            column++
+        }
+        return current
+    }
+}
+
+private fun escapePointerSegment(value: String): String =
+    value.replace("~", "~0").replace("/", "~1")

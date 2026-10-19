@@ -1,0 +1,262 @@
+package com.lit008834.pixel.wanboxforandroid.feature.kernel.presentation
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Code
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.lit008834.pixel.wanboxforandroid.R
+import com.lit008834.pixel.wanboxforandroid.core.ui.component.AdaptiveTopAppBar
+import com.lit008834.pixel.wanboxforandroid.core.ui.component.AppSnackbarHost
+import com.lit008834.pixel.wanboxforandroid.core.ui.component.BackIconButton
+import com.lit008834.pixel.wanboxforandroid.core.ui.component.BlurredBar
+import com.lit008834.pixel.wanboxforandroid.core.ui.component.CardItem
+import com.lit008834.pixel.wanboxforandroid.core.ui.component.ContentStatus
+import com.lit008834.pixel.wanboxforandroid.core.ui.component.TopBarMenuAction
+import com.lit008834.pixel.wanboxforandroid.core.ui.component.TopBarMoreMenu
+import com.lit008834.pixel.wanboxforandroid.core.ui.component.groupedCardSection
+import com.lit008834.pixel.wanboxforandroid.core.ui.component.rememberAppSnackbarHostState
+import com.lit008834.pixel.wanboxforandroid.core.ui.component.rememberBlurBackdrop
+import com.lit008834.pixel.wanboxforandroid.navigation.LocalNavigator
+import com.lit008834.pixel.wanboxforandroid.navigation.Route
+import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SnackbarDuration
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
+import top.yukonga.miuix.kmp.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+
+/** 主配置分区、本地规则和只读运行时共用配置工作台。 */
+@Composable
+internal fun SingBoxKernelSettingsScreen(
+    viewModel: SingBoxConfigViewModel = com.lit008834.pixel.wanboxforandroid.core.di.wanboxViewModel(),
+    onBack: () -> Unit,
+) {
+    val navigator = LocalNavigator.current
+    val snackbarHostState = rememberAppSnackbarHostState()
+    val coroutineScope = rememberCoroutineScope()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val scrollBehavior = MiuixScrollBehavior()
+    val backdrop = rememberBlurBackdrop()
+    val barColor = if (backdrop != null) Color.Transparent else colorScheme.surface
+
+    LaunchedEffect(Unit) { viewModel.refreshDocuments() }
+
+    val configDocuments = state.documents.filter {
+        it.category == SingBoxDocumentCategory.Config
+    }
+    val localRuleDocuments = state.documents.filter {
+        it.category == SingBoxDocumentCategory.LocalRule
+    }
+    val runtimeDocuments = state.documents.filter {
+        it.category == SingBoxDocumentCategory.Runtime
+    }
+    val checkSuccess = stringResource(R.string.singbox_check_success)
+    val checkFailed = stringResource(R.string.singbox_check_failed)
+
+    Scaffold(
+        snackbarHost = { AppSnackbarHost(snackbarHostState) },
+        topBar = {
+            BlurredBar(backdrop) {
+                AdaptiveTopAppBar(
+                    color = barColor,
+                    title = stringResource(R.string.kernel_settings),
+                    navigationIcon = { BackIconButton(onClick = onBack) },
+                    scrollBehavior = scrollBehavior,
+                    actions = {
+                        var showMoreMenu by remember { mutableStateOf(false) }
+                        TopBarMoreMenu(
+                            expanded = showMoreMenu,
+                            onExpandedChange = { showMoreMenu = it },
+                            actions = listOf(
+                                TopBarMenuAction(
+                                    text = stringResource(R.string.restart_core),
+                                    enabled = state.documents.isNotEmpty(),
+                                    onClick = viewModel::restartService,
+                                ),
+                                TopBarMenuAction(
+                                    text = stringResource(R.string.singbox_check_all),
+                                    enabled = state.documents.isNotEmpty(),
+                                    onClick = {
+                                        viewModel.checkConfig { success ->
+                                            coroutineScope.launch {
+                                                snackbarHostState.showSnackbar(
+                                                    message = if (success) checkSuccess else checkFailed,
+                                                    withDismissAction = !success,
+                                                    duration = if (success) {
+                                                        SnackbarDuration.Short
+                                                    } else {
+                                                        SnackbarDuration.Long
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    },
+                                ),
+                            ),
+                            contentDescription = stringResource(R.string.more_actions),
+                        )
+                    },
+                )
+            }
+        },
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier),
+        ) {
+            if (state.documents.isEmpty()) {
+                ContentStatus(innerPadding, stringResource(
+                    if (state.documentsError) R.string.singbox_documents_load_failed else R.string.singbox_documents_empty),
+                    loading = state.isLoadingDocuments)
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .scrollEndHaptic()
+                        .overScrollVertical()
+                        .nestedScroll(scrollBehavior.nestedScrollConnection)
+                        .padding(horizontal = 12.dp),
+                    contentPadding = innerPadding,
+                    overscrollEffect = null,
+                ) {
+                    if (configDocuments.isNotEmpty()) {
+                        documentSection(
+                            keyPrefix = "singbox_config",
+                            title = { stringResource(R.string.singbox_main_config) },
+                            documents = configDocuments,
+                            onOpen = { navigator.push(Route.JsonEdit(it.id)) },
+                        )
+                    }
+                    if (localRuleDocuments.isNotEmpty()) {
+                        documentSection(
+                            keyPrefix = "singbox_local_rules",
+                            title = { stringResource(R.string.singbox_rule_files) },
+                            documents = localRuleDocuments,
+                            onOpen = { navigator.push(Route.JsonEdit(it.id)) },
+                        )
+                    }
+                    if (runtimeDocuments.isNotEmpty()) {
+                        documentSection(
+                            keyPrefix = "singbox_runtime",
+                            title = { stringResource(R.string.singbox_runtime_configs) },
+                            documents = runtimeDocuments,
+                            onOpen = { navigator.push(Route.JsonEdit(it.id)) },
+                        )
+                    }
+                    item { Spacer(Modifier.height(80.dp)) }
+                }
+            }
+        }
+    }
+}
+
+private fun androidx.compose.foundation.lazy.LazyListScope.documentSection(
+    keyPrefix: String,
+    title: @Composable () -> String,
+    documents: List<SingBoxDocument>,
+    onOpen: (SingBoxDocument) -> Unit,
+) {
+    groupedCardSection(
+        keyPrefix = keyPrefix,
+        title = title,
+        items = documents.map { document ->
+            CardItem(document.id) {
+                ArrowPreference(
+                    title = documentTitle(document),
+                    summary = documentSummary(document),
+                    startAction = {
+                        Icon(
+                            imageVector = Icons.Rounded.Code,
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 6.dp),
+                            tint = colorScheme.onBackground,
+                        )
+                    },
+                    onClick = { onOpen(document) },
+                )
+            }
+        },
+    )
+}
+
+@Composable
+internal fun documentTitle(document: SingBoxDocument): String = when (
+    if (document.id == "inbound" || document.id.startsWith("inbound/")) document.id
+    else document.section.ifEmpty { document.id }
+) {
+    "inbound" -> stringResource(R.string.inbound_full_json)
+    "inbound/backend" -> stringResource(R.string.inbound_backend)
+    "inbound/root_policy" -> stringResource(R.string.inbound_root_processes)
+    "inbound/ebpf" -> stringResource(R.string.ebpf_core_settings)
+    "inbound/tun" -> stringResource(R.string.tun_settings)
+    "singbox/config.json" -> stringResource(R.string.singbox_document_full)
+    "outbounds" -> stringResource(R.string.singbox_document_outbounds)
+    "log" -> stringResource(R.string.singbox_document_log)
+    "experimental" -> stringResource(R.string.singbox_document_experimental)
+    "dns" -> stringResource(R.string.singbox_document_dns)
+    "inbounds" -> stringResource(R.string.singbox_document_inbounds)
+    "providers" -> stringResource(R.string.singbox_document_providers)
+    "endpoints" -> stringResource(R.string.singbox_document_endpoints)
+    "ntp" -> stringResource(R.string.singbox_document_ntp)
+    "certificate" -> stringResource(R.string.singbox_document_certificate)
+    "certificate_providers" -> stringResource(R.string.singbox_document_certificate_providers)
+    "network_namespaces" -> stringResource(R.string.singbox_document_network_namespaces)
+    "route" -> stringResource(R.string.singbox_document_route)
+    "http_clients" -> stringResource(R.string.singbox_document_http_clients)
+    "services" -> stringResource(R.string.singbox_document_services)
+    else -> document.filename
+}
+
+@Composable
+private fun documentSummary(document: SingBoxDocument): String {
+    val description = when (document.section.ifEmpty { document.id }) {
+        "singbox/config.json" -> stringResource(R.string.singbox_document_full_summary)
+        "outbounds" -> stringResource(R.string.singbox_document_outbounds_summary)
+        "log" -> stringResource(R.string.singbox_document_log_summary)
+        "experimental" -> stringResource(R.string.singbox_document_experimental_summary)
+        "dns" -> stringResource(R.string.singbox_document_dns_summary)
+        "inbounds" -> stringResource(R.string.singbox_document_inbounds_summary)
+        "providers" -> stringResource(R.string.singbox_document_providers_summary)
+        "endpoints" -> stringResource(R.string.singbox_document_endpoints_summary)
+        "ntp" -> stringResource(R.string.singbox_document_ntp_summary)
+        "certificate" -> stringResource(R.string.singbox_document_certificate_summary)
+        "certificate_providers" -> stringResource(R.string.singbox_document_certificate_providers_summary)
+        "network_namespaces" -> stringResource(R.string.singbox_document_network_namespaces_summary)
+        "route" -> stringResource(R.string.singbox_document_route_summary)
+        "http_clients" -> stringResource(R.string.singbox_document_http_clients_summary)
+        "services" -> stringResource(R.string.singbox_document_services_summary)
+        else -> when (document.category) {
+            SingBoxDocumentCategory.LocalRule -> stringResource(R.string.singbox_document_source_summary)
+            SingBoxDocumentCategory.Runtime -> stringResource(R.string.singbox_document_runtime_summary)
+            SingBoxDocumentCategory.Config -> stringResource(R.string.singbox_document_custom_summary)
+            SingBoxDocumentCategory.Inbound -> stringResource(R.string.inbound_full_json)
+        }
+    }
+    return if (document.editable) {
+        "${document.filename} · $description"
+    } else {
+        "${document.filename} · ${stringResource(R.string.read_only)} · $description"
+    }
+}

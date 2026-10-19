@@ -1,0 +1,123 @@
+name: 构建与验证 Android 管理器
+description: 共用 Android 环境与 Gradle 调用，按需验证并用固定密钥签名管理器
+
+inputs:
+  build-manager:
+    description: 是否构建并签名当前源码的 CI 管理器
+    default: 'false'
+  verify:
+    description: 是否执行 Android 单元测试与 Lint
+    default: 'true'
+  assemble-debug:
+    description: 是否额外构建 Debug APK
+    default: 'false'
+  signing-keystore-base64:
+    description: 固定签名密钥库的 Base64 内容，通过 GitHub Secrets 传入
+  signing-store-password:
+    description: 密钥库密码，通过 GitHub Secrets 传入
+  signing-key-alias:
+    description: 固定签名私钥别名，通过 GitHub Secrets 传入
+  signing-key-password:
+    description: 私钥密码，通过 GitHub Secrets 传入
+
+runs:
+  using: composite
+  steps:
+    - name: 计算管理器构建元信息
+      if: inputs.build-manager == 'true'
+      id: meta
+      shell: bash
+      env:
+        SIGNING_KEYSTORE_BASE64: ${{ inputs.signing-keystore-base64 }}
+        SIGNING_STORE_PASSWORD: ${{ inputs.signing-store-password }}
+        SIGNING_KEY_ALIAS: ${{ inputs.signing-key-alias }}
+        SIGNING_KEY_PASSWORD: ${{ inputs.signing-key-password }}
+      run: |
+        : "${SIGNING_KEYSTORE_BASE64:?缺少固定签名密钥库}"
+        : "${SIGNING_STORE_PASSWORD:?缺少密钥库密码}"
+        : "${SIGNING_KEY_ALIAS:?缺少签名私钥别名}"
+        : "${SIGNING_KEY_PASSWORD:?缺少私钥密码}"
+        sh .github/scripts/build-metadata.sh >> "$GITHUB_OUTPUT"
+
+    - name: 配置 Android JDK
+      uses: actions/setup-java@v6
+      with:
+        distribution: temurin
+        java-version: 25
+
+    - name: 配置 Gradle 缓存
+      uses: gradle/actions/setup-gradle@v5
+
+    - name: 确认 Android SDK 组件
+      shell: bash
+      run: |
+        if [ ! -f "$ANDROID_HOME/platforms/android-37.0/android.jar" ] ||
+           [ ! -x "$ANDROID_HOME/build-tools/37.0.0/aapt2" ]; then
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            'platforms;android-37.0' 'build-tools;37.0.0' --channel=1
+        fi
+
+    - name: 构建管理器并执行所需验证
+      shell: bash
+      working-directory: src/android
+      env:
+        BUILD_MANAGER: ${{ inputs.build-manager }}
+        VERIFY_ANDROID: ${{ inputs.verify }}
+        ASSEMBLE_DEBUG: ${{ inputs.assemble-debug }}
+        MANAGER_VERSION: ${{ steps.meta.outputs.manager_version }}
+        BUILD_ID: ${{ steps.meta.outputs.short_sha }}
+      run: |
+        set --
+        if [ "$BUILD_MANAGER" = true ]; then
+          set -- :app:assembleRelease :platform:assembleDex \
+            -PwanboxManagerCi=true \
+            -PwanboxManagerBuildId="$BUILD_ID" \
+            -PwanboxManagerVersion="$MANAGER_VERSION"
+        fi
+        if [ "$VERIFY_ANDROID" = true ]; then
+          set -- "$@" testDebugUnitTest :scripta:editor:testAndroidHostTest :scripta:editor:desktopTest lintDebug :platform:assembleDex
+        fi
+        if [ "$ASSEMBLE_DEBUG" = true ]; then
+          set -- "$@" :app:assembleDebug
+        fi
+        test "$#" -gt 0
+        ./gradlew "$@" --build-cache --parallel --no-daemon
+
+    - name: 使用固定密钥签名管理器
+      if: inputs.build-manager == 'true'
+      shell: bash
+      env:
+        MANAGER_VERSION: ${{ steps.meta.outputs.manager_version }}
+        BUILD_ID: ${{ steps.meta.outputs.short_sha }}
+        COMMIT_COUNT: ${{ steps.meta.outputs.commit_count }}
+        SIGNING_KEYSTORE_BASE64: ${{ inputs.signing-keystore-base64 }}
+        SIGNING_STORE_PASSWORD: ${{ inputs.signing-store-password }}
+        SIGNING_KEY_ALIAS: ${{ inputs.signing-key-alias }}
+        SIGNING_KEY_PASSWORD: ${{ inputs.signing-key-password }}
+      run: |
+        set -euo pipefail
+        umask 077
+        KEYSTORE="$RUNNER_TEMP/wanbox-signing.jks"
+        UNSIGNED_APK="src/android/app/build/outputs/apk/release/app-release-unsigned.apk"
+        SIGNED_APK="$RUNNER_TEMP/wanBox.apk"
+        trap 'rm -f "$KEYSTORE" "$SIGNED_APK" "$SIGNED_APK.idsig"' EXIT
+
+        APK_INFO="$("$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "$UNSIGNED_APK")"
+        printf '%s\n' "$APK_INFO" | grep -F "name='com.lit008834.pixel.wanboxforandroid'"
+        printf '%s\n' "$APK_INFO" | grep -F "versionCode='$COMMIT_COUNT'"
+        printf '%s\n' "$APK_INFO" | grep -F "versionName='${MANAGER_VERSION}-ci.${BUILD_ID}'"
+
+        printf '%s' "$SIGNING_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
+
+        "$ANDROID_HOME/build-tools/37.0.0/apksigner" sign \
+          --ks "$KEYSTORE" \
+          --ks-key-alias "$SIGNING_KEY_ALIAS" \
+          --ks-pass env:SIGNING_STORE_PASSWORD \
+          --key-pass env:SIGNING_KEY_PASSWORD \
+          --v4-signing-enabled false \
+          --out "$SIGNED_APK" "$UNSIGNED_APK"
+        "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose "$SIGNED_APK"
+        EXPECTED_SIGNER="$(sed -n 's/.*MANAGER_CERTIFICATE_SHA256 = "\([a-f0-9]*\)";.*/\1/p' src/android/platform/src/main/java/com/lit008834/wanbox/platform/Main.java)"
+        test "${#EXPECTED_SIGNER}" -eq 64
+        "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs "$SIGNED_APK" | grep -F "certificate SHA-256 digest: $EXPECTED_SIGNER"
+        install -m 0644 "$SIGNED_APK" src/module/wanBox.apk

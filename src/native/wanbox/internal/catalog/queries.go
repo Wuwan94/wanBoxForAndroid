@@ -1,0 +1,181 @@
+package catalog
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/Wuwan94/wanBoxForAndroid/src/native/wanbox/internal/provider"
+	"github.com/Wuwan94/wanBoxForAndroid/src/native/wanbox/internal/sharelink"
+)
+
+// ResolveGroup 按分组 ID 或唯一显示名称解析分组。
+func ResolveGroup(ctx context.Context, root, query string) (string, error) {
+	if strings.TrimSpace(root) == "" || strings.TrimSpace(query) == "" {
+		return "", errors.New("Catalog 根目录和分组查询不能为空")
+	}
+	release, err := acquireCatalogRootAndRecover(ctx, root)
+	if err != nil {
+		return "", err
+	}
+	defer release()
+	if isValidGroupID(query) {
+		info, err := os.Stat(filepath.Join(root, query))
+		if err == nil && info.IsDir() {
+			return query, nil
+		}
+		if err != nil && !os.IsNotExist(err) {
+			return "", err
+		}
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return "", err
+	}
+	match := ""
+	count := 0
+	for _, entry := range entries {
+		if !isGroupDir(entry) {
+			continue
+		}
+		metadata, err := loadMetadata(filepath.Join(root, entry.Name(), "meta.json"), entry.Name())
+		if err != nil {
+			return "", fmt.Errorf("读取分组 %s 元数据: %w", entry.Name(), err)
+		}
+		if metadata.Name != query {
+			continue
+		}
+		match = entry.Name()
+		count++
+	}
+	if count == 1 {
+		return match, nil
+	}
+	if count > 1 {
+		return "", fmt.Errorf("分组名称不唯一: %s", query)
+	}
+	return "", fmt.Errorf("分组不存在: %s", query)
+}
+
+// GroupContainsTag 判断分组是否包含指定节点标签。
+func GroupContainsTag(ctx context.Context, root, groupID, tag string) (bool, error) {
+	release, err := acquireCatalogRootAndRecover(ctx, root)
+	if err != nil {
+		return false, err
+	}
+	defer release()
+	found, err := provider.FileContainsTag(ctx, filepath.Join(root, groupID, "provider.json"), tag)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return found, nil
+}
+
+// GroupNode 返回分组中指定节点的标准 Provider JSON。
+func GroupNode(ctx context.Context, root, groupID, tag string) (provider.Document, error) {
+	release, err := acquireCatalogRootAndRecover(ctx, root)
+	if err != nil {
+		return provider.Document{}, err
+	}
+	defer release()
+	document, err := loadGroupProvider(ctx, root, groupID)
+	if err != nil {
+		return provider.Document{}, err
+	}
+	selected, found := provider.Select(document, tag)
+	if !found {
+		return provider.Document{}, fmt.Errorf("未找到节点标签 %q", tag)
+	}
+	return selected, nil
+}
+
+// GroupProvider 返回分组当前 Provider 的只读快照。
+func GroupProvider(ctx context.Context, root, groupID string) (provider.Document, error) {
+	release, err := acquireCatalogRootAndRecover(ctx, root)
+	if err != nil {
+		return provider.Document{}, err
+	}
+	defer release()
+	return loadGroupProvider(ctx, root, groupID)
+}
+
+// ExportGroupNode 将 Catalog 节点导出为分享链接。
+func ExportGroupNode(ctx context.Context, root, groupID, tag string) (sharelink.Result, error) {
+	release, err := acquireCatalogRootAndRecover(ctx, root)
+	if err != nil {
+		return sharelink.Result{}, err
+	}
+	defer release()
+	document, err := loadGroupProvider(ctx, root, groupID)
+	if err != nil {
+		return sharelink.Result{}, err
+	}
+	return sharelink.Export(document, tag)
+}
+
+// PrivateMetadata 返回订阅编辑所需的完整元数据。
+func PrivateMetadata(ctx context.Context, root, groupID string) (Metadata, error) {
+	if !isValidGroupID(groupID) {
+		return Metadata{}, fmt.Errorf("非法分组 ID: %s", groupID)
+	}
+	release, err := acquireCatalogRootAndRecover(ctx, root)
+	if err != nil {
+		return Metadata{}, err
+	}
+	defer release()
+	return LoadMetadataLocked(filepath.Join(root, groupID, "meta.json"), groupID)
+}
+
+// GroupType 返回分组类型。
+func GroupType(ctx context.Context, root, groupID string) (string, error) {
+	metadata, err := PrivateMetadata(ctx, root, groupID)
+	if err != nil {
+		return "", err
+	}
+	return metadata.Type, nil
+}
+
+// DeleteGroup 删除 Catalog 分组目录。
+func DeleteGroup(ctx context.Context, root, groupID string) error {
+	if !isValidGroupID(groupID) || groupID == "default" {
+		return fmt.Errorf("不允许删除分组: %s", groupID)
+	}
+	release, err := acquireCatalogMutation(ctx, root, groupID)
+	if err != nil {
+		return err
+	}
+	defer release()
+	groupDir := filepath.Join(root, groupID)
+	if _, err := os.Stat(groupDir); err != nil {
+		return err
+	}
+	return os.RemoveAll(groupDir)
+}
+
+func loadGroupProvider(ctx context.Context, root, groupID string) (provider.Document, error) {
+	if strings.TrimSpace(root) == "" || !isValidGroupID(groupID) {
+		return provider.Document{}, errors.New("Catalog 分组参数无效")
+	}
+	return provider.LoadAllowEmpty(ctx, filepath.Join(root, groupID, "provider.json"))
+}
+
+// ProviderContainsTagDocument 判断已加载 Provider 是否包含标签。
+func ProviderContainsTagDocument(document provider.Document, tag string) bool {
+	for _, outbound := range document.Outbounds {
+		if outbound.Tag == tag {
+			return true
+		}
+	}
+	for _, endpoint := range document.Endpoints {
+		if endpoint.Tag == tag {
+			return true
+		}
+	}
+	return false
+}

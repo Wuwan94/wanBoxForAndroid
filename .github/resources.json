@@ -1,0 +1,127 @@
+{
+  "raw": [
+    {
+      "name": "Ads_AWAvenue",
+      "path": "src/module/config/singbox/rules/remote/Ads_AWAvenue.json",
+      "url": "https://raw.githubusercontent.com/TG-Twilight/AWAvenue-Ads-Rule/main/Filters/AWAvenue-Ads-Rule-Singbox.json",
+      "repo": "TG-Twilight/AWAvenue-Ads-Rule",
+      "ref": "main",
+      "sourcePath": "Filters/AWAvenue-Ads-Rule-Singbox.json",
+      "metadataPath": "Filters/AWAvenue-Ads-Rule-Singbox.json",
+      "currentCommit": "a5599253ba5240e1c8dc60dfc9ddade8e7b96c79",
+      "currentSha256": "23cab6d71cc577b18d8081ad4db3a13baf2f5196378c05893494464074d04fa1"
+    },
+    {
+      "name": "geosite/category-ads-all",
+      "path": "src/module/config/singbox/rules/remote/geosite/category-ads-all.srs",
+      "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/category-ads-all.srs",
+      "repo": "MetaCubeX/meta-rules-dat",
+      "ref": "sing",
+      "sourcePath": "geo/geosite/category-ads-all.srs",
+      "metadataPath": "geo/geosite/category-ads-all.json",
+      "currentCommit": "d9e3c4c09747d325d28e9bfe8829011135cfbbbf",
+      "currentSha256": "4df355d40543a0a4272be663fd479c209f765142e4bbe6aff042748c911139db"
+    },
+    {
+      "name": "geosite/apple-cn",
+      "path": "src/module/config/singbox/rules/remote/geosite/apple-cn.srs",
+      "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/apple-cn.srs",
+      "repo": "MetaCubeX/meta-rules-dat",
+      "ref": "sing",
+      "sourcePath": "geo/geosite/apple-cn.srs",
+      "metadataPath": "geo/geosite/apple-cn.json",
+      "currentCommit": "ff12703ce5252a6b54298a835729f3abdd61ba6e",
+      "currentSha256": "7bcb786a9bd4b84f554d377b5bc768360ae2a069451daa944e25501fe21499c0"
+    },
+    {
+      "name": "geosite/category-ai-!cn",
+      "path": "src/module/config/singbox/rules/remote/geosite/category-ai-!cn.srs",
+      "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/category-ai-%21cn.srs",
+      "repo": "MetaCubeX/meta-rules-dat",
+      "ref": "sing",
+      "sourcePath": "geo/geosite/category-ai-!cn.srs",
+      "metadataPath": "geo/geosite/category-ai-!cn.json",
+      "currentCommit": "1bbe90f849505bcbcea530d8fbc127ad7877eb2a",
+      "currentSha256": "ecd8c691ff2728d4f479f621dab170c92d757ba916606efe37bf392111762dc1"
+    },
+    {
+      "name": "geosite/google",
+      "path": "src/module/config/singbox/rules/remote/geosite/google.srs",
+      "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/google.srs",
+      "repo": "MetaCubeX/meta-rules-dat",
+      "ref": "sing",
+      "sourcePath": "geo/geosite/google.srs",
+      "metadataPath": "geo/geosite/google.json",
+      "currentCommit": "1bbe90f849505bcbcea530d8fbc127ad7877eb2a",
+      "currentSha256": "1f1a046775fbf136da45ab4435cee9450e0b98cab1f429e79d54604f073f8b15"
+    },
+    {
+      "name": "geosite/geolocation-!cn",
+      "path": "src/module/config/singbox/rules/remote/geosite/geolocation-!cn.srs",
+      "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/geolocation-%21cn.srs",
+      "repo": "MetaCubeX/meta-rules-dat",
+      "ref": "sing",
+      "sourcePath": "geo/geosite/geolocation-!cn.srs",
+      "metadataPath": "geo/geosite/geolocation-!cn.json",
+      "currentCommit": "d9e3c4c09747d325d28e9bfe8829011135cfbbbf",
+      "currentSha256": "9bcf2560e2aa40c52173a60b0ed89a383e1bc172aa69633d576505cae97176c4"
+    },
+    {
+      "name": "geosite/cn",
+      "path": "src/module/config/singbox/rules/remote/geosite/cn.srs",
+      "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/cn.srs",
+      "repo": "MetaCubeX/meta-rules-dat",
+      "ref": "sing",
+      "sourcePath": "geo/geosite/cn.srs",
+      "metadataPath": "geo/geosite/cn.json",
+      "currentCommit": "1bbe90f849505bcbcea530d8fbc127ad7877eb2a",
+      "currentSha256": "66f3c2324558f166b1ecb1237fdeac29f98af8b9e84d18f501c44445f97e25be"
+    },
+    {
+      "name": "geoip/cn",
+      "path": "src/module/config/singbox/rules/remote/geoip/cn.srs",
+      "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/cn.srs",
+      "repo": "MetaCubeX/meta-rules-dat",
+      "ref": "sing",
+      "sourcePath": "geo/geoip/cn.srs",
+      "metadataPath": "geo/geoip/cn.json",
+      "currentCommit": "d9e3c4c09747d325d28e9bfe8829011135cfbbbf",
+      "currentSha256": "d5a12d61f726d63c0835fd7233de1b3186204aed51c07167f9650936224293ec"
+    },
+    {
+      "name": "geoip/telegram",
+      "path": "src/module/config/singbox/rules/remote/geoip/telegram.srs",
+      "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/telegram.srs",
+      "repo": "MetaCubeX/meta-rules-dat",
+      "ref": "sing",
+      "sourcePath": "geo/geoip/telegram.srs",
+      "metadataPath": "geo/geoip/telegram.json",
+      "currentCommit": "0b3efbf6fc8076742c2dd36eddb8791c8121aa71",
+      "currentSha256": "c5ae208004b0752baee307348ef820b9fe9e8aa3a14556f54af68791b6d4030b"
+    }
+  ],
+  "singBox": {
+    "path": "src/module/bin/sing-box",
+    "repo": "reF1nd/sing-box",
+    "tagPattern": "^v[0-9].*-reF1nd$",
+    "currentVersion": "v1.15.0-alpha.11-reF1nd",
+    "buildTags": [
+      "with_quic",
+      "with_utls",
+      "with_clash_api",
+      "with_tailscale",
+      "badlinkname",
+      "tfogo_checklinkname0",
+      "with_ebpf"
+    ]
+  },
+  "githubArchive": [
+    {
+      "path": "src/module/webroot/sing-box-dashboard",
+      "repo": "SagerNet/sing-box-dashboard",
+      "ref": "gh-pages",
+      "currentCommit": "edca5a83ccd91f474d7942b990b360e12292b4a8",
+      "currentSourceCommit": "f231354bc786dfcffcf09f6ec771bc5683050194"
+    }
+  ]
+}

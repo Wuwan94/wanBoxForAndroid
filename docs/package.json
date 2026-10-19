@@ -1,0 +1,20 @@
+{
+  "name": "wanbox-docs",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev --host",
+    "check:content": "node scripts/check-content.mjs",
+    "check:mascots": "node scripts/build-mascots.mjs --check",
+    "build:mascots": "node scripts/build-mascots.mjs",
+    "test": "vitest run",
+    "check": "npm run check:content && npm run check:mascots && npm test",
+    "build": "npm run check && vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "^2.0.0-alpha.20",
+    "vitest": "^3.2.7"
+  }
+}

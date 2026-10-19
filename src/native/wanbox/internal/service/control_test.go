@@ -1,0 +1,413 @@
+package service
+
+import (
+	"bytes"
+	"context"
+	"encoding/binary"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	json "encoding/json/v2"
+
+	"github.com/Wuwan94/wanBoxForAndroid/src/native/wanbox/internal/catalog"
+	"github.com/Wuwan94/wanBoxForAndroid/src/native/wanbox/internal/provider"
+	"google.golang.org/protobuf/encoding/protowire"
+)
+
+func modeConfigFixture(t *testing.T, root, mode string) string {
+	t.Helper()
+	path := filepath.Join(root, "config.json")
+	content := fmt.Sprintf(`{"experimental":{"clash_api":{"default_mode":%q}},"route":{"rules":[{"clash_mode":["Proxy","Direct","RuleAllowAds"]}]}}`, mode)
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func writeCatalogFixture(t *testing.T, root string) {
+	t.Helper()
+	groupDir := filepath.Join(root, "default")
+	if err := os.MkdirAll(groupDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	metadata := catalog.NewMetadata("default", "本地配置", "local", "", time.Now())
+	metadata.NodeCount = 1
+	if err := catalog.SaveMetadataAtomic(context.Background(), filepath.Join(groupDir, "meta.json"), metadata); err != nil {
+		t.Fatal(err)
+	}
+	providerJSON := []byte(`{"outbounds":[{"type":"socks","tag":"NODE","server":"example.com","server_port":1080}]}`)
+	if err := provider.WriteAtomic(filepath.Join(groupDir, "provider.json"), providerJSON, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReadStatusWithoutService(t *testing.T) {
+	temp := t.TempDir()
+	moduleConfig := filepath.Join(temp, "module.json")
+	if err := os.WriteFile(moduleConfig, []byte("{\"selection\":{\"group_id\":\"default\",\"node_tag\":\"\"}}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	status, err := ReadStatus(context.Background(), Options{SingBoxConfig: modeConfigFixture(t, temp, "Proxy"),
+		CatalogRoot:  filepath.Join(temp, "catalog"),
+		ModuleConfig: moduleConfig,
+		StateFile:    filepath.Join(temp, "service.json"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.State != "stopped" || status.OutboundMode != "Proxy" ||
+		status.ConfiguredOutboundMode != "Proxy" || status.ActiveGroupID != "default" {
+		t.Fatalf("停止服务时应回退到配置模式: %#v", status)
+	}
+	if status.PID != nil || status.WorkerState != "stopped" {
+		t.Fatalf("unexpected process state: %#v", status)
+	}
+	if status.CPUCount < 1 {
+		t.Fatalf("invalid CPU count: %d", status.CPUCount)
+	}
+	encoded, err := json.Marshal(status, json.Deterministic(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(encoded, []byte("subscription_worker")) {
+		t.Fatalf("status 不应继续输出旧 Worker 字段: %s", encoded)
+	}
+	if !bytes.Contains(encoded, []byte(`"worker_state"`)) || !bytes.Contains(encoded, []byte(`"worker_pid"`)) {
+		t.Fatalf("status 缺少后台 Worker 字段: %s", encoded)
+	}
+}
+
+func TestReadStatusPropagatesCatalogLockDeadline(t *testing.T) {
+	temp := t.TempDir()
+	moduleConfig := filepath.Join(temp, "module.json")
+	if err := os.WriteFile(moduleConfig, []byte("{\"selection\":{\"group_id\":\"default\"}}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	root := filepath.Join(temp, "catalog")
+	release, err := catalog.AcquireRoot(t.Context(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	ctx, cancel := context.WithTimeout(t.Context(), 40*time.Millisecond)
+	defer cancel()
+	_, err = ReadStatus(ctx, Options{SingBoxConfig: modeConfigFixture(t, temp, "Rule"),
+		CatalogRoot: root, ModuleConfig: moduleConfig,
+		StateFile:     filepath.Join(temp, "service.json"),
+		ProgressDir:   filepath.Join(temp, "subscriptions"),
+		WorkerPIDFile: filepath.Join(temp, "worker.pid"),
+	})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("等锁超时不能转换成成功的服务状态: %v", err)
+	}
+}
+
+func writeServiceAPIFrame(t *testing.T, writer io.Writer, payload []byte) {
+	t.Helper()
+	header := make([]byte, 5)
+	binary.BigEndian.PutUint32(header[1:], uint32(len(payload)))
+	if _, err := writer.Write(header); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := writer.Write(payload); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func serviceStatusFixture(t *testing.T, mode string, modeAvailable bool) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		var payload []byte
+		switch request.URL.Path {
+		case "/daemon.StartedService/GetClashModeStatus":
+			if modeAvailable {
+				payload = protowire.AppendTag(payload, 2, protowire.BytesType)
+				payload = protowire.AppendBytes(payload, []byte(mode))
+			}
+		case "/daemon.StartedService/SubscribeStatus", "/daemon.StartedService/SubscribeGroups":
+		default:
+			http.NotFound(writer, request)
+			return
+		}
+		writeServiceAPIFrame(t, writer, payload)
+	}))
+}
+
+func withServiceProcess(t *testing.T, pid int) {
+	t.Helper()
+	original := serviceFindProcess
+	serviceFindProcess = func(string, int) int { return pid }
+	t.Cleanup(func() { serviceFindProcess = original })
+}
+
+func writeReadyServiceState(t *testing.T, path string, pid int) {
+	t.Helper()
+	content := []byte(`{"state":"ready","pid":` + fmt.Sprint(pid) + `,"started_at":1700000000,"ready_at":1700000005,"error":""}`)
+	if err := os.WriteFile(path, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReadStatusUsesActualServiceAPIMode(t *testing.T) {
+	temp := t.TempDir()
+	moduleConfig := filepath.Join(temp, "module.json")
+	stateFile := filepath.Join(temp, "service.json")
+	if err := os.WriteFile(moduleConfig, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeReadyServiceState(t, stateFile, 123)
+	server := serviceStatusFixture(t, "Proxy", true)
+	defer server.Close()
+	withServiceProcess(t, 123)
+
+	status, err := ReadStatus(context.Background(), Options{SingBoxConfig: modeConfigFixture(t, temp, "Rule"),
+		ModuleConfig: moduleConfig, StateFile: stateFile, ServiceAddress: server.URL,
+		RequestTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.OutboundMode != "Proxy" || status.ConfiguredOutboundMode != "Rule" {
+		t.Fatalf("Service API 实际模式未正确映射: %#v", status)
+	}
+}
+
+func TestReadStatusFetchesIndependentServiceAPISnapshotsConcurrently(t *testing.T) {
+	temp := t.TempDir()
+	catalogRoot := filepath.Join(temp, "catalog")
+	moduleConfig := filepath.Join(temp, "module.json")
+	stateFile := filepath.Join(temp, "service.json")
+	writeCatalogFixture(t, catalogRoot)
+	if err := os.WriteFile(moduleConfig, []byte("{\"selection\":{\"group_id\":\"default\"}}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeReadyServiceState(t, stateFile, 123)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		time.Sleep(100 * time.Millisecond)
+		var payload []byte
+		if request.URL.Path == "/daemon.StartedService/GetClashModeStatus" {
+			payload = protowire.AppendTag(payload, 2, protowire.BytesType)
+			payload = protowire.AppendBytes(payload, []byte("Rule"))
+		}
+		writeServiceAPIFrame(t, writer, payload)
+	}))
+	defer server.Close()
+	withServiceProcess(t, 123)
+
+	started := time.Now()
+	status, err := ReadStatus(context.Background(), Options{SingBoxConfig: modeConfigFixture(t, temp, "Rule"),
+		CatalogRoot: catalogRoot, ModuleConfig: moduleConfig, StateFile: stateFile,
+		ServiceAddress: server.URL, RequestTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := time.Since(started); elapsed >= 250*time.Millisecond {
+		t.Fatalf("Service API 独立快照仍在串行读取: %s", elapsed)
+	}
+	if status.OutboundMode != "Rule" {
+		t.Fatalf("并发快照丢失模式: %#v", status)
+	}
+}
+
+func TestReadStatusServiceAPIFailureDoesNotUseConfiguredMode(t *testing.T) {
+	temp := t.TempDir()
+	moduleConfig := filepath.Join(temp, "module.json")
+	stateFile := filepath.Join(temp, "service.json")
+	if err := os.WriteFile(moduleConfig, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeReadyServiceState(t, stateFile, 123)
+	withServiceProcess(t, 123)
+
+	status, err := ReadStatus(context.Background(), Options{SingBoxConfig: modeConfigFixture(t, temp, "RuleAllowAds"),
+		ModuleConfig: moduleConfig, StateFile: stateFile, ServiceAddress: "127.0.0.1:1",
+		RequestTimeout: 20 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.OutboundMode != unknownOutboundMode || status.ConfiguredOutboundMode != "RuleAllowAds" {
+		t.Fatalf("Service API 不可用时错误回退到配置模式: %#v", status)
+	}
+}
+
+func TestReadStatusEmptyModeAndRecovery(t *testing.T) {
+	temp := t.TempDir()
+	moduleConfig := filepath.Join(temp, "module.json")
+	stateFile := filepath.Join(temp, "service.json")
+	if err := os.WriteFile(moduleConfig, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeReadyServiceState(t, stateFile, 123)
+	mode := ""
+	server := serviceStatusFixture(t, mode, true)
+	defer server.Close()
+	withServiceProcess(t, 123)
+
+	options := Options{SingBoxConfig: modeConfigFixture(t, temp, "Direct"), ModuleConfig: moduleConfig, StateFile: stateFile, ServiceAddress: server.URL, RequestTimeout: time.Second}
+	status, err := ReadStatus(context.Background(), options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.OutboundMode != unknownOutboundMode || status.ConfiguredOutboundMode != "Direct" {
+		t.Fatalf("空 Service API 模式未返回 unknown: %#v", status)
+	}
+
+	server.Close()
+	server = serviceStatusFixture(t, "Rule", true)
+	defer server.Close()
+	options.ServiceAddress = server.URL
+	status, err = ReadStatus(context.Background(), options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.OutboundMode != "Rule" || status.ConfiguredOutboundMode != "Direct" {
+		t.Fatalf("Service API 恢复后未返回实际模式: %#v", status)
+	}
+}
+
+func TestReadStatusOldSnapshotDoesNotClaimConfiguredMode(t *testing.T) {
+	temp := t.TempDir()
+	moduleConfig := filepath.Join(temp, "module.json")
+	stateFile := filepath.Join(temp, "service.json")
+	if err := os.WriteFile(moduleConfig, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeReadyServiceState(t, stateFile, 123)
+	withServiceProcess(t, 0)
+
+	status, err := ReadStatus(context.Background(), Options{SingBoxConfig: modeConfigFixture(t, temp, "Proxy"),
+		ModuleConfig: moduleConfig, StateFile: stateFile, ServiceAddress: "127.0.0.1:1",
+		RequestTimeout: 20 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.State != "failed" || status.OutboundMode != unknownOutboundMode || status.ConfiguredOutboundMode != "Proxy" {
+		t.Fatalf("旧服务快照错误声明了配置模式: %#v", status)
+	}
+}
+
+func TestProcessMatchingDoesNotMatchControlCommand(t *testing.T) {
+	if processMatches(os.Getpid(), "sing-box") {
+		t.Fatal("当前 wanboxctl 进程不应被识别为 sing-box")
+	}
+	if executableMatches("/data/adb/modules/wanbox/bin/sing-box", "/data/adb/modules/wanbox/bin/sing-box") != true {
+		t.Fatal("相同的可执行文件路径应匹配")
+	}
+	if executableMatches("/data/adb/modules/wanbox/bin/wanboxctl", "/data/adb/modules/wanbox/bin/sing-box") {
+		t.Fatal("不同的可执行文件不应匹配")
+	}
+	if executableMatches("/data/adb/modules/other/bin/sing-box", "/data/adb/modules/wanbox/bin/sing-box") {
+		t.Fatal("不同目录中的同名 sing-box 不应匹配")
+	}
+	if !executableMatches("/data/adb/modules/wanbox/bin/sing-box (deleted)", "/data/adb/modules/wanbox/bin/sing-box") {
+		t.Fatal("已删除但路径相同的进程应保持可识别")
+	}
+}
+
+func TestReadGroupsUnavailable(t *testing.T) {
+	_, err := ReadGroups(context.Background(), Options{
+		ServiceAddress: "127.0.0.1:1",
+		RequestTimeout: 10,
+	})
+	if err == nil {
+		t.Fatal("expected an unavailable Service API error")
+	}
+}
+
+func TestReadSelectionAndSnapshotWithoutService(t *testing.T) {
+	temp := t.TempDir()
+	catalogRoot := filepath.Join(temp, "catalog")
+	moduleConfig := filepath.Join(temp, "module.json")
+	writeCatalogFixture(t, catalogRoot)
+	if err := os.WriteFile(moduleConfig, []byte("{\"selection\":{\"group_id\":\"default\",\"node_tag\":\"\"}}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	options := Options{CatalogRoot: catalogRoot, ModuleConfig: moduleConfig}
+	selection, err := ReadSelection(context.Background(), options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selection.Selected != "Auto/本地配置" || selection.ActiveGroupName != "本地配置" || selection.ActiveGroupNodeCount != 1 {
+		t.Fatalf("unexpected automatic selection: %#v", selection)
+	}
+	if err := os.WriteFile(moduleConfig, []byte("{\"selection\":{\"group_id\":\"default\",\"node_tag\":\"NODE\"}}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	selection, err = ReadSelection(context.Background(), options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selection.Selected != "default/NODE" || selection.SelectedNodeRef != "default/NODE" {
+		t.Fatalf("unexpected manual selection: %#v", selection)
+	}
+	snapshot, err := ReadSnapshot(context.Background(), options, "本地配置")
+	if err != nil || len(snapshot.Groups) != 1 || snapshot.Selection.Selected != "default/NODE" {
+		t.Fatalf("unexpected snapshot: %#v, err=%v", snapshot, err)
+	}
+}
+
+func TestReadModeWithoutService(t *testing.T) {
+	temp := t.TempDir()
+	moduleConfig := filepath.Join(temp, "module.json")
+	if err := os.WriteFile(moduleConfig, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	state, err := ReadMode(context.Background(), Options{SingBoxConfig: modeConfigFixture(t, temp, "RuleAllowAds"), ModuleConfig: moduleConfig, ServiceAddress: "127.0.0.1:1"})
+	if err != nil || state.Mode != "RuleAllowAds" || len(state.Available) != 3 || state.RuntimeMode != "" {
+		t.Fatalf("unexpected mode state: %#v, err=%v", state, err)
+	}
+}
+
+func TestDelayTargetResolution(t *testing.T) {
+	temp := t.TempDir()
+	catalogRoot := filepath.Join(temp, "catalog")
+	moduleConfig := filepath.Join(temp, "module.json")
+	writeCatalogFixture(t, catalogRoot)
+	if err := os.WriteFile(moduleConfig, []byte("{\"selection\":{\"group_id\":\"default\",\"node_tag\":\"\"}}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	options := Options{CatalogRoot: catalogRoot, ModuleConfig: moduleConfig}
+	request, err := resolveDelayRequest(context.Background(), options, "auto", "本地配置")
+	if err != nil || request.Target != "Auto/本地配置" {
+		t.Fatalf("automatic target = %q, err=%v", request.Target, err)
+	}
+	if err := os.WriteFile(moduleConfig, []byte("{\"selection\":{\"group_id\":\"default\",\"node_tag\":\"NODE\"}}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	request, err = resolveDelayRequest(context.Background(), options, "", "")
+	if err != nil || request.Target != "本地配置/NODE" {
+		t.Fatalf("manual target = %q, err=%v", request.Target, err)
+	}
+}
+
+func TestDelayAndCloseAllConnectionsUnavailable(t *testing.T) {
+	temp := t.TempDir()
+	catalogRoot := filepath.Join(temp, "catalog")
+	moduleConfig := filepath.Join(temp, "module.json")
+	writeCatalogFixture(t, catalogRoot)
+	if err := os.WriteFile(moduleConfig, []byte("{\"selection\":{\"group_id\":\"default\",\"node_tag\":\"\"}}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	options := Options{
+		CatalogRoot:    catalogRoot,
+		ModuleConfig:   moduleConfig,
+		ServiceAddress: "127.0.0.1:1",
+		RequestTimeout: 10 * time.Millisecond,
+	}
+	if _, err := Delay(context.Background(), options, "auto", "default"); err == nil {
+		t.Fatal("expected URLTest to fail when Service API is unavailable")
+	}
+	if err := CloseAllConnections(context.Background(), options); err == nil {
+		t.Fatal("expected close-all to fail when Service API is unavailable")
+	}
+}

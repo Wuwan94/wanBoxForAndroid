@@ -1,0 +1,37 @@
+package com.lit008834.pixel.wanboxforandroid.core.module
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+@Serializable
+internal data class ServiceStatusSnapshot(
+    val state: String = "stopped",
+    val pid: Int? = null,
+    @SerialName("started_at") val startedAt: Long = 0,
+    @SerialName("core_started_at_millis") val coreStartedAtMillis: Long = 0,
+    @SerialName("ready_at") val readyAt: Long = 0,
+    @SerialName("uptime_seconds") val uptimeSeconds: Long = 0,
+    val error: String = "",
+    @SerialName("outbound_mode") val outboundMode: String = "unknown",
+    @SerialName("configured_outbound_mode") val configuredOutboundMode: String = "",
+    @SerialName("available_outbound_modes") val availableOutboundModes: List<String> = emptyList(),
+    @SerialName("configured_backend") val configuredBackend: String = "",
+    @SerialName("active_backend") val activeBackend: String? = null,
+    @SerialName("selector_mode") val selectorMode: String = "urltest",
+    @SerialName("active_group_id") val activeGroupId: String = "",
+    @SerialName("active_group_name") val activeGroupName: String = "",
+    @SerialName("active_group_runtime_tag") val activeGroupRuntimeTag: String = "",
+    @SerialName("active_group_node_count") val activeGroupNodeCount: Int = 0,
+    @SerialName("selected_node_ref") val selectedNodeRef: String = "",
+    @SerialName("runtime_selected") val runtimeSelected: String = "",
+    @SerialName("memory_bytes") val memoryBytes: Long = 0,
+    @SerialName("process_cpu_ticks") val processCpuTicks: Long = 0,
+    @SerialName("system_cpu_ticks") val systemCpuTicks: Long = 0,
+    @SerialName("cpu_count") val cpuCount: Int = 1,
+    @SerialName("connections_in") val connectionsIn: Int = 0,
+    @SerialName("connections_out") val connectionsOut: Int = 0,
+    @SerialName("upload_total") val uploadTotal: Long = 0,
+    @SerialName("download_total") val downloadTotal: Long = 0,
+    @SerialName("worker_state") val workerState: String = "stopped",
+    @SerialName("worker_pid") val workerPid: Int? = null
+)

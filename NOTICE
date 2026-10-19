@@ -1,0 +1,28 @@
+wanBox
+Copyright (C) 2026 Wuwan94
+
+This project is distributed under the GNU General Public License v3.0.
+
+Third-party components and adapted code include:
+
+- reF1nd/sing-box and SagerNet/sing-box
+  https://github.com/reF1nd/sing-box
+  https://github.com/SagerNet/sing-box
+  Licensed under the GNU General Public License v3.0.
+
+- Scripta
+  https://github.com/YuKongA/scripta
+  Vendored in src/android/third_party/scripta with wanBox-specific changes.
+  Copyright its contributors, licensed under the Apache License 2.0.
+
+- Miuix
+  https://github.com/compose-miuix-ui/miuix
+  Copyright its contributors, licensed under the Apache License 2.0.
+
+- AndroidLiquidGlass
+  https://github.com/Kyant0/AndroidLiquidGlass
+  Copyright its contributors, licensed under the Apache License 2.0.
+
+Additional build and runtime dependencies retain their respective copyrights
+and licenses. Dependency coordinates are declared in the Go modules, npm
+manifests, and src/android/gradle/libs.versions.toml.

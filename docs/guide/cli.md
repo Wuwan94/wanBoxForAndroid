@@ -1,0 +1,161 @@
+# CLI
+
+公共命令入口固定为：
+
+```text
+/data/adb/modules/wanbox/wanboxctl
+```
+
+它不在系统 `PATH` 中，设备命令应使用完整路径和 Root：
+
+```sh
+su -c '/data/adb/modules/wanbox/wanboxctl help'
+```
+
+## 输出契约
+
+公共命令返回 `schema=1` JSON。stdout 只包含一份结果，运行日志和诊断写 stderr。脚本应同时检查进程退出码、`ok`、`code` 和 `schema`，不要从中文 `message` 猜测机器状态。
+
+```json
+{
+  "schema": 1,
+  "ok": true,
+  "code": "service.status",
+  "message": "服务状态",
+  "data": {}
+}
+```
+
+默认命令超时为 30 秒，`service start` 默认为 120 秒。可使用 `--timeout 5m` 显式覆盖。
+
+## 命令组
+
+```text
+service  catalog  node  sub  mode
+network  app      ebpf  config  logs  api
+```
+
+以设备上当前二进制的 `help` 输出为权威清单。
+
+## 模块 HTTP API
+
+```sh
+su -c '/data/adb/modules/wanbox/wanboxctl api init'
+su -c '/data/adb/modules/wanbox/wanboxctl api start'
+su -c '/data/adb/modules/wanbox/wanboxctl api status'
+su -c '/data/adb/modules/wanbox/wanboxctl api access'
+```
+
+安装时自动初始化独立随机凭据，`init` 不会覆盖已有配置。`start` 启动或唤醒唯一后台宿主，并检查 HTTP 接口实际就绪状态。`access` 返回地址与私有凭据，仅供 Root 客户端连接，不要分享输出。关闭 sing-box 不关闭管理接口。
+
+接口、鉴权与请求格式见 [HTTP API](/config/http-api)。
+
+## 服务与模式
+
+```sh
+su -c '/data/adb/modules/wanbox/wanboxctl service status'
+su -c '/data/adb/modules/wanbox/wanboxctl service start'
+su -c '/data/adb/modules/wanbox/wanboxctl service stop'
+su -c '/data/adb/modules/wanbox/wanboxctl service restart'
+su -c '/data/adb/modules/wanbox/wanboxctl service reload'
+
+su -c '/data/adb/modules/wanbox/wanboxctl mode'
+su -c '/data/adb/modules/wanbox/wanboxctl mode Rule'
+su -c '/data/adb/modules/wanbox/wanboxctl mode Proxy'
+su -c '/data/adb/modules/wanbox/wanboxctl mode Direct'
+su -c '/data/adb/modules/wanbox/wanboxctl mode RuleAllowAds'
+```
+
+`mode` 返回主配置默认模式、可选模式及运行时实际模式。默认配置中的 `Rule`、`Proxy`、`Direct`、`RuleAllowAds` 分别对应规则、代理、直连、规则（允许广告）。模式名称来自主配置规则，不限定为以上四种；配置、CLI 和 API 使用同一名称。
+
+`service status.data.outbound_mode` 是核心当前实际模式；`configured_outbound_mode` 来自主配置的 `experimental.clash_api.default_mode`，`available_outbound_modes` 是可选模式列表。服务停止时显示默认模式，运行时 API 不可用则显示 `unknown`。Wi-Fi 策略只改变运行时结果，不覆盖默认模式。
+
+`configured_backend` 是保存入站选择的字符串；`active_backend` 可为空，仅在 `ready`、实际 PID 与启动记录匹配、API 毫秒级启动身份一致时非空，否则为 `null`，不能用保存值猜测当前后端。
+
+## 节点与订阅
+
+```sh
+su -c '/data/adb/modules/wanbox/wanboxctl catalog list'
+su -c '/data/adb/modules/wanbox/wanboxctl node list'
+su -c '/data/adb/modules/wanbox/wanboxctl node add "vless://..."'
+su -c '/data/adb/modules/wanbox/wanboxctl node import /sdcard/Download/nodes.json'
+su -c '/data/adb/modules/wanbox/wanboxctl node use auto default'
+su -c '/data/adb/modules/wanbox/wanboxctl node use default/<节点标签>'
+su -c '/data/adb/modules/wanbox/wanboxctl node delay auto default'
+su -c '/data/adb/modules/wanbox/wanboxctl node export default/<节点标签>'
+
+su -c '/data/adb/modules/wanbox/wanboxctl sub add https://example.com/sub'
+su -c '/data/adb/modules/wanbox/wanboxctl sub list'
+su -c '/data/adb/modules/wanbox/wanboxctl sub update <分组 ID>'
+su -c '/data/adb/modules/wanbox/wanboxctl sub update-all'
+su -c '/data/adb/modules/wanbox/wanboxctl sub history <分组 ID>'
+su -c '/data/adb/modules/wanbox/wanboxctl sub cancel <分组 ID>'
+```
+
+节点引用固定为 `<分组ID>/<tag>`。自定义订阅 Header 使用 `--headers-file`，避免鉴权信息出现在 `/proc/<pid>/cmdline`。
+
+## 分应用与网络策略
+
+```sh
+su -c '/data/adb/modules/wanbox/wanboxctl app list'
+su -c '/data/adb/modules/wanbox/wanboxctl app mode whitelist'
+su -c '/data/adb/modules/wanbox/wanboxctl app add 0:com.example.app'
+su -c '/data/adb/modules/wanbox/wanboxctl app remove 0:com.example.app'
+su -c '/data/adb/modules/wanbox/wanboxctl app enable'
+su -c '/data/adb/modules/wanbox/wanboxctl app disable'
+
+su -c '/data/adb/modules/wanbox/wanboxctl network evaluate --type wifi --ssid "Home WiFi"'
+```
+
+应用引用必须是 `<用户ID>:<包名>`。配置保存引用而不是 UID；生成运行时配置时，Go 组件按指定用户向 Android package service 查询 UID。
+
+名单保存在 `inbound.json` 的共用 `app` 对象。服务运行时，有效策略变化自动应用；批量修改可通过 `inbound/app` 分区一次保存。只筛选本机应用，不识别热点客户端。
+
+`network evaluate` 是高级排查入口。正常情况下后台 Worker 会根据 Android 网络事件自动评估，不需要定时手工调用。
+
+## eBPF、配置与日志
+
+```sh
+su -c '/data/adb/modules/wanbox/wanboxctl ebpf status configured'
+su -c '/data/adb/modules/wanbox/wanboxctl ebpf status all --raw'
+
+su -c '/data/adb/modules/wanbox/wanboxctl network wifi-list'
+su -c '/data/adb/modules/wanbox/wanboxctl network evaluate --type wifi --ssid "Home Wi-Fi"'
+
+su -c '/data/adb/modules/wanbox/wanboxctl config list'
+su -c '/data/adb/modules/wanbox/wanboxctl config read module'
+su -c '/data/adb/modules/wanbox/wanboxctl config read module/wifi'
+su -c '/data/adb/modules/wanbox/wanboxctl config read module/auto_start'
+su -c '/data/adb/modules/wanbox/wanboxctl config read inbound'
+su -c '/data/adb/modules/wanbox/wanboxctl config read inbound/backend'
+su -c '/data/adb/modules/wanbox/wanboxctl config read inbound/ebpf'
+su -c '/data/adb/modules/wanbox/wanboxctl config read inbound/tun'
+su -c '/data/adb/modules/wanbox/wanboxctl config read singbox/dns'
+su -c '/data/adb/modules/wanbox/wanboxctl config read singbox/config.json'
+su -c '/data/adb/modules/wanbox/wanboxctl config check'
+su -c '/data/adb/modules/wanbox/wanboxctl config validate singbox/dns /sdcard/candidate.json'
+
+su -c '/data/adb/modules/wanbox/wanboxctl logs show service 100'
+su -c '/data/adb/modules/wanbox/wanboxctl logs show core 100'
+su -c '/data/adb/modules/wanbox/wanboxctl logs export /sdcard/Download/wanbox-diagnostics.tar.gz'
+```
+
+`ebpf status` 默认返回整理后的 eBPF 能力诊断，`--raw` 返回 sing-box 原始输出；不代表实际 backend，没有 `tun status` 命令。诊断包不会导出 Catalog 节点内容。
+
+`network wifi-list` 仅查询已保存的 Wi-Fi 名称，不扫描附近网络；JSON 的 `data.ssids` 为字符串数组。`network evaluate` 按提供的真实网络状态应用策略，类型为 `wifi` 或 `not_wifi`。
+
+`config list` 同时列出主配置、分区、本地规则和只读运行时。`singbox/dns` 的候选内容必须使用 `{"dns": {...}}`，`{}` 表示删除该字段；不能包含其他分区。完整替换使用 `singbox/config.json`。
+
+模块设置的唯一文件是 `config/module.json`，`module` 目标读取或替换整份 JSON。`module/wifi` 与 `module/auto_start` 分别使用 `{"wifi": {...}}`、`{"auto_start": true}`，拥有独立 revision；在同一个 `module.json.lock` 内合并最新其他字段，保留并发节点选择。分区不能用 `{}` 删除或携带其他顶层字段。没有 `module/selection` 目标，选节点使用 `node use`；单独保存 `auto_start` 只影响下次开机。
+
+受管入站使用 `inbound` 完整目标与 `inbound/backend`、`inbound/root_policy`、`inbound/app`、`inbound/ebpf`、`inbound/tun` 分区；分区保留对应顶层字段，例如 `{"backend":"tun"}`，不能用 `{}` 删除。Root 策略可用 `{"root_policy":"default"}`、`include`（接管）或 `exclude`（绕过），独立于应用名单。它们共用同一磁盘文件，没有 `config ebpf` 目标。实际入站只读目标为 `runtime/inbound.json`，另保留 `runtime/providers.json` 与 `runtime/outbounds.json`。
+
+`config list` 的六个入站目标属于 `category: "inbound"`。运行时准备结果使用 `inbound` 路径字段与 `backend`。切换强杀时中止并保留 journal，需要设备重启后再恢复，不做兜底清理。
+
+`config read` 返回 `content` 和 `revision`。编辑期间需要防止覆盖并发修改时，在目标前传入读到的版本：
+
+```sh
+su -c '/data/adb/modules/wanbox/wanboxctl config apply --revision <读到的revision> singbox/dns /sdcard/candidate.json'
+```
+
+版本不一致返回 `config.conflict`，不保存；成功响应包含新的 `revision`。分区版本只跟踪该分区，整份配置版本跟踪整个文件。省略 `--revision` 表示主动覆盖所选目标，但分区写入仍不会覆盖其他字段。

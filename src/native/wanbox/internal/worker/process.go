@@ -1,0 +1,197 @@
+package worker
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"log"
+	"os"
+	"os/exec"
+	"runtime"
+	"runtime/debug"
+	"strings"
+	"time"
+
+	"github.com/Wuwan94/wanBoxForAndroid/src/native/wanbox/internal/logfile"
+)
+
+const workerStartTimeout = 2 * time.Second
+
+// RunProcess 安装系统信号并运行 Worker。
+func RunProcess(ctx context.Context, options Options, logger *log.Logger) error {
+	if runtime.GOOS == "android" {
+		if err := prepareProcessEnvironment(); err != nil {
+			return err
+		}
+		if os.Getenv("GOMEMLIMIT") == "" {
+			debug.SetMemoryLimit(64 << 20)
+		}
+	}
+	if err := validateOptions(options); err != nil {
+		return err
+	}
+	if err := acquirePID(options.PIDFile); err != nil {
+		return err
+	}
+	// HTTP 事务完成之前仍属于同一后台实例，不能提前允许新进程获取身份。
+	defer releasePID(options.PIDFile)
+	processContext, wake, cleanup := withSignals(ctx)
+	defer cleanup()
+	processContext, cancel := context.WithCancel(processContext)
+	defer cancel()
+	if options.RunServer == nil {
+		return Run(processContext, options, wake, logger)
+	}
+	taskWake, serverWake := make(chan struct{}, 1), make(chan struct{}, 1)
+	wakeDone := make(chan struct{})
+	go func() {
+		defer close(wakeDone)
+		for {
+			select {
+			case <-processContext.Done():
+				return
+			case <-wake:
+				for _, target := range []chan struct{}{taskWake, serverWake} {
+					select {
+					case target <- struct{}{}:
+					default:
+					}
+				}
+			}
+		}
+	}()
+	serverDone := make(chan error, 1)
+	go func() { serverDone <- options.RunServer(processContext, serverWake) }()
+	err := Run(processContext, options, taskWake, logger)
+	cancel()
+	serverErr := <-serverDone
+	<-wakeDone
+	return errors.Join(err, serverErr)
+}
+
+func prepareProcessEnvironment() error {
+	// 安装目录和 TMPDIR 会被删除，不能让长期宿主与子进程继承它们。
+	return errors.Join(os.Chdir("/"), os.Unsetenv("TMPDIR"))
+}
+
+// Start 启动唯一后台实例；API 不因核心停止或没有调度任务而退出。
+func Start(ctx context.Context, options Options, executable string) (Status, error) {
+	if err := validateOptions(options); err != nil {
+		return Status{}, err
+	}
+	if pid := readPID(options.PIDFile); pid > 0 && isWorkerProcessPID(pid) {
+		_ = wakeProcess(pid)
+		return Status{State: "running", PID: pid}, nil
+	}
+	nearest, err := NextUpdate(ctx, options.Root, options.Now())
+	if err != nil && options.Telemetry == nil && options.APIConfig == "" {
+		return Status{}, err
+	}
+	if nearest == 0 && !(options.NetworkWatchEnabled && options.NetworkEvaluate != nil) && options.Telemetry == nil && options.APIConfig == "" {
+		return Status{State: "stopped", Nearest: 0}, nil
+	}
+	if executable == "" {
+		return Status{}, errors.New("Worker 可执行文件不能为空")
+	}
+	arguments := []string{"__internal", "worker", "run"}
+	arguments = appendWorkerFlags(arguments, options)
+	// 调用方 context 只约束启动确认；成功驻留后不能因公共命令返回而杀死 Worker。
+	if err := ctx.Err(); err != nil {
+		return Status{}, err
+	}
+	command := exec.Command(executable, arguments...)
+	devNull, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
+	if err != nil {
+		return Status{}, err
+	}
+	defer devNull.Close()
+	command.Stdin = devNull
+	command.Stdout = devNull
+	command.Stderr = devNull
+	detachCommand(command)
+	if err := command.Start(); err != nil {
+		return Status{}, err
+	}
+	pid := command.Process.Pid
+	if err := waitForWorkerPID(ctx, options.PIDFile, pid, workerStartTimeout); err != nil {
+		_ = terminateProcess(pid)
+		_ = command.Process.Release()
+		return Status{}, err
+	}
+	_ = command.Process.Release()
+	return Status{State: "running", PID: pid, Nearest: nearest}, nil
+}
+
+// Wake 仅通知已存在的 Worker，不因保存停止状态的配置而启动后台进程。
+func Wake(options Options) error {
+	if pid := readPID(options.PIDFile); pid > 0 && isWorkerProcessPID(pid) {
+		return wakeProcess(pid)
+	}
+	return nil
+}
+
+func waitForWorkerPID(ctx context.Context, path string, pid int, timeout time.Duration) error {
+	if pid <= 0 {
+		return errors.New("Worker 启动失败：进程 PID 无效")
+	}
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if readPID(path) == pid {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("Worker 启动被取消: %w", ctx.Err())
+		case <-deadline.C:
+			return errors.New("Worker 启动失败：PID 状态未成功写入")
+		case <-ticker.C:
+		}
+	}
+}
+
+// Stop 请求 Worker 优雅退出。
+func Stop(options Options) error {
+	pid := readPID(options.PIDFile)
+	if pid <= 0 || !isWorkerProcessPID(pid) {
+		_ = os.Remove(options.PIDFile)
+		return nil
+	}
+	if err := terminateProcess(pid); err != nil {
+		return err
+	}
+	timeout := 10 * time.Second
+	if options.APIConfig != "" {
+		timeout = 11 * time.Minute
+	}
+	if !waitProcessStop(pid, timeout) {
+		return fmt.Errorf("Worker 未在限定时间内退出: %d", pid)
+	}
+	return nil
+}
+
+func appendWorkerFlags(arguments []string, options Options) []string {
+	arguments = append(arguments, "--root", options.Root, "--progress-dir", options.ProgressDir,
+		"--pid-file", options.PIDFile, "--log-file", options.LogFile,
+		"--module-config", options.ModuleConfig,
+		"--sing-box", options.SingBoxPath, "--service-address", options.ServiceAddress,
+		"--service-secret", options.ServiceSecret)
+	if options.APIConfig != "" {
+		arguments = append(arguments, "--api-config", options.APIConfig)
+	}
+	return arguments
+}
+
+// OpenLogger 创建 Worker 日志。日志文件为空时返回 stderr logger。
+func OpenLogger(path string) (*log.Logger, io.Closer, error) {
+	if strings.TrimSpace(path) == "" {
+		return log.New(os.Stderr, "", log.LstdFlags), io.NopCloser(strings.NewReader("")), nil
+	}
+	if err := logfile.Prepare(path); err != nil {
+		return nil, nil, err
+	}
+	return log.New(logfile.NewWriter(path), "", 0), io.NopCloser(strings.NewReader("")), nil
+}

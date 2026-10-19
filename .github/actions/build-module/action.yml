@@ -1,0 +1,82 @@
+name: 构建模块内容
+description: 验证并构建原生组件与 WebUI，生成等待追加管理器的 XZ 模块内容
+
+inputs:
+  posthog-project-token:
+    description: 用于构建注入的 PostHog Project Token
+    required: true
+  posthog-host:
+    description: 用于构建注入的 PostHog ingestion host
+    required: true
+
+# 被 ci.yml 与 release.yml 复用的共享打包逻辑（调用前需已 checkout，且 fetch-depth: 0 以便统计提交数）
+outputs:
+  version:
+    description: 模块版本号（取自 module.prop 的 version=）
+    value: ${{ steps.meta.outputs.version }}
+  commit_count:
+    description: 提交数，用作 versionCode
+    value: ${{ steps.meta.outputs.commit_count }}
+  module_name:
+    description: 模块包文件名
+    value: ${{ steps.meta.outputs.module_name }}
+
+runs:
+  using: composite
+  steps:
+    - name: 配置 Go
+      uses: actions/setup-go@v7
+      with:
+        go-version-file: src/native/wanbox/go.mod
+        cache: false
+
+    - name: 缓存 Go 依赖与编译结果
+      uses: actions/cache@v6
+      with:
+        path: |
+          ~/go/pkg/mod
+          ~/.cache/go-build
+        key: ${{ runner.os }}-${{ runner.arch }}-native-${{ hashFiles('src/native/wanbox/go.sum') }}-${{ hashFiles('src/native/wanbox/**/*.pgo', 'tests/ci_verify.sh', '.github/actions/build-module/action.yml') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ runner.arch }}-native-${{ hashFiles('src/native/wanbox/go.sum') }}-
+          ${{ runner.os }}-${{ runner.arch }}-native-
+
+    - name: 配置 Node
+      uses: actions/setup-node@v7
+      with:
+        node-version: 24
+        cache: npm
+        cache-dependency-path: src/webui/package-lock.json
+
+    - name: 验证并构建 wanBox 原生组件
+      shell: bash
+      env:
+        WANBOX_CI_BUILD_DIR: ${{ runner.temp }}/wanbox-build
+        WANBOX_TELEMETRY_REQUIRED: '1'
+        POSTHOG_PROJECT_TOKEN: ${{ inputs.posthog-project-token }}
+        POSTHOG_HOST: ${{ inputs.posthog-host }}
+      run: |
+        set -euo pipefail
+        sh tests/ci_verify.sh
+        install -m 0755 "$WANBOX_CI_BUILD_DIR/wanboxctl-android" src/module/bin/wanboxctl
+
+    - name: 构建 WebUI（产物 → src/module/webroot/wanbox）
+      shell: bash
+      working-directory: src/webui
+      run: |
+        npm ci --no-audit --no-fund
+        npm run build
+
+    - name: 计算构建元信息
+      id: meta
+      shell: bash
+      run: sh .github/scripts/build-metadata.sh >> "$GITHUB_OUTPUT"
+
+    - name: 压缩模块内容（ZIP + XZ 9）
+      shell: bash
+      env:
+        MODULE_NAME: ${{ steps.meta.outputs.module_name }}
+        COMMIT_COUNT: ${{ steps.meta.outputs.commit_count }}
+      run: |
+        sed -i "s/^versionCode=.*/versionCode=$COMMIT_COUNT/" src/module/module.prop
+        sh .github/scripts/package-module.sh src/module "$GITHUB_WORKSPACE" "$MODULE_NAME"

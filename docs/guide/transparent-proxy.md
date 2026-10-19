@@ -1,0 +1,66 @@
+---
+description: 使用 eBPF 或 TUN 接管流量，配置共享网络、分应用代理与多用户应用策略。
+---
+
+# 透明代理与分应用策略
+
+wanBox 支持 sing-box 的 eBPF 与 TUN 入站。两种入站共用同一个核心，每次启用一种，用于接管本机或共享网络流量。
+
+后端选择和两套参数保存在 [inbound.json](/config/inbound)，切换时保留另一套参数。服务状态中的 `configured_backend` 是保存选择，`active_backend` 是确认过的实际实例，未确认时为 `null`。
+
+## eBPF 数据路径
+
+| 数据路径 | 默认实现 | 作用 |
+|---|---|---|
+| 本机 | `cgroup` | 在 socket 阶段接管本机应用，不依赖默认出口接口 |
+| 共享网络 | `packet_rewrite` | 在热点或 LAN 下游接口改写数据包 |
+
+两条路径由独立开关控制，可以只开启其中一条，也可以同时开启。本机还可以改用跟随默认出口接口的 `tc`；raw-IP、PPP 或隧道类共享接口可以改用 `socket_assign`。两条路径可以分别控制 DNS、IPv6、私网绕过、目标端口和筛选条件。
+
+## TUN
+
+TUN 使用原生 `auto_route` 与 `auto_redirect` 接管流量，接口、地址、DNS、CIDR、规则集和 MAC 筛选均按 TUN 原生参数配置。详情见 [TUN 原生参数](/config/tun)。
+
+## 分应用代理
+
+应用代理默认关闭。在管理器「设置 → 入站设置 → 应用代理」选择黑名单或白名单，再勾选应用；模式与搜索框固定在列表上方。
+
+管理器按 Android 用户分别显示应用。保存项必须是：
+
+```text
+<用户ID>:<包名>
+```
+
+例如主用户与用户 10 的同一个应用是两个条目：
+
+```text
+["0:com.example.app", "10:com.example.app"]
+```
+
+- **黑名单**：名单内应用绕过代理。
+- **白名单**：只有名单内应用进入代理，不自动加入 UID 0；空名单不会变为全量接管。
+
+模块不会持久化 UID。每次生成运行时配置时，Go 组件通过 Android package service 按用户查询当前 UID，因此应用重装、分身变化或 UID 变化后，重启核心即可重新解析。
+
+共用策略保存在 `inbound.json` 的 `app`，只筛选所选入站的本机应用；运行时有效策略变化自动应用。原生 UID 筛选可同时使用，排除优先；原生 package/user 筛选不能与共用策略混用。仅启用 eBPF 共享路径时不查询应用 UID，本机 UID 名单不筛选热点客户端。
+
+系统 DNS、DownloadManager、isolated process 或 SDK sandbox 代发的流量可能属于其他 UID，不能只凭前台应用包名推断。
+
+## 共享网络
+
+eBPF 启用共享网络后，`shared.interface` 至少填写一个实际下游接口，例如设备热点接口。可继续按来源 CIDR 或 MAC 地址限制哪些下游设备进入代理。TUN 按原生包含/排除接口与 MAC 等筛选字段配置，不创建热点或代替系统共享服务。
+
+接口名由设备和厂商决定，不能把示例值当作所有设备的固定名称。先查看当前热点或 LAN 接口，再填写配置。
+
+## eBPF 能力探测
+
+模块直接调用 sing-box 内置探测，不再携带 `bpftool`：
+
+```sh
+su -c '/data/adb/modules/wanbox/wanboxctl ebpf status configured'
+su -c '/data/adb/modules/wanbox/wanboxctl ebpf status all --raw'
+```
+
+默认输出面向用户的诊断；`--raw` 显示核心原始结果。探测不会挂载程序或修改实际流量。
+
+此命令只诊断 eBPF，不代表服务的实际 backend，也没有 `tun status` 命令。详细字段见 [eBPF 原生参数](/config/ebpf)；TUN 通过配置检查、实际启动与核心日志确认。

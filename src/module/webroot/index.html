@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f0f0f0" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#181818" />
+    <link rel="icon" type="image/svg+xml" href="./wanbox/favicon.svg" />
+    <link rel="stylesheet" href="https://mui.kernelsu.org/internal/insets.css" />
+    <title>wanBox</title>
+    <script>
+      (function () {
+        var stored;
+        var dark;
+
+        try {
+          stored = localStorage.getItem("sing-box-dashboard.theme");
+        } catch (_) {
+          stored = null;
+        }
+
+        dark = stored === "dark" ||
+          (stored !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+      })();
+
+      if (location.port === "9999" || location.port === "9090") {
+        document.documentElement.classList.add("panel-mode");
+      }
+    </script>
+    <style>
+      @font-face {
+        font-family: "Schibsted Grotesk Variable";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 400 900;
+        src: url("./sing-box-dashboard/assets/schibsted-grotesk-latin-ext-wght-normal-hsMS0n0O.woff2") format("woff2-variations");
+        unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+      }
+
+      @font-face {
+        font-family: "Schibsted Grotesk Variable";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 400 900;
+        src: url("./sing-box-dashboard/assets/schibsted-grotesk-latin-wght-normal-Bb8VGrTG.woff2") format("woff2-variations");
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+
+      @font-face {
+        font-family: "Source Serif 4 Variable";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 200 900;
+        src: url("./sing-box-dashboard/assets/source-serif-4-latin-ext-wght-normal-CxNHBx-q.woff2") format("woff2-variations");
+        unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+      }
+
+      @font-face {
+        font-family: "Source Serif 4 Variable";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 200 900;
+        src: url("./sing-box-dashboard/assets/source-serif-4-latin-wght-normal-D9elroTD.woff2") format("woff2-variations");
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+
+      :root {
+        color-scheme: light;
+        --font-sans: "Schibsted Grotesk Variable", "Apple Color Emoji", "Noto Color Emoji", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --font-serif: "Source Serif 4 Variable", "Apple Color Emoji", "Noto Color Emoji", ui-serif, Georgia, serif;
+        --bg: #fafafa;
+        --surface: #f0f0f0;
+        --card: #ffffff;
+        --text: #1a1a1a;
+        --text-secondary: #6e6e6e;
+        --text-faint: #9c9c9c;
+        --border: rgb(0 0 0 / 9%);
+        --border-strong: rgb(0 0 0 / 18%);
+        --hover: rgb(0 0 0 / 5%);
+        --accent: #1a1a1a;
+        --accent-soft: rgb(0 0 0 / 7%);
+        --shadow-card: 0 1px 2px rgb(0 0 0 / 3%);
+        --radius-sm: 6px;
+        --radius-md: 8px;
+        --transition-fast: 120ms ease;
+        background: var(--surface);
+        color: var(--text);
+        font-family: var(--font-sans);
+      }
+
+      [data-theme="dark"] {
+        color-scheme: dark;
+        --bg: #1e1e1e;
+        --surface: #181818;
+        --card: #292929;
+        --text: #ededed;
+        --text-secondary: #a8a8a8;
+        --text-faint: #7d7d7d;
+        --border: rgb(255 255 255 / 9%);
+        --border-strong: rgb(255 255 255 / 20%);
+        --hover: rgb(255 255 255 / 6%);
+        --accent: #ededed;
+        --accent-soft: rgb(255 255 255 / 12%);
+        --shadow-card: 0 1px 2px rgb(0 0 0 / 16%);
+      }
+
+      * {
+        box-sizing: border-box;
+        letter-spacing: 0;
+      }
+
+      html,
+      body {
+        min-width: 280px;
+        min-height: 100vh;
+        min-height: 100dvh;
+      }
+
+      html {
+        background: var(--surface);
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      body {
+        margin: 0;
+        color: var(--text);
+        background: var(--bg);
+        font-family: var(--font-sans);
+        font-size: 14px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      html.panel-mode,
+      html.panel-mode body {
+        width: 100%;
+        height: 100%;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+        background: #000000;
+      }
+
+      html.panel-mode main {
+        display: none;
+      }
+
+      .panel-frame {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        border: 0;
+        background: #000000;
+      }
+
+      .setup {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        min-height: 100dvh;
+        padding:
+          max(24px, var(--safe-area-inset-top, env(safe-area-inset-top)))
+          max(18px, var(--safe-area-inset-right, env(safe-area-inset-right)))
+          max(24px, var(--safe-area-inset-bottom, env(safe-area-inset-bottom)))
+          max(18px, var(--safe-area-inset-left, env(safe-area-inset-left)));
+        background: var(--bg);
+      }
+
+      .setup-panel {
+        width: min(100%, 480px);
+        padding: 28px 28px 22px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-card);
+        animation: panel-in 220ms ease-out both;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 26px;
+      }
+
+      .brand-icon {
+        width: 44px;
+        height: 44px;
+        flex: 0 0 44px;
+      }
+
+      h1 {
+        margin: 0;
+        font-family: var(--font-serif);
+        font-size: 22px;
+        font-weight: 600;
+        line-height: 1.25;
+      }
+
+      .subtitle {
+        margin: 2px 0 0;
+        color: var(--text-faint);
+        font-size: 12px;
+        line-height: 1.4;
+      }
+
+      .section-label {
+        padding: 0 4px 8px;
+        color: var(--text-faint);
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .entry-list {
+        overflow: hidden;
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .entry {
+        display: grid;
+        grid-template-columns: 40px minmax(0, 1fr) 18px;
+        align-items: center;
+        gap: 12px;
+        min-height: 76px;
+        padding: 10px 4px;
+        color: var(--text);
+        text-decoration: none;
+        background: transparent;
+        border-radius: var(--radius-sm);
+        transition: background var(--transition-fast);
+      }
+
+      .entry + .entry {
+        border-top: 1px solid var(--border);
+      }
+
+      .entry:hover,
+      .entry:focus-visible {
+        background: var(--hover);
+        outline: none;
+      }
+
+      .entry:active {
+        background: var(--accent-soft);
+      }
+
+      .entry-icon {
+        display: block;
+        width: 38px;
+        height: 38px;
+        object-fit: contain;
+        border-radius: var(--radius-sm);
+      }
+
+      .entry-title {
+        display: block;
+        margin-bottom: 2px;
+        overflow: hidden;
+        font-size: 14px;
+        font-weight: 560;
+        line-height: 1.35;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .entry-description {
+        display: block;
+        overflow: hidden;
+        color: var(--text-secondary);
+        font-size: 12px;
+        line-height: 1.4;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .entry-chevron {
+        position: relative;
+        width: 18px;
+        height: 18px;
+        color: var(--text-faint);
+      }
+
+      .entry-chevron::before {
+        position: absolute;
+        top: 5px;
+        left: 4px;
+        width: 6px;
+        height: 6px;
+        content: "";
+        border-top: 1.5px solid currentColor;
+        border-right: 1.5px solid currentColor;
+        transform: rotate(45deg);
+      }
+
+      footer {
+        margin-top: 18px;
+        color: var(--text-faint);
+        font-size: 12px;
+        text-align: center;
+      }
+
+      @keyframes panel-in {
+        from {
+          opacity: 0;
+          transform: translateY(4px);
+        }
+      }
+
+      @media (max-width: 520px) {
+        .setup {
+          align-items: center;
+          padding-right: max(14px, var(--safe-area-inset-right, env(safe-area-inset-right)));
+          padding-left: max(14px, var(--safe-area-inset-left, env(safe-area-inset-left)));
+        }
+
+        .setup-panel {
+          padding: 24px 20px 20px;
+        }
+
+        .brand {
+          margin-bottom: 22px;
+        }
+      }
+
+      @media (max-height: 500px) {
+        .setup {
+          align-items: flex-start;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .setup-panel {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="setup">
+      <section class="setup-panel" aria-labelledby="page-title">
+        <header class="brand">
+          <img class="brand-icon" src="./wanbox/favicon.svg" alt="" />
+          <div>
+            <h1 id="page-title">wanBox</h1>
+            <p class="subtitle">控制中心</p>
+          </div>
+        </header>
+
+        <div class="section-label">管理界面</div>
+        <nav class="entry-list" aria-label="管理界面">
+          <a class="entry" href="./wanbox/index.html#/dashboard">
+            <img class="entry-icon" src="./wanbox/favicon.svg" alt="" />
+            <span>
+              <span class="entry-title">wanBox WebUI</span>
+              <span class="entry-description">服务、节点与应用</span>
+            </span>
+            <span class="entry-chevron" aria-hidden="true"></span>
+          </a>
+
+          <a class="entry" href="http://127.0.0.1:9090/dashboard/">
+            <img class="entry-icon" src="./sing-box-dashboard/favicon.svg" alt="" />
+            <span>
+              <span class="entry-title">sing-box Dashboard</span>
+              <span class="entry-description">内核、日志与网络测试</span>
+            </span>
+            <span class="entry-chevron" aria-hidden="true"></span>
+          </a>
+        </nav>
+
+        <footer>请先启动 sing-box 服务</footer>
+      </section>
+    </main>
+    <script>
+      (function () {
+        var port = location.port;
+        var frame;
+
+        function createFrame(src, title, onLoad) {
+          frame = document.createElement("iframe");
+          frame.className = "panel-frame";
+          frame.title = title;
+          frame.allow = "clipboard-read; clipboard-write; fullscreen";
+          frame.allowFullscreen = true;
+          if (onLoad) {
+            frame.addEventListener("load", onLoad);
+          }
+          frame.src = src;
+          document.body.appendChild(frame);
+        }
+
+        function syncPanelInsets(styleId, styleText) {
+          var frameDocument;
+          var frameRoot;
+          var parentStyle;
+          var insetNames = [
+            "--safe-area-inset-top",
+            "--safe-area-inset-right",
+            "--safe-area-inset-bottom",
+            "--safe-area-inset-left"
+          ];
+
+          try {
+            frameDocument = frame.contentDocument;
+            frameRoot = frameDocument.documentElement;
+            parentStyle = getComputedStyle(document.documentElement);
+
+            insetNames.forEach(function (name) {
+              var value = parentStyle.getPropertyValue(name).trim();
+              if (value) {
+                frameRoot.style.setProperty(name, value);
+              }
+            });
+
+            if (!frameDocument.getElementById("wanbox-insets")) {
+              var link = frameDocument.createElement("link");
+              link.id = "wanbox-insets";
+              link.rel = "stylesheet";
+              link.href = "https://mui.kernelsu.org/internal/insets.css";
+              frameDocument.head.appendChild(link);
+            }
+
+            if (!frameDocument.getElementById(styleId)) {
+              var style = frameDocument.createElement("style");
+              style.id = styleId;
+              style.textContent = styleText;
+              frameDocument.head.appendChild(style);
+            }
+          } catch (_) {
+            // 面板尚未完成加载时由下一次 load 事件重试。
+          }
+        }
+
+        function syncServiceDashboardInsets() {
+          syncPanelInsets(
+            "wanbox-service-dashboard-style",
+            "@media (max-width: 720px) {" +
+            "header[class*='_mobile-topbar_'] {" +
+            "padding-top: calc(var(--space-6) + max(36px, var(--safe-area-inset-top, 0px), env(safe-area-inset-top, 0px))) !important;" +
+            "}" +
+            "nav[class*='_sidebar_'] {" +
+            "padding-top: calc(var(--space-20) + max(36px, var(--safe-area-inset-top, 0px), env(safe-area-inset-top, 0px))) !important;" +
+            "}" +
+            "}"
+          );
+        }
+
+        function configureServiceDashboard() {
+          var storageKey = "sing-box-dashboard.servers";
+          var localServer = {
+            id: "wanbox-service-api",
+            name: "wanBox",
+            url: "127.0.0.1:9090",
+            secret: "singbox"
+          };
+          var servers = [];
+
+          try {
+            var saved = JSON.parse(localStorage.getItem(storageKey) || "null");
+            if (saved && Array.isArray(saved.servers)) {
+              servers = saved.servers.filter(function (server) {
+                var url = String(server && server.url || "")
+                  .replace(/^https?:\/\//i, "")
+                  .replace(/\/+$/, "");
+                return server &&
+                  server.id !== localServer.id &&
+                  url !== "127.0.0.1:9090" &&
+                  url !== "127.0.0.1:9999";
+              });
+            }
+
+            localStorage.setItem(storageKey, JSON.stringify({
+              servers: [localServer].concat(servers),
+              activeId: localServer.id
+            }));
+          } catch (_) {
+            localStorage.setItem(storageKey, JSON.stringify({
+              servers: [localServer],
+              activeId: localServer.id
+            }));
+          }
+        }
+
+        if (port === "9090") {
+          document.title = "sing-box Dashboard";
+          configureServiceDashboard();
+          createFrame(
+            "./sing-box-dashboard/index.html#/",
+            "sing-box Dashboard",
+            syncServiceDashboardInsets
+          );
+        }
+      })();
+    </script>
+  </body>
+</html>

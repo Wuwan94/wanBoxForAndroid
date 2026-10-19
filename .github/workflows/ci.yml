@@ -1,0 +1,180 @@
+name: 持续集成（构建与开发包）
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/module/**'
+      - 'src/native/wanbox/**'
+      - 'src/android/**'
+      - 'src/webui/**'
+      - 'tests/**'
+      - '.github/workflows/ci.yml'
+      - '.github/workflows/build-module.yml'
+      - '.github/workflows/release.yml'
+      - '.github/workflows/publish-kernelsu.yml'
+      - '.github/workflows/update-resources.yml'
+      - '.github/workflows/verify.yml'
+      - '.github/actions/**'
+      - '.github/scripts/**'
+      - '.github/kernelsu/**'
+      - 'module.yaml'
+      - '.github/resources.json'
+      - '.gitattributes'
+
+permissions:
+  contents: read
+
+# 同一分支的新推送取消尚未完成的旧构建
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: 判断受影响组件
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      module: ${{ steps.detect.outputs.module }}
+      android: ${{ steps.detect.outputs.android }}
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          sparse-checkout: |
+            .github/actions/detect-changes
+            .github/scripts
+
+      - name: 检测变更范围
+        id: detect
+        uses: ./.github/actions/detect-changes
+
+  build:
+    name: 并行构建模块与管理器
+    needs: changes
+    if: needs.changes.outputs.module == 'true'
+    uses: ./.github/workflows/build-module.yml
+    secrets:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    with:
+      verify-android: ${{ needs.changes.outputs.android == 'true' }}
+
+  publish:
+    name: 发布已验证的开发包
+    needs: build
+    if: >-
+      always() && !cancelled() && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      COMMIT_COUNT: ${{ needs.build.outputs.commit_count }}
+      MODULE_NAME: ${{ needs.build.outputs.module_name }}
+    steps:
+      - name: 拉取提交记录
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          sparse-checkout: .github/scripts
+
+      - name: 下载本次运行的完整模块包
+        uses: actions/download-artifact@v8
+        with:
+          name: module-package
+
+      - name: 设置构建元信息
+        run: |
+          echo "TIMESTAMP=$(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')" >> "$GITHUB_ENV"
+          echo "SHORT_HASH=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          echo "COMMIT_MESSAGE=$(git log -1 --format=%s "$GITHUB_SHA")" >> "$GITHUB_ENV"
+
+      - name: 发布 Pre-release 到 GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          base_tag="$(git tag --list 'v*' --sort=-version:refname | head -n 1)"
+          notes_file="$RUNNER_TEMP/nightly-notes.md"
+
+          {
+            echo "同步最新代码变更，仅保留最新版本的构建产物。"
+            echo
+            echo "版本: \`${VERSION}\` (build ${COMMIT_COUNT})"
+            echo "构建时间: ${TIMESTAMP}"
+            echo "提交: \`${SHORT_HASH}\`"
+            echo
+            echo "## 提交记录"
+            echo
+            if [ -n "$base_tag" ]; then
+              git log --first-parent --pretty=format:"- %s ([%h](${{ github.server_url }}/${{ github.repository }}/commit/%H))" "$base_tag..$GITHUB_SHA"
+              echo
+              echo
+              echo "完整对比: ${{ github.server_url }}/${{ github.repository }}/compare/${base_tag}...nightly"
+            else
+              git log --first-parent --pretty=format:"- %s ([%h](${{ github.server_url }}/${{ github.repository }}/commit/%H))" "$GITHUB_SHA"
+              echo
+            fi
+          } > "$notes_file"
+
+          # 删除已有的 nightly 发布和 Tag
+          gh release delete nightly --cleanup-tag -y || true
+          
+          # 等待 API 状态同步
+          sleep 2
+          
+          # 创建新的 nightly 发布并上传资产
+          gh release create nightly \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "nightly Pre-release" \
+            --notes-file "$notes_file" \
+            "$MODULE_NAME"
+
+      - name: Telegram 构建成功通知
+        if: success()
+        continue-on-error: true
+        uses: cbrgm/telegram-github-action@v1
+        with:
+          token: ${{ secrets.TG_BOT_TOKEN }}
+          to: ${{ secrets.TG_CHAT_ID }}
+          thread-id: 2275
+          parse-mode: ""
+          message: |
+            持续集成构建成功
+
+            版本: ${{ needs.build.outputs.version }} (build ${{ needs.build.outputs.commit_count }})
+            说明: ${{ env.COMMIT_MESSAGE }}
+
+            下载开发包: ${{ github.server_url }}/${{ github.repository }}/releases/tag/nightly
+            提交记录: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+            构建日志: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  failure:
+    name: 通知验证或发布失败
+    needs: [changes, build, publish]
+    if: always() && contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 失败通知
+        uses: cbrgm/telegram-github-action@v1
+        with:
+          token: ${{ secrets.TG_BOT_TOKEN }}
+          to: ${{ secrets.TG_CHAT_ID }}
+          thread-id: 2275
+          parse-mode: markdown
+          message: |
+            **持续集成失败！**
+
+            提交: `${{ github.sha }}`
+            [点击查看构建日志](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})

@@ -1,23 +1,63 @@
-*.iml
-.gradle
-.idea
-.vscode
-.DS_Store
-build/
-/captures
-.externalNativeBuild
-.cxx
-local.properties
-/release.keystore
-*.p12
-/app/libs/
-/app/src/main/assets/sing-box
-/service_account_credentials.json
-jniLibs/
-/library/libcore_build/
-.idea/deploymentTargetDropDown.xml
-/nkmr
+*.zip
+!/docs/public/mascots/naipi-stickers.zip
 
-# submodules
-/external
-.kotlin/
+# IDE 与本地工具
+.idea/
+*.iml
+CLAUDE.local.md
+
+# 本地开发资料、技能、测试产物与缓存
+/.agents/
+/skills-lock.json
+
+# wanBox WebUI 构建产物
+src/module/webroot/wanbox/
+
+# 本地构建的 wanBox 原生组件
+src/module/bin/wanboxctl
+
+# CI 打包时临时生成的含管理器发行资产
+src/module/wanBox.apk
+
+# Android 管理器本地配置与构建产物
+src/android/**/.gradle/
+src/android/**/.kotlin/
+src/android/**/build/
+src/android/app/release/
+src/android/**/local.properties
+src/android/captures/
+src/android/.externalNativeBuild/
+src/android/.cxx/
+src/android/**/*.jks
+src/android/**/*.keystore
+src/android/**/keystore.properties
+
+# WebUI 本地依赖与构建产物
+src/webui/**/node_modules/
+src/webui/**/dist/
+src/webui/**/.DS_Store
+src/webui/**/*.log
+src/webui/**/*.tsbuildinfo
+
+# 文档站本地依赖、缓存与构建产物
+docs/**/logs/
+docs/**/*.log
+docs/**/npm-debug.log*
+docs/**/yarn-debug.log*
+docs/**/yarn-error.log*
+docs/**/pnpm-debug.log*
+docs/**/lerna-debug.log*
+docs/**/node_modules/
+docs/**/dist/
+docs/**/dist-ssr/
+docs/**/*.local
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+docs/.vscode/*
+!docs/.vscode/extensions.json
+docs/**/.DS_Store
+docs/**/*.suo
+docs/**/*.ntvs*
+docs/**/*.njsproj
+docs/**/*.sln
+docs/**/*.sw?

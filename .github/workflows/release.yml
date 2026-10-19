@@ -1,311 +1,195 @@
-# @author 雾晚
-name: Release Build
+name: 发布（Release）
+
 on:
+  workflow_dispatch:
   push:
     tags:
-      - "v*"
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "Release Tag (e.g. v3.0.0)"
-        required: true
-        default: "v3.0.1"
+      - 'v*'
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  libcore:
-    name: Native Build (LibCore)
+  preflight:
+    name: 验证发布版本与更新日志
     runs-on: ubuntu-latest
+    timeout-minutes: 3
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-      - name: Golang Status
-        run: find buildScript libcore/*.sh nb4a.properties | xargs cat | sha1sum > golang_status
-      - name: Libcore Status
-        run: git ls-files libcore | xargs cat | sha1sum > libcore_status
-      - name: LibCore Cache
-        id: cache
-        uses: actions/cache@v5
+      - name: 拉取发布元数据
+        uses: actions/checkout@v7
         with:
-          path: |
-            app/libs/libcore.aar
-            app/executableSo
-          key: ${{ hashFiles('.github/workflows/*', 'golang_status', 'libcore_status') }}
-      - name: Install Golang
-        if: steps.cache.outputs.cache-hit != 'true'
-        uses: actions/setup-go@v6
+          sparse-checkout: |
+            .github/scripts
+            docs
+            src/module/module.prop
+
+      - name: 配置发布脚本 Node
+        uses: actions/setup-node@v7
         with:
-          go-version: ^1.25
-      - name: Native Build
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: ./run lib core
-      - name: Verify LibCore AAR
+          node-version: 24
+
+      - name: 检查 tag、模块版本与更新日志
+        env:
+          TAG: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
         run: |
-          test -s app/libs/libcore.aar
-          for abi in armeabi-v7a arm64-v8a x86 x86_64; do
-            test -s "app/executableSo/$abi/librootbox.so"
-          done
-          unzip -p app/libs/libcore.aar classes.jar > /tmp/libcore-classes.jar
-          unzip -l /tmp/libcore-classes.jar | grep -q 'libcore/Libcore.class'
-          unzip -l /tmp/libcore-classes.jar | grep -q 'go/Seq.class'
-      - name: Upload LibCore AAR
-        uses: actions/upload-artifact@v5
-        with:
-          name: libcore-aar
-          path: app/libs/libcore.aar
-          if-no-files-found: error
-          retention-days: 1
-      - name: Upload Root TUN executables
-        uses: actions/upload-artifact@v5
-        with:
-          name: root-tun-executables
-          path: app/executableSo
-          if-no-files-found: error
-          retention-days: 1
-      - name: Ensure NDK clang present
-        run: |
-          NDK_DIR="$ANDROID_HOME/ndk/25.0.8775105"
-          CLANG="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
-          if [ ! -f "$CLANG" ]; then
-            echo "NDK clang missing, installing ndk;25.0.8775105 via sdkmanager"
-            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;25.0.8775105"
-          fi
-          test -f "$CLANG"
-      - name: Build Root Module
-        run: |
-          ANDROID_NDK_HOME="$ANDROID_HOME/ndk/25.0.8775105" bash rootmodule/build.sh
-      - name: Upload Root module
-        uses: actions/upload-artifact@v5
-        with:
-          name: root-module
-          path: rootmodule/build/wanbox-root-module-arm64-v8a.zip
-          if-no-files-found: error
-          retention-days: 1
+          test "$REF_TYPE" = tag || {
+            echo '发布工作流只能从已有的 v<版本号> tag 运行。' >&2
+            exit 1
+          }
+          node .github/scripts/release-preflight.mjs \
+            src/module/module.prop docs/changelog.md "$TAG"
 
   build:
-    name: Build OSS APK
-    runs-on: ubuntu-latest
-    needs:
-      - libcore
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-      - name: Setup Java
-        uses: actions/setup-java@v5
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-      - name: Download LibCore AAR
-        uses: actions/download-artifact@v5
-        with:
-          name: libcore-aar
-          path: app/libs
-      - name: Download Root TUN executables
-        uses: actions/download-artifact@v5
-        with:
-          name: root-tun-executables
-          path: app/executableSo
-      - name: Verify LibCore AAR
-        run: |
-          test -s app/libs/libcore.aar
-          unzip -p app/libs/libcore.aar classes.jar > /tmp/libcore-classes.jar
-          unzip -l /tmp/libcore-classes.jar | grep -q 'libcore/Libcore.class'
-          unzip -l /tmp/libcore-classes.jar | grep -q 'go/Seq.class'
-      # Release 构建禁用 Gradle 缓存，确保每次都是干净构建（避免旧代码残留）
-      - name: Prepare release signing key
-        env:
-          WANBOX_KEYSTORE_BASE64: ${{ secrets.WANBOX_KEYSTORE_BASE64 }}
-          WANBOX_KEYSTORE_PASSWORD: ${{ secrets.WANBOX_KEYSTORE_PASSWORD }}
-        run: |
-          test -n "$WANBOX_KEYSTORE_BASE64"
-          test -n "$WANBOX_KEYSTORE_PASSWORD"
-          printf '%s' "$WANBOX_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/wanbox-release.p12"
-          test -s "$RUNNER_TEMP/wanbox-release.p12"
-      - name: Gradle Build
-        env:
-          BUILD_PLUGIN: none
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          WANBOX_KEYSTORE_FILE: ${{ runner.temp }}/wanbox-release.p12
-          WANBOX_KEYSTORE_PASSWORD: ${{ secrets.WANBOX_KEYSTORE_PASSWORD }}
-        run: |
-          echo "sdk.dir=${ANDROID_HOME}" > local.properties
-          echo "ndk.dir=${ANDROID_HOME}/ndk/25.0.8775105" >> local.properties
-          export LOCAL_PROPERTIES="${{ secrets.LOCAL_PROPERTIES }}"
-          ./run init action gradle
-          ./gradlew app:assembleOssRelease
-          APK_DIR=app/build/outputs/apk/oss/release
-          find app/build/outputs/apk -type f -name '*.apk' -print
-          test -d "$APK_DIR"
-          APKSIGNER=$(find "${ANDROID_HOME}/build-tools" -name apksigner | sort -V | tail -n 1)
-          AAPT=$(find "${ANDROID_HOME}/build-tools" -name aapt | sort -V | tail -n 1)
-          test -n "$APKSIGNER"
-          test -n "$AAPT"
-          VERSION_NAME=$(grep '^VERSION_NAME=' nb4a.properties | cut -d= -f2 | tr -d '\r')
-          VERSION_CODE=$(grep '^VERSION_CODE=' nb4a.properties | cut -d= -f2 | tr -d '\r')
-          VERSION_CODE=$((VERSION_CODE * 5))
-          RELEASE_TAG="${{ github.event.inputs.tag || github.ref_name }}"
-          test "$RELEASE_TAG" = "v$VERSION_NAME"
-          test "$(find "$APK_DIR" -maxdepth 1 -name '*.apk' | wc -l)" -eq 1
-          test "$(grep -c 'android:targetPackage="com.lit008834.pixel.wanboxforandroid"' app/src/main/res/xml/shortcuts.xml)" -eq 4
-          for apk in "$APK_DIR"/*.apk; do
-            case "$(basename "$apk")" in wanBoxForAndroid-"$VERSION_NAME"-*.apk) ;; *) exit 1 ;; esac
-            python3 tools/verify_apk_abi.py "$apk"
-            "$AAPT" dump badging "$apk" | grep -q "^package: name='com.lit008834.pixel.wanboxforandroid' versionCode='$VERSION_CODE' versionName='$VERSION_NAME' "
-            manifest=$($AAPT dump xmltree "$apk" AndroidManifest.xml)
-            printf '%s\n' "$manifest" | grep -q 'com.lit008834.pixel.wanboxforandroid.cache'
-            # @author 雾晚: Match the private receiver used by current Preview and security checks.
-            printf '%s\n' "$manifest" | grep -q 'io.nekohasekai.sagernet.widget.WidgetControlReceiver'
-            if ! verify_output=$("$APKSIGNER" verify --verbose --print-certs "$apk" 2>&1); then
-              printf '%s\n' "$verify_output"
-              exit 1
-            fi
-            printf '%s\n' "$verify_output"
-            signer_digest=$(printf '%s\n' "$verify_output" | grep -m1 -i 'certificate SHA-256 digest' | sed 's/.*: *//' | tr -d ' \r' | tr '[:lower:]' '[:upper:]')
-            echo "$(basename "$apk") certificate SHA-256: $signer_digest"
-            test "$signer_digest" = 'AEC62C7003FA515534817250D3CD0DC705E19F4CD578A7A9A1D22519596EA598'
-          done
-          mkdir -p public-apks
-          cp "$APK_DIR"/*arm64-v8a*.apk public-apks/
-          echo "APK=public-apks" >> "$GITHUB_ENV"
-          # @author 雾晚: same source and signature, emulator-only ABI; never uploaded to Release.
-          WANBOX_INTERNAL_TEST=1 ./gradlew app:assembleOssRelease -PwanboxInternalTestAbi=x86_64
-          mkdir -p internal-apks
-          cp "$APK_DIR"/*x86_64*.apk internal-apks/
-          for fixture in internal-apks/*.apk; do "$APKSIGNER" verify "$fixture"; done
-      - uses: actions/upload-artifact@v5
-        if: always()
-        with:
-          name: APKs
-          path: ${{ env.APK }}
-          if-no-files-found: warn
-      - uses: actions/upload-artifact@v4
-        with:
-          name: internal-upgrade-fixture
-          path: internal-apks/*.apk
-          if-no-files-found: error
-          retention-days: 1
+    name: 并行构建模块与管理器
+    needs: preflight
+    uses: ./.github/workflows/build-module.yml
+    secrets:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
-  verify_upgrade:
-    name: Verify formal update beside OwnBox
-    if: false  # 用户决定：OwnBox 共存/升级验证以后都不用管，允许覆盖安装
+  release:
+    name: 发布 Release
+    needs: [preflight, build]
     runs-on: ubuntu-latest
-    needs: build
-    permissions:
-      contents: read
+    timeout-minutes: 5
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      COMMIT_COUNT: ${{ needs.build.outputs.commit_count }}
+      MODULE_NAME: ${{ needs.build.outputs.module_name }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v5
+      - name: 拉取发布脚本与更新日志
+        uses: actions/checkout@v7
         with:
-          name: internal-upgrade-fixture
-          path: apks
-      - name: Download previous preview and OwnBox
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p previous
-          gh release download v3.0.5-preview.2 \
-            -R lit008834-pixel/wanBoxForAndroid \
-            -p wanBoxForAndroid-3.0.5-preview.2-x86_64-release.apk -D previous
-          gh release download v3.0.0 \
-            -R Own716/OwnBoxForAndroid \
-            -p OwnBox-3.0.0-x86_64-release.apk -D previous
-          echo '8dba440911f90b60d94574d62c28ce20dbab80dded19a580142ddaf0413fc863  previous/wanBoxForAndroid-3.0.5-preview.2-x86_64-release.apk' | sha256sum --check
-          echo '86062de59591df18cbd257e484f43e1a1483d961af3f793b4194ac019d618348  previous/OwnBox-3.0.0-x86_64-release.apk' | sha256sum --check
-          # @author 雾晚: pinned read-only co-install fixture.
-          OWNBOX=previous/OwnBox-3.0.0-x86_64-release.apk
-          AAPT=$(find "${ANDROID_HOME}/build-tools" -name aapt | sort -V | tail -n 1)
-          APKSIGNER=$(find "${ANDROID_HOME}/build-tools" -name apksigner | sort -V | tail -n 1)
-          test -s "$OWNBOX"
-          "$AAPT" dump badging "$OWNBOX" | grep -q "^package: name='com.ownbox.app' "
-          "$APKSIGNER" verify "$OWNBOX"
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-      - name: Update installed preview beside OwnBox
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          target: google_apis
-          arch: x86_64
-          profile: pixel_7_pro
-          script: bash tools/diagnostics/verify_formal_upgrade.sh
+          sparse-checkout: |
+            .github/scripts
+            docs
+            .github/kernelsu
 
-  publish:
-    name: Publish Release
-    runs-on: ubuntu-latest
-    needs: build
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-      - name: Download Artifacts
-        uses: actions/download-artifact@v5
+      - name: 配置发布脚本 Node
+        uses: actions/setup-node@v7
         with:
-          name: APKs
-          path: artifacts
-      - name: Download Root Module
-        uses: actions/download-artifact@v5
+          node-version: 24
+
+      - name: 下载本次运行的完整模块包
+        uses: actions/download-artifact@v8
         with:
-          name: root-module
-          path: module-artifacts
-      - name: Bundle Module with Manager APK
-        run: |
-          python3 rootmodule/bundle_manager.py --source module-artifacts/wanbox-root-module-arm64-v8a.zip --apk artifacts/*arm64-v8a*.apk --output module-artifacts/wanbox-root-module-with-manager-arm64-v8a.zip
-          python3 -m zipfile -t module-artifacts/wanbox-root-module-with-manager-arm64-v8a.zip
-      - name: Prepare APKs and Modules
-        run: |
-          mkdir -p apks
-          find artifacts -name "*.apk" -exec cp {} apks/ \;
-          cp module-artifacts/wanbox-root-module-arm64-v8a.zip apks/
-          cp module-artifacts/wanbox-root-module-with-manager-arm64-v8a.zip apks/
-          ls -la apks/
-          test "$(find apks -maxdepth 1 -name '*.apk' | wc -l)" -eq 1
-          test "$(find apks -maxdepth 1 -name '*.zip' | wc -l)" -eq 2
-          (cd apks && sha256sum *.apk *.zip > SHA256SUMS && sha256sum --check SHA256SUMS)
-          cat apks/SHA256SUMS
-      - name: Show Release Notes
-        run: cat RELEASE_NOTES.md
-      - name: Publish to GitHub Releases
-        uses: softprops/action-gh-release@v2
-        with:
-          # @author 雾晚: publish the tested dispatch commit, not the default branch.
-          target_commitish: ${{ github.sha }}
-          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
-          name: wanBox ${{ github.event.inputs.tag || github.ref_name }}
-          body_path: RELEASE_NOTES.md
-          files: apks/*
-          draft: false
-          prerelease: ${{ contains(github.event.inputs.tag || github.ref_name, 'preview') || contains(github.event.inputs.tag || github.ref_name, 'alpha') || contains(github.event.inputs.tag || github.ref_name, 'beta') }}
-          make_latest: ${{ !(contains(github.event.inputs.tag || github.ref_name, 'preview') || contains(github.event.inputs.tag || github.ref_name, 'alpha') || contains(github.event.inputs.tag || github.ref_name, 'beta')) }}
-          generate_release_notes: false
-      # @author 雾晚: 正式版只保留最新一版，覆盖上一次；预览版(prerelease=true)一律不动，
-      # 只清理同属正式版的旧 tag；清理失败只告警，不影响已经完成的发布。
-      - name: Prune older stable releases
-        if: success()
-        continue-on-error: true
+          name: module-package
+
+      - name: 校验模块包与发布身份
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: node .github/scripts/prepare-kernelsu.mjs check "$TAG" "$MODULE_NAME" "$COMMIT_COUNT"
+
+      - name: KernelSU 分发预检
+        uses: KernelSU-Modules/tools/actions/module-release@ca1187c92135b3c31e48d37e008d61153120a08b
+        with:
+          zip: ${{ env.MODULE_NAME }}
+          tag: ${{ github.ref_name }}
+          repository: Wuwan94/wanBox-Releases
+          token: ${{ secrets.DIST_REPO_TOKEN }}
+          require-immutable: true
+          dry-run: true
+
+      - name: 生成模块自更新清单
+        env:
           REPO: ${{ github.repository }}
-          CURRENT_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          TAG: ${{ github.ref_name }}
         run: |
-          set -u
-          gh api --paginate "repos/$REPO/releases?per_page=100" \
-            --jq '.[] | select(.prerelease == false) | select(.tag_name != env.CURRENT_TAG) | "\(.id) \(.tag_name)"' \
-            > "$RUNNER_TEMP/old-stable.txt"
-          if [ ! -s "$RUNNER_TEMP/old-stable.txt" ]; then
-            echo "No older stable releases to remove."
-            exit 0
-          fi
-          while read -r id tag; do
-            echo "Removing stable release $tag (id=$id)"
-            gh api -X DELETE "repos/$REPO/releases/$id" || echo "::warning::failed to delete release $tag"
-            gh api -X DELETE "repos/$REPO/git/refs/tags/$tag" || echo "::warning::failed to delete tag $tag"
-          done < "$RUNNER_TEMP/old-stable.txt"
-          echo "Remaining releases:"
-          gh api --paginate "repos/$REPO/releases?per_page=100" --jq '.[] | "\(.tag_name) prerelease=\(.prerelease)"'
+          jq -n \
+            --arg version "Module ${TAG}" \
+            --argjson versionCode "${COMMIT_COUNT}" \
+            --arg zipUrl "https://github.com/${REPO}/releases/download/${TAG}/${MODULE_NAME}" \
+            --arg changelog "https://raw.githubusercontent.com/${REPO}/refs/heads/main/docs/changelog.md" \
+            '{version: $version, versionCode: $versionCode, zipUrl: $zipUrl, changelog: $changelog}' \
+            > update.json
+          cat update.json
 
+      - name: 提取当前版本更新日志
+        run: |
+          node .github/scripts/extract-release-notes.mjs \
+            docs/changelog.md \
+            "$VERSION" \
+            "$RUNNER_TEMP/release-notes.md"
+
+      - name: 发布 GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          body_path: ${{ runner.temp }}/release-notes.md
+          files: |
+            ${{ env.MODULE_NAME }}
+            update.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 发布通知到 Telegram
+        continue-on-error: true
+        uses: cbrgm/telegram-github-action@v1
+        with:
+          token: ${{ secrets.TG_BOT_TOKEN }}
+          to: ${{ secrets.TG_CHAT_ID }}
+          thread-id: 2343
+          parse-mode: markdown
+          message: |
+            **新版本发布通知**
+
+            版本: `${{ github.ref_name }}`
+
+            [查看更新日志并下载](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }})
+
+            **直接下载:**
+            [模块包](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/${{ env.MODULE_NAME }})
+
+  kernelsu:
+    name: 分发至 KernelSU Modules
+    needs: release
+    uses: ./.github/workflows/publish-kernelsu.yml
+    with:
+      tag: ${{ github.ref_name }}
+    secrets:
+      DIST_REPO_TOKEN: ${{ secrets.DIST_REPO_TOKEN }}
+
+  distribution-failure:
+    name: 通知独立分发失败
+    needs: [release, kernelsu]
+    if: always() && needs.release.result == 'success' && needs.kernelsu.result == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: 分发失败通知
+        uses: cbrgm/telegram-github-action@v1
+        with:
+          token: ${{ secrets.TG_BOT_TOKEN }}
+          to: ${{ secrets.TG_CHAT_ID }}
+          thread-id: 2275
+          message: |
+            主仓库 ${{ github.ref_name }} 已发布，KernelSU 分发失败。
+            请单独重试 KernelSU 正式版分发工作流，无需重新构建或发布主仓库。
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  failure:
+    name: 通知构建或发布失败
+    needs: [preflight, build, release]
+    if: always() && contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 失败通知
+        uses: cbrgm/telegram-github-action@v1
+        with:
+          token: ${{ secrets.TG_BOT_TOKEN }}
+          to: ${{ secrets.TG_CHAT_ID }}
+          thread-id: 2275
+          parse-mode: markdown
+          message: |
+            **发布工作流执行失败！**
+
+            标签: `${{ github.ref_name }}`
+
+            [点击查看构建日志](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})

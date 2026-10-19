@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- @author 雾晚：底部导航图标/文字颜色选择器，支持选中状态与深色主题 -->
-<selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:color="?attr/colorPrimary" android:state_checked="true" />
-    <item android:color="?attr/colorOnSurfaceVariant" />
-</selector>

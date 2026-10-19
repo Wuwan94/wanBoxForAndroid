@@ -1,0 +1,143 @@
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.kotlin.parcelize)
+}
+
+// 使用仓库提交数作为管理器 versionCode，避免发布时手动维护两套编号。
+fun gitCommitCount(): Int {
+    val repositoryRoot = rootProject.rootDir.parentFile.parentFile
+    return runCatching {
+        val process = ProcessBuilder("git", "rev-list", "--count", "HEAD")
+            .directory(repositoryRoot)
+            .redirectErrorStream(true)
+            .start()
+        val output = process.inputStream.bufferedReader().use { it.readText().trim() }
+        val exitCode = process.waitFor()
+        output.toIntOrNull()?.takeIf { exitCode == 0 && it > 0 } ?: 1
+    }.getOrDefault(1)
+}
+
+val ciManagerBuild = providers.gradleProperty("wanboxManagerCi").orNull == "true"
+val managerVersion = providers.gradleProperty("wanboxManagerVersion").orNull
+    ?: rootProject.file("../module/module.prop").takeIf { it.isFile }?.useLines { lines ->
+        lines.firstOrNull { it.startsWith("version=") }
+            ?.substringAfter('=')
+            ?.removePrefix("v")
+    }
+    ?: "8.2.0"
+val managerBuildId = providers.gradleProperty("wanboxManagerBuildId").orNull ?: "local"
+
+android {
+    namespace = "com.lit008834.pixel.wanboxforandroid"
+    compileSdk {
+        version = release(37)
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_25
+        targetCompatibility = JavaVersion.VERSION_25
+    }
+
+    defaultConfig {
+        applicationId = "com.lit008834.pixel.wanboxforandroid"
+        minSdk = 26
+        targetSdk = 37
+        versionCode = gitCommitCount()
+        versionName = if (ciManagerBuild) "$managerVersion-ci.$managerBuildId" else managerVersion
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
+    }
+
+    buildTypes {
+        release {
+            optimization.enable = true
+        }
+    }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+
+    experimentalProperties["android.experimental.r8.dex-startup-optimization"] = true
+
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
+    androidResources {
+        generateLocaleConfig = true
+        localeFilters += listOf("en", "zh", "ru")
+    }
+
+    lint {
+        abortOnError = true
+        checkReleaseBuilds = false
+    }
+
+    packaging {
+        dex {
+            useLegacyPackaging = true
+        }
+        jniLibs {
+            useLegacyPackaging = true
+            excludes += "lib/*/libandroidx.graphics.path.so"
+        }
+        resources {
+            excludes += "META-INF/**"
+            excludes += "kotlin/**"
+            excludes += "**.bin"
+            excludes += "**/DebugProbesKt.bin"
+        }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25)
+    }
+}
+
+tasks.withType<Test>().configureEach {
+    // Schema 测试直接读取磁盘文件，它们不在 JVM 测试类路径中，必须显式参与缓存键。
+    inputs.file(layout.projectDirectory.file("src/main/assets/sing-box.schema.json"))
+        .withPropertyName("singBoxSchema")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file(rootProject.layout.projectDirectory.file("../module/config/singbox/config.json"))
+        .withPropertyName("moduleStaticConfigs")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.files(fileTree("src/main/res") { include("values*/strings.xml", "resources.properties") })
+        .withPropertyName("localizedStrings")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+}
+
+dependencies {
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.activity.compose)
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.graphics)
+    implementation(libs.androidx.compose.material.icons.extended)
+
+    // Miuix
+    implementation(libs.miuix.ui)
+    implementation(libs.miuix.icons)
+    implementation(libs.miuix.nav)
+    implementation(libs.miuix.preference)
+    implementation(libs.miuix.blur)
+    implementation(libs.miuix.squircle)
+    implementation(libs.scripta.editor)
+    implementation(libs.androidx.navigationevent.compose)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.okhttp)
+    implementation(libs.hiddenapibypass)
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.okhttp.mockwebserver)
+}

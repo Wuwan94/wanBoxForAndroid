@@ -1,0 +1,635 @@
+package catalog
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"sort"
+	"strings"
+	"time"
+	"uuid"
+
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
+
+	moduleconfig "github.com/Wuwan94/wanBoxForAndroid/src/native/wanbox/internal/config"
+	"github.com/Wuwan94/wanBoxForAndroid/src/native/wanbox/internal/provider"
+	C "github.com/sagernet/sing-box/constant"
+	"github.com/sagernet/sing-box/option"
+	SJSON "github.com/sagernet/sing/common/json"
+	"github.com/sagernet/sing/common/json/badoption"
+)
+
+var validGroupID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+
+// isValidGroupID 统一拒绝事务目录和可能改变路径语义的分组 ID。
+func isValidGroupID(value string) bool {
+	return validGroupID.MatchString(value) && value != stagingDirName && !strings.Contains(value, "..")
+}
+
+// isGroupDir 判断 Catalog 根目录下的条目是否为可用分组目录。
+// 所有分组扫描都必须经过本函数，避免多处副本各自演化导致校验漂移。
+func isGroupDir(entry os.DirEntry) bool {
+	name := entry.Name()
+	return entry.IsDir() && isValidGroupID(name)
+}
+
+type GroupSummary struct {
+	ID                string         `json:"id"`
+	Name              string         `json:"name"`
+	RuntimeTag        string         `json:"runtime_tag"`
+	Type              string         `json:"type"`
+	Active            bool           `json:"active"`
+	NodeCount         int            `json:"node_count"`
+	Revision          int64          `json:"revision"`
+	AutoUpdate        bool           `json:"auto_update"`
+	UpdateInterval    int64          `json:"update_interval"`
+	UpdateViaProxy    string         `json:"update_via_proxy"`
+	Usage             jsontext.Value `json:"usage"`
+	ProfileTitle      string         `json:"profile_title"`
+	ProfileWebPageURL string         `json:"profile_web_page_url"`
+	LastAttemptAt     string         `json:"last_attempt_at"`
+	LastSuccessAt     string         `json:"last_success_at"`
+	NextUpdateAt      string         `json:"next_update_at"`
+	LastError         string         `json:"last_error"`
+	UpdatedAt         string         `json:"updated_at"`
+	Progress          jsontext.Value `json:"progress"`
+}
+
+type GroupSnapshot struct {
+	Group GroupSummary           `json:"group"`
+	Nodes []provider.NodeSummary `json:"nodes"`
+}
+
+type ScanOptions struct {
+	Root        string
+	ActiveGroup string
+	ProgressDir string
+	Type        string
+	WithNodes   bool
+	GroupID     string
+}
+
+type RuntimeOptions struct {
+	Root            string
+	ModuleConfig    string
+	ProvidersOutput string
+	OutboundsOutput string
+	Selection       moduleconfig.Selection
+	AllowEmpty      bool
+}
+
+type RuntimeResult struct {
+	Selection       moduleconfig.Selection `json:"-"`
+	ActiveGroup     string                 `json:"active_group_id"`
+	ActiveGroupTag  string                 `json:"active_group_tag"`
+	SelectorMode    string                 `json:"selector_mode"`
+	SelectedNodeRef string                 `json:"selected_node_ref"`
+	GroupCount      int                    `json:"group_count"`
+	NodeCount       int                    `json:"node_count"`
+}
+
+type ScheduleResult struct {
+	Nearest     int64            `json:"nearest"`
+	Due         []string         `json:"due"`
+	NextByGroup map[string]int64 `json:"-"`
+}
+
+func Scan(ctx context.Context, options ScanOptions) ([]GroupSnapshot, error) {
+	release, err := acquireCatalogRootAndRecover(ctx, options.Root)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	groups, err := loadGroups(ctx, options.Root, true)
+	if err != nil {
+		return nil, err
+	}
+	assignRuntimeTags(groups)
+	result := make([]GroupSnapshot, 0, len(groups))
+	for _, group := range groups {
+		if options.Type != "" && options.Type != "all" && group.Metadata.Type != options.Type {
+			continue
+		}
+		if options.GroupID != "" && group.ID != options.GroupID {
+			continue
+		}
+		if options.WithNodes {
+			nodes, err := provider.InspectFile(ctx, group.ProviderPath)
+			if err != nil {
+				return nil, fmt.Errorf("读取分组 %s Provider: %w", group.ID, err)
+			}
+			group.Nodes = nodes
+		}
+		summary := summaryFor(group, options.ActiveGroup, options.ProgressDir)
+		nodes := []provider.NodeSummary{}
+		if options.WithNodes {
+			nodes = group.Nodes
+		}
+		result = append(result, GroupSnapshot{Group: summary, Nodes: nodes})
+	}
+	return result, nil
+}
+
+func Schedule(ctx context.Context, root string, now int64) (ScheduleResult, error) {
+	release, err := acquireCatalogRootAndRecover(ctx, root)
+	if err != nil {
+		return ScheduleResult{}, err
+	}
+	defer release()
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return ScheduleResult{}, err
+	}
+	result := ScheduleResult{Due: []string{}, NextByGroup: make(map[string]int64)}
+	for _, entry := range entries {
+		if !isGroupDir(entry) {
+			continue
+		}
+		metadata, err := loadMetadata(filepath.Join(root, entry.Name(), "meta.json"), entry.Name())
+		if err != nil {
+			return ScheduleResult{}, fmt.Errorf("读取分组 %s 元数据: %w", entry.Name(), err)
+		}
+		if metadata.Type != "subscription" || !metadata.AutoUpdate {
+			continue
+		}
+		epoch := metadata.NextUpdateEpoch
+		if epoch <= 0 {
+			epoch = now
+		}
+		result.NextByGroup[entry.Name()] = epoch
+		if result.Nearest == 0 || epoch < result.Nearest {
+			result.Nearest = epoch
+		}
+		if epoch <= now {
+			result.Due = append(result.Due, entry.Name())
+		}
+	}
+	return result, nil
+}
+
+func RuntimeTag(ctx context.Context, root, groupID string) (string, error) {
+	if !isValidGroupID(groupID) {
+		return "", fmt.Errorf("非法分组 ID: %s", groupID)
+	}
+	release, err := acquireCatalogRootAndRecover(ctx, root)
+	if err != nil {
+		return "", err
+	}
+	defer release()
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return "", err
+	}
+	targetName := ""
+	targetHasNodes := false
+	duplicateCount := 0
+	runtimeNames := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if !isGroupDir(entry) {
+			continue
+		}
+		metadata, err := loadMetadata(filepath.Join(root, entry.Name(), "meta.json"), entry.Name())
+		if err != nil {
+			return "", fmt.Errorf("读取分组 %s 元数据: %w", entry.Name(), err)
+		}
+		if metadata.NodeCount > 0 {
+			runtimeNames = append(runtimeNames, metadata.Name)
+		}
+		if entry.Name() == groupID {
+			targetName = metadata.Name
+			targetHasNodes = metadata.NodeCount > 0
+		}
+	}
+	if targetName == "" {
+		return "", fmt.Errorf("分组不存在: %s", groupID)
+	}
+	if !targetHasNodes {
+		return targetName, nil
+	}
+	for _, name := range runtimeNames {
+		if name == targetName {
+			duplicateCount++
+		}
+	}
+	if duplicateCount > 1 {
+		return fmt.Sprintf("%s [%s]", targetName, groupID), nil
+	}
+	return targetName, nil
+}
+
+func ResolveSelection(ctx context.Context, root string, selection moduleconfig.Selection) (moduleconfig.Selection, string, error) {
+	if strings.TrimSpace(root) == "" || strings.TrimSpace(selection.ActiveGroupID) == "" {
+		return selection, "", errors.New("Catalog 根目录和分组查询不能为空")
+	}
+	release, err := acquireCatalogRootAndRecover(ctx, root)
+	if err != nil {
+		return selection, "", err
+	}
+	defer release()
+	groups, err := loadGroups(ctx, root, true)
+	if err != nil {
+		return selection, "", err
+	}
+	index := findGroup(groups, selection.ActiveGroupID)
+	if index < 0 {
+		for i, group := range groups {
+			if group.Metadata.Name == selection.ActiveGroupID {
+				if index >= 0 {
+					return selection, "", errors.New("分组名称不唯一，请使用分组 ID")
+				}
+				index = i
+			}
+		}
+	}
+	if index < 0 || !groups[index].hasNodes {
+		return selection, "", errors.New("目标分组不存在或没有可用节点")
+	}
+	selection.ActiveGroupID = groups[index].ID
+	var present bool
+	if selection.SelectedNodeTag == "" {
+		present, err = provider.FileHasNodes(ctx, groups[index].ProviderPath)
+	} else {
+		present, err = provider.FileContainsTag(ctx, groups[index].ProviderPath, selection.SelectedNodeTag)
+	}
+	if err != nil {
+		return selection, "", err
+	}
+	if !present {
+		return selection, "", fmt.Errorf("目标分组没有可用节点或未找到手动节点: %s", selection.Ref())
+	}
+	assignRuntimeTags(groups)
+	return selection, groups[index].RuntimeTag, nil
+}
+
+func NormalizeSelection(ctx context.Context, root string, selection moduleconfig.Selection, preferredGroup string) (moduleconfig.Selection, string, error) {
+	release, err := acquireCatalogRootAndRecover(ctx, root)
+	if err != nil {
+		return selection, "", err
+	}
+	defer release()
+	groups, err := loadGroups(ctx, root, true)
+	if err != nil {
+		return selection, "", err
+	}
+	return normalizeSelection(ctx, groups, selection, preferredGroup)
+}
+
+func normalizeSelection(ctx context.Context, groups []*loadedGroup, selection moduleconfig.Selection, preferredGroup string) (moduleconfig.Selection, string, error) {
+	indices := []int{findGroup(groups, selection.ActiveGroupID), findGroup(groups, preferredGroup)}
+	for index := range groups {
+		indices = append(indices, index)
+	}
+	for _, index := range indices {
+		if index < 0 || !groups[index].hasNodes {
+			continue
+		}
+		group := groups[index]
+		hasNodes, err := provider.FileHasNodes(ctx, group.ProviderPath)
+		if err != nil {
+			return selection, "", err
+		}
+		if !hasNodes {
+			continue
+		}
+		if selection.ActiveGroupID != group.ID {
+			selection = moduleconfig.Selection{ActiveGroupID: group.ID}
+		}
+		if selection.SelectedNodeTag != "" {
+			present, err := provider.FileContainsTag(ctx, group.ProviderPath, selection.SelectedNodeTag)
+			if err != nil {
+				return selection, "", err
+			}
+			if !present {
+				selection.SelectedNodeTag = ""
+			}
+		}
+		assignRuntimeTags(groups)
+		return selection, group.RuntimeTag, nil
+	}
+	selection = moduleconfig.Selection{}
+	if findGroup(groups, "default") >= 0 {
+		selection.ActiveGroupID = "default"
+	}
+	return selection, "", nil
+}
+
+func GroupIDs(ctx context.Context, root, groupType string) ([]string, error) {
+	release, err := acquireCatalogRootAndRecover(ctx, root)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if !isGroupDir(entry) {
+			continue
+		}
+		metadata, err := loadMetadata(filepath.Join(root, entry.Name(), "meta.json"), entry.Name())
+		if err != nil {
+			return nil, fmt.Errorf("读取分组 %s 元数据: %w", entry.Name(), err)
+		}
+		if groupType == "" || groupType == "all" || metadata.Type == groupType {
+			ids = append(ids, entry.Name())
+		}
+	}
+	return ids, nil
+}
+
+// NewSubscriptionGroupID 为新订阅生成不冲突的稳定 ID。
+func NewSubscriptionGroupID(ctx context.Context, root string) (string, error) {
+	if strings.TrimSpace(root) == "" {
+		return "", errors.New("Catalog 根目录不能为空")
+	}
+	release, err := acquireCatalogRootAndRecover(ctx, root)
+	if err != nil {
+		return "", err
+	}
+	defer release()
+	for range 16 {
+		candidate := uuid.NewV4().String()
+		if _, err := os.Stat(filepath.Join(root, candidate)); err == nil {
+			continue
+		} else if os.IsNotExist(err) {
+			return candidate, nil
+		} else {
+			return "", err
+		}
+	}
+	return "", errors.New("无法生成不冲突的订阅分组 ID")
+}
+
+func BuildRuntime(ctx context.Context, options RuntimeOptions) (RuntimeResult, error) {
+	if options.Root == "" || options.ProvidersOutput == "" || options.OutboundsOutput == "" {
+		return RuntimeResult{}, errors.New("Catalog 根目录和运行时输出路径不能为空")
+	}
+	release, err := acquireCatalogRootAndRecover(ctx, options.Root)
+	if err != nil {
+		return RuntimeResult{}, err
+	}
+	defer release()
+	if options.ModuleConfig != "" {
+		module, err := moduleconfig.LoadModule(options.ModuleConfig)
+		if err != nil {
+			return RuntimeResult{}, fmt.Errorf("读取 module.json 失败: %w", err)
+		}
+		options.Selection = module.Selection
+	}
+	groups, err := loadGroups(ctx, options.Root, false)
+	if err != nil {
+		return RuntimeResult{}, err
+	}
+	if len(groups) == 0 {
+		if !options.AllowEmpty {
+			return RuntimeResult{}, errors.New("Catalog 中没有可用节点，请先导入单节点、文件或订阅")
+		}
+		if err := writeEmptyRuntime(options); err != nil {
+			return RuntimeResult{}, err
+		}
+		return RuntimeResult{SelectorMode: "urltest"}, nil
+	}
+
+	selection, runtimeTag, err := normalizeSelection(ctx, groups, options.Selection, "")
+	if err != nil {
+		return RuntimeResult{}, err
+	}
+	if runtimeTag == "" {
+		return RuntimeResult{}, errors.New("Catalog 元数据与 Provider 节点数量不一致")
+	}
+
+	if err := writeRuntimeProviders(options.ProvidersOutput, groups); err != nil {
+		return RuntimeResult{}, err
+	}
+	activeTag, _ := selection.RuntimeTargets(runtimeTag)
+	if err := writeRuntimeOutbounds(options.OutboundsOutput, groups, activeTag); err != nil {
+		return RuntimeResult{}, err
+	}
+
+	nodeCount := 0
+	for _, group := range groups {
+		nodeCount += group.Metadata.NodeCount
+	}
+	result := RuntimeResult{
+		Selection:       selection,
+		ActiveGroup:     selection.ActiveGroupID,
+		ActiveGroupTag:  runtimeTag,
+		SelectorMode:    selection.Mode(),
+		SelectedNodeRef: selection.Ref(),
+		GroupCount:      len(groups),
+		NodeCount:       nodeCount,
+	}
+	return result, nil
+}
+
+type loadedGroup struct {
+	ID           string
+	Metadata     Metadata
+	ProviderPath string
+	Nodes        []provider.NodeSummary
+	RuntimeTag   string
+	hasNodes     bool
+}
+
+func loadGroups(ctx context.Context, root string, includeEmpty bool) ([]*loadedGroup, error) {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil, err
+	}
+	groups := make([]*loadedGroup, 0, len(entries))
+	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if !isGroupDir(entry) {
+			continue
+		}
+		groupDir := filepath.Join(root, entry.Name())
+		metadata, err := loadMetadata(filepath.Join(groupDir, "meta.json"), entry.Name())
+		if err != nil {
+			return nil, fmt.Errorf("读取分组 %s 元数据: %w", entry.Name(), err)
+		}
+		providerPath := filepath.Join(groupDir, "provider.json")
+		if !includeEmpty && metadata.NodeCount <= 0 {
+			continue
+		}
+		groups = append(groups, &loadedGroup{
+			ID: entry.Name(), Metadata: metadata, ProviderPath: providerPath,
+			hasNodes: metadata.NodeCount > 0,
+		})
+	}
+	sort.Slice(groups, func(i, j int) bool { return groups[i].ID < groups[j].ID })
+	return groups, nil
+}
+
+func loadMetadata(path, fallbackID string) (Metadata, error) {
+	return LoadMetadataLocked(path, fallbackID)
+}
+
+func summaryFor(group *loadedGroup, activeGroup, progressDir string) GroupSummary {
+	nodeCount := group.Metadata.NodeCount
+	if group.Nodes != nil {
+		nodeCount = len(group.Nodes)
+	}
+	return summaryForMetadata(group.Metadata, group.RuntimeTag, activeGroup, progressDir, nodeCount)
+}
+
+func assignRuntimeTags(groups []*loadedGroup) {
+	counts := make(map[string]int, len(groups))
+	for _, group := range groups {
+		if group.hasNodes {
+			counts[group.Metadata.Name]++
+		}
+	}
+	for _, group := range groups {
+		group.RuntimeTag = group.Metadata.Name
+		if group.hasNodes && counts[group.Metadata.Name] > 1 {
+			group.RuntimeTag = fmt.Sprintf("%s [%s]", group.Metadata.Name, group.ID)
+		}
+	}
+}
+
+func findGroup(groups []*loadedGroup, id string) int {
+	for index, group := range groups {
+		if group.ID == id {
+			return index
+		}
+	}
+	return -1
+}
+
+func writeRuntimeProviders(path string, groups []*loadedGroup) error {
+	items := make([]option.Provider, 0, len(groups))
+	for _, group := range groups {
+		items = append(items, option.Provider{
+			Type: C.ProviderTypeLocal,
+			Tag:  group.RuntimeTag,
+			Options: &option.ProviderLocalOptions{
+				Path: group.ProviderPath,
+				HealthCheck: option.ProviderHealthCheckOptions{
+					Enabled:  true,
+					URL:      "https://www.gstatic.com/generate_204",
+					Interval: badoption.Duration(10 * time.Minute),
+					Timeout:  badoption.Duration(5 * time.Second),
+				},
+			},
+		})
+	}
+	return writeRuntimeJSONAtomic(path, struct {
+		Providers []option.Provider `json:"providers"`
+	}{Providers: items})
+}
+
+func writeRuntimeOutbounds(path string, groups []*loadedGroup, defaultTag string) error {
+	outbounds := []option.Outbound{
+		{Type: C.TypeDirect, Tag: "direct", Options: new(option.DirectOutboundOptions)},
+		{Type: C.TypeBlock, Tag: "block", Options: new(option.StubOptions)},
+	}
+	options := make([]string, 0, len(groups)*2)
+	for _, group := range groups {
+		autoTag := "Auto/" + group.RuntimeTag
+		selectTag := "Select/" + group.RuntimeTag
+		outbounds = append(outbounds,
+			option.Outbound{
+				Type: C.TypeURLTest,
+				Tag:  autoTag,
+				Options: &option.URLTestOutboundOptions{
+					Providers:                 []string{group.RuntimeTag},
+					URL:                       "https://www.gstatic.com/generate_204",
+					Interval:                  badoption.Duration(3 * time.Minute),
+					Tolerance:                 50,
+					InterruptExistConnections: true,
+				},
+			},
+			option.Outbound{
+				Type: C.TypeSelector,
+				Tag:  selectTag,
+				Options: &option.SelectorOutboundOptions{
+					Providers:                 []string{group.RuntimeTag},
+					InterruptExistConnections: true,
+				},
+			},
+		)
+		options = append(options, autoTag, selectTag)
+	}
+	outbounds = append(outbounds, option.Outbound{
+		Type: C.TypeSelector,
+		Tag:  "Proxy",
+		Options: &option.SelectorOutboundOptions{
+			Outbounds:                 options,
+			Default:                   defaultTag,
+			InterruptExistConnections: true,
+		},
+	})
+	return writeRuntimeOutboundsAtomic(path, outbounds)
+}
+
+func writeRuntimeOutboundsAtomic(path string, outbounds []option.Outbound) error {
+	content, err := SJSON.MarshalContext(provider.RuntimeContext(context.Background()), struct {
+		Outbounds []option.Outbound `json:"outbounds"`
+	}{Outbounds: outbounds})
+	if err != nil {
+		return err
+	}
+	var document struct {
+		Outbounds []map[string]jsontext.Value `json:"outbounds"`
+	}
+	if err := json.Unmarshal(content, &document); err != nil {
+		return err
+	}
+	for _, outbound := range document.Outbounds {
+		for _, field := range []string{"outbounds", "providers"} {
+			if value, exists := outbound[field]; exists && bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+				delete(outbound, field)
+			}
+		}
+	}
+	return writeJSONAtomic(path, document)
+}
+
+func writeEmptyRuntime(options RuntimeOptions) error {
+	if err := writeRuntimeJSONAtomic(options.ProvidersOutput, struct {
+		Providers []option.Provider `json:"providers"`
+	}{Providers: []option.Provider{}}); err != nil {
+		return err
+	}
+	if err := writeRuntimeJSONAtomic(options.OutboundsOutput, struct {
+		Outbounds []option.Outbound `json:"outbounds"`
+	}{Outbounds: []option.Outbound{
+		{Type: C.TypeDirect, Tag: "direct", Options: new(option.DirectOutboundOptions)},
+		{Type: C.TypeBlock, Tag: "block", Options: new(option.StubOptions)},
+		{Type: C.TypeDirect, Tag: "Proxy", Options: new(option.DirectOutboundOptions)},
+	}}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func writeRuntimeJSONAtomic(path string, value any) error {
+	content, err := SJSON.MarshalContext(provider.RuntimeContext(context.Background()), value)
+	if err != nil {
+		return err
+	}
+	formatted := jsontext.Value(append([]byte(nil), content...))
+	if err := formatted.Indent(jsontext.WithIndent("  ")); err != nil {
+		return err
+	}
+	formatted = append(formatted, '\n')
+	return provider.WriteAtomic(path, formatted, 0o600)
+}
+
+func writeJSONAtomic(path string, value any) error {
+	content, err := json.Marshal(value, json.Deterministic(true), jsontext.WithIndent("  "))
+	if err != nil {
+		return err
+	}
+	content = append(content, '\n')
+	return provider.WriteAtomic(path, content, 0o600)
+}
