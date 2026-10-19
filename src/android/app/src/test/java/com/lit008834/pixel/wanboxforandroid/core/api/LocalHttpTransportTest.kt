@@ -210,6 +210,47 @@ class LocalHttpTransportTest {
         assertEquals(1, server.requestCount)
     }
 
+    @Test fun automaticConnectRepairsUnreadableReceiptOnlyThroughProvider() = runBlocking {
+        var writes = 0
+        val broken = ConnectionStore({ "{broken" }, { writes++ })
+        val reconnecting = LocalHttpTransport(broken, credentials.address)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                assertEquals("/api/v1/auth/provision", request.target)
+                assertNull(request.headers["Authorization"])
+                broken.write(Json.encodeToString(credentials))
+                return MockResponse(body = "{}")
+            }
+        }
+        assertEquals(credentials, reconnecting.connect())
+        assertEquals(credentials, reconnecting.connect())
+        assertEquals(1, writes)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test fun failedAutomaticRepairDoesNotOverwriteUnreadableReceipt() = runBlocking {
+        var writes = 0
+        val broken = ConnectionStore({ "{broken" }, { writes++ })
+        val reconnecting = LocalHttpTransport(broken, credentials.address)
+        server.enqueue(MockResponse(code = 503,
+            body = """{"schema":1,"ok":false,"code":"api.busy","message":"busy","data":{}}"""))
+        val error = runCatching { reconnecting.connect() }.exceptionOrNull() as ModuleApiException
+        assertEquals("api.busy", error.resultCode)
+        assertEquals(0, writes)
+        assertTrue(runCatching { broken.read() }.isFailure)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test fun automaticConnectDoesNotHideReceiptStorageFailure() = runBlocking {
+        val failure = IOException("fixture storage failure")
+        val broken = ConnectionStore({ throw failure }, {})
+        val reconnecting = LocalHttpTransport(broken, credentials.address)
+        val error = runCatching { reconnecting.connect() }.exceptionOrNull()
+        assertTrue(error is IOException)
+        assertEquals(failure.message, error?.message)
+        assertEquals(0, server.requestCount)
+    }
+
     @Test fun explicitReconnectRepairsUnreadableLocalReceiptOnlyThroughProvider() = runBlocking {
         val broken = ConnectionStore({ "{broken" }, {})
         val reconnecting = LocalHttpTransport(broken, credentials.address)

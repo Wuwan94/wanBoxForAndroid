@@ -64,8 +64,15 @@ internal class LocalHttpTransport internal constructor(
     private val provisioningClient by lazy { client(null).newBuilder().connectTimeout(3, TimeUnit.SECONDS).build() }
 
     suspend fun connect(): ModuleConnection = withContext(Dispatchers.IO) {
-        connections.read()?.let { return@withContext it }
-        pairing.withLock { connections.read() ?: provisionConnection(address) }
+        readValidConnection()?.let { return@withContext it }
+        pairing.withLock { readValidConnection() ?: provisionConnection(address) }
+    }
+
+    private fun readValidConnection(): ModuleConnection? = try {
+        connections.read()
+    } catch (_: IllegalArgumentException) {
+        // 损坏的回执只能通过官方 Provider 重新交付，不删除文件或放宽凭据校验。
+        null
     }
 
     override suspend fun reconnect(address: String): Unit = withContext(Dispatchers.IO) {
