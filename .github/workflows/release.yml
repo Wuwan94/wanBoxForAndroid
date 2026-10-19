@@ -125,6 +125,7 @@ jobs:
           files: |
             ${{ env.MODULE_NAME }}
             update.json
+          prerelease: ${{ contains(github.ref_name, '-preview') || contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

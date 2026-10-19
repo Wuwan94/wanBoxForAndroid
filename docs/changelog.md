@@ -2,6 +2,30 @@
 
 本页收录 GitHub Releases 中发布的正式版本，按发布时间倒序排列；不包含持续更新的 `nightly Pre-release`。
 
+## 版本 v3.0.10-preview.14（2026-10-19）
+
+首个基于 NetProxy-Magisk 架构的预览版。包名与签名沿用 `com.lit008834.pixel.wanboxforandroid`，可直接覆盖安装；节点库与备份格式向下兼容。
+
+### 模块核心
+
+- 整体替换为 NetProxy-Magisk v8.6.1 同步基线。管理面从「App 拉取节点 + 下发到模块」改为模块独立 HTTPS API，App 端仅作轻量前端（`ModuleApiClient` 透传、`FileCredentialBridge` 零 Root 投递、`RootModuleClient` 去除 `su` 调用）。
+- 凭据投递改用 `ContentProvider.call("provision")` + `Binder.getCallingUid()==0` 校验根身份，取代旧的文件 + SELinux 路径方案，规避模块目录权限差异。
+- 新增模块侧 `/v1/nodes`、`/v1/subscriptions`、`/v1/config` 等端点，节点与订阅在模块内独立管理（`store.go` / `subscription.go` / `config_intent.go`）。
+
+### 入站
+
+- 流量接管改为模块 eBPF / TUN + tproxy，App 不再持有节点选择与下发职责。
+- 配置文件与下发语义由模块负责；App 端订阅刷新、节点切换、热更新全部走模块 HTTPS API。
+
+### 内核
+
+- sing-box 切换到 `github.com/reF1nd/sing-box v1.15.0-alpha.11-reF1nd` 定制版，取代 NB4A 时代的 1.15.0-alpha.12。
+
+### 兼容性
+
+- 仅支持 arm64-v8a / Android 12+ / Root 环境（Magisk、KernelSU、APatch）。
+- 这是 NetProxy 架构首个预览版，请先备份节点与订阅再覆盖安装；如遇配置错乱可进入模块 `action.sh` 选 5 恢复默认。
+
 ## 版本 8.6.1（2026-10-15）
 
 - 修复部分设备因应用图标或字体初始化异常，导致应用代理列表无法加载、提示“无法读取 Android 平台信息”的问题。
