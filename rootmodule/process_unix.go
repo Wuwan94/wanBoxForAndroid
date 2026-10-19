@@ -68,6 +68,45 @@ func Identity(pid int) (ProcessIdentity, error) {
 	}
 	return ProcessIdentity{pid, fields[19], strings.TrimSuffix(exe, " (deleted)")}, nil
 }
+// findServeProcesses 反查「正在以 exePath 运行且命令行是 __internal serve」的进程。
+//
+// 兼容路径：preview.11 及更早没有 api.pid，热更新时无从知道旧管理面的 pid。
+// 只按进程名/裸 pid 杀进程是危险的，这里用两条硬条件收窄：
+// /proc/<pid>/exe 必须指向本模块的 wanboxctl，且命令行必须确实是 serve。
+// 两条都满足才认定是我们要替换的管理面。
+func findServeProcesses(exePath string) []ProcessIdentity {
+	if exePath == "" {
+		return nil
+	}
+	entries, e := os.ReadDir("/proc")
+	if e != nil {
+		return nil
+	}
+	out := make([]ProcessIdentity, 0, 2)
+	for _, entry := range entries {
+		pid, e := strconv.Atoi(entry.Name())
+		if e != nil || pid <= 1 {
+			continue
+		}
+		id, e := Identity(pid)
+		if e != nil || id.Executable != exePath {
+			continue
+		}
+		raw, e := os.ReadFile(filepath.Join("/proc", entry.Name(), "cmdline"))
+		if e != nil {
+			continue
+		}
+		args := strings.Split(strings.TrimRight(string(raw), "\x00"), "\x00")
+		for i := 1; i < len(args); i++ {
+			if args[i] == "serve" && args[i-1] == "__internal" {
+				out = append(out, id)
+				break
+			}
+		}
+	}
+	return out
+}
+
 func SameProcess(want ProcessIdentity) bool {
 	got, e := Identity(want.PID)
 	return e == nil && want.Start != "" && got == want

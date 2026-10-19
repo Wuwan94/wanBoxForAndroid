@@ -120,7 +120,8 @@ object ModuleConfigIntent {
      *
      * 只在模块 store 为空时调用一次。outbound 的 tag 由 libcore 的 profileTagMap
      * 映射回 profileId，因此迁移后节点选择、热切换 tag 与旧配置保持一致。
-     * 来自顶层 endpoints 数组的节点会带 endpoint 标记，模块按 endpoints 写回，不进 selector。
+     * 来自顶层 endpoints 数组的节点会带 endpoint 标记，模块写回顶层 endpoints；
+     * 端点只是「放的位置」不同，依然是可选节点（内核支持 selector 引用 endpoint）。
      *
      * 数据源必须是 RootModuleSnapshot 重写后的 config：它已把 App 私有绝对路径
      * 换成 ../files/... 便携形式；直接用 instance.config.config 会把 App 路径带进模块。

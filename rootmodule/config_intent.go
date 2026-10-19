@@ -98,20 +98,19 @@ func (r *Runtime) ApplyConfigIntent(ctx context.Context, intent ConfigIntent) (S
 	if len(nodes) == 0 {
 		return State{}, errors.New("nodes_empty")
 	}
-	profile, ok := selectorCandidateByID(nodes, profileID)
+	// 端点节点同样可以被选中：sing-box 1.11+ 要求 wireguard 只出现在顶层
+	// endpoints，但 selector 完全可以引用 endpoint 的 tag（内核自带的 selector
+	// 用例就是这么写的）。端点与普通节点的区别只在「放在配置的哪个数组」，
+	// 不在「能不能选」——把它排除掉会让 wireguard 节点迁移后依然用不了。
+	profile, ok := anyNodeByID(nodes, profileID)
 	if !ok {
-		if _, isEndpoint := anyNodeByID(nodes, profileID); isEndpoint {
-			// 指定的是 endpoints 节点：它不进 selector 候选，selector 会引用
-			// 一个不存在的 tag，同样按固定错误码拒绝。
-			return State{}, errors.New("selector_target_missing")
-		}
 		if explicitProfile {
 			// 显式指定的 id 不在模块节点里（未迁移 / 已被删除）：如实报错，
 			// 不回退到其它节点，让 App 有机会补迁移或提示用户。
 			return State{}, errors.New("profile_missing")
 		}
-		// 未显式指定（沿用运行态或上次选择）且该节点已消失：回退到第一个
-		// 可作为代理的节点，避免无选择导致 config 校验失败。
+		// 未显式指定（沿用运行态或上次选择）且该节点已消失：回退到第一个节点，
+		// 避免无选择导致 config 校验失败。
 		profile, ok = firstSelectorCandidate(nodes)
 		if !ok {
 			return State{}, errors.New("nodes_empty")
@@ -186,22 +185,11 @@ func anyNodeByID(nodes []StoreNode, id int64) (StoreNode, bool) {
 	return StoreNode{}, false
 }
 
-// selectorCandidateByID 只在「非 endpoints」的节点里查：端点不进入 selector，
-// 选中端点会让 selector 引用一个不存在的候选，必须按错误拒绝而不是静默改写。
-func selectorCandidateByID(nodes []StoreNode, id int64) (StoreNode, bool) {
-	for _, n := range nodes {
-		if n.ID == id && !n.Endpoint {
-			return n, true
-		}
-	}
-	return StoreNode{}, false
-}
-
+// firstSelectorCandidate 取第一个节点作为回退选择。端点也参与：它能进 selector，
+// 只是写在顶层 endpoints 数组里。
 func firstSelectorCandidate(nodes []StoreNode) (StoreNode, bool) {
 	for _, n := range nodes {
-		if !n.Endpoint {
-			return n, true
-		}
+		return n, true
 	}
 	return StoreNode{}, false
 }
@@ -241,11 +229,12 @@ func (r *Runtime) buildConfig(nodes []StoreNode, selectedID int64, cfg StoreConf
 			return nil, errors.New("node_tag_duplicate")
 		}
 		seen[tag] = true
+		// 端点只决定「写进哪个数组」，不影响它是否可选：tag 同样进 selector 候选。
 		if n.Endpoint {
 			endpoints = append(endpoints, n.Outbound)
-			continue
+		} else {
+			outbounds = append(outbounds, n.Outbound)
 		}
-		outbounds = append(outbounds, n.Outbound)
 		tags = append(tags, tag)
 	}
 	if len(tags) == 0 {
@@ -276,7 +265,7 @@ func (r *Runtime) buildConfig(nodes []StoreNode, selectedID int64, cfg StoreConf
 		endpoints = append(endpoints, ep)
 	}
 
-	sel, ok := selectorCandidateByID(nodes, selectedID)
+	sel, ok := anyNodeByID(nodes, selectedID)
 	if !ok {
 		return nil, errors.New("selector_target_missing")
 	}
@@ -323,13 +312,11 @@ func (r *Runtime) buildConfig(nodes []StoreNode, selectedID int64, cfg StoreConf
 }
 
 // profileTagsJSON 按模块最终节点 tag 生成 profileId → {tag,name} 映射，
-// 供热切换（SelectNode）在运行时定位目标出站。端点节点不进 selector，故不收录。
+// 供热切换（SelectNode）在运行时定位目标出站。端点节点同样收录：它也是可选节点，
+// 漏掉它热切换就指不到 wireguard 出站。
 func profileTagsJSON(nodes []StoreNode) ([]byte, error) {
 	tags := make(map[string]ProfileTag, len(nodes))
 	for _, n := range nodes {
-		if n.Endpoint {
-			continue
-		}
 		tag, ok := outboundTag(n.Outbound)
 		if !ok {
 			// 与 buildConfig 一致：非法节点必须让整次应用失败，不生成半套映射。

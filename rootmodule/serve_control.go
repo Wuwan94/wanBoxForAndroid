@@ -43,6 +43,57 @@ func (rec apiServeRecord) identity() ProcessIdentity {
 
 func (r *Runtime) serveRecordPath() string { return r.path(apiPidFile) }
 
+// serveExePath 是管理面进程的可执行文件绝对路径，用于反查没有 api.pid 的旧进程。
+func (r *Runtime) serveExePath() string { return filepath.Join(r.ModuleDir, "bin", "wanboxctl") }
+
+// legacyServe 找出「没有 api.pid 可依」的旧管理面进程。
+//
+// preview.11 及更早的 serve 不写 api.pid，热更新时无从知道它的 pid；只按进程名
+// 或裸 pid 杀进程是危险的，因此用两条硬条件收窄：可执行文件必须是本模块的
+// wanboxctl，且命令行确实是 __internal serve。api.pid 有效时返回空——那时走
+// 精确停止路径，不需要反查。
+func (r *Runtime) legacyServe() []ProcessIdentity {
+	if r.installLegacyServe != nil {
+		return r.installLegacyServe()
+	}
+	if _, ok := r.serving(); ok {
+		return nil
+	}
+	return findServeProcesses(r.serveExePath())
+}
+
+// stopLegacyServe 按身份停掉反查到的旧管理面：先 TERM，超时才 KILL。
+// 每个进程都重新校验身份，pid 被复用时不会误杀无关进程。
+func (r *Runtime) stopLegacyServe(ctx context.Context, ids []ProcessIdentity) error {
+	if r.installLegacyServeStop != nil {
+		return r.installLegacyServeStop(ctx, ids)
+	}
+	var first error
+	for _, id := range ids {
+		if !SameProcess(id) {
+			continue
+		}
+		if e := terminate(id); e != nil {
+			first = e
+			continue
+		}
+		if waitProcessGone(ctx, id, 10*time.Second) {
+			continue
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if e := forceTerminate(id); e != nil {
+			first = e
+			continue
+		}
+		if !waitProcessGone(ctx, id, 5*time.Second) {
+			first = errors.New("api_stop_timeout")
+		}
+	}
+	return first
+}
+
 // readServeRecord 读取 api.pid 并做最小合法性校验。
 // 文件不存在时返回 os.ErrNotExist（调用方据此判断「没有管理面」）；
 // 其它读取/解析失败统一收敛到固定错误码 api_pid_invalid，不把原始报错透给 App。

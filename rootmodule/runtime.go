@@ -120,6 +120,9 @@ type Runtime struct {
 	installServeStop  func(context.Context) error
 	installServeStart func(context.Context) error
 	installServing    func() bool
+	// 旧管理面兼容探测：preview.11 及更早不写 api.pid，只能按可执行路径反查。
+	installLegacyServe     func() []ProcessIdentity
+	installLegacyServeStop func(context.Context, []ProcessIdentity) error
 
 	// Store 必须是同一实例：每次返回新 Store 会让并发请求各自持锁，
 	// 无法串行化对 store/*.json 的读写。

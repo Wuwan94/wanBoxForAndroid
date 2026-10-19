@@ -208,6 +208,13 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 		if r.installServeStart != nil {
 			old.installServeStart = r.installServeStart
 		}
+		// 兼容路径的两个缝同样要跟着 target 走，否则单元测试会真的去扫 /proc。
+		if r.installLegacyServe != nil {
+			old.installLegacyServe = r.installLegacyServe
+		}
+		if r.installLegacyServeStop != nil {
+			old.installLegacyServeStop = r.installLegacyServeStop
+		}
 		_, snapshot, e := old.Current()
 		if e != nil {
 			return e
@@ -248,6 +255,10 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 		if r.installServing != nil {
 			wasServing = r.installServing()
 		}
+		// 旧版（preview.11 及更早）不写 api.pid，只能按可执行路径反查。
+		// 这个探测必须在重命名之前做完，重命名后 exe 路径就变了。
+		legacyServe := old.legacyServe()
+		serveWasUp := wasServing || len(legacyServe) > 0
 		backup, e := os.MkdirTemp(parent, ".wanbox-previous-")
 		if e != nil {
 			return e
@@ -263,6 +274,28 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 		// 只有真的动过新 serve 才需要在回滚时收掉，避免误停仍在跑的旧进程。
 		serveStopped := false
 		serveStarted := false
+		// 管理面必须在重命名**之前**停掉：重命名后 /proc/<pid>/exe 会指向 backup
+		// 路径，与 api.pid 里记录的原路径对不上，身份校验必然失败 —— 旧 serve
+		// 停不掉，新 serve 又抢不到 api.lock，热更新后管理面直接失联。
+		if serveWasUp {
+			restore := func() {
+				// 目录还没动，唯一需要还原的是被停掉的核心。
+				if wasRunning {
+					_ = start(context.Background())
+				}
+			}
+			if wasServing {
+				if e = old.stopServe(ctx); e != nil {
+					restore()
+					return errors.New("serve_stop_failed")
+				}
+			}
+			if e = old.stopLegacyServe(ctx, legacyServe); e != nil {
+				restore()
+				return errors.New("serve_stop_failed")
+			}
+			serveStopped = true
+		}
 		if _, e = os.Stat(target); e == nil {
 			if e = os.Rename(target, backup); e != nil {
 				if wasRunning {
@@ -315,20 +348,14 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 		if e = syncDir(parent); e != nil {
 			return rollback()
 		}
-		// 新代码已就位：先按 api.pid 精确停掉旧管理面（不按裸 pid 杀进程），
-		// 再用 detached 方式拉起新的 serve。管理面与核心状态无关：
-		// 即使核心原本是停的，也必须把管理面恢复，否则 App 再也连不上模块。
-		if wasServing {
-			if e = old.stopServe(ctx); e != nil {
+		// 新代码已就位，旧管理面已在重命名前停掉：这里只负责拉起新的 serve。
+		// 管理面与核心状态无关：即使核心原本是停的，也必须把管理面恢复，
+		// 否则 App 再也连不上模块。
+		if serveWasUp && !disabled {
+			// 先标记再启动：即便新 serve 启动失败，回滚也要尝试收掉半个进程。
+			serveStarted = true
+			if e = old.startServeDetached(ctx); e != nil {
 				return rollback()
-			}
-			serveStopped = true
-			if !disabled {
-				// 先标记再启动：即便新 serve 启动失败，回滚也要尝试收掉半个进程。
-				serveStarted = true
-				if e = old.startServeDetached(ctx); e != nil {
-					return rollback()
-				}
 			}
 		}
 		if mode != "preserve" {

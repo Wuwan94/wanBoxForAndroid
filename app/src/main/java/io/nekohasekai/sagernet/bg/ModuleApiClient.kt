@@ -61,7 +61,7 @@ object ModuleApiClient {
         val subscriptionId: Long,
         val outbound: JSONObject,
         val updatedAt: Long,
-        /** 来自配置顶层 endpoints 数组：模块写回 endpoints，不进入 selector 候选。 */
+        /** 来自配置顶层 endpoints 数组：模块写回顶层 endpoints，但仍是可选节点。 */
         val endpoint: Boolean = false,
     ) {
         fun toJson(): JSONObject = JSONObject()

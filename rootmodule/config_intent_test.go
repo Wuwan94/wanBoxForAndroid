@@ -109,8 +109,10 @@ func TestConfigIntentMergesAuxiliaryOutboundsEndpointsAndLog(t *testing.T) {
 	if !ok || selector["type"] != "selector" || selector["default"] != "node-1" {
 		t.Fatal("selector 定义错误", selector)
 	}
-	if tags, ok := selector["outbounds"].([]any); !ok || len(tags) != 1 || tags[0] != "node-1" {
-		t.Fatal("endpoint 节点不得进入 selector 候选", selector["outbounds"])
+	// 端点节点同样是可选节点：内核支持 selector 引用 endpoint tag，
+	// 把端点排除掉会让 wireguard 节点迁移后依然选不了。
+	if list, ok := selector["outbounds"].([]any); !ok || len(list) != 2 || list[0] != "node-1" || list[1] != "endpoint-1" {
+		t.Fatal("endpoint 节点必须进 selector 候选", selector["outbounds"])
 	}
 	log, ok := cfg["log"].(map[string]any)
 	if !ok || log["level"] != "warn" {
@@ -125,7 +127,8 @@ func TestConfigIntentMergesAuxiliaryOutboundsEndpointsAndLog(t *testing.T) {
 	if e = readJSON(r.path("generations", state.Revision, "files", profileTagFile), &tags, 1<<20); e != nil {
 		t.Fatal("profile_tags.json 缺失", e)
 	}
-	if len(tags) != 1 || tags["1"].Tag != "node-1" || tags["1"].Name != "节点一" {
+	// 端点也收录：热切换要能指到 wireguard 出站。
+	if len(tags) != 2 || tags["1"].Tag != "node-1" || tags["1"].Name != "节点一" || tags["2"].Tag != "endpoint-1" {
 		t.Fatal("profile_tags 与最终节点不一致", tags)
 	}
 	// store 必须持久化这些依赖，否则下次 reload 会丢。
@@ -181,12 +184,13 @@ func TestConfigIntentRejectsInvalidDependencyAndKeepsGeneration(t *testing.T) {
 			code: "auxiliary_outbound_invalid",
 		},
 		{
-			name: "selector 指向端点",
+			// 端点占用了 endpoint-1：辅助出站撞同一个 tag 必须拒绝。
+			name: "与端点 tag 冲突",
 			intent: ConfigIntent{
-				AuxiliaryOutbounds: []json.RawMessage{json.RawMessage(`{"type":"direct","tag":"direct"}`)},
-				ProfileID:          2,
+				AuxiliaryOutbounds: []json.RawMessage{json.RawMessage(`{"type":"direct","tag":"endpoint-1"}`)},
+				ProfileID:          1,
 			},
-			code: "selector_target_missing",
+			code: "node_tag_duplicate",
 		},
 	}
 	for _, c := range cases {
@@ -218,8 +222,38 @@ func TestConfigIntentRejectsInvalidDependencyAndKeepsGeneration(t *testing.T) {
 	if e = readJSON(r.path("generations", state.Revision, "files", profileTagFile), &tags, 1<<20); e != nil {
 		t.Fatal(e)
 	}
-	if _, exists := tags["2"]; exists {
-		t.Fatal("端点不应出现在 profile_tags", tags)
+	if _, exists := tags["2"]; !exists {
+		t.Fatal("端点也是可选节点，必须出现在 profile_tags", tags)
+	}
+}
+
+// 选中端点节点必须成功：它写在顶层 endpoints，但 selector 可以引用它。
+// 这是 wireguard 节点能用起来的关键——之前把它排除掉，迁移后依然选不了。
+func TestConfigIntentCanSelectEndpointNode(t *testing.T) {
+	r := intentFixture(t)
+	state, e := r.ApplyConfigIntent(context.Background(), ConfigIntent{ProfileID: 2})
+	if e != nil {
+		t.Fatal("端点节点必须可选", e)
+	}
+	cfg := readGenerationJSON(t, r, state.Revision, "run", "config.json")
+	// 端点仍然只在顶层 endpoints，不能进 outbounds（内核要求 wireguard 不能进 outbounds）。
+	if tags := outboundTags(t, cfg["outbounds"]); !equalTags(tags, []string{"node-1", selectorTag}) {
+		t.Fatal("端点不得进 outbounds", tags)
+	}
+	if tags := outboundTags(t, cfg["endpoints"]); !equalTags(tags, []string{"endpoint-1"}) {
+		t.Fatal("端点必须在顶层 endpoints", tags)
+	}
+	list, _ := cfg["outbounds"].([]any)
+	selector, _ := list[len(list)-1].(map[string]any)
+	if selector["default"] != "endpoint-1" {
+		t.Fatal("selector 默认必须指向选中的端点", selector["default"])
+	}
+	var tags map[string]ProfileTag
+	if e = readJSON(r.path("generations", state.Revision, "files", profileTagFile), &tags, 1<<20); e != nil {
+		t.Fatal(e)
+	}
+	if tags["2"].Tag != "endpoint-1" {
+		t.Fatal("端点必须进 profile_tags，否则热切换指不到它", tags)
 	}
 }
 

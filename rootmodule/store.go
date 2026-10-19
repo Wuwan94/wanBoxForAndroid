@@ -30,7 +30,9 @@ const (
 // outbound 对象（含 tag），由模块在生成配置时原样拼入 outbounds 数组。
 //
 // Endpoint 标记该节点来自配置顶层的 endpoints 数组（如 wireguard 端点）：
-// 生成配置时写回顶层 endpoints，不进入 selector 候选，避免把端点当成可选代理。
+// 生成配置时写回顶层 endpoints（内核要求 wireguard 不能进 outbounds），
+// 但它的 tag 仍然进 selector 候选 —— 内核支持 selector 引用 endpoint，
+// 把端点排除掉会让 wireguard 节点变成「看得见选不了」。
 type StoreNode struct {
 	ID             int64           `json:"id"`
 	Type           string          `json:"type"`
