@@ -1,5 +1,6 @@
 # @author 雾晚
 """Check both source and merged manifests; fail on exposed control broadcasts."""
+import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -29,4 +30,39 @@ assert "fallbackToDestructiveMigration" not in db and "deleteDatabase" not in db
 security = ET.parse(root/"app/src/main/res/xml/network_security_config.xml").getroot()
 assert security.find("base-config").get("cleartextTrafficPermitted") == "false"
 assert {d.text for d in security.findall("./domain-config/domain")} == {"127.0.0.1", "localhost"}
-print("Manifest control isolation, migration preservation and TLS policy checks passed")
+workflow = (root / ".github/workflows/verify-android.yml").read_text(encoding="utf-8")
+step_matches = list(re.finditer(r"(?m)^      - name: (.+)$", workflow))
+steps = {}
+for index, match in enumerate(step_matches):
+    end = step_matches[index + 1].start() if index + 1 < len(step_matches) else len(workflow)
+    steps[match.group(1)] = workflow[match.start():end]
+
+trusted_release = (
+    "if: ${{ github.event_name == 'workflow_dispatch' || "
+    "github.event.pull_request.head.repo.full_name == github.repository }}")
+for name, body in steps.items():
+    if "WANBOX_KEYSTORE_" in body or "secrets.WANBOX_KEYSTORE" in body:
+        assert trusted_release in body, f"release signing material is not gated: {name}"
+for name in (
+    "Prepare key for the unpublished release comparison build",
+    "Build and test signed release variants",
+    "Measure same variant and ABI APK payload",
+    "Validate release database migrations",
+    "Upload release APK",
+):
+    assert trusted_release in steps[name], f"trusted-event gate missing: {name}"
+
+debug_tests = steps["Test debug unit suite and security contracts"]
+assert "app:testOssDebugUnitTest" in debug_tests and "app:testPreviewDebugUnitTest" in debug_tests
+assert "tools/check_android_security.py" in debug_tests
+assert "WANBOX_KEYSTORE_" not in debug_tests and "app:assembleOssRelease" not in debug_tests
+debug_emulator = steps["Validate database migrations and external control (debug)"]
+assert "app:connectedOssDebugAndroidTest" in debug_emulator
+assert "WANBOX_KEYSTORE_" not in debug_emulator
+print("Manifest, migration, TLS and fork-safe CI signing-boundary checks passed")
+
+assert "verify_external_control.sh" in debug_emulator
+assert "verify_launcher_shortcuts.sh" not in debug_emulator
+assert "verify_launcher_shortcuts.sh" in steps["Validate release database migrations"]
+assert "ossDebugAndroidTest -name" in debug_emulator
+assert "ossReleaseAndroidTest -name" in steps["Validate release database migrations"]
