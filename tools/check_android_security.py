@@ -60,3 +60,9 @@ debug_emulator = steps["Validate database migrations and external control (debug
 assert "app:connectedOssDebugAndroidTest" in debug_emulator
 assert "WANBOX_KEYSTORE_" not in debug_emulator
 print("Manifest, migration, TLS and fork-safe CI signing-boundary checks passed")
+
+assert "verify_external_control.sh" in debug_emulator
+assert "verify_launcher_shortcuts.sh" not in debug_emulator
+assert "verify_launcher_shortcuts.sh" in steps["Validate release database migrations"]
+assert "ossDebugAndroidTest -name" in debug_emulator
+assert "ossReleaseAndroidTest -name" in steps["Validate release database migrations"]

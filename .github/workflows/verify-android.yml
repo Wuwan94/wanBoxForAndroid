@@ -121,6 +121,7 @@ jobs:
           WANBOX_INTERNAL_TEST=1 ./gradlew app:testOssDebugUnitTest app:assembleOssDebugAndroidTest -PwanboxInternalTestAbi=x86_64
           ./gradlew app:testPreviewDebugUnitTest app:assemblePreviewDebug
           python3 tools/check_android_security.py
+          python3 -m unittest discover -s tools -p test_ci_probe_stages.py -v
           bash tools/diagnostics/build_security_probe.sh
       - name: Prepare key for the unpublished release comparison build
         if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
@@ -164,7 +165,7 @@ jobs:
           profile: pixel_7_pro
           script: |
             WANBOX_INTERNAL_TEST=1 ./gradlew app:connectedOssDebugAndroidTest -PwanboxInternalTestAbi=x86_64
-            test "$(find app/build/outputs/connected_android_test_additional_output -name '*.png' | wc -l)" -ge 72
+            test "$(find app/build/outputs/connected_android_test_additional_output/ossDebugAndroidTest -name '*.png' | wc -l)" -ge 72
             bash tools/diagnostics/verify_external_control.sh
       - name: Validate release database migrations
         if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
@@ -179,7 +180,8 @@ jobs:
           profile: pixel_7_pro
           script: |
             WANBOX_INTERNAL_TEST=1 ./gradlew app:connectedOssReleaseAndroidTest -PwanboxInternalTestAbi=x86_64 -PwanboxReleaseTests
-            test "$(find app/build/outputs/connected_android_test_additional_output -name '*.png' | wc -l)" -eq 72
+            test "$(find app/build/outputs/connected_android_test_additional_output/ossReleaseAndroidTest -name '*.png' | wc -l)" -eq 72
+            bash tools/diagnostics/verify_launcher_shortcuts.sh
       - name: Preserve complete test reports
         if: always()
         uses: actions/upload-artifact@v5
@@ -191,6 +193,7 @@ jobs:
             app/build/outputs/androidTest-results
             probe/window.xml
             probe/external-control-logcat.txt
+            probe/launcher-shortcut-logcat.txt
             audit-baseline/payload.json
             app/build/outputs/mapping
             app/build/outputs/connected_android_test_additional_output
