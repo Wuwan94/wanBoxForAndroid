@@ -107,55 +107,32 @@ func IndependentCgroup() error {
 	if e != nil {
 		return errors.New("cgroup_unavailable")
 	}
-	if string(raw) == string(own) {
+	if sameCgroups(string(raw), string(own)) {
 		return nil
 	}
 	mounts, e := os.ReadFile("/proc/self/mountinfo")
 	if e != nil {
 		return errors.New("cgroup_unavailable")
 	}
-	joined := 0
-	for _, line := range strings.Split(string(raw), "\n") {
-		parts := strings.SplitN(line, ":", 3)
-		if len(parts) != 3 {
-			continue
-		}
-		for _, m := range strings.Split(string(mounts), "\n") {
-			halves := strings.SplitN(m, " - ", 2)
-			if len(halves) != 2 {
-				continue
-			}
-			front := strings.Fields(halves[0])
-			back := strings.Fields(halves[1])
-			if len(front) < 5 || len(back) < 3 {
-				continue
-			}
-			match := parts[1] == "" && back[0] == "cgroup2"
-			if back[0] == "cgroup" {
-				for _, controller := range strings.Split(parts[1], ",") {
-					if strings.Contains(","+back[2]+",", ","+controller+",") {
-						match = true
-					}
-				}
-			}
-			if !match {
-				continue
-			}
-			if !strings.HasPrefix(parts[2], front[3]) {
-				continue
-			}
-			group := filepath.Join(front[4], strings.TrimPrefix(parts[2], front[3]), "cgroup.procs")
-			if e = os.WriteFile(group, []byte(strconv.Itoa(os.Getpid())), 0600); e != nil {
-				return errors.New("cgroup_move_failed")
-			}
-			joined++
-		}
+	groups, e := cgroupMoveTargets(string(raw), string(own), string(mounts))
+	if e != nil {
+		return e
 	}
-	if joined == 0 {
-		return errors.New("cgroup_move_failed")
+	for _, group := range groups {
+		// cgroup.procs is a kernel pseudo-file. Never create/truncate a path
+		// from mountinfo, and never rewrite a hierarchy already joined by su.
+		f, err := os.OpenFile(group, os.O_WRONLY, 0)
+		if err != nil {
+			return errors.New("cgroup_move_failed")
+		}
+		_, err = f.WriteString(strconv.Itoa(os.Getpid()))
+		closeErr := f.Close()
+		if err != nil || closeErr != nil {
+			return errors.New("cgroup_move_failed")
+		}
 	}
 	after, e := os.ReadFile("/proc/self/cgroup")
-	if e != nil || string(after) != string(raw) {
+	if e != nil || !sameCgroups(string(raw), string(after)) {
 		return errors.New("cgroup_move_failed")
 	}
 	return nil

@@ -50,7 +50,7 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 	if e = jsonWrite(r.path("state.json"), s); e != nil {
 		return errors.New("state_write_failed")
 	}
-	if e = IndependentCgroup(); e != nil {
+	if e = r.independentCgroup(); e != nil {
 		s.Phase = "failed"
 		s.Error = "cgroup_move_failed"
 		s.Supervisor = ProcessIdentity{}

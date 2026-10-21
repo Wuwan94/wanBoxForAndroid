@@ -41,12 +41,7 @@ func main() {
 	// Installed modules and manager staging paths are root-owned. No App-supplied
 	// --module-dir/data-root/command arguments, env overrides or shell execution.
 	r := module.New("/data/adb/wanbox", dir)
-	var err error
-	if os.Geteuid() != 0 {
-		err = errors.New("root_required")
-	} else if err = module.IndependentCgroup(); err == nil {
-		err = run(ctx, r, os.Args[1:])
-	}
+	err := runAuthorized(ctx, r, args, os.Geteuid())
 	// @author 雾晚：dashboard 返回绑定同一快照的完整状态，不拼接两代次
 	var state module.State
 	if len(os.Args) == 2 && os.Args[1] == "dashboard" {
@@ -62,6 +57,18 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+// Only the long-lived supervisor must escape the caller's cgroup. A Root
+// status/stop/config command must still work when that isolation is unavailable,
+// so the manager can read the actual failure and stop/repair an existing core.
+// Supervise performs its own fail-closed check before spawning any core/helper.
+func runAuthorized(ctx context.Context, r *module.Runtime, args []string, euid int) error {
+	if euid != 0 {
+		return errors.New("root_required")
+	}
+	return run(ctx, r, args)
+}
+
 func run(ctx context.Context, r *module.Runtime, args []string) error {
 	if len(args) == 3 && args[0] == "data" && args[1] == "selection-finish" {
 		return r.FinishInstallSelection(args[2])

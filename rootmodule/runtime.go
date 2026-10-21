@@ -111,13 +111,14 @@ type Runtime struct {
 	// Validate must perform the pinned core's real check, without starting TUN.
 	Validate func(context.Context, string, string) error
 	// Unexported test seams; CLI input can never replace these lifecycle operations.
-	installValidate func(context.Context, string, string) error
-	installStart    func(context.Context) error
-	installRunning  func() bool
+	installValidate   func(context.Context, string, string) error
+	installStart      func(context.Context) error
+	installRunning    func() bool
+	independentCgroup func() error
 }
 
 func New(root, moduleDir string) *Runtime {
-	r := &Runtime{Root: root, ModuleDir: moduleDir}
+	r := &Runtime{Root: root, ModuleDir: moduleDir, independentCgroup: IndependentCgroup}
 	r.Validate = func(ctx context.Context, config, assets string) error {
 		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
@@ -917,6 +918,11 @@ func (r *Runtime) start(ctx context.Context) error {
 				return nil
 			}
 			if state.RunningRevision == rev && state.Phase == "failed" && !SameProcess(state.Supervisor) {
+				// Preserve the supervisor's safe diagnostic instead of making a
+				// cgroup/Root-profile restriction look like a protocol failure.
+				if regexp.MustCompile(`^[a-z_]{1,80}$`).MatchString(state.Error) && state.Error != "" {
+					return errors.New(state.Error)
+				}
 				return errors.New("core_start_failed")
 			}
 		}
