@@ -1,5 +1,7 @@
 # wanBox for Android v3.0.10-preview.6 更新说明
 
+> 历史源码说明：本文保留 preview.6 的实现与验证边界，不是当前最新预览版的发行说明。截至 2026-10-21，公开预览为 [preview.16](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.10-preview.16)，其管理器已换签名，不能套用本文的直接覆盖升级结论；当前源码元数据也不是 preview.6，发布前必须重新核对。见 [发布与源码版本对照](docs/current-version.zh-CN.md)。
+
 本版本把「数据与职责」真正下沉到模块：节点、订阅、全局配置的真值改由模块保存，App 只负责展示与下发指令，管理面补全为完整的回环 HTTPS 接口，App 侧删除 `su` 传输层。界面、节点热切换、推送状态流与 preview.5 保持一致。
 
 ### 核心变更

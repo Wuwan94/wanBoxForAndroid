@@ -1,8 +1,18 @@
 # wanBoxForAndroid 更新日志（Changelog）
 
-> 维护范围：下列 wanBox 3.0.x 条目按各自 GitHub Release 汇总；详细回归覆盖与兼容/升级信息请见对应版本页面。最新正式版为 v3.0.9，当前预览构建为 v3.0.10-preview.6。预览渠道只保留最新一版，更早的预览条目以其发行说明为准。项目起源与当前定位见 [README](README.md)。
+> 维护范围：下列 wanBox 3.0.x 条目按各自 GitHub Release 汇总；详细回归覆盖与兼容/升级信息请见对应版本页面。截至 2026-10-21，当前可见 GitHub Releases 的正式版为 v3.0.7、预览版为 v3.0.10-preview.16；文中更早维护的 v3.0.8/v3.0.9 等条目保留为历史记录，不表示对应 Release 当前存在。源码元数据与发布记录的差异见 [版本对照](docs/current-version.zh-CN.md)。预览渠道只保留最新一版，更早的预览条目以其发行说明为准。项目起源与当前定位见 [README](README.md)。
 
 ## wanBox 3.0.x 发布记录
+
+### v3.0.10-preview.16（预览版，发行说明日期 2026-10-20）
+
+来源：[本仓库 Release](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.10-preview.16)。以下为发行说明摘要，不是本次文档更新重新执行的测试。
+
+- 管理器更换签名密钥，旧管理器必须先卸载再安装，不能沿用旧版的覆盖升级保证。
+- APK `versionCode` 改为历史峰值 1875 加提交数；发布版 `versionName` 去除 `-ci.<sha>` 测试后缀。
+- 模块自更新清单改用固定 `update-index` 分支，避免 prerelease 通过 `releases/latest` 解析到正式版。
+- 安装失败显示签名冲突/版本降级等处置说明，清理旧 Release 时同时清理旧 tag。
+- 支持范围按该版说明为 arm64-v8a / Android 12+ / Magisk、KernelSU、APatch。对应 tag 是模块项目结构，不能由此推定 `main` 的全部功能已发布。
 
 ### v3.0.10-preview.6（预览版，2026-10-18）
 
