@@ -92,7 +92,7 @@ func RunRootBox(configPath, assetsPath, pidPath, readyPath, stopPath string, sup
 		}
 	}()
 	ctx = box.Context(ctx,
-		nekoboxAndroidInboundRegistry(), nekoboxAndroidOutboundRegistry(), nekoboxAndroidEndpointRegistry(),
+		nekoboxAndroidInboundRegistry(), nekoboxAndroidProviderRegistry(), nekoboxAndroidOutboundRegistry(), nekoboxAndroidEndpointRegistry(),
 		nekoboxAndroidDNSTransportRegistry(nil), nekoboxAndroidServiceRegistry(),
 		nekoboxAndroidCertificateProviderRegistry(),
 	)
@@ -149,7 +149,7 @@ func CheckRootConfig(configPath, assetsPath string) error {
 	}
 	externalAssetsPath = filepath.Clean(assetsPath) + string(os.PathSeparator)
 	resourcePaths = append(resourcePaths, externalAssetsPath)
-	ctx := box.Context(context.Background(), nekoboxAndroidInboundRegistry(), nekoboxAndroidOutboundRegistry(), nekoboxAndroidEndpointRegistry(), nekoboxAndroidDNSTransportRegistry(nil), nekoboxAndroidServiceRegistry(), nekoboxAndroidCertificateProviderRegistry())
+	ctx := box.Context(context.Background(), nekoboxAndroidInboundRegistry(), nekoboxAndroidProviderRegistry(), nekoboxAndroidOutboundRegistry(), nekoboxAndroidEndpointRegistry(), nekoboxAndroidDNSTransportRegistry(nil), nekoboxAndroidServiceRegistry(), nekoboxAndroidCertificateProviderRegistry())
 	ctx = service.ContextWithDefaultRegistry(ctx)
 	raw, err := os.ReadFile(configPath)
 	if err != nil {
@@ -185,7 +185,7 @@ func validateRootGeoResources(rules []option.RuleSet, assetsPath string) error {
 		if rule.Type != "local" {
 			continue
 		}
-		code, isIP, legacy, ok := parseGeoRuleSetPath(rule.LocalOptions.Path)
+		code, isIP, legacy, ok := parseGeoRuleSetPath(rule.Path)
 		if !ok {
 			continue
 		}

@@ -16,7 +16,7 @@ require (
 	// module graph 所需占位值，实际源码始终由下方 replace 指向 CI 检出的官方 tag。
 	github.com/sagernet/sing-box v0.0.0
 	github.com/sagernet/sing-quic v0.7.2-0.20261002084117-75c3ac4fa12b
-	github.com/sagernet/sing-tun v0.9.7-0.20261002083955-3f8acd9da65b
+	github.com/sagernet/sing-tun v0.9.7-0.20261009022811-5c2edb183cc9
 	github.com/sagernet/sing-vmess v0.2.9-0.20260929152519-9b95ab8c9478
 	github.com/ulikunitz/xz v0.5.15
 	golang.org/x/crypto v0.54.0 // indirect
@@ -26,13 +26,15 @@ require (
 )
 
 require (
+	github.com/CHIZI-0618/sing-ebpf v0.1.0-alpha.11.0.20261006150015-27de53a4729d // indirect
 	github.com/ajg/form v1.5.1 // indirect
 	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/caddyserver/certmagic v0.25.3-0.20260421143802-60d9d8b415d6 // indirect
 	github.com/caddyserver/zerossl v0.1.5 // indirect
+	github.com/cilium/ebpf v0.22.1-0.20260910105759-60e81073fdc6 // indirect
 	github.com/cretz/bine v0.2.0 // indirect
 	github.com/database64128/netx-go v0.1.1 // indirect
-	github.com/database64128/tfo-go/v2 v2.3.2 // indirect
+	github.com/database64128/tfo-go/v2 v2.3.3 // indirect
 	github.com/florianl/go-nfqueue/v2 v2.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-chi/chi/v5 v5.2.5 // indirect
@@ -58,10 +60,13 @@ require (
 	github.com/libp2p/go-nat v1.0.1-0.20250821073202-01afc089f138 // indirect
 	github.com/libp2p/go-netroute v0.2.1 // indirect
 	github.com/logrusorgru/aurora v2.0.3+incompatible // indirect
+	github.com/mdlayher/genetlink v1.4.0 // indirect
 	github.com/mdlayher/netlink v1.11.2 // indirect
 	github.com/mdlayher/socket v0.6.0 // indirect
+	github.com/mdlayher/wifi v0.9.0 // indirect
 	github.com/metacubex/utls v1.8.7 // indirect
 	github.com/mholt/acmez/v3 v3.1.6 // indirect
+	github.com/pires/go-proxyproto v0.8.1 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/sagernet/bbolt v0.0.0-20260915102804-500ee1e84832 // indirect
 	github.com/sagernet/cors v1.2.1 // indirect
@@ -95,9 +100,19 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
 	google.golang.org/grpc v1.79.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/blake3 v1.3.0 // indirect
 )
 
-// 官方内核：构建时由 buildScript/lib/core/get_source.sh 按 nb4a.properties 的
-// SINGBOX_VERSION 克隆并校验 SagerNet/sing-box 到仓库同级目录（../../sing-box）。
-replace github.com/sagernet/sing-box => ../../sing-box
+// NetProxy-compatible fork replacements must be repeated here because dependency-module
+// replace directives are not inherited by the main module. Keep versions aligned to the pinned fork.
+replace (
+	github.com/sagernet/quic-go => github.com/reF1nd/quic-go v0.61.0-sing-box-mod.9.0.20261005174718-e897ed66d562
+	github.com/sagernet/sing => github.com/reF1nd/sing v0.9.7-0.20261005174720-97b52bac92a7
+	github.com/sagernet/sing-anytls => github.com/reF1nd/sing-anytls v0.0.0-20261005110320-ca02db16051a
+	github.com/sagernet/sing-box => ../../sing-box-netproxy
+	github.com/sagernet/sing-quic => github.com/reF1nd/sing-quic v0.7.2-0.20261005175123-6b634e78a4bd
+	github.com/sagernet/sing-snell => github.com/reF1nd/sing-snell v0.0.0-20260929062538-94040c75f854
+	github.com/sagernet/sing-tun => github.com/reF1nd/sing-tun v0.9.7-0.20261009120252-3a38f1971879
+	github.com/sagernet/wireguard-go => github.com/reF1nd/wireguard-go v0.0.8-0.20261005151230-5fa91e620316
+)
