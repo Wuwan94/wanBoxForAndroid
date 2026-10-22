@@ -5,7 +5,7 @@
 ## 基线与原因
 
 - wanBox 基线：`1ea09c6aef379cecac09c7237cc088e9bffa44bb`，本地分支 `feat/root-module-runtime`。
-- 官方核心 pin：`v1.15.0-alpha.10`，官方源码 `c992297988288565a24a6d36e2cf4d77cb835fcd`，未改 pin 或官方源代码。
+- 核心 pin：reF1nd/sing-box `v1.15.0-alpha.11-reF1nd`，commit `78ea0ce9257bd3bedd4d1185d6cc4723f04096b4`；依赖该 fork 的 NetProxy eBPF 入站实现。
 - 旧 RootTunService 持有 su 子进程、App 私有配置以及 App PID；独立执行文件仍依赖 App 生命周期。旧代码还保留 VPN 授权与失败回退。
 - 参考 [NetProxy lifecycle](https://github.com/Fanju6/NetProxy-Magisk/blob/27c909d9f0982355b7f3a6c767ecccfc9e56770a/src/native/netproxy/internal/module/lifecycle.go)、[配置事务](https://github.com/Fanju6/NetProxy-Magisk/blob/27c909d9f0982355b7f3a6c767ecccfc9e56770a/src/native/netproxy/internal/module/config_transaction.go)、[启动脚本](https://github.com/Fanju6/NetProxy-Magisk/blob/27c909d9f0982355b7f3a6c767ecccfc9e56770a/src/module/service.sh)。仅借鉴模块启动、监督器、事务模式，未复制实现。
 - 安装约定依据 [Magisk 模块指南](https://topjohnwu.github.io/Magisk/guides.html)、[KernelSU 模块指南](https://kernelsu.org/guide/module.html)。实际管理器安装兼容仍待设备验证。
@@ -73,8 +73,8 @@ go -C rootmodule test -count=1 -v ./...
 go -C rootmodule vet ./...
 python -m unittest discover -s rootmodule -p "test_*.py"
 (cd libcore && go test ./internal/...)
-go -C ../sing-box run ./cmd/sing-box check -c docs/config/local-proxy.json
-go -C ../sing-box run ./cmd/sing-box check -c docs/config/tun-fakeip.json
+go -C ../sing-box-netproxy run ./cmd/sing-box check -c docs/config/local-proxy.json
+go -C ../sing-box-netproxy run ./cmd/sing-box check -c docs/config/tun-fakeip.json
 gradlew.bat --offline --no-daemon :app:testPreviewDebugUnitTest :app:assemblePreviewDebug :app:compilePreviewDebugAndroidTestKotlin
 gradlew.bat --offline --no-daemon :app:lintPreviewDebug
 git diff --check

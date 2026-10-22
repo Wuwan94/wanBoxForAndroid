@@ -38,6 +38,11 @@ fi
 
 pushd sing-box-netproxy
 EXPECTED_COMMIT=$(git rev-parse "$SINGBOX_VERSION^{commit}")
+PINNED_COMMIT="78ea0ce9257bd3bedd4d1185d6cc4723f04096b4"
+if [ "$EXPECTED_COMMIT" != "$PINNED_COMMIT" ]; then
+  echo ">> ERROR: $SINGBOX_VERSION resolves to $EXPECTED_COMMIT, expected pinned commit $PINNED_COMMIT" >&2
+  exit 1
+fi
 ACTUAL_COMMIT=$(git rev-parse HEAD)
 ACTUAL_ORIGIN=$(git remote get-url origin)
 if [ "$ACTUAL_ORIGIN" != "$SING_BOX_REPO" ]; then

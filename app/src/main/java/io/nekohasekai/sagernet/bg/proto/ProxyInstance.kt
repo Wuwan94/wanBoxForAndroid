@@ -4,13 +4,17 @@ import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.bg.ServiceNotification
 import io.nekohasekai.sagernet.database.ProxyEntity
+import io.nekohasekai.sagernet.fmt.RootInboundBackend
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import kotlinx.coroutines.runBlocking
 import moe.matsuri.nb4a.utils.JavaUtil
 
-class ProxyInstance(profile: ProxyEntity, var service: BaseService.Interface? = null) :
-    BoxInstance(profile) {
+class ProxyInstance(
+    profile: ProxyEntity,
+    var service: BaseService.Interface? = null,
+    rootInboundBackend: RootInboundBackend = RootInboundBackend.TUN,
+) : BoxInstance(profile, rootInboundBackend) {
 
     var notTmp = true
 

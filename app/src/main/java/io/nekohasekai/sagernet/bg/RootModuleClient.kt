@@ -9,6 +9,8 @@ import android.os.SystemClock
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.SagerDatabase
+import io.nekohasekai.sagernet.fmt.RootInboundBackend
+import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.bg.proto.ProxyInstance
 import io.nekohasekai.sagernet.fmt.hysteria.HysteriaBean
 import io.nekohasekai.sagernet.fmt.mieru.MieruBean
@@ -176,19 +178,32 @@ object RootModuleClient {
             // @author 雾晚: refresh cross-user UIDs (TTL-cached) so per-app rules
             // cover secondary users / cloned apps.
             runCatching { io.nekohasekai.sagernet.utils.PackageCache.refreshMultiUserUids() }
-            val instance = ProxyInstance(profile)
-            val file = File.createTempFile("module-snapshot-", ".json", SagerNet.application.cacheDir)
+            suspend fun applyBackend(backend: RootInboundBackend, expectedRevision: String): Status {
+                val instance = ProxyInstance(profile, rootInboundBackend = backend)
+                val file = File.createTempFile("module-snapshot-", ".json", SagerNet.application.cacheDir)
+                try {
+                    instance.init()
+                    file.writeText(RootModuleSnapshot(instance, expectedRevision).build().toString())
+                    if (file.length() > 192L * 1024 * 1024) throw IOException("snapshot_too_large")
+                    val applied = call("config apply", file)
+                    // Apply owns active-core restart/rollback; passive edits never start a stopped module.
+                    if (startIfStopped) {
+                        call("autostart ${if (DataStore.persistAcrossReboot) "on" else "off"}")
+                        if (!applied.state.canStop) call("start")
+                    }
+                    return applied
+                } finally { file.delete(); instance.close() }
+            }
             try {
-                instance.init()
-                file.writeText(RootModuleSnapshot(instance, before.revision).build().toString())
-                if (file.length() > 192L * 1024 * 1024) throw IOException("snapshot_too_large")
-                val applied = call("config apply", file)
-                // Apply owns active-core restart/rollback; passive edits never start a stopped module.
-                if (startIfStopped) {
-                    call("autostart ${if (DataStore.persistAcrossReboot) "on" else "off"}")
-                    if (!applied.state.canStop) call("start")
-                }
-            } finally { file.delete(); instance.close() }
+                applyBackend(RootInboundBackend.EBPF, before.revision)
+            } catch (error: IOException) {
+                // If this kernel/core cannot activate eBPF, retry the same validated profile
+                // with the preserved root-TUN path. Other module/permission errors stay visible.
+                if (error.message !in setOf("core_config_invalid", "new_core_failed_rolled_back", "core_start_failed", "startup_timeout")) throw error
+                Logs.w("Root eBPF inbound failed; retrying with the TUN fallback (${safeError(error)})")
+                val current = call("status")
+                applyBackend(RootInboundBackend.TUN, current.revision)
+            }
         } finally { changes.unlock() }
     }
     suspend fun stop() = changes.withLock { call("stop") }
