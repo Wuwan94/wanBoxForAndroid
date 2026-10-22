@@ -1,15 +1,15 @@
 # 发布与源码版本对照
 
-核对日期：2026-10-21。此页只更新文档，不修改版本字段、代码、签名、工作流或任何已发布 Release。
+核对日期：2026-10-22。此页只更新文档，不修改版本字段、代码、签名、工作流或任何已发布 Release。
 
 ## 当前可见发布与代码
 
 | 对象 | 当前依据 | 不能据此推断 |
 |---|---|---|
 | 最新可见正式 Release | [v3.0.7](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.7)，API `prerelease=false` | 不能因 `main` 写了 3.0.9 就说 3.0.9 已正式发布 |
-| 最新可见预览 Release | [v3.0.10-preview.16](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.10-preview.16)，API `prerelease=true` | 不能当作正式版；发行说明不是本次重新执行的真机测试 |
-| 本次核对的 `main` | [d7c269031a18dc5697f53920b16c375911450810](https://github.com/Wuwan94/wanBoxForAndroid/tree/d7c269031a18dc5697f53920b16c375911450810) | 不是上述预览 tag 的同一源码快照 |
-| `main/nb4a.properties` | `VERSION_NAME=3.0.9`、`PRE_VERSION_NAME=3.0.10-preview.1`、`SINGBOX_VERSION=v1.15.0-alpha.10` | 这些字段既不证明对应 Release 存在，也不证明远端附件使用该核心 |
+| 最新可见预览 Release | [v3.0.10-preview.18](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.10-preview.18)，API `prerelease=true` | 不能当作正式版；发行说明不是本次重新执行的真机测试 |
+| 本次核对的 `main` | [902b6ce095c40865b2aa8a5a181cd2bc550ec78f](https://github.com/Wuwan94/wanBoxForAndroid/tree/902b6ce095c40865b2aa8a5a181cd2bc550ec78f) | 该提交同时是 v3.0.10-preview.18 的 tag 提交；附件、验证范围与安装边界仍以该 tag 和发行说明为准 |
+| `main/nb4a.properties` | `VERSION_NAME=3.0.9`、`PRE_VERSION_NAME=3.0.10-preview.18`、`SINGBOX_VERSION=v1.15.0-alpha.11-reF1nd` | 这些字段既不证明对应 Release 存在，也不证明远端附件使用该核心 |
 
 preview.16 的源码有 `module.yaml`、`src/`、`README_EN.md`，没有 `nb4a.properties`。它是模块项目布局；`main` 仍有 Android App 与 `rootmodule/` 布局。历史 changelog、技术审查和回归记录按各自日期/提交保留，不把不同快照的实现、版本和验证结果强行合并。
 
