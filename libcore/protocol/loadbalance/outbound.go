@@ -804,7 +804,7 @@ func (s *LoadBalance) DialContext(ctx context.Context, network string, destinati
 					},
 				}
 			}
-			return s.interruptGroup.NewConn(conn, interrupt.IsExternalConnectionFromContext(ctx)), nil
+			return s.interruptGroup.NewConn(conn, interrupt.IsExternalConnectionFromContext(ctx), interrupt.IsResourceDownloadFromContext(ctx)), nil
 		}
 		if idx < len(s.stats) && s.stats[idx] != nil {
 			s.stats[idx].recordFailure()
@@ -886,7 +886,7 @@ func (s *LoadBalance) ListenPacket(ctx context.Context, destination M.Socksaddr)
 					},
 				}
 			}
-			return s.interruptGroup.NewPacketConn(conn, interrupt.IsExternalConnectionFromContext(ctx)), nil
+			return s.interruptGroup.NewPacketConn(conn, interrupt.IsExternalConnectionFromContext(ctx), interrupt.IsResourceDownloadFromContext(ctx)), nil
 		}
 		if idx < len(s.stats) && s.stats[idx] != nil {
 			s.stats[idx].recordFailure()

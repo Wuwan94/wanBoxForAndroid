@@ -165,7 +165,7 @@ func newSingBoxInstance(config string, localTransport LocalDNSTransport, platfor
 	// create box context
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx = box.Context(ctx,
-		nekoboxAndroidInboundRegistry(), nekoboxAndroidOutboundRegistry(), nekoboxAndroidEndpointRegistry(),
+		nekoboxAndroidInboundRegistry(), nekoboxAndroidProviderRegistry(), nekoboxAndroidOutboundRegistry(), nekoboxAndroidEndpointRegistry(),
 		nekoboxAndroidDNSTransportRegistry(localTransport), nekoboxAndroidServiceRegistry(),
 		nekoboxAndroidCertificateProviderRegistry(),
 	)
@@ -423,23 +423,24 @@ func (b *BoxInstance) SelectOutbound(tag string) bool {
 	}
 	return false
 }
+
 // @author 雾晚: Root and in-process probes use one cold GET and one total deadline.
 // @author 雾晚: Java/Kotlin cancellation interrupts the same request context and sockets.
 type URLTestSession struct {
-    ctx context.Context
-    cancel context.CancelFunc
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func NewURLTestSession() *URLTestSession {
-    ctx, cancel := context.WithCancel(context.Background())
-    return &URLTestSession{ctx: ctx, cancel: cancel}
+	ctx, cancel := context.WithCancel(context.Background())
+	return &URLTestSession{ctx: ctx, cancel: cancel}
 }
 func (s *URLTestSession) Cancel() { s.cancel() }
 func (s *URLTestSession) Test(i *BoxInstance, link string, timeout int32) (int32, error) {
-    return urlTestContext(s.ctx, i, link, timeout)
+	return urlTestContext(s.ctx, i, link, timeout)
 }
 func UrlTest(i *BoxInstance, link string, timeout int32) (int32, error) {
-    return urlTestContext(context.Background(), i, link, timeout)
+	return urlTestContext(context.Background(), i, link, timeout)
 }
 func urlTestContext(ctx context.Context, i *BoxInstance, link string, timeout int32) (latency int32, err error) {
 	defer device.DeferPanicToError("box.UrlTest", func(e error) { err = e })

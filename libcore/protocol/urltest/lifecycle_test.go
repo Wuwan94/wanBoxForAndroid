@@ -55,7 +55,7 @@ func manager(t *testing.T, kind, member, link string) (*outbound.Manager, *adapt
 	}
 	var options any = &custom.URLTestOptions{Outbounds: []string{member}, URL: link}
 	if kind == "loadbalance" {
-		options = &loadbalance.LoadBalanceOptions{URLTestOutboundOptions: option.URLTestOutboundOptions{Outbounds: []string{member}, URL: link}, Strategy: "round-robin"}
+		options = &loadbalance.LoadBalanceOptions{URLTestOutboundOptions: option.URLTestOutboundOptions{GroupCommonOption: option.GroupCommonOption{Outbounds: []string{member}}, URL: link}, Strategy: "round-robin"}
 	}
 	if err := m.Create(ctx, nil, logger, "probe", kind, options); err != nil {
 		t.Fatal(err)

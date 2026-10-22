@@ -333,8 +333,11 @@ fun clashModeStringOf(dashboardMode: Int): String = when (dashboardMode) {
     else -> "rule"
 }
 
+enum class RootInboundBackend { EBPF, TUN }
+
 fun buildConfig(
-    proxy: ProxyEntity, forTest: Boolean = false, forExport: Boolean = false
+    proxy: ProxyEntity, forTest: Boolean = false, forExport: Boolean = false,
+    rootInboundBackend: RootInboundBackend = RootInboundBackend.TUN
 ): ConfigBuildResult {
     // @author 雾晚: persist preview.3's choice as an ordinary routing rule before reading rules.
     if (!forTest && !forExport) InputMethodRouteMigration.migrate()
@@ -425,7 +428,10 @@ fun buildConfig(
     val nonCustomFinalHosts = hashSetOf<String>()
     val groupCache = HashMap<Long, ProxyGroup?>()
     val isRootTun = !forTest
-    val useTun = !forTest
+    // The managed root-module runtime uses the fork's eBPF inbound. Keep the old
+    // TUN builder as an explicit safe fallback and for exported/test configs.
+    val useEbpfRootInbound = !forTest && !forExport && rootInboundBackend == RootInboundBackend.EBPF
+    val useTun = !forTest && !useEbpfRootInbound
     val bind = if (!forTest && DataStore.allowAccess) "0.0.0.0" else LOCALHOST
     val remoteDns = DataStore.remoteDns.split("\n")
         .mapNotNull { dns -> dns.trim().takeIf { it.isNotBlank() && !it.startsWith("#") } }
@@ -764,6 +770,31 @@ fun buildConfig(
         inbounds = mutableListOf()
 
         if (!forTest) {
+            if (useEbpfRootInbound) {
+                val selectedUids = if (DataStore.proxyApps) {
+                    PackageCache.awaitLoadSync()
+                    DataStore.individual.lineSequence()
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() }
+                        .flatMap { PackageCache.uidsForPackage(it) }
+                        .filter { it >= 1000 && it != SagerNet.application.applicationInfo.uid }
+                        .distinct()
+                        .toList()
+                } else emptyList()
+                val uidFilter = rootEbpfUidFilter(
+                    proxyApps = DataStore.proxyApps,
+                    bypass = DataStore.bypass,
+                    selectedUids = selectedUids,
+                    appUid = SagerNet.application.applicationInfo.uid,
+                    rootUidPolicy = DataStore.rootUidPolicy,
+                )
+                inbounds.add(buildRootEbpfInbound(
+                    includeUids = uidFilter.includeUids,
+                    excludeUids = uidFilter.excludeUids,
+                    ipv6 = ipv6Mode != IPv6Mode.DISABLE,
+                    bypassPrivateAddress = DataStore.bypassLan,
+                ))
+            }
             if (useTun) inbounds.add(Inbound_TunOptions().apply {
                 type = "tun"
                 tag = "tun-in"

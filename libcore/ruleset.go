@@ -50,7 +50,7 @@ func prepareLocalGeoRuleSets(ruleSets []option.RuleSet) error {
 		if rs.Type != C.RuleSetTypeLocal {
 			continue
 		}
-		code, isGeoIP, legacy, ok := parseGeoRuleSetPath(rs.LocalOptions.Path)
+		code, isGeoIP, legacy, ok := parseGeoRuleSetPath(rs.Path)
 		if !ok {
 			continue
 		}
@@ -65,7 +65,7 @@ func prepareLocalGeoRuleSets(ruleSets []option.RuleSet) error {
 		if !legacy {
 			officialPath := filepath.Join(externalAssetsPath, fmt.Sprintf("%s-%s.srs", dbName[:len(dbName)-3], code))
 			if _, err := os.Stat(officialPath); err == nil {
-				rs.LocalOptions.Path = officialPath
+				rs.Path = officialPath
 				continue
 			}
 		}
@@ -78,7 +78,7 @@ func prepareLocalGeoRuleSets(ruleSets []option.RuleSet) error {
 		if err != nil {
 			return fmt.Errorf("rule-set %v: %w", rs.Tag, err)
 		}
-		rs.LocalOptions.Path = dstPath
+		rs.Path = dstPath
 	}
 	return nil
 }

@@ -17,18 +17,18 @@ if ! printf '%s' "$SINGBOX_VERSION" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-
   echo ">> ERROR: invalid SINGBOX_VERSION tag: $SINGBOX_VERSION" >&2
   exit 1
 fi
-echo ">> Using official sing-box $SINGBOX_VERSION"
+echo ">> Using NetProxy-compatible reF1nd sing-box $SINGBOX_VERSION"
 
-OFFICIAL_REPO="https://github.com/SagerNet/sing-box.git"
+SING_BOX_REPO="https://github.com/reF1nd/sing-box.git"
 
 pushd ..
 
-if [ ! -d "sing-box" ]; then
-  git clone --depth 1 --branch "$SINGBOX_VERSION" "$OFFICIAL_REPO" sing-box
+if [ ! -d "sing-box-netproxy" ]; then
+  git clone --depth 1 --branch "$SINGBOX_VERSION" "$SING_BOX_REPO" sing-box-netproxy
 else
-  pushd sing-box
-  # 无条件校正 origin，避免名称相似的 fork 或旧 remote 绕过检查。
-  git remote set-url origin "$OFFICIAL_REPO"
+  pushd sing-box-netproxy
+  # 校正到固定的 NetProxy 兼容 fork，避免旧 remote 绕过版本校验。
+  git remote set-url origin "$SING_BOX_REPO"
   # 强制刷新目标 tag；若上游 tag 被移动，本地不能继续使用陈旧 tag。
   git fetch --force --depth 1 origin "+refs/tags/$SINGBOX_VERSION:refs/tags/$SINGBOX_VERSION" || \
     git fetch --force origin "+refs/tags/$SINGBOX_VERSION:refs/tags/$SINGBOX_VERSION"
@@ -36,11 +36,16 @@ else
   popd
 fi
 
-pushd sing-box
+pushd sing-box-netproxy
 EXPECTED_COMMIT=$(git rev-parse "$SINGBOX_VERSION^{commit}")
+PINNED_COMMIT="78ea0ce9257bd3bedd4d1185d6cc4723f04096b4"
+if [ "$EXPECTED_COMMIT" != "$PINNED_COMMIT" ]; then
+  echo ">> ERROR: $SINGBOX_VERSION resolves to $EXPECTED_COMMIT, expected pinned commit $PINNED_COMMIT" >&2
+  exit 1
+fi
 ACTUAL_COMMIT=$(git rev-parse HEAD)
 ACTUAL_ORIGIN=$(git remote get-url origin)
-if [ "$ACTUAL_ORIGIN" != "$OFFICIAL_REPO" ]; then
+if [ "$ACTUAL_ORIGIN" != "$SING_BOX_REPO" ]; then
   echo ">> ERROR: sing-box origin mismatch: $ACTUAL_ORIGIN" >&2
   exit 1
 fi
@@ -48,7 +53,7 @@ if [ "$ACTUAL_COMMIT" != "$EXPECTED_COMMIT" ]; then
   echo ">> ERROR: sing-box HEAD $ACTUAL_COMMIT does not match $SINGBOX_VERSION ($EXPECTED_COMMIT)" >&2
   exit 1
 fi
-echo ">> Verified official sing-box $SINGBOX_VERSION at $ACTUAL_COMMIT"
+echo ">> Verified reF1nd sing-box $SINGBOX_VERSION at $ACTUAL_COMMIT"
 popd
 
 popd

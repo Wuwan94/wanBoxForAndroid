@@ -109,7 +109,7 @@ func (w *boxPlatformInterfaceWrapper) ProcessPlatformOptions(options option.TunP
 }
 
 // OpenInterface 即旧接口的 OpenTun。
-func (w *boxPlatformInterfaceWrapper) OpenInterface(options *tun.Options, platformOptions option.TunPlatformOptions) (tun.Tun, error) {
+func (w *boxPlatformInterfaceWrapper) OpenInterface(options *tun.Options, platformOptions option.TunPlatformOptions, _ bool) (tun.Tun, error) {
 	if len(options.IncludeUID) > 0 || len(options.ExcludeUID) > 0 {
 		return nil, E.New("android: unsupported uid options")
 	}
@@ -347,6 +347,10 @@ func (w *boxPlatformInterfaceWrapper) UsePlatformAutoRedirect() bool {
 
 func (w *boxPlatformInterfaceWrapper) CreateAutoRedirect(options adapter.AutoRedirectOptions) (adapter.AutoRedirectSession, error) {
 	return nil, os.ErrInvalid
+}
+
+func (w *boxPlatformInterfaceWrapper) CreateAutoRedirectListener(_ bool) (int, error) {
+	return -1, os.ErrInvalid
 }
 
 // io.Writer

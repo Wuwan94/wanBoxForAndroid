@@ -6,10 +6,11 @@ import (
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/adapter/certificate"
 	"github.com/sagernet/sing-box/adapter/endpoint"
-	C "github.com/sagernet/sing-box/constant"
 	"github.com/sagernet/sing-box/adapter/inbound"
 	"github.com/sagernet/sing-box/adapter/outbound"
+	"github.com/sagernet/sing-box/adapter/provider"
 	"github.com/sagernet/sing-box/adapter/service"
+	C "github.com/sagernet/sing-box/constant"
 	"github.com/sagernet/sing-box/dns"
 	"github.com/sagernet/sing-box/dns/transport"
 	"github.com/sagernet/sing-box/dns/transport/fakeip"
@@ -40,6 +41,8 @@ import (
 	"github.com/sagernet/sing-box/protocol/vless"
 	"github.com/sagernet/sing-box/protocol/vmess"
 	"github.com/sagernet/sing-box/protocol/wireguard"
+	providerLocal "github.com/sagernet/sing-box/provider/local"
+	providerRemote "github.com/sagernet/sing-box/provider/remote"
 
 	h2http "libcore/protocol/http"
 	"libcore/protocol/juicity"
@@ -53,10 +56,19 @@ import (
 	E "github.com/sagernet/sing/common/exceptions"
 )
 
+func nekoboxAndroidProviderRegistry() *provider.Registry {
+	registry := provider.NewRegistry()
+	providerLocal.RegisterProviderInline(registry)
+	providerLocal.RegisterProviderLocal(registry)
+	providerRemote.RegisterProvider(registry)
+	return registry
+}
+
 func nekoboxAndroidInboundRegistry() *inbound.Registry {
 	registry := inbound.NewRegistry()
 
 	tun.RegisterInbound(registry)
+	registerEBPFInbound(registry)
 	redirect.RegisterRedirect(registry)
 	redirect.RegisterTProxy(registry)
 	direct.RegisterInbound(registry)
@@ -157,4 +169,3 @@ func nekoboxAndroidServiceRegistry() *service.Registry {
 func nekoboxAndroidCertificateProviderRegistry() *certificate.Registry {
 	return certificate.NewRegistry()
 }
-

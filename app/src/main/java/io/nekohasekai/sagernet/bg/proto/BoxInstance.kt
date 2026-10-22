@@ -8,6 +8,7 @@ import io.nekohasekai.sagernet.bg.GuardedProcessPool
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ProxyEntity
 import io.nekohasekai.sagernet.fmt.ConfigBuildResult
+import io.nekohasekai.sagernet.fmt.RootInboundBackend
 import io.nekohasekai.sagernet.fmt.buildConfig
 import io.nekohasekai.sagernet.fmt.hysteria.HysteriaBean
 import io.nekohasekai.sagernet.fmt.hysteria.buildHysteria1Config
@@ -26,7 +27,8 @@ import moe.matsuri.nb4a.net.LocalResolverImpl
 import java.io.File
 
 abstract class BoxInstance(
-    val profile: ProxyEntity
+    val profile: ProxyEntity,
+    private val rootInboundBackend: RootInboundBackend = RootInboundBackend.TUN,
 ) : AbstractInstance {
 
     private val diagnosticId = Integer.toHexString(System.identityHashCode(this))
@@ -47,7 +49,7 @@ abstract class BoxInstance(
     }
 
     protected open fun buildConfig() {
-        config = buildConfig(profile)
+        config = buildConfig(profile, rootInboundBackend = rootInboundBackend)
         DataStore.mixedInboundAuthed = DataStore.mixedInboundNeedsAuth
     }
 

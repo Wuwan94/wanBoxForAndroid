@@ -1,23 +1,18 @@
-# wanBox v3.0.10-preview.17 — KSU 管理通信诊断与 cgroup 修复
+# wanBox v3.0.10-preview.18 — Root eBPF inbound with TUN fallback
 
-本预览按仓库当前 main（1cab399d）的模块/管理端架构构建，不是 preview.16 的 HTTPS 通信实现回移。请使用本发布页同版 APK 与模块，勿与 preview.16 交叉混装。
+This preview routes the managed Root configuration through the NetProxy-compatible reF1nd sing-box eBPF inbound by default. If the core rejects or cannot start that inbound, the manager retries with the existing Root TUN path. Ordinary VPN, tests, and exported configurations continue to use TUN.
 
-## 修复
-- 状态查询、日志、配置与停止操作不再因调用进程 cgroup 迁移失败而全部不可用，保留 root 鉴权及命令白名单。
-- 修复 KSU 部分 cgroup 已迁移时的重复写入、控制器匹配与挂载根路径解析；仅写已存在的 cgroup.procs 并复核迁移结果。
-- 长驻 supervisor 仍严格验证隔离，隔离失败不启动核心；管理端可收到安全的具体失败原因。
+## Changes
+- Add the Root eBPF inbound using the existing per-app UID allowlist/bypass behavior, IPv6 setting, and LAN bypass preference.
+- Preserve the logical `tun-in` route tag and enable TCP/UDP local capture through the cgroup data plane.
+- Retry the same profile on TUN after recognized eBPF configuration or startup failures; other module errors remain visible.
+- Pin reF1nd/sing-box `v1.15.0-alpha.11-reF1nd` at commit `78ea0ce9257bd3bedd4d1185d6cc4723f04096b4` and fix the CI source path.
 
-## 安装与数据边界
-- ARM64、Android 12+、Root；管理 APK 版本 3.0.10-preview.17 / versionCode 5135，模块 versionCode 1027。
-- 此工作流要求原发布证书 SHA-256 AEC62C7003FA515534817250D3CD0DC705E19F4CD578A7A9A1D22519596EA598；不使用此前独立 .debug 测试 APK。
-- preview.16 的实际 APK 使用另一证书 FC120BDF43C9588B88EB2C0CA2048E6276A9D7F18F76D7CBA04CE5C9E5303943，Android 不允许直接覆盖。不要为安装本预览盲目卸载/清除数据；先备份并确认需要的迁移方案。未验证 preview.16 数据向本架构迁移，不承诺无损降换架构。
-- 纯模块 ZIP、内嵌同一管理 APK 的整合模块 ZIP 与独立 APK 同源构建，SHA256SUMS 列出三份文件校验和。
+## Install and compatibility
+- ARM64, Android 12+, Root. Manager version `3.0.10-preview.18` / Android versionCode `5140`; module versionCode `1028`.
+- Use the APK and module from this release together. The release workflow signs the manager with the project's established preview certificate.
+- Preview.16 used a different signing certificate, so Android will not install this package as an in-place update over it. Back up first; do not uninstall or clear data just to force an update. Migration from preview.16's different communication architecture has not been tested.
 
-## 已完成的本地验证与限制
-- Go 1.26.10：82 项主测试 +31 项子测试，race、vet；管理端 310 项 JVM；20 项 Python 和安全检查通过。发布配置/清理自动化的测试另由本次本地和 CI 执行。
-- 未改动的 native 核心在此前本地验证中复用同基线 CI 产物，发布构建由本次 CI 的原有缓存/构建规则生成并检验。
-- 尚未在 KSU 真机或 root 模拟器完成管理端→模块→实际联网全链路。KSU 连接、SELinux、路由、DNS、实际代理及覆盖安装未验证，不能据此宣布手机故障已修复。
-- JWS 库仅在独立实验环境验证，未加入项目或本发布包。
-
-## 预览保留策略
-本次及以后经当前发布工作流成功发布并下载核对四份资产与校验和后，仅保留最新已发布预览 Release；所有正式版、草稿、分支与 Git tag 均保留。发布/校验失败不清理旧预览。
+## Validation limits
+- Local Preview Debug unit tests: 315 passed, 0 failed, 0 skipped; Debug APK assembled and ZIP integrity checked.
+- This host has no KVM-backed emulator. KSU device behavior, kernel eBPF attachment, traffic capture, and the manager-to-module path on a real device have not been verified.

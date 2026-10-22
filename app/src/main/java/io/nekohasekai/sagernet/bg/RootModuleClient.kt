@@ -9,6 +9,8 @@ import android.os.SystemClock
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.SagerDatabase
+import io.nekohasekai.sagernet.fmt.RootInboundBackend
+import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.bg.proto.ProxyInstance
 import io.nekohasekai.sagernet.fmt.hysteria.HysteriaBean
 import io.nekohasekai.sagernet.fmt.mieru.MieruBean
@@ -32,12 +34,14 @@ object RootModuleClient {
     // @author 雾晚: 2s TTL status cache. The home observer, service tiles and node
     // dialogs all poll status; without this each poll is a `su` round-trip.
     private const val STATUS_TTL_MS = 2000L
-    @Volatile private var statusCache: Status? = null
-    @Volatile private var statusCacheAt = 0L
+    // Status and dashboard are distinct protocol views; never serve one in place of the other.
+    private val statusCache = RootModuleStatusCache(STATUS_TTL_MS) { SystemClock.elapsedRealtime() }
     // @author 雾晚: coalesce concurrent status fetches; each su spawn costs 100-300ms.
     private val statusMutex = Mutex()
-    /** Drop the cached status; call after any mutation (select/start/stop/reload/apply). */
-    fun invalidateStatusCache() { statusCache = null }
+    private val readOnlyCommands = setOf("status", "module", "logs", "dashboard", "config validate")
+    internal fun mutatesModule(command: String): Boolean = command !in readOnlyCommands
+    /** Drop every cached protocol view before and after state-changing calls. */
+    fun invalidateStatusCache() { statusCache.invalidate() }
     data class InstallSelection(val id: String, val mode: Int)
     data class Status(val phase: String, val revision: String, val runningRevision: String,
         val profileId: Long, val profileName: String, val stats: RootNotificationSample?, val error: String = "",
@@ -94,19 +98,32 @@ object RootModuleClient {
         require(command in commands || command.matches(Regex("data selection-finish [a-f0-9]{32}"))
                 || command.matches(Regex("node select [1-9][0-9]{0,18}")))
         require((command == "config apply" || command == "config validate") == (input != null))
-        // @author 雾晚: serve fresh-enough status from the TTL cache; mutations invalidate it.
-        // dashboard 也是只读命令，纳入缓存，不当 mutation 清除
-        if (command == "status" || command == "dashboard") {
-            val cached = statusCache
-            if (cached != null && SystemClock.elapsedRealtime() - statusCacheAt < STATUS_TTL_MS) return@withContext cached
-            // Coalesce concurrent fetches: only one su spawn; others share the result.
-            return@withContext statusMutex.withLock {
-                val recached = statusCache
-                if (recached != null && SystemClock.elapsedRealtime() - statusCacheAt < STATUS_TTL_MS) return@withLock recached
-                doCall(command, input)
-            }
+        val query = when (command) {
+            "status" -> RootModuleReadQuery.STATUS
+            "dashboard" -> RootModuleReadQuery.DASHBOARD
+            else -> null
         }
-        return@withContext doCall(command, input)
+        val mutating = mutatesModule(command)
+        // Invalidate before a state change too: a failed/timeout response may still have
+        // reached the module, so retaining the previous view would be unsafe.
+        if (mutating) statusCache.invalidate()
+        try {
+            if (query != null) {
+                val cacheGeneration = statusCache.generation()
+                statusCache.get(query)?.let { return@withContext it }
+                // Coalesce concurrent reads while preserving separate status/dashboard entries.
+                // A mutation can invalidate while doCall is in flight; only cache the result if
+                // no invalidation occurred since this read started.
+                return@withContext statusMutex.withLock {
+                    statusCache.get(query) ?: doCall(command, input).also {
+                        statusCache.putIfGeneration(query, it, cacheGeneration)
+                    }
+                }
+            }
+            return@withContext doCall(command, input)
+        } finally {
+            if (mutating) statusCache.invalidate()
+        }
     }
 
     private suspend fun doCall(command: String, input: File? = null): Status {
@@ -134,15 +151,7 @@ object RootModuleClient {
                     withTimeout(if (command in setOf("status", "module", "logs") || command.startsWith("node select ")) 15_000L else 720_000L) { runInterruptible(Dispatchers.IO) { process.waitFor() } }
                     writer.join(); errors.join()
                     try {
-                        val status = parseResponse(output.await())
-                        if (command == "status") {
-                            statusCache = status
-                            statusCacheAt = SystemClock.elapsedRealtime()
-                        } else {
-                            // Any successful mutation invalidates the cached status.
-                            statusCache = null
-                        }
-                        status
+                        parseResponse(output.await())
                     }
                     catch (e: IOException) { throw e }
                     catch (_: Exception) { throw IOException("root_or_module_unavailable") }
@@ -169,19 +178,32 @@ object RootModuleClient {
             // @author 雾晚: refresh cross-user UIDs (TTL-cached) so per-app rules
             // cover secondary users / cloned apps.
             runCatching { io.nekohasekai.sagernet.utils.PackageCache.refreshMultiUserUids() }
-            val instance = ProxyInstance(profile)
-            val file = File.createTempFile("module-snapshot-", ".json", SagerNet.application.cacheDir)
+            suspend fun applyBackend(backend: RootInboundBackend, expectedRevision: String): Status {
+                val instance = ProxyInstance(profile, rootInboundBackend = backend)
+                val file = File.createTempFile("module-snapshot-", ".json", SagerNet.application.cacheDir)
+                try {
+                    instance.init()
+                    file.writeText(RootModuleSnapshot(instance, expectedRevision).build().toString())
+                    if (file.length() > 192L * 1024 * 1024) throw IOException("snapshot_too_large")
+                    val applied = call("config apply", file)
+                    // Apply owns active-core restart/rollback; passive edits never start a stopped module.
+                    if (startIfStopped) {
+                        call("autostart ${if (DataStore.persistAcrossReboot) "on" else "off"}")
+                        if (!applied.state.canStop) call("start")
+                    }
+                    return applied
+                } finally { file.delete(); instance.close() }
+            }
             try {
-                instance.init()
-                file.writeText(RootModuleSnapshot(instance, before.revision).build().toString())
-                if (file.length() > 192L * 1024 * 1024) throw IOException("snapshot_too_large")
-                val applied = call("config apply", file)
-                // Apply owns active-core restart/rollback; passive edits never start a stopped module.
-                if (startIfStopped) {
-                    call("autostart ${if (DataStore.persistAcrossReboot) "on" else "off"}")
-                    if (!applied.state.canStop) call("start")
-                }
-            } finally { file.delete(); instance.close() }
+                applyBackend(RootInboundBackend.EBPF, before.revision)
+            } catch (error: IOException) {
+                // If this kernel/core cannot activate eBPF, retry the same validated profile
+                // with the preserved root-TUN path. Other module/permission errors stay visible.
+                if (error.message !in setOf("core_config_invalid", "new_core_failed_rolled_back", "core_start_failed", "startup_timeout")) throw error
+                Logs.w("Root eBPF inbound failed; retrying with the TUN fallback (${safeError(error)})")
+                val current = call("status")
+                applyBackend(RootInboundBackend.TUN, current.revision)
+            }
         } finally { changes.unlock() }
     }
     suspend fun stop() = changes.withLock { call("stop") }

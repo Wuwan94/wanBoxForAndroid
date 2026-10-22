@@ -34,7 +34,7 @@ App 完整备份在私有 `files/module-update-backups/OwnBox_backup_*.json`，�
 若报 `cleanup_timeout_no_restart`，先停止操作并检查设备，不能强制重复启动制造双重路由。
 SIGKILL、内核崩溃、SELinux/cgroup 限制下的残留路由恢复仍须真机验证。
 
-核心 pin 为 SagerNet/sing-box v1.15.0-alpha.10；未升级核心。
+核心 pin 为 reF1nd/sing-box v1.15.0-alpha.11-reF1nd（commit 78ea0ce9257bd3bedd4d1185d6cc4723f04096b4），构建启用了 eBPF 入站；Root 模式默认使用 eBPF，失败时回退到 TUN，普通 VPN 和导出配置仍用 TUN。
 模块监督器和配置事务由雾晚在 wanBox 中新写，只研究 NetProxy-Magisk 的架构模式，未复制其代码。
 构建配方与完整源码见配套本地仓库 `rootmodule/`、`libcore/`。
 本包不得作为已验证正式版传播；对外分发需同时提供对应源码及第三方许可材料。

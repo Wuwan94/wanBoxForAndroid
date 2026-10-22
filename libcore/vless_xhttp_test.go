@@ -99,7 +99,7 @@ const vlessStandardWsConfig = `{
 func checkVlessConfig(config string) (*box.Box, error) {
 	ctx := box.Context(
 		context.Background(),
-		nekoboxAndroidInboundRegistry(),
+		nekoboxAndroidInboundRegistry(), nekoboxAndroidProviderRegistry(),
 		nekoboxAndroidOutboundRegistry(),
 		nekoboxAndroidEndpointRegistry(),
 		nekoboxAndroidDNSTransportRegistry(nil),

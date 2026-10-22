@@ -2,21 +2,33 @@
 
 ## Purpose
 
-定义 ThroneForAndroid 与 sing-box 官方内核之间的 Go/JNI 接驳、网络生命周期、日志、规则集和协议扩展约束。
+定义 ThroneForAndroid 与 NetProxy 所用 reF1nd sing-box 内核之间的 Go/JNI 接驳、eBPF/TUN 网络生命周期、日志、规则集和协议扩展约束。
 
 ## Requirements
 
-### Requirement: libcore 仅接入官方 sing-box
+### Requirement: libcore 使用固定且可验证的 NetProxy sing-box 基线
 
-libcore MUST 使用 `SagerNet/sing-box` 官方源码，版本由 `SINGBOX_VERSION` 指定。代码和构建依赖 MUST NOT 引用 starifly fork、libneko、nekoutils、旧 boxapi 或 fork conntrack。`libcore/go.mod` 中的本地 replace MAY 指向构建时获取的官方源码，但不得成为另一个版本来源。
+libcore MUST 使用 NetProxy v8.6.1 实际依赖的 `reF1nd/sing-box` tag `v1.15.0-alpha.11-reF1nd`，并验证其 commit 为 `78ea0ce9257bd3bedd4d1185d6cc4723f04096b4`。`nb4a.properties` 的 `SINGBOX_VERSION` MUST 是唯一版本来源；源码获取脚本 MUST 固定到该仓库并校验 remote 与 tag commit。依赖 MUST NOT 混用官方 alpha 标签和 fork API。
 
 #### Scenario: 获取内核源码
 
 - **GIVEN** CI 开始构建 libcore
 - **WHEN** 源码获取脚本处理 `SINGBOX_VERSION`
-- **THEN** remote 被校正为官方仓库
+- **THEN** remote 为 `https://github.com/reF1nd/sing-box.git`
 - **AND** HEAD 与指定 tag 的 commit 完全一致
-- **AND** 静态依赖检查不存在 fork 残留
+- **AND** 缓存键及版本注入使用同一个 `SINGBOX_VERSION`
+
+### Requirement: eBPF 接管与 TUN 回退保持明确边界
+
+Root 模块 MAY 启用 fork 提供的 Android eBPF inbound；启用前 MUST 完成权限、内核能力、挂载点和路由冲突预检。预检或启动失败 MUST 回滚本次启动新建的挂载与路由，并保留可诊断原因；只有显式配置的安全 TUN 路径可作为回退，不能把未挂载的 eBPF 状态报告为接管成功。管理应用 MUST 只通过受限 Root IPC 请求状态或操作，不得直接管理底层代理生命周期。
+
+#### Scenario: eBPF 启动失败
+
+- **GIVEN** 目标设备缺少所需 eBPF/cgroup 能力或 attach 失败
+- **WHEN** Root 模块启动代理
+- **THEN** 清理由本次启动创建的部分资源
+- **AND** 使用明确启用的 TUN 回退或保持停止
+- **AND** 状态报告区分预检、启动和实际接管
 
 ### Requirement: 平台接口按 box 实例隔离
 
@@ -93,9 +105,9 @@ sing-box PlatformWriter 消息 MUST 在 Go 平台 writer 中按配置级别过�
 - **THEN** 规则被转换为可用的本地 rule-set
 - **AND** 生成缓存可在源数据库未变化时复用
 
-### Requirement: 自定义协议扩展不得依赖 fork
+### Requirement: 自定义协议扩展使用固定内核 registry/API
 
-Juicity outbound 与覆盖版 HTTP outbound MAY 由 libcore 自定义注册，但 MUST 基于官方 registry/API。HTTP TLS 在用户未显式配置 ALPN 时 MUST 提供 `h2` 与 `http/1.1`，并按协商结果使用 HTTP/2 CONNECT 或 HTTP/1.1 CONNECT。
+Juicity outbound 与覆盖版 HTTP outbound MAY 由 libcore 自定义注册，但 MUST 基于固定 reF1nd fork registry/API。HTTP TLS 在用户未显式配置 ALPN 时 MUST 提供 `h2` 与 `http/1.1`，并按协商结果使用 HTTP/2 CONNECT 或 HTTP/1.1 CONNECT。
 
 #### Scenario: 连接 h2-only HTTPS 代理
 
