@@ -16,7 +16,6 @@ import android.os.PowerManager
 import android.os.StrictMode
 import android.os.UserManager
 import androidx.core.content.getSystemService
-import go.Seq
 import io.nekohasekai.sagernet.bg.SagerConnection
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.ktx.Logs
@@ -28,9 +27,6 @@ import io.nekohasekai.sagernet.utils.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.DEBUG_PROPERTY_NAME
 import kotlinx.coroutines.DEBUG_PROPERTY_VALUE_ON
-import libcore.Libcore
-import moe.matsuri.nb4a.NativeInterface
-import moe.matsuri.nb4a.net.LocalResolverImpl
 import moe.matsuri.nb4a.utils.JavaUtil
 import moe.matsuri.nb4a.utils.cleanWebview
 import java.io.File
@@ -52,8 +48,6 @@ class SagerNet : Application(),
             io.nekohasekai.sagernet.route.AppRoutingChanges.onSaved(key, ::reloadService)
         }
     }
-
-    private val nativeInterface = NativeInterface()
 
     val externalAssets: File by lazy { getExternalFilesDir(null) ?: filesDir }
     val process: String = JavaUtil.getProcessName()
@@ -87,36 +81,6 @@ class SagerNet : Application(),
 
         if (isMainProcess || isBgProcess) {
             externalAssets.mkdirs()
-            // 官方内核在 PlatformLogWriter != nil 时会为每个 box 强制创建 CacheFile，
-            // 无显式 path 时共用工作目录（no_backup）下的 cache.db。主进程批量测速的
-            // 并发 TestInstance 曾共享该文件导致 bbolt freelist 损坏（"page already freed"
-            // panic 在异步 batch goroutine 中无法 recover → SIGABRT 闪退），且损坏文件
-            // 能正常打开、提交时才崩，官方 Open 阶段的校验发现不了。
-            // 现测试实例已从 Go 侧彻底不创建 cache（libcore NewTestSingBoxInstance），
-            // 这里在进程启动、尚无 box 打开时清扫存量损坏文件及历史残留，实现老用户自愈。
-            runCatching {
-                File(noBackupFilesDir, "cache.db").delete()
-                noBackupFilesDir.listFiles { file -> file.name.startsWith("urltest_") }
-                    ?.forEach { it.delete() }
-            }
-            Seq.setContext(this)
-            // Write performance mode flag so Go's InitCore can read it and apply correct GC settings.
-            // Using a flag file avoids needing a new JNI binding for SetMemoryProfile.
-            runCatching {
-                File(noBackupFilesDir, "perf_mode").apply {
-                    if (DataStore.performancePriorityMode) writeText("1") else delete()
-                }
-            }
-            Libcore.initCore(
-                process,
-                cacheDir.absolutePath + "/",
-                filesDir.absolutePath + "/",
-                externalAssets.absolutePath + "/",
-                DataStore.logBufSize,
-                DataStore.logLevel > 0,
-                nativeInterface, nativeInterface, LocalResolverImpl
-            )
-
             if (isBgProcess) runOnDefaultDispatcher { clearLegacyNotifications() }
 
             // fix multi process issue in Android 9+

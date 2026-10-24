@@ -1,0 +1,18 @@
+{
+  "generatedConfig": {
+    "outbounds": [{"type": "direct", "tag": "direct"}],
+    "route": {
+      "rules": [{"rule_set": ["ruleset-ip"], "ip_cidr": ["203.0.113.0/24", "2001:db8::/32"], "outbound": "direct", "invert": true}],
+      "rule_set": [{"type": "remote", "tag": "ruleset-ip", "format": "binary", "url": "https://example.com/ip.srs", "update_interval": "1d"}]
+    }
+  },
+  "projectedConfig": {
+    "outbounds": [{"type": "direct", "tag": "direct"}],
+    "route": {
+      "rules": [{"_wanbox_root_remote_ruleset_ip_outbound_v69": {"index": 0, "tags": ["ruleset-ip"], "cidrs": ["203.0.113.0/24", "2001:db8::/32"], "outbound": "direct", "invert": true}}],
+      "rule_set": [{"_wanbox_root_remote_rule_set_v46": {"index": 0, "tag": "ruleset-ip", "url": "https://example.com/ip.srs", "updateInterval": "1d"}}]
+    }
+  },
+  "expectedRouteRules": [{"rule_set": ["ruleset-ip"], "ip_cidr": ["203.0.113.0/24", "2001:db8::/32"], "outbound": "direct", "invert": true}],
+  "expectedRuleSets": [{"type": "remote", "tag": "ruleset-ip", "format": "binary", "url": "https://example.com/ip.srs", "update_interval": "1d"}]
+}

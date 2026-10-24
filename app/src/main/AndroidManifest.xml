@@ -435,11 +435,6 @@
             android:launchMode="singleTask"
             android:parentActivityName="io.nekohasekai.sagernet.ui.MainActivity" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.StunActivity"
-            android:configChanges="uiMode"
-            android:launchMode="singleTask"
-            android:parentActivityName="io.nekohasekai.sagernet.ui.MainActivity" />
-        <activity
             android:name="io.nekohasekai.sagernet.ui.TrafficChartActivity"
             android:configChanges="uiMode"
             android:label="@string/traffic_chart_title"

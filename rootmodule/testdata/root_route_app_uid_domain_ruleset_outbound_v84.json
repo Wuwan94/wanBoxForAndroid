@@ -1,0 +1,43 @@
+{
+  "projectedRouteRule": {
+    "_wanbox_root_app_uid_domain_ruleset_outbound_v84": {
+      "index": 1,
+      "ruleId": 841,
+      "packages": ["com.example.alpha", "com.example.beta"],
+      "uids": [10001, 20001],
+      "domainText": "full:api.example.test,domain:example.test",
+      "ruleSetTags": ["ruleset-domain-demo", "ruleset-domain-extra"],
+      "ruleSetKinds": ["domain", "domain"],
+      "outbound": "direct",
+      "invert": true
+    }
+  },
+  "spec": {
+    "rules": [
+      {
+        "index": 1,
+        "ruleId": 841,
+        "packages": ["com.example.alpha", "com.example.beta"],
+        "uids": [10001, 20001],
+        "domainText": "full:api.example.test,domain:example.test",
+        "ruleSetTags": ["ruleset-domain-demo", "ruleset-domain-extra"],
+        "ruleSetKinds": ["domain", "domain"],
+        "outbound": "direct",
+        "invert": true
+      }
+    ]
+  },
+  "expectedMaterializedRouteRule": {
+    "package_name": ["com.example.alpha", "com.example.beta"],
+    "user_id": [10001, 20001],
+    "domain": ["api.example.test"],
+    "domain_suffix": ["example.test"],
+    "rule_set": ["ruleset-domain-demo", "ruleset-domain-extra"],
+    "outbound": "direct",
+    "invert": true
+  },
+  "remoteRuleSets": [
+    {"_wanbox_root_remote_rule_set_v46": {"index": 0, "tag": "ruleset-domain-demo", "url": "https://example.test/demo.srs", "updateInterval": "1d"}},
+    {"_wanbox_root_remote_rule_set_v46": {"index": 1, "tag": "ruleset-domain-extra", "url": "https://example.test/extra.srs", "updateInterval": "1d"}}
+  ]
+}

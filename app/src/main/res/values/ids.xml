@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Internal navigation aliases retained for URI, tile, and restore handlers. -->
+    <item type="id" name="nav_configuration" />
+    <item type="id" name="nav_group" />
+</resources>

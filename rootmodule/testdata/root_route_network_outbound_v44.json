@@ -1,0 +1,280 @@
+{
+  "generatedConfig": {
+    "inbounds": [],
+    "outbounds": [
+      {
+        "type": "direct",
+        "tag": "direct"
+      }
+    ],
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "network": [
+            "tcp",
+            "udp",
+            "udp"
+          ],
+          "outbound": "proxy"
+        },
+        {
+          "domain_regex": [
+            "^keep\\.example$"
+          ],
+          "outbound": "direct"
+        },
+        {
+          "network": [
+            "tcp"
+          ],
+          "port": [
+            443
+          ],
+          "outbound": "proxy"
+        },
+        {
+          "network": [
+            "udp"
+          ],
+          "action": "reject"
+        },
+        {
+          "network": [
+            "udp"
+          ],
+          "outbound": "direct"
+        },
+        {
+          "domain_suffix": [
+            "tail.example"
+          ],
+          "outbound": "proxy"
+        }
+      ]
+    }
+  },
+  "projectedConfig": {
+    "inbounds": [],
+    "outbounds": [
+      {
+        "type": "direct",
+        "tag": "direct"
+      }
+    ],
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "_wanbox_root_route_network_outbound_v44": {
+            "index": 1
+          }
+        },
+        {
+          "domain_regex": [
+            "^keep\\.example$"
+          ],
+          "outbound": "direct"
+        },
+        {
+          "network": [
+            "tcp"
+          ],
+          "port": [
+            443
+          ],
+          "outbound": "proxy"
+        },
+        {
+          "network": [
+            "udp"
+          ],
+          "action": "reject"
+        },
+        {
+          "_wanbox_root_route_network_outbound_v44": {
+            "index": 5
+          }
+        },
+        {
+          "domain_suffix": [
+            "tail.example"
+          ],
+          "outbound": "proxy"
+        }
+      ]
+    }
+  },
+  "spec": {
+    "rules": [
+      {
+        "index": 1,
+        "network": [
+          "tcp",
+          "udp",
+          "udp"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "index": 5,
+        "network": [
+          "udp"
+        ],
+        "outbound": "direct"
+      }
+    ]
+  },
+  "expectedMaterializedRules": [
+    {
+      "ip_version": 6,
+      "action": "reject"
+    },
+    {
+      "action": "sniff"
+    },
+    {
+      "network": [
+        "tcp",
+        "udp",
+        "udp"
+      ],
+      "outbound": "proxy"
+    },
+    {
+      "domain_regex": [
+        "^keep\\.example$"
+      ],
+      "outbound": "direct"
+    },
+    {
+      "network": [
+        "tcp"
+      ],
+      "port": [
+        443
+      ],
+      "outbound": "proxy"
+    },
+    {
+      "network": [
+        "udp"
+      ],
+      "action": "reject"
+    },
+    {
+      "network": [
+        "udp"
+      ],
+      "outbound": "direct"
+    },
+    {
+      "domain_suffix": [
+        "tail.example"
+      ],
+      "outbound": "proxy"
+    }
+  ],
+  "unsupportedCases": [
+    {
+      "name": "network plus destination port",
+      "rule": {
+        "network": [
+          "tcp"
+        ],
+        "port": [
+          443
+        ],
+        "outbound": "proxy"
+      }
+    },
+    {
+      "name": "reject action, not outbound selection",
+      "rule": {
+        "network": [
+          "udp"
+        ],
+        "action": "reject"
+      }
+    },
+    {
+      "name": "empty network",
+      "rule": {
+        "network": [],
+        "outbound": "proxy"
+      }
+    },
+    {
+      "name": "unsupported network token",
+      "rule": {
+        "network": [
+          "icmp"
+        ],
+        "outbound": "proxy"
+      }
+    },
+    {
+      "name": "non-string network",
+      "rule": {
+        "network": [
+          "tcp",
+          1
+        ],
+        "outbound": "proxy"
+      }
+    },
+    {
+      "name": "empty outbound",
+      "rule": {
+        "network": [
+          "tcp"
+        ],
+        "outbound": ""
+      }
+    },
+    {
+      "name": "padded outbound",
+      "rule": {
+        "network": [
+          "tcp"
+        ],
+        "outbound": " proxy "
+      }
+    }
+  ],
+  "regexConflictConfig": {
+    "inbounds": [],
+    "outbounds": [
+      {
+        "type": "direct",
+        "tag": "direct"
+      }
+    ],
+    "route": {
+      "rules": [
+        {
+          "network": [
+            "tcp"
+          ],
+          "outbound": "proxy"
+        },
+        {
+          "domain_regex": [
+            "^ads\\.example$"
+          ],
+          "action": "reject"
+        }
+      ]
+    }
+  },
+  "regexConflictLegacyRule": {
+    "domain_regex": [
+      "^ads\\.example$"
+    ],
+    "action": "reject"
+  }
+}

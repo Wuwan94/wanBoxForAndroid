@@ -1,0 +1,46 @@
+{
+  "rule": {
+    "id": 57001,
+    "enabled": true,
+    "config": "",
+    "domains": "",
+    "ip": "",
+    "port": "80, 443\n8080",
+    "sourcePort": "",
+    "network": "tcp,udp",
+    "source": "",
+    "protocol": "",
+    "ruleset": "",
+    "outbound": -1,
+    "packages": []
+  },
+  "outbound": "direct",
+  "generatedConfig": {
+    "route": {
+      "rules": [
+        { "network": ["tcp", "udp"], "port": [80, 443, 8080], "outbound": "direct" }
+      ]
+    }
+  },
+  "projectedRouteRule": {
+    "_wanbox_root_network_port_outbound_v57": {
+      "index": 0,
+      "ruleId": 57001,
+      "networkText": "tcp,udp",
+      "portText": "80, 443\n8080",
+      "outbound": "direct"
+    }
+  },
+  "expectedRouteRule": {
+    "network": ["tcp", "udp"],
+    "port": [80, 443, 8080],
+    "outbound": "direct"
+  },
+  "unsupportedCases": [
+    { "name": "port range", "changes": { "port": "80:90" } },
+    { "name": "domain conjunction", "changes": { "domains": "example.com" } },
+    { "name": "IP conjunction", "changes": { "ip": "192.0.2.0/24" } },
+    { "name": "custom action", "changes": { "config": "{\"invert\":true}" } },
+    { "name": "other network", "changes": { "network": "icmp" } }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "rule": {
+    "id": 82001,
+    "enabled": true,
+    "config": "",
+    "domains": "",
+    "ip": "",
+    "port": "80, 443\n8080",
+    "sourcePort": "",
+    "network": "",
+    "source": "",
+    "protocol": "",
+    "ruleset": "",
+    "outbound": -1,
+    "packages": []
+  },
+  "outbound": "direct",
+  "projectedRouteRule": {
+    "_wanbox_root_route_port_outbound_v82": {
+      "index": 1,
+      "ruleId": 82001,
+      "portText": "80, 443\n8080",
+      "outbound": "direct"
+    }
+  },
+  "expectedRouteRule": {
+    "port": [
+      80,
+      443,
+      8080
+    ],
+    "outbound": "direct"
+  }
+}

@@ -1,0 +1,191 @@
+{
+  "rule": {
+    "id": 551,
+    "enabled": true,
+    "config": "",
+    "domains": "full:Example.com\nfull:cdn.example.com",
+    "ip": "198.51.100.0/24,203.0.113.4/32,2001:db8::/32",
+    "port": "",
+    "sourcePort": "",
+    "network": "",
+    "source": "",
+    "protocol": "",
+    "ruleset": "",
+    "outbound": 17,
+    "packages": []
+  },
+  "outbound": "proxy-main",
+  "inputConfig": {
+    "outbounds": [
+      {
+        "type": "direct",
+        "tag": "direct"
+      },
+      {
+        "type": "selector",
+        "tag": "proxy-main",
+        "outbounds": [
+          "direct"
+        ]
+      }
+    ],
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "_wanbox_root_composite_domain_ip_outbound_v51": {
+            "index": 1,
+            "ruleId": 551,
+            "domainText": "full:Example.com\nfull:cdn.example.com",
+            "ipText": "198.51.100.0/24,203.0.113.4/32,2001:db8::/32",
+            "outbound": "proxy-main",
+            "invert": false
+          }
+        },
+        {
+          "port": [
+            443
+          ],
+          "outbound": "direct"
+        }
+      ]
+    }
+  },
+  "expectedConfig": {
+    "outbounds": [
+      {
+        "type": "direct",
+        "tag": "direct"
+      },
+      {
+        "type": "selector",
+        "tag": "proxy-main",
+        "outbounds": [
+          "direct"
+        ]
+      }
+    ],
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "type": "logical",
+          "mode": "or",
+          "rules": [
+            {
+              "domain": [
+                "example.com",
+                "cdn.example.com"
+              ]
+            },
+            {
+              "ip_cidr": [
+                "198.51.100.0/24",
+                "203.0.113.4/32",
+                "2001:db8::/32"
+              ]
+            }
+          ],
+          "outbound": "proxy-main"
+        },
+        {
+          "port": [
+            443
+          ],
+          "outbound": "direct"
+        }
+      ]
+    }
+  },
+  "invertedConfig": {
+    "outbounds": [
+      {
+        "type": "direct",
+        "tag": "direct"
+      },
+      {
+        "type": "selector",
+        "tag": "proxy-main",
+        "outbounds": [
+          "direct"
+        ]
+      }
+    ],
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "_wanbox_root_composite_domain_ip_outbound_v51": {
+            "index": 1,
+            "ruleId": 551,
+            "domainText": "full:Example.com\nfull:cdn.example.com",
+            "ipText": "198.51.100.0/24,203.0.113.4/32,2001:db8::/32",
+            "outbound": "proxy-main",
+            "invert": true
+          }
+        },
+        {
+          "port": [
+            443
+          ],
+          "outbound": "direct"
+        }
+      ]
+    }
+  },
+  "invertedExpectedConfig": {
+    "outbounds": [
+      {
+        "type": "direct",
+        "tag": "direct"
+      },
+      {
+        "type": "selector",
+        "tag": "proxy-main",
+        "outbounds": [
+          "direct"
+        ]
+      }
+    ],
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "type": "logical",
+          "mode": "or",
+          "rules": [
+            {
+              "domain": [
+                "example.com",
+                "cdn.example.com"
+              ]
+            },
+            {
+              "ip_cidr": [
+                "198.51.100.0/24",
+                "203.0.113.4/32",
+                "2001:db8::/32"
+              ]
+            }
+          ],
+          "outbound": "proxy-main",
+          "invert": true
+        },
+        {
+          "port": [
+            443
+          ],
+          "outbound": "direct"
+        }
+      ]
+    }
+  }
+}

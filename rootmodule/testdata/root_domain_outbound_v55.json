@@ -1,0 +1,41 @@
+{
+  "rule": {
+    "id": 55001,
+    "enabled": true,
+    "config": "{\"invert\":true}",
+    "domains": "domain:Example.com,keyword:Tracker",
+    "ip": "",
+    "port": "",
+    "sourcePort": "",
+    "network": "",
+    "source": "",
+    "protocol": "",
+    "ruleset": "",
+    "outbound": -1,
+    "packages": []
+  },
+  "outbound": "direct",
+  "generatedConfig": {
+    "outbounds": [{"type": "direct", "tag": "direct"}],
+    "route": {
+      "rules": [
+        {"domain_suffix": ["example.com"], "domain_keyword": ["tracker"], "outbound": "direct", "invert": true}
+      ]
+    }
+  },
+  "projectedRouteRule": {
+    "_wanbox_root_domain_outbound_v55": {
+      "index": 0,
+      "ruleId": 55001,
+      "domainText": "domain:Example.com,keyword:Tracker",
+      "outbound": "direct",
+      "invert": true
+    }
+  },
+  "expectedRouteRule": {
+    "domain_suffix": ["example.com"],
+    "domain_keyword": ["tracker"],
+    "outbound": "direct",
+    "invert": true
+  }
+}

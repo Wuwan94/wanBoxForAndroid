@@ -81,22 +81,6 @@
     <moe.matsuri.nb4a.ui.ExpandablePreferenceCategory
         app:key="categoryRuntime"
         app:title="@string/settings_group_runtime">
-    <!-- preview.18 UI 改造：分应用代理明显入口 -->
-    <Preference
-        app:icon="@drawable/ic_navigation_apps"
-        app:key="perAppProxyEntry"
-        app:persistent="false"
-        app:title="@string/per_app_proxy"
-        app:summary="@string/per_app_proxy_summary" />
-
-        <Preference
-            app:icon="@drawable/ic_device_developer_mode"
-            app:key="serviceMode"
-            app:persistent="false"
-            app:selectable="false"
-            app:title="@string/service_mode"
-            app:summary="@string/root_module_mode" />
-
         <SwitchPreference
             app:defaultValue="false"
             app:icon="@drawable/ic_baseline_block_24"
@@ -145,12 +129,6 @@
             app:summary="@string/strict_route_sum"
             app:title="@string/strict_route" />
 
-
-        <Preference
-            app:key="tunImplementation"
-            app:title="@string/tun_implementation"
-            app:summary="Sing-Tun (官方原生, 固定)"
-            app:selectable="false" />
 
         <moe.matsuri.nb4a.ui.MTUPreference
             app:defaultValue="9000"

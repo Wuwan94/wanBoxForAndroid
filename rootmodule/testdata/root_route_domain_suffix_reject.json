@@ -1,0 +1,205 @@
+{
+  "spec": {
+    "rules": [
+      {
+        "ruleId": 411,
+        "domainText": "domain:Ads.Example,domain:TRACK.example\ndomain:cdn.example"
+      }
+    ]
+  },
+  "eligibleRule": {
+    "id": 411,
+    "enabled": true,
+    "domains": "domain:Ads.Example,domain:TRACK.example\ndomain:cdn.example",
+    "outbound": -2
+  },
+  "inputConfig": {
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "_wanbox_root_route_domain_suffix_reject_v41": {
+            "ruleId": 411,
+            "domainText": "domain:Ads.Example,domain:TRACK.example\ndomain:cdn.example"
+          }
+        },
+        {
+          "domain": [
+            "legacy.example"
+          ],
+          "outbound": "direct"
+        }
+      ]
+    }
+  },
+  "expectedConfig": {
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "domain_suffix": [
+            "ads.example",
+            "track.example",
+            "cdn.example"
+          ],
+          "action": "reject"
+        },
+        {
+          "domain": [
+            "legacy.example"
+          ],
+          "outbound": "direct"
+        }
+      ]
+    }
+  },
+  "unsupportedCases": [
+    {
+      "name": "disabled",
+      "rule": {
+        "id": 1,
+        "enabled": false,
+        "domains": "domain:ads.example",
+        "outbound": -2
+      }
+    },
+    {
+      "name": "invalid id",
+      "rule": {
+        "id": 9007199254740992,
+        "enabled": true,
+        "domains": "domain:ads.example",
+        "outbound": -2
+      }
+    },
+    {
+      "name": "not reject",
+      "rule": {
+        "id": 2,
+        "enabled": true,
+        "domains": "domain:ads.example",
+        "outbound": 0
+      }
+    },
+    {
+      "name": "custom action",
+      "rule": {
+        "id": 3,
+        "enabled": true,
+        "domains": "domain:ads.example",
+        "outbound": -2,
+        "config": "{\"action\":\"route-options\"}"
+      }
+    },
+    {
+      "name": "exact domain",
+      "rule": {
+        "id": 4,
+        "enabled": true,
+        "domains": "full:ads.example",
+        "outbound": -2
+      }
+    },
+    {
+      "name": "implicit suffix",
+      "rule": {
+        "id": 5,
+        "enabled": true,
+        "domains": "ads.example",
+        "outbound": -2
+      }
+    },
+    {
+      "name": "mixed port matcher",
+      "rule": {
+        "id": 6,
+        "enabled": true,
+        "domains": "domain:ads.example",
+        "port": "443",
+        "outbound": -2
+      }
+    },
+    {
+      "name": "ruleset matcher",
+      "rule": {
+        "id": 7,
+        "enabled": true,
+        "domains": "domain:ads.example",
+        "ruleset": "geosite:ads",
+        "outbound": -2
+      }
+    },
+    {
+      "name": "invalid hostname",
+      "rule": {
+        "id": 8,
+        "enabled": true,
+        "domains": "domain:-bad.example",
+        "outbound": -2
+      }
+    },
+    {
+      "name": "package matcher",
+      "rule": {
+        "id": 9,
+        "enabled": true,
+        "domains": "domain:ads.example",
+        "packages": [
+          "example.app"
+        ],
+        "outbound": -2
+      }
+    }
+  ],
+  "parserCases": [
+    {
+      "name": "comma and newline with case folding",
+      "domainText": "domain:Ads.Example, domain:Track.example\ndomain:cdn.example",
+      "valid": true,
+      "domains": [
+        "ads.example",
+        "track.example",
+        "cdn.example"
+      ]
+    },
+    {
+      "name": "exact matcher",
+      "domainText": "full:ads.example",
+      "valid": false
+    },
+    {
+      "name": "implicit suffix",
+      "domainText": "ads.example",
+      "valid": false
+    },
+    {
+      "name": "geosite",
+      "domainText": "geosite:ads",
+      "valid": false
+    },
+    {
+      "name": "empty suffix",
+      "domainText": "domain:",
+      "valid": false
+    },
+    {
+      "name": "empty label",
+      "domainText": "domain:ads..example",
+      "valid": false
+    },
+    {
+      "name": "label begins hyphen",
+      "domainText": "domain:-ads.example",
+      "valid": false
+    },
+    {
+      "name": "non-ascii",
+      "domainText": "domain:例子.测试",
+      "valid": false
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "generatedConfig": {
+    "outbounds": [{"type":"direct","tag":"direct"}],
+    "route": {
+      "rules": [{"rule_set":["ruleset-site"],"port":[443],"port_range":["8000:8010"],"source_port":[53],"source_port_range":["1000:2000"],"outbound":"direct","invert":true}],
+      "rule_set": [{"type":"remote","tag":"ruleset-site","format":"binary","url":"https://example.com/site.srs","update_interval":"1d"}]
+    }
+  },
+  "projectedConfig": {
+    "outbounds": [{"type":"direct","tag":"direct"}],
+    "route": {
+      "rules": [{"_wanbox_root_remote_ruleset_port_range_outbound_v76":{"index":0,"tags":["ruleset-site"],"ports":[443],"portRanges":["8000:8010"],"sourcePorts":[53],"sourcePortRanges":["1000:2000"],"outbound":"direct","invert":true}}],
+      "rule_set": [{"_wanbox_root_remote_rule_set_v46":{"index":0,"tag":"ruleset-site","url":"https://example.com/site.srs","updateInterval":"1d"}}]
+    }
+  },
+  "expectedRouteRules": [{"rule_set":["ruleset-site"],"port":[443],"port_range":["8000:8010"],"source_port":[53],"source_port_range":["1000:2000"],"outbound":"direct","invert":true}]
+}

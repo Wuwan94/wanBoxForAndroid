@@ -1,0 +1,30 @@
+{
+  "rule": {
+    "id": 62001,
+    "enabled": true,
+    "config": "{\"ip_version\":6}",
+    "domains": "",
+    "ip": "",
+    "port": "",
+    "sourcePort": "",
+    "network": "",
+    "source": "",
+    "protocol": "",
+    "ruleset": "",
+    "outbound": 0,
+    "packages": []
+  },
+  "outbound": "direct",
+  "projectedRouteRule": {
+    "_wanbox_root_ip_version_outbound_v62": {
+      "index": 1,
+      "ruleId": 62001,
+      "ipVersion": 6,
+      "outbound": "direct"
+    }
+  },
+  "expectedRouteRule": {
+    "ip_version": 6,
+    "outbound": "direct"
+  }
+}

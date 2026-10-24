@@ -1,0 +1,45 @@
+{
+  "spec": {
+    "rules": [
+      {"ruleId": 401, "domainText": "full:Ads.Example,full:TRACK.example\nfull:cdn.example"}
+    ]
+  },
+  "eligibleRule": {
+    "id": 401, "enabled": true, "domains": "full:Ads.Example,full:TRACK.example\nfull:cdn.example", "outbound": -2
+  },
+  "inputConfig": {
+    "route": {"rules": [
+      {"action": "sniff"},
+      {"_wanbox_root_route_domain_reject_v40": {"ruleId": 401, "domainText": "full:Ads.Example,full:TRACK.example\nfull:cdn.example"}},
+      {"domain": ["legacy.example"], "outbound": "direct"}
+    ]}
+  },
+  "expectedConfig": {
+    "route": {"rules": [
+      {"action": "sniff"},
+      {"domain": ["ads.example", "track.example", "cdn.example"], "action": "reject"},
+      {"domain": ["legacy.example"], "outbound": "direct"}
+    ]}
+  },
+  "unsupportedCases": [
+    {"name": "disabled", "rule": {"id": 1, "enabled": false, "domains": "full:ads.example", "outbound": -2}},
+    {"name": "invalid id", "rule": {"id": 9007199254740992, "enabled": true, "domains": "full:ads.example", "outbound": -2}},
+    {"name": "not reject", "rule": {"id": 2, "enabled": true, "domains": "full:ads.example", "outbound": 0}},
+    {"name": "custom action", "rule": {"id": 3, "enabled": true, "domains": "full:ads.example", "outbound": -2, "config": "{\"action\":\"route-options\"}"}},
+    {"name": "suffix matcher", "rule": {"id": 4, "enabled": true, "domains": "domain:ads.example", "outbound": -2}},
+    {"name": "mixed port matcher", "rule": {"id": 5, "enabled": true, "domains": "full:ads.example", "port": "443", "outbound": -2}},
+    {"name": "ruleset matcher", "rule": {"id": 6, "enabled": true, "domains": "full:ads.example", "ruleset": "geosite:ads", "outbound": -2}},
+    {"name": "invalid hostname", "rule": {"id": 7, "enabled": true, "domains": "full:-bad.example", "outbound": -2}},
+    {"name": "package matcher", "rule": {"id": 8, "enabled": true, "domains": "full:ads.example", "packages": ["example.app"], "outbound": -2}}
+  ],
+  "parserCases": [
+    {"name": "comma and newline with case folding", "domainText": "full:Ads.Example, full:Track.example\nfull:cdn.example", "valid": true, "domains": ["ads.example", "track.example", "cdn.example"]},
+    {"name": "implicit suffix", "domainText": "ads.example", "valid": false},
+    {"name": "suffix prefix", "domainText": "domain:ads.example", "valid": false},
+    {"name": "geosite", "domainText": "geosite:ads", "valid": false},
+    {"name": "empty exact domain", "domainText": "full:", "valid": false},
+    {"name": "empty label", "domainText": "full:ads..example", "valid": false},
+    {"name": "label begins hyphen", "domainText": "full:-ads.example", "valid": false},
+    {"name": "non-ascii", "domainText": "full:例子.测试", "valid": false}
+  ]
+}

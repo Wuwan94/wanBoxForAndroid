@@ -1,0 +1,58 @@
+{
+  "eligibleRule": {
+    "id": 811,
+    "enabled": true,
+    "outbound": 1,
+    "packages": ["com.example.alpha", "com.example.beta"],
+    "uids": [10001, 20001],
+    "domains": "full:api.example.test,domain:example.test",
+    "ip": "",
+    "ruleset": "",
+    "port": "",
+    "sourcePort": "",
+    "network": "",
+    "source": "",
+    "protocol": "",
+    "config": "{\"invert\":true}"
+  },
+  "outboundTag": "direct",
+  "projectedRouteRule": {
+    "_wanbox_root_app_uid_domain_outbound_v81": {
+      "index": 1,
+      "ruleId": 811,
+      "packages": ["com.example.alpha", "com.example.beta"],
+      "uids": [10001, 20001],
+      "domainText": "full:api.example.test,domain:example.test",
+      "outbound": "direct",
+      "invert": true
+    }
+  },
+  "spec": {
+    "rules": [
+      {
+        "index": 1,
+        "ruleId": 811,
+        "packages": ["com.example.alpha", "com.example.beta"],
+        "uids": [10001, 20001],
+        "domainText": "full:api.example.test,domain:example.test",
+        "outbound": "direct",
+        "invert": true
+      }
+    ]
+  },
+  "expectedMaterializedRouteRule": {
+    "package_name": ["com.example.alpha", "com.example.beta"],
+    "user_id": [10001, 20001],
+    "domain": ["api.example.test"],
+    "domain_suffix": ["example.test"],
+    "outbound": "direct",
+    "invert": true
+  },
+  "unsupportedRules": [
+    {"name":"domain_regex","domains":"regex:.*example.test"},
+    {"name":"mixed_ip","ip":"192.0.2.0/24"},
+    {"name":"ruleset","ruleset":"geoip-test"},
+    {"name":"port","port":"443"},
+    {"name":"unsupported_custom","config":"{\"unsupported\":true}"}
+  ]
+}

@@ -1,0 +1,331 @@
+{
+  "spec": {
+    "rules": [
+      {
+        "ruleId": 61,
+        "networkText": "tcp, udp\nudp"
+      },
+      {
+        "ruleId": 62,
+        "networkText": "udp"
+      }
+    ]
+  },
+  "eligibleRule": {
+    "id": 61,
+    "enabled": true,
+    "outbound": -2,
+    "network": "tcp, udp\nudp"
+  },
+  "inputConfig": {
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "_wanbox_root_route_network_reject_v31": {
+            "ruleId": 61,
+            "networkText": "tcp, udp\nudp"
+          }
+        },
+        {
+          "domain": [
+            "legacy.example"
+          ],
+          "outbound": "direct"
+        },
+        {
+          "_wanbox_root_route_network_reject_v31": {
+            "ruleId": 62,
+            "networkText": "udp"
+          }
+        },
+        {
+          "network": [
+            "icmp"
+          ],
+          "action": "reject"
+        }
+      ]
+    }
+  },
+  "expectedConfig": {
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "network": [
+            "tcp",
+            "udp",
+            "udp"
+          ],
+          "action": "reject"
+        },
+        {
+          "domain": [
+            "legacy.example"
+          ],
+          "outbound": "direct"
+        },
+        {
+          "network": [
+            "udp"
+          ],
+          "action": "reject"
+        },
+        {
+          "network": [
+            "icmp"
+          ],
+          "action": "reject"
+        }
+      ]
+    }
+  },
+  "unsupportedCases": [
+    {
+      "name": "invalid outbound",
+      "rule": {
+        "id": 63,
+        "enabled": true,
+        "outbound": 9223372036854775807,
+        "network": "tcp"
+      }
+    },
+    {
+      "name": "custom action",
+      "rule": {
+        "id": 64,
+        "enabled": true,
+        "outbound": -2,
+        "network": "tcp",
+        "config": "{\"action\":\"reject\",\"custom_field\":true}"
+      }
+    },
+    {
+      "name": "malformed custom config",
+      "rule": {
+        "id": 65,
+        "enabled": true,
+        "outbound": -2,
+        "network": "tcp",
+        "config": "{not-json"
+      }
+    },
+    {
+      "name": "package UID side effect",
+      "rule": {
+        "id": 66,
+        "enabled": true,
+        "outbound": -2,
+        "network": "tcp",
+        "packages": [
+          "example.app"
+        ]
+      }
+    },
+    {
+      "name": "ruleset and refresh semantics",
+      "rule": {
+        "id": 67,
+        "enabled": true,
+        "outbound": -2,
+        "network": "tcp",
+        "ruleset": "https://rules.example/domain.srs"
+      },
+      "rulesetContext": {
+        "kind": "domain",
+        "updateIntervalHours": 24
+      }
+    },
+    {
+      "name": "DNS side effect",
+      "rule": {
+        "id": 68,
+        "enabled": true,
+        "outbound": -1,
+        "network": "tcp",
+        "domains": "dns-target.example"
+      }
+    },
+    {
+      "name": "OR-expanded matcher",
+      "rule": {
+        "id": 69,
+        "enabled": true,
+        "outbound": -2,
+        "network": "tcp",
+        "domains": "example.test",
+        "ip": "192.0.2.0/24"
+      }
+    },
+    {
+      "name": "NOT combination",
+      "rule": {
+        "id": 70,
+        "enabled": true,
+        "outbound": -2,
+        "network": "tcp",
+        "domains": "example.test",
+        "config": "{\"invert\":true}"
+      }
+    },
+    {
+      "name": "combined port matcher",
+      "rule": {
+        "id": 71,
+        "enabled": true,
+        "outbound": -2,
+        "network": "tcp",
+        "port": "443"
+      }
+    },
+    {
+      "name": "source port matcher",
+      "rule": {
+        "id": 72,
+        "enabled": true,
+        "outbound": -2,
+        "network": "tcp",
+        "sourcePort": "53"
+      }
+    },
+    {
+      "name": "protocol matcher",
+      "rule": {
+        "id": 73,
+        "enabled": true,
+        "outbound": -2,
+        "network": "tcp",
+        "protocol": "tls"
+      }
+    },
+    {
+      "name": "unsupported icmp network",
+      "rule": {
+        "id": 74,
+        "enabled": true,
+        "outbound": -2,
+        "network": "icmp"
+      }
+    },
+    {
+      "name": "malformed network token",
+      "rule": {
+        "id": 75,
+        "enabled": true,
+        "outbound": -2,
+        "network": "tcp,sctp"
+      }
+    },
+    {
+      "name": "disabled",
+      "rule": {
+        "id": 76,
+        "enabled": false,
+        "outbound": -2,
+        "network": "tcp"
+      }
+    },
+    {
+      "name": "empty network",
+      "rule": {
+        "id": 77,
+        "enabled": true,
+        "outbound": -2,
+        "network": " , \n"
+      }
+    }
+  ],
+  "legacyFallbackConfig": {
+    "route": {
+      "rules": [
+        {
+          "network": [
+            "icmp"
+          ],
+          "action": "reject"
+        },
+        {
+          "network": [
+            "tcp"
+          ],
+          "action": "custom",
+          "custom_field": "kept"
+        },
+        {
+          "network": [
+            "tcp"
+          ],
+          "port": [
+            443
+          ],
+          "action": "reject"
+        }
+      ]
+    }
+  },
+  "parserCases": [
+    {
+      "name": "blank-fields-and-duplicates",
+      "raw": ", , ,\n tcp,,udp, tcp",
+      "valid": true,
+      "networks": [
+        "tcp",
+        "udp",
+        "tcp"
+      ]
+    },
+    {
+      "name": "unicode-whitespace",
+      "raw": " tcp ",
+      "valid": true,
+      "networks": [
+        "tcp"
+      ]
+    },
+    {
+      "name": "many-empty-fields-before-one-network",
+      "raw": ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,tcp",
+      "valid": true,
+      "networks": [
+        "tcp"
+      ]
+    },
+    {
+      "name": "multibyte-input-under-kotlin-length-limit",
+      "raw": "                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    tcp",
+      "valid": true,
+      "networks": [
+        "tcp"
+      ]
+    },
+    {
+      "name": "too-many-effective-networks",
+      "raw": "tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp,tcp",
+      "valid": false,
+      "networks": null
+    },
+    {
+      "name": "utf16-length-over-limit",
+      "raw": "                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              tcp",
+      "valid": false,
+      "networks": null
+    },
+    {
+      "name": "unsupported-network",
+      "raw": "tcp,sctp",
+      "valid": false,
+      "networks": null
+    },
+    {
+      "name": "only-empty-fields",
+      "raw": " ,\n,, ",
+      "valid": false,
+      "networks": null
+    }
+  ]
+}

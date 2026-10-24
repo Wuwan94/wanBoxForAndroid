@@ -1,0 +1,34 @@
+{
+  "generatedConfig": {
+    "outbounds": [
+      {"type": "direct", "tag": "direct"},
+      {"type": "selector", "tag": "proxy"}
+    ],
+    "route": {
+      "rules": [
+        {"domain_suffix": ["prior.example"], "outbound": "direct"},
+        {"_wanbox_root_route_app_uid_v45": {"index": 1, "packages": ["com.example.alpha", "com.example.beta"], "uids": [10001, 20001], "outbound": "proxy"}},
+        {"domain": ["legacy.example"], "outbound": "direct"}
+      ]
+    }
+  },
+  "spec": {
+    "rules": [
+      {"index": 1, "packages": ["com.example.alpha", "com.example.beta"], "uids": [10001, 20001], "outbound": "proxy"}
+    ]
+  },
+  "expectedMaterializedRules": [
+    {"domain_suffix": ["prior.example"], "outbound": "direct"},
+    {"package_name": ["com.example.alpha", "com.example.beta"], "user_id": [10001, 20001], "outbound": "proxy"},
+    {"domain": ["legacy.example"], "outbound": "direct"}
+  ],
+  "packageOnlyFallback": {
+    "package_name": ["com.example.alpha"],
+    "outbound": "proxy"
+  },
+  "unsupportedCases": [
+    {"name": "package+domain", "rule": {"package_name": ["com.example.alpha"], "domain": ["example.com"], "outbound": "proxy"}},
+    {"name": "inverted", "rule": {"package_name": ["com.example.alpha"], "invert": true, "outbound": "proxy"}},
+    {"name": "dns-side-effect", "rule": {"package_name": ["com.example.alpha"], "action": "reject"}}
+  ]
+}

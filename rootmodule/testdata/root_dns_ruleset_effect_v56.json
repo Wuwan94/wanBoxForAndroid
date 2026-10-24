@@ -1,0 +1,280 @@
+{
+  "generatedConfig": {
+    "route": {
+      "rule_set": [
+        {
+          "type": "remote",
+          "tag": "rs-direct",
+          "format": "binary",
+          "url": "https://example.test/direct.srs",
+          "update_interval": "1d"
+        },
+        {
+          "type": "remote",
+          "tag": "rs-reject",
+          "format": "binary",
+          "url": "https://example.test/reject.srs",
+          "update_interval": "1d"
+        },
+        {
+          "type": "remote",
+          "tag": "rs-fake",
+          "format": "binary",
+          "url": "https://example.test/fake.srs",
+          "update_interval": "1d"
+        }
+      ]
+    },
+    "dns": {
+      "servers": [
+        {
+          "tag": "dns-direct"
+        },
+        {
+          "tag": "dns-remote"
+        },
+        {
+          "tag": "dns-fake"
+        }
+      ],
+      "rules": [
+        {
+          "tag": "legacy-before",
+          "server": "dns-direct"
+        },
+        {
+          "rule_set": [
+            "rs-direct"
+          ],
+          "server": "dns-direct"
+        },
+        {
+          "rule_set": [
+            "rs-reject"
+          ],
+          "action": "reject"
+        },
+        {
+          "rule_set": [
+            "rs-fake"
+          ],
+          "server": "dns-fake",
+          "inbound": [
+            "tun-in"
+          ],
+          "query_type": [
+            "A",
+            "AAAA"
+          ]
+        },
+        {
+          "rule_set": [
+            "rs-unmigrated"
+          ],
+          "server": "dns-remote",
+          "strategy": "ipv4_only"
+        },
+        {
+          "tag": "legacy-after",
+          "server": "dns-remote"
+        }
+      ]
+    }
+  },
+  "projectedConfig": {
+    "route": {
+      "rule_set": [
+        {
+          "_wanbox_root_remote_rule_set_v46": {
+            "index": 0,
+            "tag": "rs-direct",
+            "url": "https://example.test/direct.srs",
+            "updateInterval": "1d"
+          }
+        },
+        {
+          "_wanbox_root_remote_rule_set_v46": {
+            "index": 1,
+            "tag": "rs-reject",
+            "url": "https://example.test/reject.srs",
+            "updateInterval": "1d"
+          }
+        },
+        {
+          "_wanbox_root_remote_rule_set_v46": {
+            "index": 2,
+            "tag": "rs-fake",
+            "url": "https://example.test/fake.srs",
+            "updateInterval": "1d"
+          }
+        }
+      ]
+    },
+    "dns": {
+      "servers": [
+        {
+          "tag": "dns-direct"
+        },
+        {
+          "tag": "dns-remote"
+        },
+        {
+          "tag": "dns-fake"
+        }
+      ],
+      "rules": [
+        {
+          "tag": "legacy-before",
+          "server": "dns-direct"
+        },
+        {
+          "_wanbox_root_remote_ruleset_dns_effect_v56": {
+            "tag": "rs-direct",
+            "kind": "direct"
+          }
+        },
+        {
+          "_wanbox_root_remote_ruleset_dns_effect_v56": {
+            "tag": "rs-reject",
+            "kind": "reject"
+          }
+        },
+        {
+          "_wanbox_root_remote_ruleset_dns_effect_v56": {
+            "tag": "rs-fake",
+            "kind": "fake"
+          }
+        },
+        {
+          "rule_set": [
+            "rs-unmigrated"
+          ],
+          "server": "dns-remote",
+          "strategy": "ipv4_only"
+        },
+        {
+          "tag": "legacy-after",
+          "server": "dns-remote"
+        }
+      ]
+    }
+  },
+  "expectedConfig": {
+    "route": {
+      "rule_set": [
+        {
+          "type": "remote",
+          "tag": "rs-direct",
+          "format": "binary",
+          "url": "https://example.test/direct.srs",
+          "update_interval": "1d"
+        },
+        {
+          "type": "remote",
+          "tag": "rs-reject",
+          "format": "binary",
+          "url": "https://example.test/reject.srs",
+          "update_interval": "1d"
+        },
+        {
+          "type": "remote",
+          "tag": "rs-fake",
+          "format": "binary",
+          "url": "https://example.test/fake.srs",
+          "update_interval": "1d"
+        }
+      ]
+    },
+    "dns": {
+      "servers": [
+        {
+          "tag": "dns-direct"
+        },
+        {
+          "tag": "dns-remote"
+        },
+        {
+          "tag": "dns-fake"
+        }
+      ],
+      "rules": [
+        {
+          "tag": "legacy-before",
+          "server": "dns-direct"
+        },
+        {
+          "rule_set": [
+            "rs-direct"
+          ],
+          "server": "dns-direct"
+        },
+        {
+          "rule_set": [
+            "rs-reject"
+          ],
+          "action": "reject"
+        },
+        {
+          "rule_set": [
+            "rs-fake"
+          ],
+          "server": "dns-fake",
+          "inbound": [
+            "tun-in"
+          ],
+          "query_type": [
+            "A",
+            "AAAA"
+          ]
+        },
+        {
+          "rule_set": [
+            "rs-unmigrated"
+          ],
+          "server": "dns-remote",
+          "strategy": "ipv4_only"
+        },
+        {
+          "tag": "legacy-after",
+          "server": "dns-remote"
+        }
+      ]
+    }
+  },
+  "unmigratedConfig": {
+    "route": {
+      "rule_set": [
+        {
+          "type": "local",
+          "tag": "rs-local",
+          "format": "source",
+          "path": "rules.srs"
+        },
+        {
+          "type": "remote",
+          "tag": "rs-custom",
+          "format": "binary",
+          "url": "https://example.test/custom.srs",
+          "update_interval": "1d"
+        }
+      ]
+    },
+    "dns": {
+      "rules": [
+        {
+          "rule_set": [
+            "rs-local"
+          ],
+          "server": "dns-remote"
+        },
+        {
+          "rule_set": [
+            "rs-custom"
+          ],
+          "server": "dns-remote",
+          "strategy": "ipv4_only"
+        }
+      ]
+    }
+  }
+}

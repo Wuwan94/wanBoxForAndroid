@@ -1,0 +1,30 @@
+{
+  "rule": {
+    "id": 63001,
+    "enabled": true,
+    "config": "",
+    "domains": "",
+    "ip": "",
+    "port": "",
+    "sourcePort": "53, 853\n5353",
+    "network": "",
+    "source": "",
+    "protocol": "",
+    "ruleset": "",
+    "outbound": -1,
+    "packages": []
+  },
+  "outbound": "direct",
+  "projectedRouteRule": {
+    "_wanbox_root_route_source_port_outbound_v63": {
+      "index": 1,
+      "ruleId": 63001,
+      "sourcePortText": "53, 853\n5353",
+      "outbound": "direct"
+    }
+  },
+  "expectedRouteRule": {
+    "source_port": [53, 853, 5353],
+    "outbound": "direct"
+  }
+}

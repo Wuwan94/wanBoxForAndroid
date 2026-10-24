@@ -1,0 +1,49 @@
+{
+  "backend": "tun",
+  "appInputs": [
+    {"id": 801, "packages": ["com.example.direct"], "uids": [10001, 110001], "action": "route", "outbound": -1, "fakeDns": false, "kind": "direct"},
+    {"id": 802, "packages": ["com.example.block"], "uids": [10002], "action": "reject", "outbound": -2, "fakeDns": true, "kind": "reject"},
+    {"id": 803, "packages": ["com.example.proxy"], "uids": [], "action": "route", "outbound": 7, "fakeDns": false, "kind": "proxy"},
+    {"id": 804, "packages": ["com.example.fake"], "uids": [10004], "action": "route", "outbound": 7, "fakeDns": true, "kind": "proxy"}
+  ],
+  "projectedConfig": {
+    "dns": {
+      "servers": [
+        {"tag": "dns-direct"},
+        {"tag": "dns-remote"},
+        {"tag": "dns-fake"}
+      ],
+      "rules": [
+        {"tag": "legacy-before", "domain_suffix": ["before.example"]},
+        {"_wanbox_root_app_identity_dns_rule_v79": {"ruleId": 801, "packages": ["com.example.direct"], "uids": [10001, 110001], "kind": "direct", "fakeDns": false}},
+        {"_wanbox_root_app_identity_dns_rule_v79": {"ruleId": 802, "packages": ["com.example.block"], "uids": [10002], "kind": "reject", "fakeDns": false}},
+        {"_wanbox_root_app_identity_dns_rule_v79": {"ruleId": 803, "packages": ["com.example.proxy"], "uids": [], "kind": "proxy", "fakeDns": false}},
+        {"_wanbox_root_app_identity_dns_rule_v79": {"ruleId": 804, "packages": ["com.example.fake"], "uids": [10004], "kind": "proxy", "fakeDns": true}},
+        {"tag": "legacy-after", "domain_suffix": ["after.example"]}
+      ]
+    }
+  },
+  "expectedConfig": {
+    "dns": {
+      "servers": [
+        {"tag": "dns-direct"},
+        {"tag": "dns-remote"},
+        {"tag": "dns-fake"}
+      ],
+      "rules": [
+        {"tag": "legacy-before", "domain_suffix": ["before.example"]},
+        {"package_name": ["com.example.direct"], "user_id": [10001, 110001], "server": "dns-direct"},
+        {"package_name": ["com.example.block"], "user_id": [10002], "action": "reject"},
+        {"package_name": ["com.example.proxy"], "server": "dns-remote"},
+        {"package_name": ["com.example.fake"], "user_id": [10004], "server": "dns-fake", "inbound": ["tun-in"], "query_type": ["A", "AAAA"]},
+        {"tag": "legacy-after", "domain_suffix": ["after.example"]}
+      ]
+    }
+  },
+  "unmigratedConfig": {
+    "dns": {
+      "servers": [{"tag": "dns-direct"}],
+      "rules": [{"package_name": ["com.example.legacy"], "server": "dns-direct"}]
+    }
+  }
+}

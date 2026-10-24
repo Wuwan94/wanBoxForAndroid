@@ -194,11 +194,11 @@ class DocsFragment : ToolbarFragment(R.layout.layout_docs) {
             )
         )
 
-        // 2. VPN 设置
-        allItems.add(DocListItem.Header("2. Root TUN 设置 (Root TUN Settings)", "控制系统虚拟网卡 (TUN) 路由分流、开机自启、局域网共享与 MTU 性能"))
+        // 2. Root 模块流量设置
+        allItems.add(DocListItem.Header("2. Root 模块设置 (Root Module Settings)", "eBPF 优先，启动失败时回退 TUN；管理应用分流、局域网和代理入口"))
         allItems.add(
             DocListItem.Item(
-                category = "VPN 设置",
+                category = "Root 模块设置",
                 title = "自动连接 (isAutoConnect)",
                 badge = "推荐: 开启 (日常使用)",
                 desc = "当手机开机启动完成或 APP 在后台被系统重新拉起时，由模块启动最后提交的有效快照，不需要 App 后台常驻。设置关闭时模块不自启。",
@@ -209,7 +209,7 @@ class DocsFragment : ToolbarFragment(R.layout.layout_docs) {
         )
         allItems.add(
             DocListItem.Item(
-                category = "VPN 设置",
+                category = "Root 模块设置",
                 title = "应用分流 / 分应用代理 (proxyApps)",
                 badge = "推荐: 开启 (白名单模式)",
                 desc = "精确控制指定应用走代理通道，或使指定应用完全绕过代理直连互联网。",
@@ -220,7 +220,7 @@ class DocsFragment : ToolbarFragment(R.layout.layout_docs) {
         )
         allItems.add(
             DocListItem.Item(
-                category = "VPN 设置",
+                category = "Root 模块设置",
                 title = "绕过局域网 (bypassLan)",
                 badge = "推荐: 开启",
                 desc = "在 Android 系统底层路由表中将私有内网网段（如 192.168.0.0/16、10.0.0.0/8 等）直接排除在 VPN 网卡之外。",
@@ -231,7 +231,7 @@ class DocsFragment : ToolbarFragment(R.layout.layout_docs) {
         )
         allItems.add(
             DocListItem.Item(
-                category = "VPN 设置",
+                category = "Root 模块设置",
                 title = "内核绕过局域网 (bypassLanInCore)",
                 badge = "推荐: 关闭",
                 desc = "把局域网私有网段的数据包先吞入 VPN 虚拟网卡，然后在内核路由规则层匹配直连（direct）出站。",
@@ -242,7 +242,7 @@ class DocsFragment : ToolbarFragment(R.layout.layout_docs) {
         )
         allItems.add(
             DocListItem.Item(
-                category = "VPN 设置",
+                category = "Root 模块设置",
                 title = "严格路由模式 (strictRoute)",
                 badge = "推荐: 开启",
                 desc = "激活强隔离路由策略，清除物理网络接口上的默认路由表，强制所有出站流量必须经由 VPN 接口处理。",
@@ -253,7 +253,7 @@ class DocsFragment : ToolbarFragment(R.layout.layout_docs) {
         )
         allItems.add(
             DocListItem.Item(
-                category = "VPN 设置",
+                category = "Root 模块设置",
                 title = "允许局域网设备连接 (allowAccess)",
                 badge = "推荐: 平时关闭，按需开启",
                 desc = "在手机上监听 0.0.0.0 局域网地址，允许处于同一 Wi-Fi 下的电脑、Switch、PS5、电视盒子连接手机的 IP:端口进行科学上网。",
@@ -265,18 +265,7 @@ class DocsFragment : ToolbarFragment(R.layout.layout_docs) {
 
         allItems.add(
             DocListItem.Item(
-                category = "VPN 设置",
-                title = "TUN 实现模式 (tunImplementation)",
-                badge = "固定: Sing-Tun (官方原生)",
-                desc = "preview.17 起仅保留 Sing-Tun 官方原生 TUN 实现，不再提供 gVisor / System / Mixed 兼容模式选择。",
-                prosCons = "【利】Sing-Tun 为 sing-box 1.15 官方自研高能效协议栈，峰值吞吐、内存占用与发热均大幅优化；配置统一，无需选择；【弊】无，旧配置自动迁移。",
-                recommendation = "【无需设置】TUN 实现已固定为 Sing-Tun，旧备份中的 gVisor/System/Mixed 配置会自动迁移。",
-                keywords = "tun sing-tun singtun 协议栈 网络栈",
-            )
-        )
-        allItems.add(
-            DocListItem.Item(
-                category = "VPN 设置",
+                category = "Root 模块设置",
                 title = "最大传输单元 MTU (mtu)",
                 badge = "推荐: 9000 (默认) 或 1500",
                 desc = "定义 VPN 虚拟网卡承载的单个数据包最大有效负载字节（默认 9000）。",
@@ -290,18 +279,7 @@ class DocsFragment : ToolbarFragment(R.layout.layout_docs) {
         allItems.add(DocListItem.Header("3. 模式与入站设置 (Mode & Inbound Settings)", "配置应用运行形态、本地代理端口监听与认证安全"))
         allItems.add(
             DocListItem.Item(
-                category = "模式与入站设置",
-                title = "服务模式 (serviceMode)",
-                badge = "仅支持: Root 模块",
-                desc = "App 保留现有管理界面，使用 Magisk / KernelSU 模块独立运行 Root TUN；无 Root 或模块不可用时提示错误，不再回退 VPN。",
-                prosCons = "配置提交后由模块持有核心；App 关闭后无需后台服务。需先安装对应架构模块并授予 Root 权限。",
-                recommendation = "先安装配套模块、提交节点配置，再连接。Android 休眠与厂商网络限制仍可能影响联网。",
-                keywords = "root 模块 magisk kernelsu tun serviceMode",
-            )
-        )
-        allItems.add(
-            DocListItem.Item(
-                category = "模式与入站设置",
+                category = "Root 模块入站设置",
                 title = "禁用混合入站 (disableMixedInbound)",
                 badge = "推荐: 关闭",
                 desc = "关闭本地开放的 HTTP/SOCKS5 混合代理监听端口（默认 2080）。",
@@ -312,7 +290,7 @@ class DocsFragment : ToolbarFragment(R.layout.layout_docs) {
         )
         allItems.add(
             DocListItem.Item(
-                category = "模式与入站设置",
+                category = "Root 模块入站设置",
                 title = "混合代理端口 (mixedPort)",
                 badge = "推荐: 2080 (默认)",
                 desc = "指定本机 HTTP 与 SOCKS5 共享监听的 TCP 端口号。",
@@ -323,7 +301,7 @@ class DocsFragment : ToolbarFragment(R.layout.layout_docs) {
         )
         allItems.add(
             DocListItem.Item(
-                category = "模式与入站设置",
+                category = "Root 模块入站设置",
                 title = "混合入站认证 (mixedAuthConfig)",
                 badge = "推荐: 留空 (单机环境)",
                 desc = "为本地 HTTP/SOCKS5 代理端口设置访问连接时必须提供的用户名与密码鉴权。",
@@ -627,7 +605,7 @@ class DocsFragment : ToolbarFragment(R.layout.layout_docs) {
         // 10. 附加工具与备份同步
         allItems.add(
             DocListItem.Header(
-                "10. 附加工具与备份同步 (Additional Tools & Backup)",
+                "9. 附加工具与备份同步 (Additional Tools & Backup)",
                 "数据灾备、多端云同步、网络质量深度排查与诊断辅助"
             )
         )
@@ -662,17 +640,6 @@ class DocsFragment : ToolbarFragment(R.layout.layout_docs) {
                 prosCons = "【利】直观捕捉网络突发大流量、测速峰值带宽及异常流量抖动；【弊】图表高频刷新微量增加前台渲染能耗，离开页面即销毁。",
                 recommendation = "【最稳推荐：日常按需查看】用于检测节点极限真实带宽与稳定性压测。",
                 keywords = "流量 图表 速率 监控 波形 峰值 trafficChart",
-            )
-        )
-        allItems.add(
-            DocListItem.Item(
-                category = "附加工具与备份同步",
-                title = "NAT 类型与 STUN 穿透探测 (stunTest)",
-                badge = "推荐: 游戏/P2P 用户",
-                desc = "利用 RFC 3489 / RFC 5389 STUN 协议，探测当前 VPN 网络出站环境下的 NAT 拓扑类型（Full Cone 全锥形、Restricted Cone 受限锥形、Port Restricted 端口受限锥形、Symmetric 对称形 NAT）。",
-                prosCons = "【利】精准诊断当前节点是否支持 Full Cone NAT，判断是否适合用于 Nintendo Switch / PS5 联机联麦（NAT Type A/B）以及 BT/PT / BitTorrent P2P 穿透加速；【弊】普通网页浏览用户无需关心此指标。",
-                recommendation = "【最稳推荐：联机游戏与 P2P 优先选用 Full Cone 节点】普通科学上网无需纠结 NAT 类型。",
-                keywords = "nat stun 穿透 锥形 full cone 对称 联机 switch ps5 stunTest",
             )
         )
         allItems.add(

@@ -1,0 +1,36 @@
+{
+  "eligibleRule": {
+    "id": 81,
+    "enabled": true,
+    "outbound": -2,
+    "sourcePort": "53, 123\n443"
+  },
+  "spec": {"rules": [{"ruleId": 81, "sourcePortText": "53, 123\n443"}]},
+  "inputConfig": {"route": {"rules": [
+    {"action": "sniff"},
+    {"_wanbox_root_route_source_port_reject_v33": {"ruleId": 81, "sourcePortText": "53, 123\n443"}},
+    {"domain": ["legacy.example"], "outbound": "direct"}
+  ]}},
+  "expectedConfig": {"route": {"rules": [
+    {"action": "sniff"},
+    {"source_port": [53, 123, 443], "action": "reject"},
+    {"domain": ["legacy.example"], "outbound": "direct"}
+  ]}},
+  "unsupportedCases": [
+    {"name": "custom action", "rule": {"id": 82, "enabled": true, "outbound": -2, "config": "custom", "sourcePort": "53"}},
+    {"name": "package matcher", "rule": {"id": 83, "enabled": true, "outbound": -2, "sourcePort": "53", "packages": ["example.app"]}},
+    {"name": "source address matcher", "rule": {"id": 84, "enabled": true, "outbound": -2, "sourcePort": "53", "source": "192.0.2.0/24"}},
+    {"name": "destination port matcher", "rule": {"id": 85, "enabled": true, "outbound": -2, "sourcePort": "53", "port": "80"}},
+    {"name": "range unsupported", "rule": {"id": 86, "enabled": true, "outbound": -2, "sourcePort": "53:55"}},
+    {"name": "partly malformed", "rule": {"id": 87, "enabled": true, "outbound": -2, "sourcePort": "53,nope"}},
+    {"name": "out of range", "rule": {"id": 88, "enabled": true, "outbound": -2, "sourcePort": "0"}},
+    {"name": "disabled", "rule": {"id": 89, "enabled": false, "outbound": -2, "sourcePort": "53"}}
+  ],
+  "parserCases": [
+    {"name": "valid duplicates", "sourcePorts": "53, 123\n53", "valid": true, "ports": [53, 123, 53]},
+    {"name": "range unsupported", "sourcePorts": "53:55", "valid": false},
+    {"name": "partly malformed", "sourcePorts": "53,nope", "valid": false},
+    {"name": "zero invalid", "sourcePorts": "0", "valid": false},
+    {"name": "max invalid", "sourcePorts": "65536", "valid": false}
+  ]
+}

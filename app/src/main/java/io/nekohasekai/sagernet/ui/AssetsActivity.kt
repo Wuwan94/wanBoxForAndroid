@@ -17,9 +17,12 @@ import io.nekohasekai.sagernet.databinding.LayoutAssetItemBinding
 import io.nekohasekai.sagernet.databinding.LayoutAssetsBinding
 import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.widget.UndoSnackbarManager
-import libcore.Libcore
-import moe.matsuri.nb4a.utils.Util
+import io.nekohasekai.sagernet.utils.AppHttpClient
 import org.json.JSONObject
+import okhttp3.Request
+import org.tukaani.xz.XZInputStream
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.io.File
 import java.io.FileWriter
 import java.util.*
@@ -290,22 +293,13 @@ class AssetsActivity : ThemedActivity() {
         val repo = rulesProviders[DataStore.rulesProvider].repoByFileName[fileName]
             ?: error("No repository configured for $fileName")
 
-        val client = Libcore.newHttpClient().apply {
-                    modernTLS()
-                    keepAlive()
-                    tryProxyOutbound()
-                }
-
         try {
             var tagName = ""
             var browserDownloadUrl = ""
 
             val apiSameVersion = runCatching {
-                val response = client.newRequest().apply {
-                    setURL("https://api.github.com/repos/$repo/releases/latest")
-                }.execute()
-
-                val release = JSONObject(Util.getStringBox(response.contentString))
+                val responseText = appHttpGet("https://api.github.com/repos/$repo/releases/latest")
+                val release = JSONObject(responseText)
                 val tag = release.optString("tag_name")
 
                 if (tag.isNotBlank() && tag == localVersion) {
@@ -339,20 +333,19 @@ class AssetsActivity : ThemedActivity() {
                 }
             }
 
-            val response = client.newRequest().apply {
-                setURL(browserDownloadUrl)
-            }.execute()
-
             val cacheFile = File(file.parentFile, fileName + ".tmp")
             cacheFile.parentFile?.mkdirs()
-
-            response.writeTo(cacheFile.canonicalPath)
+            appHttpDownload(browserDownloadUrl, cacheFile)
 
             if (fileName.endsWith(".xz")) {
-                Libcore.unxz(cacheFile.absolutePath, file.absolutePath)
+                val expanded = File(file.parentFile, fileName + ".expanded.tmp")
+                FileInputStream(cacheFile).use { input ->
+                    XZInputStream(input).use { xz -> FileOutputStream(expanded).use(xz::copyTo) }
+                }
+                if (!expanded.renameTo(file)) throw IllegalStateException("无法替换规则文件")
                 cacheFile.delete()
-            } else {
-                cacheFile.renameTo(file)
+            } else if (!cacheFile.renameTo(file)) {
+                throw IllegalStateException("无法保存规则文件")
             }
 
             versionFile.writeText(tagName)
@@ -364,7 +357,7 @@ class AssetsActivity : ThemedActivity() {
             }
             return true
         } finally {
-            client.close()
+            // Per-request OkHttp clients are closed by the helpers.
         }
     }
 
@@ -377,19 +370,11 @@ class AssetsActivity : ThemedActivity() {
         } else {
             return false
         }
-        val client = Libcore.newHttpClient().apply {
-                    modernTLS()
-                    keepAlive()
-                    tryProxyOutbound()
-                }
         try {
-            val response = client.newRequest().apply {
-                setURL(url)
-            }.execute()
             val cacheFile = File(file.parentFile, fileName + ".tmp")
             cacheFile.parentFile?.mkdirs()
-            response.writeTo(cacheFile.canonicalPath)
-            cacheFile.renameTo(file)
+            appHttpDownload(url, cacheFile)
+            if (!cacheFile.renameTo(file)) throw IllegalStateException("无法保存规则文件")
 
             val currentDate = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault()).format(java.util.Date())
             versionFile.writeText(currentDate)
@@ -400,10 +385,36 @@ class AssetsActivity : ThemedActivity() {
             }
             return true
         } finally {
-            client.close()
-            // if (versionFile.isFile) {
-            //     versionFile.delete()
-            // }
+            // Per-request OkHttp clients are closed by the helpers.
+        }
+    }
+
+    private fun appHttpGet(url: String): String {
+        val client = AppHttpClient.create()
+        try {
+            val request = Request.Builder().url(url).get().build()
+            return client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) error("HTTP ${response.code}")
+                response.body?.string() ?: error("服务器返回空内容")
+            }
+        } finally {
+            client.connectionPool.evictAll()
+            client.dispatcher.executorService.shutdown()
+        }
+    }
+
+    private fun appHttpDownload(url: String, destination: File) {
+        val client = AppHttpClient.create()
+        try {
+            val request = Request.Builder().url(url).get().build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) error("HTTP ${response.code}")
+                val body = response.body ?: error("服务器返回空内容")
+                body.byteStream().use { input -> FileOutputStream(destination).use(input::copyTo) }
+            }
+        } finally {
+            client.connectionPool.evictAll()
+            client.dispatcher.executorService.shutdown()
         }
     }
 

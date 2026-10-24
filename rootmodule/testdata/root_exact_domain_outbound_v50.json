@@ -1,0 +1,143 @@
+{
+  "eligibleRule": {
+    "id": 501,
+    "enabled": true,
+    "config": "",
+    "domains": "full:Example.COM\nfull:cdn.example.com",
+    "ip": "",
+    "port": "",
+    "sourcePort": "",
+    "network": "",
+    "source": "",
+    "protocol": "",
+    "ruleset": "",
+    "outbound": 17,
+    "packages": []
+  },
+  "domainText": "full:Example.COM\nfull:cdn.example.com",
+  "outbound": "proxy-main",
+  "inputConfig": {
+    "outbounds": [
+      {
+        "type": "direct",
+        "tag": "direct"
+      },
+      {
+        "type": "selector",
+        "tag": "proxy-main",
+        "outbounds": [
+          "direct"
+        ]
+      }
+    ],
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "_wanbox_root_exact_domain_outbound_v50": {
+            "index": 1,
+            "ruleId": 501,
+            "domainText": "full:Example.COM\nfull:cdn.example.com",
+            "outbound": "proxy-main"
+          }
+        },
+        {
+          "port": [
+            443
+          ],
+          "outbound": "direct"
+        }
+      ]
+    },
+    "dns": {
+      "rules": [
+        {
+          "domain": [
+            "example.com",
+            "cdn.example.com"
+          ],
+          "server": "dns-fake",
+          "inbound": [
+            "tun-in"
+          ],
+          "query_type": [
+            "A",
+            "AAAA"
+          ]
+        }
+      ]
+    }
+  },
+  "expectedConfig": {
+    "outbounds": [
+      {
+        "type": "direct",
+        "tag": "direct"
+      },
+      {
+        "type": "selector",
+        "tag": "proxy-main",
+        "outbounds": [
+          "direct"
+        ]
+      }
+    ],
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "domain": [
+            "example.com",
+            "cdn.example.com"
+          ],
+          "outbound": "proxy-main"
+        },
+        {
+          "port": [
+            443
+          ],
+          "outbound": "direct"
+        }
+      ]
+    },
+    "dns": {
+      "rules": [
+        {
+          "domain": [
+            "example.com",
+            "cdn.example.com"
+          ],
+          "server": "dns-fake",
+          "inbound": [
+            "tun-in"
+          ],
+          "query_type": [
+            "A",
+            "AAAA"
+          ]
+        }
+      ]
+    }
+  },
+  "parserCases": [
+    {
+      "domainText": "full:example.com",
+      "valid": true,
+      "domains": [
+        "example.com"
+      ]
+    },
+    {
+      "domainText": "domain:example.com",
+      "valid": false
+    },
+    {
+      "domainText": "full:bad..example",
+      "valid": false
+    }
+  ]
+}

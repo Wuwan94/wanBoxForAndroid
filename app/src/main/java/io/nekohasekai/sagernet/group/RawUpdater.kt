@@ -3,6 +3,7 @@ package io.nekohasekai.sagernet.group
 import android.annotation.SuppressLint
 import io.nekohasekai.sagernet.utils.BoundedInput
 import io.nekohasekai.sagernet.utils.SecureNetwork
+import io.nekohasekai.sagernet.utils.AppHttpClient
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SubscriptionFilterMode
 import io.nekohasekai.sagernet.database.*
@@ -30,7 +31,6 @@ import io.nekohasekai.sagernet.fmt.wireguard.WireGuardBean
 import io.nekohasekai.sagernet.fmt.wireguard.parseWireGuardConfig
 import io.nekohasekai.sagernet.fmt.wireguard.parseWireGuardEndpoints
 import io.nekohasekai.sagernet.ktx.*
-import libcore.Libcore
 import moe.matsuri.nb4a.Protocols
 import moe.matsuri.nb4a.proxy.anytls.AnyTLSBean
 import moe.matsuri.nb4a.proxy.config.ConfigBean
@@ -43,6 +43,7 @@ import org.yaml.snakeyaml.TypeDescription
 import org.yaml.snakeyaml.Yaml
 import androidx.core.net.toUri
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.Request
 
 @Suppress("EXPERIMENTAL_API_USAGE")
 object RawUpdater : GroupUpdater() {
@@ -86,62 +87,53 @@ object RawUpdater : GroupUpdater() {
             var lastRespHeaderProfileTitle: String? = null
             var lastException: Throwable? = null
 
-            fun executeRequest(ua: String, useProxy: Boolean): libcore.HTTPResponse {
-                val client = Libcore.newHttpClient().apply {
-                    if (useProxy) {
-                        tryProxyOutbound()
+            data class SubscriptionResponse(
+                val userInfo: String?,
+                val filename: String?,
+                val profileTitle: String?,
+                val content: String,
+            )
+
+            fun executeRequest(ua: String, useProxy: Boolean): SubscriptionResponse {
+                val client = AppHttpClient.create(useModuleProxy = useProxy)
+                try {
+                    val request = Request.Builder().url(subscription.link).header("User-Agent", ua).get().build()
+                    return client.newCall(request).execute().use { response ->
+                        if (!response.isSuccessful) error("HTTP ${response.code}")
+                        SubscriptionResponse(
+                            response.header("Subscription-Userinfo") ?: response.header("subscription-userinfo"),
+                            response.header("content-disposition"),
+                            response.header("Profile-Title") ?: response.header("profile-title")
+                                ?: response.header("X-Profile-Title") ?: response.header("x-profile-title"),
+                            response.body?.string() ?: error("订阅响应为空"),
+                        )
                     }
-                    when (DataStore.appTLSVersion) {
-                        "1.3" -> restrictedTLS()
-                    }
+                } finally {
+                    client.connectionPool.evictAll()
+                    client.dispatcher.executorService.shutdown()
                 }
-                val request = client.newRequest().apply {
-                    if (DataStore.allowInsecureOnRequest) {
-                        allowInsecure()
-                    }
-                    setURL(subscription.link)
-                    setUserAgent(ua)
-                }
-                return request.execute()
             }
 
             for (ua in candidateUas) {
                 try {
-                    // @author 雾晚: bound each UA attempt; a hung server must not stall the update.
-                    val response = kotlinx.coroutines.withTimeout(60_000) { if (DataStore.serviceState.connected) {
-                        try {
-                            executeRequest(ua, useProxy = true)
-                        } catch (proxyError: Throwable) {
-                            Logs.w("Subscription proxy fetch failed for UA $ua (${proxyError.readableMessage}), falling back to direct network...")
+                    val response = kotlinx.coroutines.withTimeout(60_000) {
+                        if (DataStore.serviceState.connected && !DataStore.mixedInboundDisabled) {
+                            try {
+                                executeRequest(ua, useProxy = true)
+                            } catch (proxyError: Throwable) {
+                                Logs.w("Subscription proxy fetch failed for UA $ua (${proxyError.readableMessage}), falling back to direct network...")
+                                executeRequest(ua, useProxy = false)
+                            }
+                        } else {
                             executeRequest(ua, useProxy = false)
                         }
-                    } else {
-                        executeRequest(ua, useProxy = false)
-                    } }
-
-                    val userInfo = response.getHeader("Subscription-Userinfo")
-                        ?: response.getHeader("subscription-userinfo")
-                        ?: response.getHeader("Subscription-UserInfo")
-                    val userInfoStr = Util.getStringBox(userInfo)
-                    if (userInfoStr.isNotBlank()) {
-                        lastRespHeaderUserinfo = userInfoStr
-                    }
-                    val remoteName = Util.getStringBox(response.getHeader("content-disposition"))
-                    if (remoteName.isNotBlank()) {
-                        lastRespHeaderFilename = remoteName
-                    }
-                    val profileTitle = Util.getStringBox(
-                        response.getHeader("Profile-Title")
-                            ?: response.getHeader("profile-title")
-                            ?: response.getHeader("X-Profile-Title")
-                            ?: response.getHeader("x-profile-title")
-                    )
-                    if (profileTitle.isNotBlank()) {
-                        lastRespHeaderProfileTitle = profileTitle
                     }
 
-                    val contentStr = Util.getStringBox(response.contentString)
-                    val parsed = parseRaw(contentStr)
+                    response.userInfo?.takeIf { it.isNotBlank() }?.let { lastRespHeaderUserinfo = it }
+                    response.filename?.takeIf { it.isNotBlank() }?.let { lastRespHeaderFilename = it }
+                    response.profileTitle?.takeIf { it.isNotBlank() }?.let { lastRespHeaderProfileTitle = it }
+
+                    val parsed = parseRaw(response.content)
                     if (!parsed.isNullOrEmpty()) {
                         fetchedProxies = parsed
                         Logs.d("Subscription successfully parsed ${parsed.size} proxies with UA: $ua")

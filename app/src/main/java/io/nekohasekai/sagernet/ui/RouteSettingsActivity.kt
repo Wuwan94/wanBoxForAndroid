@@ -329,16 +329,7 @@ class RouteSettingsActivity(
                 .setMessage(R.string.rr_value_error).setPositiveButton(android.R.string.ok, null).show() }
             return
         }
-        try {
-            // Constructor + close only: actual pinned core schema/Go RE2 validation, no Start(),
-            // TUN creation, DNS downloads or change to the running proxy instance.
-            libcore.Libcore.newTestSingBoxInstance(RouteRuleEditor.validationConfig(candidate), null).close()
-        } catch (e: Exception) {
-            onMainDispatcher { MaterialAlertDialogBuilder(this@RouteSettingsActivity).setTitle(R.string.rr_invalid)
-                .setMessage(getString(R.string.rr_core_error, e.message.orEmpty()))
-                .setPositiveButton(android.R.string.ok, null).show() }
-            return
-        }
+        // Core schema validation runs in the Root module when the app submits the snapshot.
         if (editingId == 0L) {
             if (intent.hasExtra(EXTRA_PACKAGE_NAME)) {
                 setResult(RESULT_OK, Intent())

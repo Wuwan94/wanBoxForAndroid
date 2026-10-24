@@ -1,0 +1,373 @@
+{
+  "contract": "The Root IPv4/IPv6 reject is a generated top-route rule before user rules. If a domain_regex rule is not safely projected, keep its complete legacy rule and relative order; when only the exact IP-version rule is projected, restore it at its original source index.",
+  "cases": [
+    {
+      "name": "ipv6-disabled",
+      "ipv6Mode": 0,
+      "ipVersion": 6,
+      "inputConfig": {
+        "inbounds": [],
+        "outbounds": [
+          {
+            "type": "direct",
+            "tag": "direct"
+          }
+        ],
+        "route": {
+          "rules": [
+            {
+              "action": "sniff"
+            },
+            {
+              "ip_version": 6,
+              "action": "reject"
+            },
+            {
+              "domain_regex": [
+                "(?i)^api\\.example\\.test$"
+              ],
+              "action": "reject"
+            },
+            {
+              "domain_suffix": [
+                ".later.example.test"
+              ],
+              "outbound": "proxy"
+            }
+          ]
+        },
+        "dns": {
+          "servers": []
+        }
+      },
+      "rootRouteIPVersionRule": {
+        "index": 1,
+        "ipVersion": 6
+      },
+      "afterIPProjectionRules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "domain_regex": [
+            "(?i)^api\\.example\\.test$"
+          ],
+          "action": "reject"
+        },
+        {
+          "domain_suffix": [
+            ".later.example.test"
+          ],
+          "outbound": "proxy"
+        }
+      ],
+      "domainRegexSourceIndex": 2,
+      "domainRegexIndexAfterIPProjection": 1,
+      "expectedMaterializedRules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "ip_version": 6,
+          "action": "reject"
+        },
+        {
+          "domain_regex": [
+            "(?i)^api\\.example\\.test$"
+          ],
+          "action": "reject"
+        },
+        {
+          "domain_suffix": [
+            ".later.example.test"
+          ],
+          "outbound": "proxy"
+        }
+      ]
+    },
+    {
+      "name": "ipv4-only",
+      "ipv6Mode": 3,
+      "ipVersion": 4,
+      "inputConfig": {
+        "inbounds": [],
+        "outbounds": [
+          {
+            "type": "direct",
+            "tag": "direct"
+          }
+        ],
+        "route": {
+          "rules": [
+            {
+              "action": "sniff"
+            },
+            {
+              "ip_version": 4,
+              "action": "reject"
+            },
+            {
+              "domain_regex": [
+                "(?i)^api\\.example\\.test$"
+              ],
+              "action": "reject"
+            },
+            {
+              "domain_suffix": [
+                ".later.example.test"
+              ],
+              "outbound": "proxy"
+            }
+          ]
+        },
+        "dns": {
+          "servers": []
+        }
+      },
+      "rootRouteIPVersionRule": {
+        "index": 1,
+        "ipVersion": 4
+      },
+      "afterIPProjectionRules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "domain_regex": [
+            "(?i)^api\\.example\\.test$"
+          ],
+          "action": "reject"
+        },
+        {
+          "domain_suffix": [
+            ".later.example.test"
+          ],
+          "outbound": "proxy"
+        }
+      ],
+      "domainRegexSourceIndex": 2,
+      "domainRegexIndexAfterIPProjection": 1,
+      "expectedMaterializedRules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "ip_version": 4,
+          "action": "reject"
+        },
+        {
+          "domain_regex": [
+            "(?i)^api\\.example\\.test$"
+          ],
+          "action": "reject"
+        },
+        {
+          "domain_suffix": [
+            ".later.example.test"
+          ],
+          "outbound": "proxy"
+        }
+      ]
+    }
+  ],
+  "unsupportedFallback": {
+    "name": "regex-with-additional-matchers-and-inversion",
+    "contract": "No partial conversion: when eligibility is not proven, keep the entire legacy rule at the same position, including every matcher and action option.",
+    "inputRouteRules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "domain_regex": [
+          "(?i)^legacy\\.example\\.test$"
+        ],
+        "protocol": [
+          "tls"
+        ],
+        "invert": true,
+        "action": "reject",
+        "method": "reply"
+      },
+      {
+        "domain_suffix": [
+          ".after.example.test"
+        ],
+        "outbound": "proxy"
+      }
+    ],
+    "unchangedRuleIndex": 1,
+    "expectedRouteRules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "domain_regex": [
+          "(?i)^legacy\\.example\\.test$"
+        ],
+        "protocol": [
+          "tls"
+        ],
+        "invert": true,
+        "action": "reject",
+        "method": "reply"
+      },
+      {
+        "domain_suffix": [
+          ".after.example.test"
+        ],
+        "outbound": "proxy"
+      }
+    ],
+    "expectedFallbackRule": {
+      "domain_regex": [
+        "(?i)^legacy\\.example\\.test$"
+      ],
+      "protocol": [
+        "tls"
+      ],
+      "invert": true,
+      "action": "reject",
+      "method": "reply"
+    }
+  },
+  "rawProjectionCases": [
+    {
+      "name": "case-sensitive-pattern-after-core-host-lowercase",
+      "rule": {
+        "domain_regex": [
+          "EXAMPLE\\.COM"
+        ],
+        "action": "reject"
+      },
+      "patternChecks": [
+        {
+          "host": "Example.COM",
+          "matches": false,
+          "effectiveMatches": false
+        },
+        {
+          "host": "example.com",
+          "matches": false,
+          "effectiveMatches": false
+        }
+      ]
+    },
+    {
+      "name": "inline-case-insensitive-and-anchors",
+      "rule": {
+        "domain_regex": [
+          "(?i)^api\\.example\\.test$"
+        ],
+        "action": "reject",
+        "invert": true
+      },
+      "patternChecks": [
+        {
+          "host": "API.Example.test",
+          "matches": true,
+          "effectiveMatches": false
+        },
+        {
+          "host": "prefix-api.example.test",
+          "matches": false,
+          "effectiveMatches": true
+        }
+      ]
+    },
+    {
+      "name": "unanchored-pattern",
+      "rule": {
+        "domain_regex": [
+          "api"
+        ],
+        "action": "reject",
+        "method": "reply",
+        "no_drop": true,
+        "protocol": [
+          "tls"
+        ],
+        "invert": true
+      },
+      "patternChecks": [
+        {
+          "host": "xapi.example",
+          "matches": true,
+          "effectiveMatches": false
+        },
+        {
+          "host": "example.test",
+          "matches": false,
+          "effectiveMatches": true
+        }
+      ]
+    },
+    {
+      "name": "unicode-pattern-array",
+      "rule": {
+        "domain_regex": [
+          "^例え\\.テスト$",
+          "^雪\\.example$"
+        ],
+        "action": "reject",
+        "method": "drop"
+      },
+      "patternChecks": [
+        {
+          "host": "例え.テスト",
+          "matches": true,
+          "effectiveMatches": true
+        },
+        {
+          "host": "雪.example",
+          "matches": true,
+          "effectiveMatches": true
+        },
+        {
+          "host": "x例え.テスト",
+          "matches": false,
+          "effectiveMatches": false
+        }
+      ]
+    },
+    {
+      "name": "invalid-re2-lookbehind-kept-raw",
+      "rule": {
+        "domain_regex": [
+          "(?<=api)\\.example"
+        ],
+        "action": "reject"
+      },
+      "patternError": true,
+      "patternChecks": []
+    }
+  ],
+  "rawProjectionFallbacks": [
+    {
+      "name": "non-reject-action",
+      "rule": {
+        "domain_regex": [
+          "^ads$"
+        ],
+        "action": "route",
+        "outbound": "proxy"
+      }
+    },
+    {
+      "name": "non-string-pattern-array",
+      "rule": {
+        "domain_regex": [
+          "^ads$",
+          7
+        ],
+        "action": "reject"
+      }
+    },
+    {
+      "name": "empty-pattern-array",
+      "rule": {
+        "domain_regex": [],
+        "action": "reject"
+      }
+    }
+  ]
+}

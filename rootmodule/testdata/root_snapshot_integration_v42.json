@@ -1,0 +1,259 @@
+{
+  "snapshot": {
+    "schemaVersion": 42,
+    "expectedRevision": "",
+    "config": {
+      "inbounds": [
+        {
+          "type": "mixed",
+          "tag": "mixed-in",
+          "listen_port": 2080
+        }
+      ],
+      "outbounds": [
+        {
+          "type": "direct",
+          "tag": "direct"
+        }
+      ],
+      "dns": {
+        "servers": [
+          {
+            "type": "https",
+            "tag": "dns-remote",
+            "server": "dns.example",
+            "domain_resolver": "dns-direct"
+          }
+        ],
+        "rules": []
+      },
+      "route": {
+        "rules": [
+          {
+            "_wanbox_root_route_network_port_reject_v32": {
+              "ruleId": 32001,
+              "networkText": "tcp",
+              "portText": "443"
+            }
+          },
+          {
+            "_wanbox_root_route_domain_keyword_reject_v42": {
+              "ruleId": 42001,
+              "domainText": "keyword:tracker"
+            }
+          },
+          {
+            "domain": [
+              "kept.example"
+            ],
+            "outbound": "proxy"
+          }
+        ],
+        "rule_set": []
+      }
+    },
+    "rootInbound": {
+      "backend": "tun",
+      "ipv6Mode": 0,
+      "mtu": 1500,
+      "strictRoute": true
+    },
+    "rootProxyGroup": {
+      "type": "selector",
+      "tag": "proxy",
+      "members": [
+        "direct"
+      ],
+      "default": "direct"
+    },
+    "rootRoutePolicy": {
+      "autoDetectInterface": true,
+      "overrideAndroidVpn": false,
+      "findProcess": true,
+      "defaultDomainResolver": "dns-direct",
+      "defaultNetworkStrategy": "hybrid"
+    },
+    "rootDnsPolicy": {
+      "final": "dns-remote",
+      "strategy": "ipv4_only",
+      "independentCache": true
+    },
+    "rootDnsLocalServer": {
+      "tag": "dns-local",
+      "detour": "direct"
+    },
+    "rootDnsDirectServer": {
+      "tag": "dns-direct"
+    },
+    "rootRouteFinal": {
+      "final": "proxy"
+    },
+    "rootRouteNetworkPortRejectRules": {
+      "rules": [
+        {
+          "ruleId": 32001,
+          "networkText": "tcp",
+          "portText": "443"
+        }
+      ]
+    },
+    "rootRouteDomainKeywordRejectRules": {
+      "rules": [
+        {
+          "ruleId": 42001,
+          "domainText": "keyword:tracker"
+        }
+      ]
+    },
+    "files": {},
+    "plugins": [],
+    "performancePriority": false,
+    "autoStart": false,
+    "profileId": 99042,
+    "profileName": "schema-integration",
+    "rootRouteIpVersionRule": {
+      "index": 3,
+      "ipVersion": 6
+    },
+    "rootRouteProbeRule": {
+      "index": 0,
+      "host": "probe.example",
+      "outbound": "proxy"
+    }
+  },
+  "expectedRouteRules": [
+    {
+      "inbound": [
+        "mixed"
+      ],
+      "domain": [
+        "probe.example"
+      ],
+      "outbound": "proxy"
+    },
+    {
+      "network": [
+        "tcp"
+      ],
+      "port": [
+        443
+      ],
+      "action": "reject"
+    },
+    {
+      "domain_keyword": [
+        "tracker"
+      ],
+      "action": "reject"
+    },
+    {
+      "domain": [
+        "kept.example"
+      ],
+      "outbound": "proxy"
+    },
+    {
+      "ip_version": 6,
+      "action": "reject"
+    }
+  ],
+  "expectedDns": {
+    "final": "dns-remote",
+    "strategy": "ipv4_only",
+    "independent_cache": true,
+    "servers": [
+      {
+        "type": "local",
+        "tag": "dns-local",
+        "detour": "direct"
+      },
+      {
+        "type": "https",
+        "tag": "dns-direct",
+        "server": "223.5.5.5",
+        "server_port": 443,
+        "path": "/dns-query",
+        "detour": "direct"
+      },
+      {
+        "type": "https",
+        "tag": "dns-remote",
+        "server": "dns.example",
+        "domain_resolver": "dns-direct"
+      }
+    ],
+    "rules": []
+  },
+  "projectionInputConfig": {
+    "outbounds": [
+      {
+        "type": "selector",
+        "tag": "proxy"
+      }
+    ],
+    "dns": {
+      "final": "dns-remote",
+      "strategy": "ipv4_only",
+      "independent_cache": true,
+      "servers": [
+        {
+          "type": "local",
+          "tag": "dns-local",
+          "detour": "direct"
+        },
+        {
+          "type": "https",
+          "tag": "dns-direct",
+          "server": "223.5.5.5",
+          "server_port": 443,
+          "path": "/dns-query",
+          "detour": "direct"
+        },
+        {
+          "type": "https",
+          "tag": "dns-remote",
+          "server": "dns.example",
+          "domain_resolver": "dns-direct"
+        }
+      ],
+      "rules": []
+    },
+    "route": {
+      "final": "proxy",
+      "rules": [
+        {
+          "inbound": [
+            "mixed"
+          ],
+          "domain": [
+            "probe.example"
+          ],
+          "outbound": "proxy"
+        },
+        {
+          "_wanbox_root_route_network_port_reject_v32": {
+            "ruleId": 32001,
+            "networkText": "tcp",
+            "portText": "443"
+          }
+        },
+        {
+          "_wanbox_root_route_domain_keyword_reject_v42": {
+            "ruleId": 42001,
+            "domainText": "keyword:tracker"
+          }
+        },
+        {
+          "domain": [
+            "kept.example"
+          ],
+          "outbound": "proxy"
+        },
+        {
+          "ip_version": 6,
+          "action": "reject"
+        }
+      ]
+    }
+  }
+}

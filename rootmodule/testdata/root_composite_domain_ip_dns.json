@@ -1,0 +1,170 @@
+{
+  "rule": {
+    "id": 551,
+    "enabled": true,
+    "config": "{\"invert\":true}",
+    "domains": "full:one.example, domain:two.example, keyword:needle",
+    "ip": "198.51.100.0/24",
+    "port": "",
+    "sourcePort": "",
+    "network": "",
+    "source": "",
+    "protocol": "",
+    "ruleset": "",
+    "outbound": 42,
+    "packages": []
+  },
+  "outbound": "proxy-main",
+  "fakeDns": true,
+  "inputConfig": {
+    "route": {
+      "rules": [
+        {
+          "domain": [
+            "before.example"
+          ],
+          "outbound": "direct"
+        },
+        {
+          "_wanbox_root_composite_domain_ip_outbound_v51": {
+            "index": 1,
+            "ruleId": 551,
+            "domainText": "full:one.example, domain:two.example, keyword:needle",
+            "ipText": "198.51.100.0/24",
+            "outbound": "proxy-main",
+            "invert": true
+          }
+        },
+        {
+          "domain": [
+            "after.example"
+          ],
+          "outbound": "direct"
+        }
+      ]
+    },
+    "dns": {
+      "servers": [
+        {
+          "tag": "dns-direct"
+        },
+        {
+          "tag": "dns-remote"
+        },
+        {
+          "tag": "dns-fake"
+        }
+      ],
+      "rules": [
+        {
+          "domain": [
+            "legacy-before.example"
+          ],
+          "server": "dns-direct"
+        },
+        {
+          "_wanbox_root_exact_domain_dns_rule_v53": {
+            "ruleId": 551,
+            "domainText": "full:one.example, domain:two.example, keyword:needle",
+            "kind": "proxy",
+            "fakeDns": true
+          }
+        },
+        {
+          "domain": [
+            "legacy-after.example"
+          ],
+          "server": "dns-direct"
+        }
+      ]
+    }
+  },
+  "expectedConfig": {
+    "route": {
+      "rules": [
+        {
+          "domain": [
+            "before.example"
+          ],
+          "outbound": "direct"
+        },
+        {
+          "type": "logical",
+          "mode": "or",
+          "rules": [
+            {
+              "domain": [
+                "one.example"
+              ],
+              "domain_suffix": [
+                "two.example"
+              ],
+              "domain_keyword": [
+                "needle"
+              ]
+            },
+            {
+              "ip_cidr": [
+                "198.51.100.0/24"
+              ]
+            }
+          ],
+          "outbound": "proxy-main",
+          "invert": true
+        },
+        {
+          "domain": [
+            "after.example"
+          ],
+          "outbound": "direct"
+        }
+      ]
+    },
+    "dns": {
+      "servers": [
+        {
+          "tag": "dns-direct"
+        },
+        {
+          "tag": "dns-remote"
+        },
+        {
+          "tag": "dns-fake"
+        }
+      ],
+      "rules": [
+        {
+          "domain": [
+            "legacy-before.example"
+          ],
+          "server": "dns-direct"
+        },
+        {
+          "domain": [
+            "one.example"
+          ],
+          "domain_suffix": [
+            "two.example"
+          ],
+          "domain_keyword": [
+            "needle"
+          ],
+          "server": "dns-fake",
+          "inbound": [
+            "tun-in"
+          ],
+          "query_type": [
+            "A",
+            "AAAA"
+          ]
+        },
+        {
+          "domain": [
+            "legacy-after.example"
+          ],
+          "server": "dns-direct"
+        }
+      ]
+    }
+  }
+}

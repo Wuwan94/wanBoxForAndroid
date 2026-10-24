@@ -32,7 +32,7 @@ App 的 RootTunService 仅在绑定时观察模块。页面隐藏后解绑并停
 
 ## 配置契约与回滚
 
-`schemaVersion=1`，配置对象、Base64 资源、固定辅助协议清单、用户自启/性能偏好、节点显示信息及 `expectedRevision` 构成快照。现有 Room、备份格式、订阅、路由顺序不改；从现有数据库生成快照而非搬迁/清空数据库。历史 VPN/proxy 模式值按产品要求归一化为 Root，不保留 VPN 后备能力。
+快照协议兼容 `schemaVersion=1`（完整配置 JSON 仍由 App 生成）；`schemaVersion=2` 由模块从 `rootInbound` 构造 Root 入站；`schemaVersion=3` 再从 `rootProxyGroup` 构造顶层代理组；`schemaVersion=4` 允许 `rootOutbounds` 传递 SOCKS/SS 结构化字段；`schemaVersion=5` 扩展到基础 HTTP 与 Trojan（仅常规 TLS、SNI、ALPN 与 insecure）；`schemaVersion=6` 再把 Root 全局路由策略（自动探测接口、进程识别、Android VPN 覆盖、默认域名解析器和拨号网络策略）作为结构化字段由模块写入；`schemaVersion=7` 把静态 hosts 原文交给模块解析并生成 `dns-hosts` 服务器；`schemaVersion=8` 将 DNS 的 final server 选择和地址族策略交给模块校验、写入；`schemaVersion=9` 再将独立 DNS 缓存策略一并作为结构化字段。`schemaVersion=20` 只把 ConfigBuilder 在 IPv4-only/IPv6-only 模式生成的精确 IP 版本拒绝路由规则改为结构化字段；重复、扩展或其他形态仍留在过渡配置。 `schemaVersion=21` 仅迁移 ConfigBuilder 可选的精确 `ip_is_private: true` → `bypass` 规则；`schemaVersion=22` 再迁移唯一、无扩展字段的固定 `port: [53]` → `hijack-dns` 规则，并按原路由索引恢复。 `schemaVersion=23` 再迁移唯一、无扩展字段的 `protocol: ["dns"]` → `action: "hijack-dns"` 规则，并保留其原路由索引。重复或带扩展字段的规则仍走过渡配置。 `schemaVersion=35` 再仅将精确的源 IP CIDR-only reject 规则以原始 CIDR 文本交给 Root 模块解析并保序生成；混合、自定义或无效规则仍留在旧路径。 `schemaVersion=36` 再仅将精确的目标 IP CIDR-only reject 规则以原始 CIDR 文本交给 Root 模块解析并保序生成；混合、自定义或无效规则仍留在旧路径。 `schemaVersion=41` 仅将显式 `domain:` 后缀 reject 规则的原始匹配文本交给 Root 解析并按原索引生成 `domain_suffix`；`full:` 精确域名规则、隐式后缀、混合和无效形态仍留在旧路径。DNS 服务器定义和其余规则仍保留在过渡配置。App 仍先用 Kotlin `ConfigBuilder` 生成过渡配置，再仅将已支持的出站、全局路由策略、静态 hosts 和已迁移的 DNS 策略投影成结构化字段；携带传输层、uTLS/ECH/Reality、证书、自定义项或代理链的出站继续留在旧配置中。路由匹配规则、DNS 服务器及规则、规则集、FakeDNS、hosts 关联规则和订阅 DNS 仍由 App 生成，故这是渐进迁移，不是纯 UI 客户端或完整 profile 由模块独立生成。模块会校验协议/字段/端口/标签并生成实际 sing-box 对象；不在 schema 声明范围的字段不会被投影。所有版本仍携带其余配置对象、Base64 资源、固定辅助协议清单、用户自启/性能偏好、节点显示信息及 `expectedRevision`。现有 Room、备份格式、订阅及路由顺序不改；从现有数据库生成快照而非搬迁/清空数据库。历史 VPN/proxy 模式值按产品要求归一化为 Root，不保留 VPN 后备能力。
 
 1. 解析和大小/路径校验：编码最多 192 MiB、配置 8 MiB、资源总量 128 MiB、单文件 64 MiB、512 文件、32 辅助进程；禁绝 App 绝对路径/路径穿越。
 2. 私有 staging 完整写入配置、Geo/SRS/CA、YACD 和所需插件资源，真正调用固定核心 `--check`（30 秒上限）。Geo 别名兼容旧规则；缺失/损坏资源不得静默成为空规则。
@@ -99,3 +99,25 @@ App AtomicFile 日志和模块固定路径日志持久化步骤。中断时 App 
 ## preview.9 安装时序修复
 
 详见 [NetProxy 安装对照](install-reference.zh-CN.md)。preview.9 等待管理器收尾后再热切换，并处理管理器删除安装期文件；该修复不属于 preview.8 的行为。
+
+
+Schema v10 将 ConfigBuilder 固定的 `dns-local` 本地 DNS 服务器作为结构化字段交给模块重建；非标准本地服务器仍留在过渡配置。DNS 规则、其他 DNS 服务、规则集、FakeDNS、订阅 DNS 与扩展出站尚未全部迁移。
+
+Schema v11 结构化重建固定的 `dns-direct` 备用解析器；v12 只迁移指向现有出站的 `route.final`；v13/v14 仅迁移精确匹配的内建 loopback/link-local 与 multicast 安全规则，并在模块端按原索引恢复。Schema v15 再将唯一匹配的固定 DNS `outbound: ["any"]` → `dns-direct` 规则交给模块，保持其余 DNS 规则及顺序在过渡配置中；重复匹配或不支持内容仍留在旧路径。Schema v16 仅迁移与地址族策略一致、唯一且位于首位的内建 DNS A/AAAA 拒绝规则；其余规则继续留在过渡配置。
+
+
+Schema v17 仅接管 ConfigBuilder 生成的精确 DNS 端口 53 路由保护规则；其他匹配、重复或自定义规则继续保留在旧配置路径。
+
+Schema v18 只将 ConfigBuilder 的精确 `protocol: ["dns"]` 保护路由规则作为结构化输入；与端口 53 规则及其他规则一起按原索引恢复，重复、自定义或扩展匹配继续留在过渡配置。
+
+Schema v19 仅迁移 ConfigBuilder 可选的固定绕过局域网规则；只有唯一、无扩展字段且 CIDR/直连完全匹配时才由模块按原索引恢复，重复或自定义规则仍保留在过渡配置。
+
+Schema v24 只迁移 ConfigBuilder 生成的唯一、精确 `{action: "sniff"}` 路由动作；重复或带其他匹配字段的同类规则继续保留在过渡配置中，并按原顺序恢复。其它自定义路由匹配仍走旧路径。
+
+
+Schema v38 transfers exact source-port plus destination-port-only reject rules as raw port text; the Root module parses both lists and restores their original route order. Unsupported and malformed rules remain on the App-generated path.
+
+
+Schema v42 将仅显式 `keyword:` 域名拒绝规则作为原始文本交给 Root 模块解析并按原规则顺序生成 `domain_keyword`；混合或不支持输入继续保留在 App 旧路径。
+
+Schema v43 的 `domain_regex` 投影现已停用，相关规则继续由 App 生成；原始文本/索引测试不足以证明 pinned core 的 matcher/action 运行等价。Schema v44 仅接管精确 `{network: [tcp/udp…], outbound: tag}` 规则，保留网络列表、出站选择及原始规则位置；遇到不支持的输入继续走旧路径。Schema v45 仅接管 Root TUN、DNS 路由关闭、纯包名规则（无域名/IP/ruleset/端口/网络/来源/协议/扩展动作），App 解析 Android UID 后作为结构化输入；Root 按原位置还原 `package_name` 与可用 `user_id` 及同一出站。含 DNS 副作用或任何复合条件的应用规则仍留在 App 旧路径。UID/规则集展开、域名/IP 拆分与反向语义、DNS route/reject/FakeDNS 顺序及其他出站迁移仍未完成；v45 不表示 G7 全量完成。

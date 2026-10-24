@@ -1,0 +1,36 @@
+{
+  "rule": {
+    "id": 67001,
+    "enabled": true,
+    "config": "{\"ip_version\":6,\"invert\":true}",
+    "domains": "full:example.org, domain:example.net, keyword:cdn",
+    "ip": "",
+    "port": "",
+    "sourcePort": "",
+    "network": "",
+    "source": "",
+    "protocol": "",
+    "ruleset": "",
+    "outbound": 0,
+    "packages": []
+  },
+  "outbound": "direct",
+  "projectedRouteRule": {
+    "_wanbox_root_domain_ip_version_outbound_v67": {
+      "index": 1,
+      "ruleId": 67001,
+      "domainText": "full:example.org, domain:example.net, keyword:cdn",
+      "ipVersion": 6,
+      "outbound": "direct",
+      "invert": true
+    }
+  },
+  "expectedRouteRule": {
+    "domain": ["example.org"],
+    "domain_suffix": ["example.net"],
+    "domain_keyword": ["cdn"],
+    "ip_version": 6,
+    "outbound": "direct",
+    "invert": true
+  }
+}

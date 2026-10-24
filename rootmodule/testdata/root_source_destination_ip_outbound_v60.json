@@ -1,0 +1,32 @@
+{
+  "rule": {
+    "id": 60001,
+    "enabled": true,
+    "config": "",
+    "domains": "",
+    "ip": "203.0.113.0/24,2001:db8::/32",
+    "port": "",
+    "sourcePort": "",
+    "network": "",
+    "source": "192.0.2.0/24",
+    "protocol": "",
+    "ruleset": "",
+    "outbound": -1,
+    "packages": []
+  },
+  "outbound": "direct",
+  "projectedRouteRule": {
+    "_wanbox_root_route_source_destination_ip_outbound_v60": {
+      "index": 1,
+      "ruleId": 60001,
+      "sourceText": "192.0.2.0/24",
+      "ipText": "203.0.113.0/24,2001:db8::/32",
+      "outbound": "direct"
+    }
+  },
+  "expectedRouteRule": {
+    "source_ip_cidr": ["192.0.2.0/24"],
+    "ip_cidr": ["203.0.113.0/24", "2001:db8::/32"],
+    "outbound": "direct"
+  }
+}

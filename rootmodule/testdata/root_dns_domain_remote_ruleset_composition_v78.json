@@ -1,0 +1,60 @@
+{
+  "backend": "tun",
+  "appRule": {
+    "id": 778,
+    "domains": "full:media.example",
+    "ruleset": "https://example.test/media.srs",
+    "outbound": 17,
+    "action": "route",
+    "fakeDns": true,
+    "dnsDomainKind": "proxy"
+  },
+  "generatedConfig": {
+    "route": {
+      "rule_set": [
+        {"type":"remote","tag":"rs-media","format":"binary","url":"https://example.test/media.srs","update_interval":"1d"}
+      ]
+    },
+    "dns": {
+      "servers": [{"tag":"dns-direct"},{"tag":"dns-remote"},{"tag":"dns-fake"}],
+      "rules": [
+        {"tag":"legacy-before","server":"dns-direct"},
+        {"domain":["media.example"],"server":"dns-fake","inbound":["tun-in"],"query_type":["A","AAAA"]},
+        {"rule_set":["rs-media"],"server":"dns-fake","inbound":["tun-in"],"query_type":["A","AAAA"]},
+        {"tag":"legacy-after","server":"dns-remote"}
+      ]
+    }
+  },
+  "projectedConfig": {
+    "route": {
+      "rule_set": [
+        {"_wanbox_root_remote_rule_set_v46":{"index":0,"tag":"rs-media","url":"https://example.test/media.srs","updateInterval":"1d"}}
+      ]
+    },
+    "dns": {
+      "servers": [{"tag":"dns-direct"},{"tag":"dns-remote"},{"tag":"dns-fake"}],
+      "rules": [
+        {"tag":"legacy-before","server":"dns-direct"},
+        {"_wanbox_root_exact_domain_dns_rule_v53":{"ruleId":778,"domainText":"full:media.example","kind":"proxy","fakeDns":true}},
+        {"_wanbox_root_remote_ruleset_dns_effect_v56":{"tag":"rs-media","kind":"fake"}},
+        {"tag":"legacy-after","server":"dns-remote"}
+      ]
+    }
+  },
+  "expectedConfig": {
+    "route": {
+      "rule_set": [
+        {"type":"remote","tag":"rs-media","format":"binary","url":"https://example.test/media.srs","update_interval":"1d"}
+      ]
+    },
+    "dns": {
+      "servers": [{"tag":"dns-direct"},{"tag":"dns-remote"},{"tag":"dns-fake"}],
+      "rules": [
+        {"tag":"legacy-before","server":"dns-direct"},
+        {"domain":["media.example"],"server":"dns-fake","inbound":["tun-in"],"query_type":["A","AAAA"]},
+        {"rule_set":["rs-media"],"server":"dns-fake","inbound":["tun-in"],"query_type":["A","AAAA"]},
+        {"tag":"legacy-after","server":"dns-remote"}
+      ]
+    }
+  }
+}

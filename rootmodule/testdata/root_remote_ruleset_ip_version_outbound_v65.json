@@ -1,0 +1,18 @@
+{
+  "generatedConfig": {
+    "outbounds": [{"type": "direct", "tag": "direct"}],
+    "route": {
+      "rules": [{"rule_set": ["ruleset-site"], "ip_version": 6, "outbound": "direct", "invert": true}],
+      "rule_set": [{"type": "remote", "tag": "ruleset-site", "format": "binary", "url": "https://example.com/site.srs", "update_interval": "1d"}]
+    }
+  },
+  "projectedConfig": {
+    "outbounds": [{"type": "direct", "tag": "direct"}],
+    "route": {
+      "rules": [{"_wanbox_root_remote_ruleset_ip_version_outbound_v65": {"index": 0, "tags": ["ruleset-site"], "ipVersion": 6, "outbound": "direct", "invert": true}}],
+      "rule_set": [{"_wanbox_root_remote_rule_set_v46": {"index": 0, "tag": "ruleset-site", "url": "https://example.com/site.srs", "updateInterval": "1d"}}]
+    }
+  },
+  "expectedRouteRules": [{"rule_set": ["ruleset-site"], "ip_version": 6, "outbound": "direct", "invert": true}],
+  "expectedRuleSets": [{"type": "remote", "tag": "ruleset-site", "format": "binary", "url": "https://example.com/site.srs", "update_interval": "1d"}]
+}

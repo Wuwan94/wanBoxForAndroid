@@ -1,0 +1,34 @@
+{
+  "backend": "tun",
+  "appInputs": [
+    {"id": 811, "packages": ["com.example.direct"], "uids": [10011, 110011], "domains": "full:api.example.test,domain:example.org", "action": "route", "outbound": -1, "fakeDns": false, "kind": "direct"},
+    {"id": 812, "packages": ["com.example.fake"], "uids": [10012], "domains": "keyword:media.example", "action": "route", "outbound": 7, "fakeDns": true, "kind": "proxy"}
+  ],
+  "projectedConfig": {
+    "dns": {
+      "servers": [{"tag": "dns-direct"}, {"tag": "dns-remote"}, {"tag": "dns-fake"}],
+      "rules": [
+        {"tag": "legacy-before", "domain_suffix": ["before.example"]},
+        {"_wanbox_root_app_identity_domain_dns_rule_v80": {"ruleId": 811, "packages": ["com.example.direct"], "uids": [10011, 110011], "domainText": "full:api.example.test,domain:example.org", "kind": "direct", "fakeDns": false}},
+        {"_wanbox_root_app_identity_domain_dns_rule_v80": {"ruleId": 812, "packages": ["com.example.fake"], "uids": [10012], "domainText": "keyword:media.example", "kind": "proxy", "fakeDns": true}},
+        {"tag": "legacy-after", "domain_suffix": ["after.example"]}
+      ]
+    }
+  },
+  "expectedConfig": {
+    "dns": {
+      "servers": [{"tag": "dns-direct"}, {"tag": "dns-remote"}, {"tag": "dns-fake"}],
+      "rules": [
+        {"tag": "legacy-before", "domain_suffix": ["before.example"]},
+        {"package_name": ["com.example.direct"], "user_id": [10011, 110011], "domain": ["api.example.test"], "domain_suffix": ["example.org"], "server": "dns-direct"},
+        {"package_name": ["com.example.fake"], "user_id": [10012], "domain_keyword": ["media.example"], "server": "dns-fake", "inbound": ["tun-in"], "query_type": ["A", "AAAA"]},
+        {"tag": "legacy-after", "domain_suffix": ["after.example"]}
+      ]
+    }
+  },
+  "unmigratedConfig": {
+    "dns": {
+      "rules": [{"package_name": ["com.example.legacy"], "domain_regex": [".*\\.example"], "server": "dns-direct"}]
+    }
+  }
+}

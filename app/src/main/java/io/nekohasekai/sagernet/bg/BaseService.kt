@@ -68,7 +68,8 @@ class BaseService {
                         // @author 雾晚: Doze keeps the core alive without explicit GC or data-path pausing.
                         if (!SagerNet.power.isDeviceIdleMode) {
                             runCatching { proxy?.box }.getOrNull()?.wake()
-                            if (DataStore.wakeResetConnections) {
+                            // Root core owns connection lifecycle; app has no local core to reset.
+                            if (DataStore.wakeResetConnections && service !is RootTunService) {
                                 Libcore.resetAllConnections(true)
                             }
                         }
@@ -78,10 +79,9 @@ class BaseService {
                 Action.RESET_UPSTREAM_CONNECTIONS -> {
                     Logs.i("BaseService: Action.RESET_UPSTREAM_CONNECTIONS received, resetting connections and restarting runner")
                     runOnDefaultDispatcher {
-                        try {
-                            Libcore.resetAllConnections(true)
-                        } catch (e: Throwable) {
-                            Logs.w(e)
+                        // Root mode restarts the module below; non-root legacy mode resets its local core.
+                        if (service !is RootTunService) {
+                            runCatching { Libcore.resetAllConnections(true) }.onFailure(Logs::w)
                         }
                         LandingIpManager.clearCache()
                         service.stopRunner(restart = true)
@@ -110,7 +110,7 @@ class BaseService {
                     runOnDefaultDispatcher {
                         proxy?.looper?.postLastSnapshotSpeed()
                     }
-                    if (DataStore.wakeResetConnections) {
+                    if (DataStore.wakeResetConnections && service !is RootTunService) {
                         Libcore.resetAllConnections(true)
                     }
                 }
@@ -210,7 +210,9 @@ class BaseService {
                     root?.let { service -> { target, timeout -> service.urlTest(target, timeout) } },
                     { runCatching { current.proxy?.box }.getOrNull() }
                 ) { box, target, timeout ->
-                    if (custom) Libcore.urlTestFull(box, target, timeout)
+                    if (current.service is RootTunService) {
+                        RootTunService.TEST_ERR_PROXY_ENTRY
+                    } else if (custom) Libcore.urlTestFull(box, target, timeout)
                     else Libcore.urlTest(box, target, timeout)
                 }
             } catch (e: Exception) {
@@ -531,17 +533,12 @@ class BaseService {
         var upstreamInterfaceName: String?
 
         suspend fun preInit() {
-            // 只负责 underlyingNetwork / 网卡名跟踪，供 VpnService.setUnderlyingNetworks。
-            // 「网络变化时重置出站」由 DataStore.networkChangeResetConnections 控制，
-            // 经 NativeInterface → Libcore.setNetworkChangeResetConnections →
-            // interfaceMonitor 是否 callback → 官方 ResetNetwork 生效；
-            // 此处不再叠调 resetAllConnections（避免与内核双路径各拆一次）。
-            // 「唤醒时重置」见 receiver 内 DataStore.wakeResetConnections。
+            // Tracks the upstream interface for legacy VPN mode. In Root mode the module owns
+            // network monitoring and connection resets; the app observer must not call JNI.
             DefaultNetworkListener.start(this) { network ->
                 if (network == null) {
                     SagerNet.underlyingNetwork = null
                     upstreamInterfaceName = null
-                    NativeInterface.clearInterfaceCache()
                     return@start
                 }
                 SagerNet.connectivity.getLinkProperties(network)?.also { link ->
@@ -551,19 +548,14 @@ class BaseService {
                     if (oldName != link.interfaceName || oldNetwork != network) {
                         Logs.d("Network changed: $oldName -> ${link.interfaceName} (network $oldNetwork -> $network)")
                         upstreamInterfaceName = link.interfaceName
-                        NativeInterface.clearInterfaceCache()
                         // @author 雾晚: the first network callback is discovery, not a switch.
                         if (data.state == State.Connecting && oldNetwork != null && oldName != null) {
                             Logs.i("Network changed during Connecting state: restarting after cleanup")
                             stopRunner(restart = true)
                             return@start
                         }
-                        if (DataStore.networkChangeResetConnections) {
-                            try {
-                                Libcore.resetAllConnections(true)
-                            } catch (e: Exception) {
-                                Logs.w(e)
-                            }
+                        if (DataStore.networkChangeResetConnections && data.service !is RootTunService) {
+                            runCatching { Libcore.resetAllConnections(true) }.onFailure(Logs::w)
                         }
                     }
                 }

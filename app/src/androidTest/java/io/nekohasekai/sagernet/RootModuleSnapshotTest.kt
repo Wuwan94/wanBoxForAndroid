@@ -3,6 +3,7 @@
 package io.nekohasekai.sagernet
 
 import io.nekohasekai.sagernet.bg.RootModuleSnapshot
+import io.nekohasekai.sagernet.fmt.RootInboundBackend
 import io.nekohasekai.sagernet.bg.proto.ProxyInstance
 import io.nekohasekai.sagernet.database.*
 import io.nekohasekai.sagernet.database.preference.PublicDatabase
@@ -29,7 +30,7 @@ class RootModuleSnapshotTest {
             DataStore.globalCustomConfig = ""; DataStore.globalMode = false; DataStore.enableClashAPI = false
             suspend fun config(): com.google.gson.JsonObject {
                 val instance = ProxyInstance(main)
-                try { instance.init(); return RootModuleSnapshot(instance, "fixture-revision").build()["config"].asJsonObject }
+                try { instance.init(); return RootModuleSnapshot(instance, "fixture-revision", RootInboundBackend.TUN).build()["config"].asJsonObject }
                 finally { instance.close() }
             }
             fun target(config: com.google.gson.JsonObject): String = config["route"].asJsonObject["rules"].asJsonArray
@@ -63,7 +64,7 @@ class RootModuleSnapshotTest {
             DataStore.enableClashAPI = false
             DataStore.serviceMode = "vpn" // Historical preference normalizes to Root, no VPN authorization.
             instance.init()
-            val snapshot = RootModuleSnapshot(instance, "").build()
+            val snapshot = RootModuleSnapshot(instance, "", RootInboundBackend.TUN).build()
             assertEquals(1, snapshot["schemaVersion"].asInt)
             assertEquals(99001L, snapshot["profileId"].asLong)
             assertEquals(Key.MODE_ROOT, DataStore.serviceMode)

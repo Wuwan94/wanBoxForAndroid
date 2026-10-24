@@ -1,0 +1,186 @@
+{
+  "spec": {
+    "rules": [
+      {
+        "ruleId": 91,
+        "protocolText": "tls, dns\nhttp"
+      },
+      {
+        "ruleId": 92,
+        "protocolText": "ssh"
+      }
+    ]
+  },
+  "eligibleRule": {
+    "id": 91,
+    "enabled": true,
+    "outbound": -2,
+    "protocol": "tls, dns\nhttp"
+  },
+  "inputConfig": {
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "_wanbox_root_route_protocol_reject_v34": {
+            "ruleId": 91,
+            "protocolText": "tls, dns\nhttp"
+          }
+        },
+        {
+          "domain": [
+            "legacy.example"
+          ],
+          "outbound": "direct"
+        },
+        {
+          "_wanbox_root_route_protocol_reject_v34": {
+            "ruleId": 92,
+            "protocolText": "ssh"
+          }
+        },
+        {
+          "protocol": [
+            "quic"
+          ],
+          "action": "reject"
+        }
+      ]
+    }
+  },
+  "expectedConfig": {
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "protocol": [
+            "tls",
+            "dns",
+            "http"
+          ],
+          "action": "reject"
+        },
+        {
+          "domain": [
+            "legacy.example"
+          ],
+          "outbound": "direct"
+        },
+        {
+          "protocol": [
+            "ssh"
+          ],
+          "action": "reject"
+        },
+        {
+          "protocol": [
+            "quic"
+          ],
+          "action": "reject"
+        }
+      ]
+    }
+  },
+  "unsupportedCases": [
+    {
+      "name": "disabled",
+      "rule": {
+        "id": 93,
+        "enabled": false,
+        "outbound": -2,
+        "protocol": "tls"
+      }
+    },
+    {
+      "name": "wrong action",
+      "rule": {
+        "id": 94,
+        "enabled": true,
+        "outbound": -1,
+        "protocol": "tls"
+      }
+    },
+    {
+      "name": "custom action",
+      "rule": {
+        "id": 95,
+        "enabled": true,
+        "outbound": -2,
+        "protocol": "tls",
+        "config": "{\"action\":\"reject\",\"method\":\"drop\"}"
+      }
+    },
+    {
+      "name": "other matcher",
+      "rule": {
+        "id": 96,
+        "enabled": true,
+        "outbound": -2,
+        "protocol": "tls",
+        "port": "443"
+      }
+    },
+    {
+      "name": "unknown protocol",
+      "rule": {
+        "id": 97,
+        "enabled": true,
+        "outbound": -2,
+        "protocol": "unknown"
+      }
+    },
+    {
+      "name": "invalid rule id",
+      "rule": {
+        "id": 0,
+        "enabled": true,
+        "outbound": -2,
+        "protocol": "tls"
+      }
+    }
+  ],
+  "parserCases": [
+    {
+      "name": "comma and line list",
+      "protocols": "tls, dns\nhttp",
+      "valid": true,
+      "values": [
+        "tls",
+        "dns",
+        "http"
+      ]
+    },
+    {
+      "name": "whitespace",
+      "protocols": " ssh , rdp ",
+      "valid": true,
+      "values": [
+        "ssh",
+        "rdp"
+      ]
+    },
+    {
+      "name": "blank",
+      "protocols": " , \n ",
+      "valid": false
+    },
+    {
+      "name": "unknown enum",
+      "protocols": "tls,unknown",
+      "valid": false
+    },
+    {
+      "name": "empty token ignored",
+      "protocols": "tls,,dns",
+      "valid": true,
+      "values": [
+        "tls",
+        "dns"
+      ]
+    }
+  ]
+}

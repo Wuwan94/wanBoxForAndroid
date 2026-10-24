@@ -92,11 +92,6 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
         addPreferencesFromResource(R.xml.global_preferences)
 
         // preview.18 UI 改造：分应用代理入口
-        findPreference<Preference>("perAppProxyEntry")?.setOnPreferenceClickListener {
-            startActivity(Intent(activity, AppManagerActivity::class.java))
-            true
-        }
-
         val iconColor = Theme.getPrimaryColor(requireContext())
         tintPreferenceIcons(preferenceScreen, iconColor)
 
@@ -115,8 +110,6 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
         }
         val mixedPort = findPreference<EditTextPreference>(Key.MIXED_PORT)!!
         val disableMixedInbound = findPreference<SwitchPreference>(Key.DISABLE_MIXED_INBOUND)!!
-        val serviceMode = findPreference<Preference>(Key.SERVICE_MODE)!!
-        serviceMode.summary = getString(R.string.root_module_mode)
         val mixedAuthConfig = findPreference<Preference>(Key.MIXED_AUTH_CONFIG)!!
         val dnsHosts = findPreference<EditTextPreference>(Key.DNS_HOSTS)!!
         val strictRoute = findPreference<SwitchPreference>(Key.STRICT_ROUTE)!!
@@ -208,7 +201,6 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
         }
 
 
-        // preview.17: TUN 实现固定为 Sing-Tun，不再提供选择入口
         val resolveDestination = findPreference<SwitchPreference>(Key.RESOLVE_DESTINATION)!!
 
         val categoryCore = findPreference<ExpandablePreferenceCategory>("categoryCore")
@@ -373,7 +365,7 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
         val section = arguments?.getString("section")
         val categories = when (section) {
             "dns" -> setOf("categoryDNS")
-            "root" -> setOf("categoryMode", "categoryVPN")
+            "root" -> setOf("categoryRuntime")
             "network" -> setOf("categoryVPN", "categoryCore")
             "appearance" -> setOf("categoryUI")
             else -> null

@@ -1,0 +1,30 @@
+{
+  "rule": {
+    "id": 85002,
+    "enabled": true,
+    "config": "",
+    "domains": "",
+    "ip": "",
+    "port": "",
+    "sourcePort": "2000:3000, 443:443",
+    "network": "",
+    "source": "",
+    "protocol": "",
+    "ruleset": "",
+    "outbound": -1,
+    "packages": []
+  },
+  "outbound": "direct",
+  "projectedRouteRule": {
+    "_wanbox_root_route_source_port_range_outbound_v85": {
+      "index": 1,
+      "ruleId": 85002,
+      "ranges": ["2000:3000", "443:443"],
+      "outbound": "direct"
+    }
+  },
+  "expectedRouteRule": {
+    "source_port_range": ["2000:3000", "443:443"],
+    "outbound": "direct"
+  }
+}

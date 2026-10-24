@@ -1,0 +1,44 @@
+{
+  "generatedConfig": {
+    "outbounds": [
+      {"type": "direct", "tag": "direct"},
+      {"type": "selector", "tag": "proxy"}
+    ],
+    "route": {
+      "rules": [
+        {"domain": ["one.example"], "outbound": "proxy"},
+        {"rule_set": ["ruleset-2086338098"], "invert": true, "outbound": "direct"}
+      ],
+      "rule_set": [
+        {"type": "remote", "tag": "ruleset-2086338098", "format": "binary", "url": "https://example.com/domain.srs", "update_interval": "1d"},
+        {"type": "inline", "tag": "keep-local", "rules": [{"domain": ["inline.example"]}]},
+        {"type": "remote", "tag": "custom-remote", "format": "binary", "url": "https://example.com/custom.srs", "update_interval": "12h", "download_detour": "direct"},
+        {"type": "remote", "tag": "ruleset-1987654321", "format": "binary", "url": "https://example.net/ip.srs", "update_interval": "6h"}
+      ]
+    }
+  },
+  "projectedConfig": {
+    "outbounds": [
+      {"type": "direct", "tag": "direct"},
+      {"type": "selector", "tag": "proxy"}
+    ],
+    "route": {
+      "rules": [
+        {"domain": ["one.example"], "outbound": "proxy"},
+        {"rule_set": ["ruleset-2086338098"], "invert": true, "outbound": "direct"}
+      ],
+      "rule_set": [
+        {"_wanbox_root_remote_rule_set_v46": {"index": 0, "tag": "ruleset-2086338098", "url": "https://example.com/domain.srs", "updateInterval": "1d"}},
+        {"type": "inline", "tag": "keep-local", "rules": [{"domain": ["inline.example"]}]},
+        {"type": "remote", "tag": "custom-remote", "format": "binary", "url": "https://example.com/custom.srs", "update_interval": "12h", "download_detour": "direct"},
+        {"_wanbox_root_remote_rule_set_v46": {"index": 3, "tag": "ruleset-1987654321", "url": "https://example.net/ip.srs", "updateInterval": "6h"}}
+      ]
+    }
+  },
+  "expectedMaterializedRuleSets": [
+    {"type": "remote", "tag": "ruleset-2086338098", "format": "binary", "url": "https://example.com/domain.srs", "update_interval": "1d"},
+    {"type": "inline", "tag": "keep-local", "rules": [{"domain": ["inline.example"]}]},
+    {"type": "remote", "tag": "custom-remote", "format": "binary", "url": "https://example.com/custom.srs", "update_interval": "12h", "download_detour": "direct"},
+    {"type": "remote", "tag": "ruleset-1987654321", "format": "binary", "url": "https://example.net/ip.srs", "update_interval": "6h"}
+  ]
+}

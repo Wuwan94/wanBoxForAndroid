@@ -1,0 +1,111 @@
+{
+  "generatedConfig": {
+    "outbounds": [
+      {
+        "type": "direct",
+        "tag": "direct"
+      }
+    ],
+    "route": {
+      "rules": [
+        {
+          "network": [
+            "tcp"
+          ],
+          "outbound": "direct"
+        },
+        {
+          "rule_set": [
+            "ruleset-site"
+          ],
+          "action": "reject",
+          "invert": true
+        },
+        {
+          "network": [
+            "udp"
+          ],
+          "outbound": "direct"
+        }
+      ],
+      "rule_set": [
+        {
+          "type": "remote",
+          "tag": "ruleset-site",
+          "format": "binary",
+          "url": "https://example.com/site.srs",
+          "update_interval": "1d"
+        }
+      ]
+    }
+  },
+  "projectedConfig": {
+    "outbounds": [
+      {
+        "type": "direct",
+        "tag": "direct"
+      }
+    ],
+    "route": {
+      "rules": [
+        {
+          "network": [
+            "tcp"
+          ],
+          "outbound": "direct"
+        },
+        {
+          "_wanbox_root_remote_ruleset_reject_v71": {
+            "index": 1,
+            "tags": [
+              "ruleset-site"
+            ],
+            "invert": true
+          }
+        },
+        {
+          "network": [
+            "udp"
+          ],
+          "outbound": "direct"
+        }
+      ],
+      "rule_set": [
+        {
+          "_wanbox_root_remote_rule_set_v46": {
+            "index": 0,
+            "tag": "ruleset-site",
+            "url": "https://example.com/site.srs",
+            "updateInterval": "1d"
+          }
+        }
+      ]
+    }
+  },
+  "expectedRouteRules": [
+    {
+      "rule_set": [
+        "ruleset-site"
+      ],
+      "action": "reject",
+      "invert": true
+    }
+  ],
+  "legacyFallback": [
+    {
+      "rule_set": [
+        "unmigrated"
+      ],
+      "action": "reject"
+    },
+    {
+      "rule_set": [
+        "ruleset-site"
+      ],
+      "action": "reject",
+      "protocol": [
+        "tcp"
+      ]
+    }
+  ]
+}

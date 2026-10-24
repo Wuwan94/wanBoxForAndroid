@@ -41,6 +41,12 @@ import io.nekohasekai.sagernet.ktx.runOnMainDispatcher
 import io.nekohasekai.sagernet.utils.PackageCache
 import io.nekohasekai.sagernet.route.AppRouteIdentity
 import io.nekohasekai.sagernet.route.InputMethodRouteMigration
+import io.nekohasekai.sagernet.route.ROOT_APP_UID_DOMAIN_OUTBOUND_ROUTE_MARKER
+import io.nekohasekai.sagernet.route.rootAppUIDDomainOutboundRouteInput
+import io.nekohasekai.sagernet.route.ROOT_APP_UID_RULESET_OUTBOUND_MARKER
+import io.nekohasekai.sagernet.route.rootAppUIDRuleSetOutboundInput
+import io.nekohasekai.sagernet.route.ROOT_APP_UID_DOMAIN_RULESET_OUTBOUND_MARKER
+import io.nekohasekai.sagernet.route.rootAppUIDDomainRuleSetOutboundInput
 import moe.matsuri.nb4a.*
 import moe.matsuri.nb4a.SingBoxOptions.*
 import moe.matsuri.nb4a.plugin.Plugins
@@ -55,7 +61,33 @@ import moe.matsuri.nb4a.utils.listByLineOrComma
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 // @author 雾晚
 import io.nekohasekai.sagernet.route.RouteRuleEditor
+import io.nekohasekai.sagernet.route.ROOT_IP_REJECT_ROUTE_MARKER
+import io.nekohasekai.sagernet.route.rootIPRejectRouteInput
 import io.nekohasekai.sagernet.route.RouteRulePriority
+import io.nekohasekai.sagernet.route.ROOT_APP_UID_ROUTE_MARKER
+import io.nekohasekai.sagernet.route.ROOT_APP_IDENTITY_DNS_RULE_MARKER
+import io.nekohasekai.sagernet.route.rootAppIdentityDNSRuleInput
+import io.nekohasekai.sagernet.route.ROOT_PORT_REJECT_ROUTE_MARKER
+import io.nekohasekai.sagernet.route.ROOT_NETWORK_REJECT_ROUTE_MARKER
+import io.nekohasekai.sagernet.route.rootNetworkRejectRouteInput
+import io.nekohasekai.sagernet.route.ROOT_NETWORK_PORT_REJECT_ROUTE_MARKER
+import io.nekohasekai.sagernet.route.rootNetworkPortRejectRouteInput
+import io.nekohasekai.sagernet.route.rootPortRejectRouteInput
+import io.nekohasekai.sagernet.route.ROOT_SOURCE_PORT_REJECT_ROUTE_MARKER
+import io.nekohasekai.sagernet.route.rootSourcePortRejectRouteInput
+import io.nekohasekai.sagernet.route.ROOT_PROTOCOL_REJECT_ROUTE_MARKER
+import io.nekohasekai.sagernet.route.rootProtocolRejectRouteInput
+import io.nekohasekai.sagernet.route.ROOT_SOURCE_IP_REJECT_ROUTE_MARKER
+import io.nekohasekai.sagernet.route.rootSourceIPRejectRouteInput
+import io.nekohasekai.sagernet.route.ROOT_SOURCE_DESTINATION_IP_REJECT_ROUTE_MARKER
+import io.nekohasekai.sagernet.route.rootSourceDestinationIPRejectRouteInput
+import io.nekohasekai.sagernet.route.ROOT_DOMAIN_REJECT_ROUTE_MARKER
+import io.nekohasekai.sagernet.route.rootDomainRejectRouteInput
+import io.nekohasekai.sagernet.route.ROOT_DOMAIN_SUFFIX_REJECT_ROUTE_MARKER
+import io.nekohasekai.sagernet.route.rootDomainSuffixRejectRouteInput
+import io.nekohasekai.sagernet.route.ROOT_DOMAIN_KEYWORD_REJECT_ROUTE_MARKER
+import io.nekohasekai.sagernet.route.ROOT_IP_OUTBOUND_ROUTE_MARKER
+import io.nekohasekai.sagernet.route.rootDomainKeywordRejectRouteInput
 
 const val TAG_MIXED = "mixed-in"
 
@@ -710,9 +742,7 @@ fun buildConfig(
                 cache_file = CacheFile().apply {
                     enabled = true
                     path = "../cache/cache.db"
-                    // if (DataStore.enableClashAPI) {
                     store_fakeip = true
-                    // }
                 }
 
                 // @author 雾晚: hot-switch: module configs (!forTest && !forExport) always
@@ -1422,6 +1452,163 @@ fun buildConfig(
             // 应用用户规则
             var resolvedForGeoIp = false
             for (rule in extraRules) {
+                // Schema v42 transfers only explicit keyword: reject rules from original raw text.
+                val rootDomainKeywordRejectInput = if (!forTest && !forExport && isRootTun) rootDomainKeywordRejectRouteInput(rule) else null
+                if (rootDomainKeywordRejectInput != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[ROOT_DOMAIN_KEYWORD_REJECT_ROUTE_MARKER] = mapOf(
+                            "ruleId" to rootDomainKeywordRejectInput.ruleId,
+                            "domainText" to rootDomainKeywordRejectInput.domainText
+                        )
+                    })
+                    continue
+                }
+                // Schema v41 transfers only explicit domain:-suffix reject rules from original raw text.
+                val rootDomainSuffixRejectInput = if (!forTest && !forExport && isRootTun) rootDomainSuffixRejectRouteInput(rule) else null
+                if (rootDomainSuffixRejectInput != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[ROOT_DOMAIN_SUFFIX_REJECT_ROUTE_MARKER] = mapOf(
+                            "ruleId" to rootDomainSuffixRejectInput.ruleId,
+                            "domainText" to rootDomainSuffixRejectInput.domainText
+                        )
+                    })
+                    continue
+                }
+                // Schema v40 transfers only exact full: domain reject rules; other forms stay legacy.
+                val rootDomainRejectInput = if (!forTest && !forExport && isRootTun) rootDomainRejectRouteInput(rule) else null
+                if (rootDomainRejectInput != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[ROOT_DOMAIN_REJECT_ROUTE_MARKER] = mapOf(
+                            "ruleId" to rootDomainRejectInput.ruleId,
+                            "domainText" to rootDomainRejectInput.domainText
+                        )
+                    })
+                    continue
+                }
+                // Schema v32 transfers an exact raw network+destination-port reject conjunction.
+                val rootNetworkPortRejectInput = if (!forTest && !forExport && isRootTun) rootNetworkPortRejectRouteInput(rule) else null
+                if (rootNetworkPortRejectInput != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[ROOT_NETWORK_PORT_REJECT_ROUTE_MARKER] = mapOf(
+                            "ruleId" to rootNetworkPortRejectInput.ruleId,
+                            "networkText" to rootNetworkPortRejectInput.networkText,
+                            "portText" to rootNetworkPortRejectInput.portText
+                        )
+                    })
+                    continue
+                }
+                // Schema v31 transfers only an exact, network-only reject policy as raw typed input.
+                // The module parses the original network text and creates the reject route in place.
+                val rootNetworkRejectInput = if (!forTest && !forExport && isRootTun) {
+                    rootNetworkRejectRouteInput(rule)
+                } else null
+                if (rootNetworkRejectInput != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[ROOT_NETWORK_REJECT_ROUTE_MARKER] = mapOf(
+                            "ruleId" to rootNetworkRejectInput.ruleId,
+                            "networkText" to rootNetworkRejectInput.networkText
+                        )
+                    })
+                    continue
+                }
+                // Schema v30 transfers only an exact, port-only reject policy as raw typed input.
+                // Unsupported rules continue through the unchanged App-generated legacy path.
+                val rootPortRejectInput = if (!forTest && !forExport && isRootTun) {
+                    rootPortRejectRouteInput(rule)
+                } else null
+                if (rootPortRejectInput != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[ROOT_PORT_REJECT_ROUTE_MARKER] = mapOf(
+                            "ruleId" to rootPortRejectInput.ruleId,
+                            "portText" to rootPortRejectInput.portText
+                        )
+                    })
+                    continue
+                }
+                // Schema v39 transfers exact protocol AND destination-port reject rules as raw input.
+                val rootProtocolPortRejectInput = if (!forTest && !forExport && isRootTun) io.nekohasekai.sagernet.route.rootProtocolPortRejectRouteInput(rule) else null
+                if (rootProtocolPortRejectInput != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[io.nekohasekai.sagernet.route.ROOT_PROTOCOL_PORT_REJECT_ROUTE_MARKER] = mapOf(
+                            "ruleId" to rootProtocolPortRejectInput.ruleId,
+                            "protocolText" to rootProtocolPortRejectInput.protocolText,
+                            "portText" to rootProtocolPortRejectInput.portText
+                        )
+                    })
+                    continue
+                }
+                // Schema v38 transfers exact source-port AND destination-port-only reject rules as raw input.
+                val rootSourceDestinationPortRejectInput = if (!forTest && !forExport && isRootTun) io.nekohasekai.sagernet.route.rootSourceDestinationPortRejectRouteInput(rule) else null
+                if (rootSourceDestinationPortRejectInput != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[io.nekohasekai.sagernet.route.ROOT_SOURCE_DESTINATION_PORT_REJECT_ROUTE_MARKER] = mapOf(
+                            "ruleId" to rootSourceDestinationPortRejectInput.ruleId,
+                            "sourcePortText" to rootSourceDestinationPortRejectInput.sourcePortText,
+                            "portText" to rootSourceDestinationPortRejectInput.portText
+                        )
+                    })
+                    continue
+                }
+                // Schema v33 transfers exact source-port-only reject rules as raw typed input.
+                // Ranges and any mixed/custom predicates stay on the unchanged App path.
+                val rootSourcePortRejectInput = if (!forTest && !forExport && isRootTun) rootSourcePortRejectRouteInput(rule) else null
+                if (rootSourcePortRejectInput != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[ROOT_SOURCE_PORT_REJECT_ROUTE_MARKER] = mapOf(
+                            "ruleId" to rootSourcePortRejectInput.ruleId,
+                            "sourcePortText" to rootSourcePortRejectInput.sourcePortText
+                        )
+                    })
+                    continue
+                }
+                // Schema v34 transfers exact protocol-only reject policies as raw input.
+                // Any mixed matcher or custom action stays on the unchanged App path.
+                val rootProtocolRejectInput = if (!forTest && !forExport && isRootTun) rootProtocolRejectRouteInput(rule) else null
+                if (rootProtocolRejectInput != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[ROOT_PROTOCOL_REJECT_ROUTE_MARKER] = mapOf(
+                            "ruleId" to rootProtocolRejectInput.ruleId,
+                            "protocolText" to rootProtocolRejectInput.protocolText
+                        )
+                    })
+                    continue
+                }
+                // Schema v37 transfers only the unambiguous source-CIDR AND destination-CIDR reject conjunction.
+                val rootSourceDestinationIPRejectInput = if (!forTest && !forExport && isRootTun) rootSourceDestinationIPRejectRouteInput(rule) else null
+                if (rootSourceDestinationIPRejectInput != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[ROOT_SOURCE_DESTINATION_IP_REJECT_ROUTE_MARKER] = mapOf(
+                            "ruleId" to rootSourceDestinationIPRejectInput.ruleId,
+                            "sourceText" to rootSourceDestinationIPRejectInput.sourceText,
+                            "ipText" to rootSourceDestinationIPRejectInput.ipText
+                        )
+                    })
+                    continue
+                }
+                // Schema v36 transfers exact destination-IP-CIDR-only reject rules as raw input.
+                // The Root module parses the original CIDR text and materializes the rule in place.
+                val rootIPRejectInput = if (!forTest && !forExport && isRootTun) rootIPRejectRouteInput(rule) else null
+                if (rootIPRejectInput != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[ROOT_IP_REJECT_ROUTE_MARKER] = mapOf(
+                            "ruleId" to rootIPRejectInput.ruleId,
+                            "ipText" to rootIPRejectInput.ipText
+                        )
+                    })
+                    continue
+                }
+                // Schema v35 transfers exact source-IP-CIDR-only reject rules as raw input.
+                // Mixed/custom predicates stay in the unchanged App-generated config path.
+                val rootSourceIPRejectInput = if (!forTest && !forExport && isRootTun) rootSourceIPRejectRouteInput(rule) else null
+                if (rootSourceIPRejectInput != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[ROOT_SOURCE_IP_REJECT_ROUTE_MARKER] = mapOf(
+                            "ruleId" to rootSourceIPRejectInput.ruleId,
+                            "sourceText" to rootSourceIPRejectInput.sourceText
+                        )
+                    })
+                    continue
+                }
                 // @author 雾晚: resolve only after explicit/domain rules had a chance to
                 // match. Official alpha.10 has no fork-specific match_only option.
                 // Normal DNS routing chooses the resolver; never force public/direct DNS.
@@ -1501,6 +1688,22 @@ fun buildConfig(
                     }
                 }
 
+                val rootExactDomainDNSInput = if (!forTest && !forExport && isRootTun && enableDnsRouting) {
+                    io.nekohasekai.sagernet.route.rootExactDomainDNSRuleInput(rule, routingAction, useFakeDns)
+                } else null
+                // Schema v79 lets Root generate the package-only DNS routing/reject/FakeDNS
+                // side effect from the same Android-resolved identity inputs. The route rule
+                // itself remains App-generated here; this replaces only its DNS rule slot.
+                val rootAppIdentityDNSInput = if (!forTest && !forExport && isRootTun && enableDnsRouting && isAppOnlyDns) {
+                    rootAppIdentityDNSRuleInput(rule, routingAction, uidList.toList(), useFakeDns)
+                } else null
+                // Schema v80 reconstructs the independent DNS side effect for the
+                // supported package-identity AND domain subset. DNS selection does not
+                // inherit route inversion; unsupported predicates remain App-generated.
+                val rootAppIdentityDomainDNSInput = if (!forTest && !forExport && isRootTun && enableDnsRouting) {
+                    io.nekohasekai.sagernet.route.rootAppIdentityDomainDNSRuleInput(rule, routingAction, uidList.toList(), useFakeDns)
+                } else null
+                val rootDnsRuleStart = userDNSRuleList.size
                 when (if (routingAction == "reject") -2L else rule.outbound) {
                     -1L -> {
                         if (shouldAddDnsRule) {
@@ -1561,12 +1764,359 @@ fun buildConfig(
                         }
                     }
                 }
+                // Replace the domain DNS side effect with typed input. When rulesets are also
+                // present, ConfigBuilder appends their independent DNS effects after this domain
+                // rule; Root projects those later ruleset effects separately, preserving order.
+                if (rootExactDomainDNSInput != null && userDNSRuleList.size > rootDnsRuleStart) {
+                    userDNSRuleList[rootDnsRuleStart] = DNSRule_DefaultOptions().apply {
+                        _hack_config_map[io.nekohasekai.sagernet.route.ROOT_EXACT_DOMAIN_DNS_RULE_MARKER] = mapOf(
+                            "ruleId" to rootExactDomainDNSInput.ruleId,
+                            "domainText" to rootExactDomainDNSInput.domainText,
+                            "kind" to rootExactDomainDNSInput.kind,
+                            "fakeDns" to rootExactDomainDNSInput.fakeDns
+                        )
+                    }
+                }
+                if (rootAppIdentityDNSInput != null && userDNSRuleList.size > rootDnsRuleStart) {
+                    userDNSRuleList[rootDnsRuleStart] = DNSRule_DefaultOptions().apply {
+                        _hack_config_map[ROOT_APP_IDENTITY_DNS_RULE_MARKER] = mapOf(
+                            "ruleId" to rootAppIdentityDNSInput.ruleId,
+                            "packages" to rootAppIdentityDNSInput.packages,
+                            "uids" to rootAppIdentityDNSInput.uids,
+                            "kind" to rootAppIdentityDNSInput.kind,
+                            "fakeDns" to rootAppIdentityDNSInput.fakeDns
+                        )
+                    }
+                }
+                if (rootAppIdentityDomainDNSInput != null && userDNSRuleList.size > rootDnsRuleStart) {
+                    userDNSRuleList[rootDnsRuleStart] = DNSRule_DefaultOptions().apply {
+                        _hack_config_map[io.nekohasekai.sagernet.route.ROOT_APP_IDENTITY_DOMAIN_DNS_RULE_MARKER] = mapOf(
+                            "ruleId" to rootAppIdentityDomainDNSInput.ruleId,
+                            "packages" to rootAppIdentityDomainDNSInput.packages,
+                            "uids" to rootAppIdentityDomainDNSInput.uids,
+                            "domainText" to rootAppIdentityDomainDNSInput.domainText,
+                            "kind" to rootAppIdentityDomainDNSInput.kind,
+                            "fakeDns" to rootAppIdentityDomainDNSInput.fakeDns
+                        )
+                    }
+                }
 
                 val targetOutbound = when (val outId = rule.outbound) {
                     0L -> mainProxyTag
                     -1L -> TAG_BYPASS
                     -2L -> TAG_BLOCK
                     else -> if (outId == proxy.id) mainProxyTag else tagMap[outId] ?: ""
+                }
+
+                // Schema v85 handles closed range-only outbound rules; open or richer rules stay in App.
+                val rootPortRangeOutbound = if (!forTest && !forExport && isRootTun &&
+                    routingAction == "route" && targetOutbound.isNotBlank() && targetOutbound != TAG_BLOCK) {
+                    io.nekohasekai.sagernet.route.rootPortRangeOutboundRouteInput(rule, targetOutbound)
+                } else null
+                if (rootPortRangeOutbound != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[io.nekohasekai.sagernet.route.ROOT_PORT_RANGE_OUTBOUND_ROUTE_MARKER] = mapOf(
+                            "index" to route.rules.size,
+                            "ruleId" to rootPortRangeOutbound.ruleId,
+                            "ranges" to rootPortRangeOutbound.ranges,
+                            "outbound" to rootPortRangeOutbound.outbound
+                        )
+                    })
+                    continue
+                }
+                val rootSourcePortRangeOutbound = if (!forTest && !forExport && isRootTun &&
+                    routingAction == "route" && targetOutbound.isNotBlank() && targetOutbound != TAG_BLOCK) {
+                    io.nekohasekai.sagernet.route.rootSourcePortRangeOutboundRouteInput(rule, targetOutbound)
+                } else null
+                if (rootSourcePortRangeOutbound != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[io.nekohasekai.sagernet.route.ROOT_SOURCE_PORT_RANGE_OUTBOUND_ROUTE_MARKER] = mapOf(
+                            "index" to route.rules.size,
+                            "ruleId" to rootSourcePortRangeOutbound.ruleId,
+                            "ranges" to rootSourcePortRangeOutbound.ranges,
+                            "outbound" to rootSourcePortRangeOutbound.outbound
+                        )
+                    })
+                    continue
+                }
+
+                // Schema v82 generates numeric-port-only outbound routes in Root; richer
+                // predicates and unsupported port syntax retain the App-generated path.
+                val rootPortOutbound = if (!forTest && !forExport && isRootTun &&
+                    routingAction == "route" && targetOutbound.isNotBlank() && targetOutbound != TAG_BLOCK) {
+                    io.nekohasekai.sagernet.route.rootPortOutboundRouteInput(rule, targetOutbound)
+                } else null
+                if (rootPortOutbound != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[io.nekohasekai.sagernet.route.ROOT_PORT_OUTBOUND_ROUTE_MARKER] = mapOf(
+                            "index" to route.rules.size,
+                            "ruleId" to rootPortOutbound.ruleId,
+                            "portText" to rootPortOutbound.portText,
+                            "outbound" to rootPortOutbound.outbound
+                        )
+                    })
+                    continue
+                }
+
+                // Schema v63 generates source-port-only outbound routes in Root; all
+                // domain/ruleset and richer route semantics retain the App-generated path.
+                val rootSourcePortOutbound = if (!forTest && !forExport && isRootTun &&
+                    routingAction == "route" && targetOutbound.isNotBlank() && targetOutbound != TAG_BLOCK) {
+                    io.nekohasekai.sagernet.route.rootSourcePortOutboundRouteInput(rule, targetOutbound)
+                } else null
+                if (rootSourcePortOutbound != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[io.nekohasekai.sagernet.route.ROOT_SOURCE_PORT_OUTBOUND_ROUTE_MARKER] = mapOf(
+                            "index" to route.rules.size,
+                            "ruleId" to rootSourcePortOutbound.ruleId,
+                            "sourcePortText" to rootSourcePortOutbound.sourcePortText,
+                            "outbound" to rootSourcePortOutbound.outbound
+                        )
+                    })
+                    continue
+                }
+
+                // Schema v62 generates a standalone user IPv4/IPv6-version route in Root.
+                // This predicate has no DNS side effects; richer/custom rules remain legacy.
+                val rootIPVersionOutbound = if (!forTest && !forExport && isRootTun &&
+                    routingAction == "route" && targetOutbound.isNotBlank() && targetOutbound != TAG_BLOCK) {
+                    io.nekohasekai.sagernet.route.rootIPVersionOutboundRouteInput(rule, targetOutbound)
+                } else null
+                if (rootIPVersionOutbound != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[io.nekohasekai.sagernet.route.ROOT_IP_VERSION_OUTBOUND_ROUTE_MARKER] = mapOf(
+                            "index" to route.rules.size,
+                            "ruleId" to rootIPVersionOutbound.ruleId,
+                            "ipVersion" to rootIPVersionOutbound.ipVersion,
+                            "outbound" to rootIPVersionOutbound.outbound
+                        )
+                    })
+                    continue
+                }
+
+                // Schema v58 lets Root generate this exact domain AND network conjunction.
+                // DNS side effects were emitted above and remain in their original slots.
+                val rootDomainNetworkOutbound = if (!forTest && !forExport && isRootTun &&
+                    routingAction == "route" && targetOutbound.isNotBlank() && targetOutbound != TAG_BLOCK) {
+                    io.nekohasekai.sagernet.route.rootDomainNetworkOutboundRouteInput(rule, targetOutbound)
+                } else null
+                if (rootDomainNetworkOutbound != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[io.nekohasekai.sagernet.route.ROOT_DOMAIN_NETWORK_OUTBOUND_ROUTE_MARKER] = mapOf(
+                            "index" to route.rules.size,
+                            "ruleId" to rootDomainNetworkOutbound.ruleId,
+                            "domainText" to rootDomainNetworkOutbound.domainText,
+                            "networkText" to rootDomainNetworkOutbound.networkText,
+                            "outbound" to rootDomainNetworkOutbound.outbound,
+                            "invert" to rootDomainNetworkOutbound.invert
+                        )
+                    })
+                    continue
+                }
+
+                // Schema v59 lets Root generate a supported domain AND numeric-port route.
+                // Domain DNS side effects above remain in their original DNS slots.
+                val rootDomainPortOutbound = if (!forTest && !forExport && isRootTun &&
+                    routingAction == "route" && targetOutbound.isNotBlank() && targetOutbound != TAG_BLOCK) {
+                    io.nekohasekai.sagernet.route.rootDomainPortOutboundRouteInput(rule, targetOutbound)
+                } else null
+                if (rootDomainPortOutbound != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[io.nekohasekai.sagernet.route.ROOT_DOMAIN_PORT_OUTBOUND_ROUTE_MARKER] = mapOf(
+                            "index" to route.rules.size,
+                            "ruleId" to rootDomainPortOutbound.ruleId,
+                            "domainText" to rootDomainPortOutbound.domainText,
+                            "portText" to rootDomainPortOutbound.portText,
+                            "outbound" to rootDomainPortOutbound.outbound,
+                            "invert" to rootDomainPortOutbound.invert
+                        )
+                    })
+                    continue
+                }
+
+                // Schema v57 lets Root generate this exact network AND destination-port
+                // conjunction. Unsupported predicates, port ranges and custom actions stay legacy.
+                val rootNetworkPortOutbound = if (!forTest && !forExport && isRootTun &&
+                    routingAction == "route" && targetOutbound.isNotBlank() && targetOutbound != TAG_BLOCK) {
+                    io.nekohasekai.sagernet.route.rootNetworkPortOutboundRouteInput(rule, targetOutbound)
+                } else null
+                if (rootNetworkPortOutbound != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[io.nekohasekai.sagernet.route.ROOT_NETWORK_PORT_OUTBOUND_ROUTE_MARKER] = mapOf(
+                            "index" to route.rules.size,
+                            "ruleId" to rootNetworkPortOutbound.ruleId,
+                            "networkText" to rootNetworkPortOutbound.networkText,
+                            "portText" to rootNetworkPortOutbound.portText,
+                            "outbound" to rootNetworkPortOutbound.outbound
+                        )
+                    })
+                    continue
+                }
+
+                // Schema v52 moves only IP-CIDR-only routing to Root; no DNS matcher
+                // is generated for IP-only rules by ConfigBuilder, so this has no DNS side effect.
+                val rootIPOutbound = if (!forTest && !forExport && isRootTun &&
+                    routingAction == "route" && targetOutbound.isNotBlank() && targetOutbound != TAG_BLOCK) {
+                    io.nekohasekai.sagernet.route.rootIPOutboundRouteInput(rule, targetOutbound)
+                } else null
+                if (rootIPOutbound != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[ROOT_IP_OUTBOUND_ROUTE_MARKER] = mapOf(
+                            "index" to route.rules.size,
+                            "ruleId" to rootIPOutbound.ruleId,
+                            "ipText" to rootIPOutbound.ipText,
+                            "outbound" to rootIPOutbound.outbound,
+                            "invert" to rootIPOutbound.invert
+                        )
+                    })
+                    continue
+                }
+
+                // Schema v60 moves only source-CIDR AND destination-CIDR outbound rules to Root.
+                // These rules have no DNS side effect; unsupported or richer matchers stay legacy.
+                val rootSourceDestinationIPOutbound = if (!forTest && !forExport && isRootTun &&
+                    routingAction == "route" && targetOutbound.isNotBlank() && targetOutbound != TAG_BLOCK) {
+                    io.nekohasekai.sagernet.route.rootSourceDestinationIPOutboundRouteInput(rule, targetOutbound)
+                } else null
+                if (rootSourceDestinationIPOutbound != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[io.nekohasekai.sagernet.route.ROOT_SOURCE_DESTINATION_IP_OUTBOUND_ROUTE_MARKER] = mapOf(
+                            "index" to route.rules.size,
+                            "ruleId" to rootSourceDestinationIPOutbound.ruleId,
+                            "sourceText" to rootSourceDestinationIPOutbound.sourceText,
+                            "ipText" to rootSourceDestinationIPOutbound.ipText,
+                            "outbound" to rootSourceDestinationIPOutbound.outbound
+                        )
+                    })
+                    continue
+                }
+
+                // Schema v61 moves source-CIDR-only outbound rules to Root. This is a
+                // route-only predicate with no DNS matcher/effects; richer rules stay legacy.
+                val rootSourceIPOutbound = if (!forTest && !forExport && isRootTun &&
+                    routingAction == "route" && targetOutbound.isNotBlank() && targetOutbound != TAG_BLOCK) {
+                    io.nekohasekai.sagernet.route.rootSourceIPOutboundRouteInput(rule, targetOutbound)
+                } else null
+                if (rootSourceIPOutbound != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[io.nekohasekai.sagernet.route.ROOT_SOURCE_IP_OUTBOUND_ROUTE_MARKER] = mapOf(
+                            "index" to route.rules.size,
+                            "ruleId" to rootSourceIPOutbound.ruleId,
+                            "sourceText" to rootSourceIPOutbound.sourceText,
+                            "outbound" to rootSourceIPOutbound.outbound
+                        )
+                    })
+                    continue
+                }
+
+                // Schema v50 lets Root generate a narrow exact-domain route. ConfigBuilder
+                // has already emitted any matching DNS route/reject/FakeDNS side effect above;
+                // leave those DNS rules untouched and replace only this route slot in Root.
+                val rootExactDomainOutbound = if (!forTest && !forExport && isRootTun &&
+                    routingAction == "route" && targetOutbound.isNotBlank() && targetOutbound != TAG_BLOCK) {
+                    io.nekohasekai.sagernet.route.rootExactDomainOutboundRouteInput(rule, targetOutbound)
+                } else null
+                if (rootExactDomainOutbound != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[io.nekohasekai.sagernet.route.ROOT_EXACT_DOMAIN_OUTBOUND_ROUTE_MARKER] = mapOf(
+                            "index" to route.rules.size,
+                            "ruleId" to rootExactDomainOutbound.ruleId,
+                            "domainText" to rootExactDomainOutbound.domainText,
+                            "outbound" to rootExactDomainOutbound.outbound
+                        )
+                    })
+                    continue
+                }
+
+                // Schema v45 transfers exact package-identity-only routing to Root. The
+                // App still resolves Android package UIDs; richer predicates/actions and
+                // every DNS-routing case remain on the legacy generator path.
+                val rootAppUIDOnlyRoute = !forTest && !forExport && isRootTun && !enableDnsRouting &&
+                    rule.packages.isNotEmpty() && domainList.isNullOrEmpty() && ipList.isNullOrEmpty() &&
+                    rulesetTags.isEmpty() && rule.port.isBlank() && rule.sourcePort.isBlank() &&
+                    rule.network.isBlank() && rule.source.isBlank() && rule.protocol.isBlank() &&
+                    RouteRuleEditor.json(rule.config).length() == 0 && routingAction == "route" &&
+                    targetOutbound.isNotBlank() && targetOutbound != TAG_BLOCK
+                if (rootAppUIDOnlyRoute) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[ROOT_APP_UID_ROUTE_MARKER] = mapOf(
+                            "index" to route.rules.size,
+                            "packages" to rule.packages.toList().sorted(),
+                            "uids" to uidList.toList().sorted(),
+                            "outbound" to targetOutbound
+                        )
+                    })
+                    continue
+                }
+
+                // v81 transfers package identity AND supported-domain outbound routing.
+                // UIDs remain App-resolved; Root rebuilds the conjunctive matcher. The
+                // independent DNS effect, if any, has its own earlier v80 marker.
+                val rootAppUIDDomainOutbound = if (!forTest && !forExport && isRootTun &&
+                    routingAction == "route" && targetOutbound.isNotBlank() && targetOutbound != TAG_BLOCK) {
+                    rootAppUIDDomainOutboundRouteInput(rule, targetOutbound, uidList.toList())
+                } else null
+                if (rootAppUIDDomainOutbound != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[ROOT_APP_UID_DOMAIN_OUTBOUND_ROUTE_MARKER] = mapOf(
+                            "index" to route.rules.size,
+                            "ruleId" to rootAppUIDDomainOutbound.ruleId,
+                            "packages" to rootAppUIDDomainOutbound.packages,
+                            "uids" to rootAppUIDDomainOutbound.uids,
+                            "domainText" to rootAppUIDDomainOutbound.domainText,
+                            "outbound" to rootAppUIDDomainOutbound.outbound,
+                            "invert" to rootAppUIDDomainOutbound.invert
+                        )
+                    })
+                    continue
+                }
+
+                // v84 moves package/UID AND explicit supported-domain AND rssite rulesets to Root.
+                // Any rsip/mixed-kind rule remains on ConfigBuilder's split-OR legacy path.
+                val rootAppUIDDomainRuleSetOutbound = if (!forTest && !forExport && isRootTun &&
+                    routingAction == "route" && targetOutbound.isNotBlank() && targetOutbound != TAG_BLOCK) {
+                    rootAppUIDDomainRuleSetOutboundInput(rule, targetOutbound, uidList.toList(), rulesetTags)
+                } else null
+                if (rootAppUIDDomainRuleSetOutbound != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[ROOT_APP_UID_DOMAIN_RULESET_OUTBOUND_MARKER] = mapOf(
+                            "index" to route.rules.size,
+                            "ruleId" to rootAppUIDDomainRuleSetOutbound.ruleId,
+                            "packages" to rootAppUIDDomainRuleSetOutbound.packages,
+                            "uids" to rootAppUIDDomainRuleSetOutbound.uids,
+                            "domainText" to rootAppUIDDomainRuleSetOutbound.domainText,
+                            "ruleSetTags" to rootAppUIDDomainRuleSetOutbound.ruleSetTags,
+                            "ruleSetKinds" to rootAppUIDDomainRuleSetOutbound.ruleSetKinds,
+                            "outbound" to rootAppUIDDomainRuleSetOutbound.outbound,
+                            "invert" to rootAppUIDDomainRuleSetOutbound.invert
+                        )
+                    })
+                    route.rule_set.addAll(ruleSets)
+                    continue
+                }
+
+                // v83 moves App's package/UID AND homogeneous remote-rule-set outbound matcher to Root.
+                // Mixed IP/domain sets expand to OR branches in ConfigBuilder and remain legacy.
+                val rootAppUIDRuleSetOutbound = if (!forTest && !forExport && isRootTun &&
+                    routingAction == "route" && targetOutbound.isNotBlank() && targetOutbound != TAG_BLOCK) {
+                    rootAppUIDRuleSetOutboundInput(rule, targetOutbound, uidList.toList(), rulesetTags)
+                } else null
+                if (rootAppUIDRuleSetOutbound != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[ROOT_APP_UID_RULESET_OUTBOUND_MARKER] = mapOf(
+                            "index" to route.rules.size,
+                            "ruleId" to rootAppUIDRuleSetOutbound.ruleId,
+                            "packages" to rootAppUIDRuleSetOutbound.packages,
+                            "uids" to rootAppUIDRuleSetOutbound.uids,
+                            "ruleSetTags" to rootAppUIDRuleSetOutbound.ruleSetTags,
+                            "outbound" to rootAppUIDRuleSetOutbound.outbound,
+                            "invert" to rootAppUIDRuleSetOutbound.invert
+                        )
+                    })
+                    // The legacy path normally attaches each rule's definitions below.
+                    // This marker's early exit must retain them for Root's v46 projection.
+                    route.rule_set.addAll(ruleSets)
+                    continue
                 }
 
                 if (rule.packages.isNotEmpty()) {
@@ -1672,6 +2222,70 @@ fun buildConfig(
                         applyCommonFilters(this)
                     }
                     if (!singleRule.checkEmpty()) generatedSubRules.add(singleRule)
+                }
+
+                // Schema v67 lets Root generate supported domain AND IP-version routes.
+                // ip_version suppresses the related DNS-outbound side effect in ConfigBuilder.
+                val rootDomainIPVersionOutbound = if (!forTest && !forExport && isRootTun &&
+                    routingAction == "route" && targetOutbound.isNotBlank() && targetOutbound != TAG_BLOCK) {
+                    io.nekohasekai.sagernet.route.rootDomainIPVersionOutboundRouteInput(rule, targetOutbound)
+                } else null
+                if (rootDomainIPVersionOutbound != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[io.nekohasekai.sagernet.route.ROOT_DOMAIN_IP_VERSION_OUTBOUND_ROUTE_MARKER] = mapOf(
+                            "index" to route.rules.size,
+                            "ruleId" to rootDomainIPVersionOutbound.ruleId,
+                            "domainText" to rootDomainIPVersionOutbound.domainText,
+                            "ipVersion" to rootDomainIPVersionOutbound.ipVersion,
+                            "outbound" to rootDomainIPVersionOutbound.outbound,
+                            "invert" to rootDomainIPVersionOutbound.invert
+                        )
+                    })
+                    continue
+                }
+
+                // Schema v55 moves plain domain full/suffix/keyword outbound matcher
+                // generation to Root. Exact full:-domain rules already use v50; this
+                // path includes the whole-rule invert flag and leaves DNS side effects
+                // on their separately generated, ordered path.
+                val rootDomainOutbound = if (!forTest && !forExport && isRootTun &&
+                    routingAction == "route" && targetOutbound.isNotBlank() && targetOutbound != TAG_BLOCK &&
+                    hasDomain && !hasIp) {
+                    io.nekohasekai.sagernet.route.rootDomainOutboundRouteInput(rule, targetOutbound)
+                } else null
+                if (rootDomainOutbound != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[io.nekohasekai.sagernet.route.ROOT_DOMAIN_OUTBOUND_ROUTE_MARKER] = mapOf(
+                            "index" to route.rules.size,
+                            "ruleId" to rootDomainOutbound.ruleId,
+                            "domainText" to rootDomainOutbound.domainText,
+                            "outbound" to rootDomainOutbound.outbound,
+                            "invert" to rootDomainOutbound.invert
+                        )
+                    })
+                    continue
+                }
+
+                // Schema v51: Root independently generates the narrowly supported
+                // exact-domain OR IP-CIDR matcher, applying invert once to the whole group.
+                // Any eligible DNS side effect above has its own typed Root marker; richer
+                // or unsupported predicates remain on the legacy path.
+                val rootCompositeDomainIP = if (!forTest && !forExport && isRootTun &&
+                    routingAction == "route" && targetOutbound.isNotBlank() && targetOutbound != TAG_BLOCK) {
+                    io.nekohasekai.sagernet.route.rootCompositeDomainIPOutboundRouteInput(rule, targetOutbound)
+                } else null
+                if (rootCompositeDomainIP != null) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        _hack_config_map[io.nekohasekai.sagernet.route.ROOT_COMPOSITE_DOMAIN_IP_OUTBOUND_MARKER] = mapOf(
+                            "index" to route.rules.size,
+                            "ruleId" to rootCompositeDomainIP.ruleId,
+                            "domainText" to rootCompositeDomainIP.domainText,
+                            "ipText" to rootCompositeDomainIP.ipText,
+                            "outbound" to rootCompositeDomainIP.outbound,
+                            "invert" to rootCompositeDomainIP.invert
+                        )
+                    })
+                    continue
                 }
 
                 // @author 雾晚: NOT(domain OR IP) must not become NOT(domain) OR NOT(IP).

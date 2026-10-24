@@ -22,14 +22,15 @@ class ConnectedLatencyWiringTest {
         assertTrue(source("bg/BaseService").contains("measureUrl(url, timeoutMs, true)"))
     }
     @Test fun rootReadinessGuardsBothMixedProbeAndIsolatedFallback() {
-        val root = source("bg/RootTunService").substringAfter("fun urlTest(").substringBefore("override suspend fun startProcesses")
+        val root = source("bg/RootTunService").substringAfter("fun urlTest(").substringBefore("override fun reload()")
         assertTrue(root.contains("RootModuleClient.call(\"status\")"))
         assertTrue(root.contains("TEST_ERR_NOT_CONNECTED"))
         assertTrue(root.contains("TEST_ERR_SWITCHING"))
         assertTrue(root.contains("TEST_ERR_SWITCHED_DURING_TEST"))
         assertTrue(root.contains("after.profileId != targetProfileId"))
         assertTrue(root.contains("after.runningRevision != targetRevision"))
-        assertTrue(root.contains("TestInstance(profile, url, timeoutMs).doTest()"))
+        assertFalse(root.contains("TestInstance("))
+        assertTrue(root.contains("if (DataStore.mixedInboundDisabled)"))
         assertTrue(root.contains("ProxyUrlProbe.measure("))
         assertFalse(root.contains("proxy?.box"))
     }

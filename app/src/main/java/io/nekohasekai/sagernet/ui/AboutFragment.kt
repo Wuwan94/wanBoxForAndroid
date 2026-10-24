@@ -33,14 +33,14 @@ import io.nekohasekai.sagernet.databinding.LayoutAboutBinding
 import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.plugin.PluginManager.loadString
 import io.nekohasekai.sagernet.utils.PackageCache
+import io.nekohasekai.sagernet.utils.AppHttpClient
+import okhttp3.Request
 import io.nekohasekai.sagernet.widget.ListListener
-import libcore.Libcore
 import moe.matsuri.nb4a.plugin.Plugins
 import androidx.core.net.toUri
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.database.DataStore
-import moe.matsuri.nb4a.utils.Util
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -128,13 +128,6 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                                 .setOnClickAction {
                                     checkUpdate(isPreview = true)
                                 }
-                                .build())
-                        .addItem(
-                            MaterialAboutActionItem.Builder()
-                                .icon(R.drawable.ic_baseline_layers_24)
-                                .text(getString(R.string.version_x, "sing-box"))
-                                .subText(Libcore.versionBox())
-                                .setOnClickAction { }
                                 .build())
                         .apply {
                             PackageCache.awaitLoadSync()
@@ -275,19 +268,21 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
         fun checkUpdate(isPreview: Boolean = false) {
             runOnIoDispatcher {
                 try {
-                    val client = Libcore.newHttpClient().apply {
-                        modernTLS()
-                        tryProxyOutbound()
-                    }
                     val url = if (isPreview) {
                         "https://api.github.com/repos/Wuwan94/wanBoxForAndroid/releases"
                     } else {
                         "https://api.github.com/repos/Wuwan94/wanBoxForAndroid/releases/latest"
                     }
-                    val response = client.newRequest().apply {
-                        setURL(url)
-                    }.execute()
-                    val responseStr = Util.getStringBox(response.contentString)
+                    val client = AppHttpClient.create()
+                    val responseStr = try {
+                        client.newCall(Request.Builder().url(url).get().build()).execute().use { response ->
+                            if (!response.isSuccessful) error("HTTP ${response.code}")
+                            response.body?.string() ?: error("服务器返回空内容")
+                        }
+                    } finally {
+                        client.connectionPool.evictAll()
+                        client.dispatcher.executorService.shutdown()
+                    }
                     val (releaseName, releaseUrl) = if (isPreview) {
                         val arr = JSONArray(responseStr)
                         if (arr.length() == 0) throw IllegalStateException("No releases found")

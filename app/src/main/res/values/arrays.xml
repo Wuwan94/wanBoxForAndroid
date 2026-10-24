@@ -300,8 +300,6 @@
         <item>random_head</item>
     </string-array>
 
-    <string-array name="service_modes"><item>@string/root_module_mode</item></string-array>
-    <string-array name="service_mode_values"><item>root</item></string-array>
 
     <string-array name="route_protocol_entry">
         <item>TCP and UDP</item>

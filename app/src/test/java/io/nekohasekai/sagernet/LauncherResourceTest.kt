@@ -41,6 +41,6 @@ class LauncherResourceTest {
             edges.getValue(key).forEach { visit(it, stack + key) }
         }
         visit("mipmap/wanbox_launcher", emptySet())
-        assertTrue(File(resources, "drawable-nodpi/wanbox_launcher_art.png").length() > 0)
+        assertTrue(File(resources, "drawable-nodpi/wanbox_launcher_art.webp").length() > 0)
     }
 }

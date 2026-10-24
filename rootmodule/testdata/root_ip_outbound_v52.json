@@ -1,0 +1,251 @@
+{
+  "rule": {
+    "id": 552,
+    "enabled": true,
+    "config": "",
+    "domains": "",
+    "ip": "198.51.100.0/24,203.0.113.4/32",
+    "port": "",
+    "sourcePort": "",
+    "network": "",
+    "source": "",
+    "protocol": "",
+    "ruleset": "",
+    "outbound": 17,
+    "packages": []
+  },
+  "outbound": "proxy-main",
+  "inputConfig": {
+    "outbounds": [
+      {
+        "type": "direct",
+        "tag": "direct"
+      },
+      {
+        "type": "selector",
+        "tag": "proxy-main",
+        "outbounds": [
+          "direct"
+        ]
+      }
+    ],
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "_wanbox_root_ip_outbound_v52": {
+            "index": 1,
+            "ruleId": 552,
+            "ipText": "198.51.100.0/24,203.0.113.4/32",
+            "outbound": "proxy-main",
+            "invert": false
+          }
+        },
+        {
+          "port": [
+            443
+          ],
+          "outbound": "direct"
+        }
+      ]
+    }
+  },
+  "expectedConfig": {
+    "outbounds": [
+      {
+        "type": "direct",
+        "tag": "direct"
+      },
+      {
+        "type": "selector",
+        "tag": "proxy-main",
+        "outbounds": [
+          "direct"
+        ]
+      }
+    ],
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "ip_cidr": [
+            "198.51.100.0/24",
+            "203.0.113.4/32"
+          ],
+          "outbound": "proxy-main"
+        },
+        {
+          "port": [
+            443
+          ],
+          "outbound": "direct"
+        }
+      ]
+    }
+  },
+  "invertedInputConfig": {
+    "outbounds": [
+      {
+        "type": "direct",
+        "tag": "direct"
+      },
+      {
+        "type": "selector",
+        "tag": "proxy-main",
+        "outbounds": [
+          "direct"
+        ]
+      }
+    ],
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "_wanbox_root_ip_outbound_v52": {
+            "index": 1,
+            "ruleId": 552,
+            "ipText": "198.51.100.0/24,203.0.113.4/32",
+            "outbound": "proxy-main",
+            "invert": true
+          }
+        },
+        {
+          "port": [
+            443
+          ],
+          "outbound": "direct"
+        }
+      ]
+    }
+  },
+  "invertedExpectedConfig": {
+    "outbounds": [
+      {
+        "type": "direct",
+        "tag": "direct"
+      },
+      {
+        "type": "selector",
+        "tag": "proxy-main",
+        "outbounds": [
+          "direct"
+        ]
+      }
+    ],
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "ip_cidr": [
+            "198.51.100.0/24",
+            "203.0.113.4/32"
+          ],
+          "outbound": "proxy-main",
+          "invert": true
+        },
+        {
+          "port": [
+            443
+          ],
+          "outbound": "direct"
+        }
+      ]
+    }
+  },
+  "ipv6Rule": {
+    "id": 552,
+    "enabled": true,
+    "config": "",
+    "domains": "",
+    "ip": "2001:db8::/32,2001:db8:1::7/128",
+    "port": "",
+    "sourcePort": "",
+    "network": "",
+    "source": "",
+    "protocol": "",
+    "ruleset": "",
+    "outbound": 17,
+    "packages": []
+  },
+  "ipv6InputConfig": {
+    "outbounds": [
+      {
+        "type": "direct",
+        "tag": "direct"
+      },
+      {
+        "type": "selector",
+        "tag": "proxy-main",
+        "outbounds": [
+          "direct"
+        ]
+      }
+    ],
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "_wanbox_root_ip_outbound_v52": {
+            "index": 1,
+            "ruleId": 552,
+            "ipText": "2001:db8::/32,2001:db8:1::7/128",
+            "outbound": "proxy-main",
+            "invert": true
+          }
+        },
+        {
+          "port": [
+            443
+          ],
+          "outbound": "direct"
+        }
+      ]
+    }
+  },
+  "ipv6ExpectedConfig": {
+    "outbounds": [
+      {
+        "type": "direct",
+        "tag": "direct"
+      },
+      {
+        "type": "selector",
+        "tag": "proxy-main",
+        "outbounds": [
+          "direct"
+        ]
+      }
+    ],
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "ip_cidr": [
+            "2001:db8::/32",
+            "2001:db8:1::7/128"
+          ],
+          "outbound": "proxy-main",
+          "invert": true
+        },
+        {
+          "port": [
+            443
+          ],
+          "outbound": "direct"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "generatedConfig": {
+    "route": {
+      "rules": [
+        {"network": ["udp"], "port": [53], "action": "reject"},
+        {"protocol": ["tls", "quic"], "outbound": "proxy", "invert": true},
+        {"protocol": ["dns"], "outbound": "direct"}
+      ]
+    },
+    "dns": {
+      "rules": [
+        {"domain": ["example.org"], "action": "route", "server": "local"}
+      ]
+    }
+  },
+  "projectedConfig": {
+    "route": {
+      "rules": [
+        {"network": ["udp"], "port": [53], "action": "reject"},
+        {"_wanbox_root_protocol_outbound_v78": {"index": 1, "protocols": ["tls", "quic"], "outbound": "proxy", "invert": true}},
+        {"_wanbox_root_protocol_outbound_v78": {"index": 2, "protocols": ["dns"], "outbound": "direct", "invert": false}}
+      ]
+    },
+    "dns": {
+      "rules": [
+        {"domain": ["example.org"], "action": "route", "server": "local"}
+      ]
+    }
+  },
+  "expectedRules": [
+    {"network": ["udp"], "port": [53], "action": "reject"},
+    {"protocol": ["tls", "quic"], "outbound": "proxy", "invert": true},
+    {"protocol": ["dns"], "outbound": "direct"}
+  ]
+}

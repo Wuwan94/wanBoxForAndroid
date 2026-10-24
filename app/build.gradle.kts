@@ -71,10 +71,21 @@ tasks.matching { it.name == "preBuild" }.configureEach {
     dependsOn(generateRootLicenseAsset)
 }
 
+val extractedLibcoreApi = layout.buildDirectory.file("generated/libcore-api/libcore-api.jar")
+val extractLibcoreApi by tasks.registering(Copy::class) {
+    from(zipTree(layout.projectDirectory.file("libs/libcore.aar"))) {
+        include("classes.jar")
+        rename { "libcore-api.jar" }
+    }
+    into(layout.buildDirectory.dir("generated/libcore-api"))
+}
+
 dependencies {
 
-    // @author 雾晚: the native build produces this single, explicit dependency.
-    implementation(files("libs/libcore.aar"))
+    // Root-mode manager compiles against the small Go binding API, but the native engine
+    // itself is installed and executed by the Root module, never packaged in the APK.
+    implementation(files(extractedLibcoreApi).builtBy(extractLibcoreApi))
+    implementation("org.tukaani:xz:1.9")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4")
     implementation("androidx.core:core-ktx:1.9.0")

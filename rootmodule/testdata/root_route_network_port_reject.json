@@ -1,0 +1,34 @@
+{
+  "eligibleRule": {
+    "id": 71,
+    "enabled": true,
+    "outbound": -2,
+    "network": "tcp, udp\nudp",
+    "port": "80,443\n443"
+  },
+  "spec": {"rules": [{"ruleId": 71, "networkText": "tcp, udp\nudp", "portText": "80,443\n443"}]},
+  "inputConfig": {"route": {"rules": [
+    {"action": "sniff"},
+    {"_wanbox_root_route_network_port_reject_v32": {"ruleId": 71, "networkText": "tcp, udp\nudp", "portText": "80,443\n443"}},
+    {"domain": ["legacy.example"], "outbound": "direct"}
+  ]}},
+  "expectedConfig": {"route": {"rules": [
+    {"action": "sniff"},
+    {"network": ["tcp", "udp", "udp"], "port": [80, 443, 443], "action": "reject"},
+    {"domain": ["legacy.example"], "outbound": "direct"}
+  ]}},
+  "unsupportedCases": [
+    {"name": "custom action", "rule": {"id": 72, "enabled": true, "outbound": -2, "config": "custom", "network": "tcp", "port": "80"}},
+    {"name": "package matcher", "rule": {"id": 73, "enabled": true, "outbound": -2, "network": "tcp", "port": "80", "packages": ["example.app"]}},
+    {"name": "malformed network", "rule": {"id": 74, "enabled": true, "outbound": -2, "network": "icmp", "port": "80"}},
+    {"name": "malformed port", "rule": {"id": 75, "enabled": true, "outbound": -2, "network": "tcp", "port": "80-90"}},
+    {"name": "additional matcher", "rule": {"id": 76, "enabled": true, "outbound": -2, "network": "tcp", "port": "80", "domains": "example.com"}},
+    {"name": "disabled", "rule": {"id": 77, "enabled": false, "outbound": -2, "network": "tcp", "port": "80"}}
+  ],
+  "parserCases": [
+    {"name": "valid duplicates", "network": "tcp, udp\nudp", "ports": "80,443\n443", "valid": true, "networks": ["tcp", "udp", "udp"], "parsedPorts": [80,443,443]},
+    {"name": "invalid network", "network": "tcp,icmp", "ports": "80", "valid": false},
+    {"name": "invalid port", "network": "tcp", "ports": "0", "valid": false},
+    {"name": "port range unsupported", "network": "tcp", "ports": "80-90", "valid": false}
+  ]
+}

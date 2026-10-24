@@ -1,0 +1,182 @@
+{
+  "backend": "tun",
+  "eligibleRules": [
+    {
+      "id": 601,
+      "domains": "full:Direct.Example, full:direct2.example",
+      "outbound": -1,
+      "action": "route",
+      "fakeDns": false,
+      "kind": "direct"
+    },
+    {
+      "id": 602,
+      "domains": "full:block.example",
+      "outbound": -2,
+      "action": "reject",
+      "fakeDns": false,
+      "kind": "reject"
+    },
+    {
+      "id": 603,
+      "domains": "full:Proxy.Example",
+      "outbound": 17,
+      "action": "route",
+      "fakeDns": true,
+      "kind": "proxy"
+    },
+    {
+      "id": 604,
+      "domains": "domain:Sub.Example, bare.example",
+      "outbound": -1,
+      "action": "route",
+      "fakeDns": false,
+      "kind": "direct"
+    },
+    {
+      "id": 605,
+      "domains": "keyword:video",
+      "outbound": 17,
+      "action": "route",
+      "fakeDns": false,
+      "kind": "proxy"
+    }
+  ],
+  "config": {
+    "dns": {
+      "servers": [
+        {
+          "tag": "dns-direct"
+        },
+        {
+          "tag": "dns-remote"
+        },
+        {
+          "tag": "dns-fake"
+        }
+      ],
+      "rules": [
+        {
+          "domain_suffix": [
+            "legacy-before.example"
+          ],
+          "action": "reject"
+        },
+        {
+          "_wanbox_root_exact_domain_dns_rule_v53": {
+            "ruleId": 601,
+            "domainText": "full:Direct.Example, full:direct2.example",
+            "kind": "direct",
+            "fakeDns": false
+          }
+        },
+        {
+          "_wanbox_root_exact_domain_dns_rule_v53": {
+            "ruleId": 602,
+            "domainText": "full:block.example",
+            "kind": "reject",
+            "fakeDns": false
+          }
+        },
+        {
+          "_wanbox_root_exact_domain_dns_rule_v53": {
+            "ruleId": 603,
+            "domainText": "full:Proxy.Example",
+            "kind": "proxy",
+            "fakeDns": true
+          }
+        },
+        {
+          "_wanbox_root_exact_domain_dns_rule_v53": {
+            "ruleId": 604,
+            "domainText": "domain:Sub.Example, bare.example",
+            "kind": "direct",
+            "fakeDns": false
+          }
+        },
+        {
+          "_wanbox_root_exact_domain_dns_rule_v53": {
+            "ruleId": 605,
+            "domainText": "keyword:video",
+            "kind": "proxy",
+            "fakeDns": false
+          }
+        },
+        {
+          "domain_suffix": [
+            "legacy-after.example"
+          ],
+          "server": "dns-remote"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "dns": {
+      "servers": [
+        {
+          "tag": "dns-direct"
+        },
+        {
+          "tag": "dns-remote"
+        },
+        {
+          "tag": "dns-fake"
+        }
+      ],
+      "rules": [
+        {
+          "domain_suffix": [
+            "legacy-before.example"
+          ],
+          "action": "reject"
+        },
+        {
+          "domain": [
+            "direct.example",
+            "direct2.example"
+          ],
+          "server": "dns-direct"
+        },
+        {
+          "domain": [
+            "block.example"
+          ],
+          "action": "reject"
+        },
+        {
+          "domain": [
+            "proxy.example"
+          ],
+          "server": "dns-fake",
+          "inbound": [
+            "tun-in"
+          ],
+          "query_type": [
+            "A",
+            "AAAA"
+          ]
+        },
+        {
+          "domain_suffix": [
+            "sub.example",
+            "bare.example"
+          ],
+          "server": "dns-direct"
+        },
+        {
+          "domain_keyword": [
+            "video"
+          ],
+          "server": "dns-remote"
+        },
+        {
+          "domain_suffix": [
+            "legacy-after.example"
+          ],
+          "server": "dns-remote"
+        }
+      ]
+    }
+  }
+}

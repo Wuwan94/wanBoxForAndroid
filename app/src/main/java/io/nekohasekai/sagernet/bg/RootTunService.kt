@@ -6,7 +6,6 @@ import android.content.Intent
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.SagerNet
-import io.nekohasekai.sagernet.bg.proto.TestInstance
 import kotlinx.coroutines.*
 /** Bound UI observer only; destroy/unbind never stops the module. @author 雾晚 */
 class RootTunService : Service(), BaseService.Interface {
@@ -111,9 +110,9 @@ class RootTunService : Service(), BaseService.Interface {
         val targetRevision = before.runningRevision
         val result = try {
             if (DataStore.mixedInboundDisabled) {
-                val profile = SagerDatabase.proxyDao.getById(targetProfileId)
-                    ?: return@runBlocking TEST_ERR_PROFILE_NOT_FOUND
-                TestInstance(profile, url, timeoutMs).doTest()
+                // The module owns the proxy core. Without its local probe endpoint, do not
+                // fall back to an App-side sing-box/JNI test instance.
+                return@runBlocking TEST_ERR_PROXY_ENTRY
             } else {
                 if (DataStore.mixedPort <= 0) return@runBlocking TEST_ERR_PROXY_ENTRY
                 io.nekohasekai.sagernet.utils.ProxyUrlProbe.measure(

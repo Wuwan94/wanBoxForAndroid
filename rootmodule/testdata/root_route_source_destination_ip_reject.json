@@ -1,0 +1,303 @@
+{
+  "spec": {
+    "rules": [
+      {
+        "ruleId": 201,
+        "sourceText": "192.0.2.0/24, 2001:db8:1::/48\n198.51.100.7/32",
+        "ipText": "203.0.113.0/24, 2001:db8:2::/48"
+      },
+      {
+        "ruleId": 202,
+        "sourceText": "198.51.100.0/24",
+        "ipText": "2001:db8:ffff::/64"
+      }
+    ]
+  },
+  "eligibleRule": {
+    "id": 201,
+    "enabled": true,
+    "outbound": -2,
+    "source": "192.0.2.0/24, 2001:db8:1::/48\n198.51.100.7/32",
+    "ip": "203.0.113.0/24, 2001:db8:2::/48"
+  },
+  "inputConfig": {
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "_wanbox_root_route_source_destination_ip_reject_v37": {
+            "ruleId": 201,
+            "sourceText": "192.0.2.0/24, 2001:db8:1::/48\n198.51.100.7/32",
+            "ipText": "203.0.113.0/24, 2001:db8:2::/48"
+          }
+        },
+        {
+          "domain": [
+            "legacy.example"
+          ],
+          "outbound": "direct"
+        },
+        {
+          "_wanbox_root_route_source_destination_ip_reject_v37": {
+            "ruleId": 202,
+            "sourceText": "198.51.100.0/24",
+            "ipText": "2001:db8:ffff::/64"
+          }
+        },
+        {
+          "ip_cidr": [
+            "203.0.113.0/24"
+          ],
+          "action": "reject"
+        }
+      ]
+    }
+  },
+  "expectedConfig": {
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "source_ip_cidr": [
+            "192.0.2.0/24",
+            "2001:db8:1::/48",
+            "198.51.100.7/32"
+          ],
+          "ip_cidr": [
+            "203.0.113.0/24",
+            "2001:db8:2::/48"
+          ],
+          "action": "reject"
+        },
+        {
+          "domain": [
+            "legacy.example"
+          ],
+          "outbound": "direct"
+        },
+        {
+          "source_ip_cidr": [
+            "198.51.100.0/24"
+          ],
+          "ip_cidr": [
+            "2001:db8:ffff::/64"
+          ],
+          "action": "reject"
+        },
+        {
+          "ip_cidr": [
+            "203.0.113.0/24"
+          ],
+          "action": "reject"
+        }
+      ]
+    }
+  },
+  "unsupportedCases": [
+    {
+      "name": "disabled",
+      "rule": {
+        "id": 203,
+        "enabled": false,
+        "outbound": -2,
+        "source": "192.0.2.0/24",
+        "ip": "203.0.113.0/24"
+      }
+    },
+    {
+      "name": "wrong action",
+      "rule": {
+        "id": 204,
+        "enabled": true,
+        "outbound": -1,
+        "source": "192.0.2.0/24",
+        "ip": "203.0.113.0/24"
+      }
+    },
+    {
+      "name": "missing source",
+      "rule": {
+        "id": 205,
+        "enabled": true,
+        "outbound": -2,
+        "ip": "203.0.113.0/24"
+      }
+    },
+    {
+      "name": "missing destination",
+      "rule": {
+        "id": 206,
+        "enabled": true,
+        "outbound": -2,
+        "source": "192.0.2.0/24"
+      }
+    },
+    {
+      "name": "mixed domain",
+      "rule": {
+        "id": 207,
+        "enabled": true,
+        "outbound": -2,
+        "source": "192.0.2.0/24",
+        "ip": "203.0.113.0/24",
+        "domains": "example.com"
+      }
+    },
+    {
+      "name": "port",
+      "rule": {
+        "id": 208,
+        "enabled": true,
+        "outbound": -2,
+        "source": "192.0.2.0/24",
+        "ip": "203.0.113.0/24",
+        "port": "443"
+      }
+    },
+    {
+      "name": "source port",
+      "rule": {
+        "id": 209,
+        "enabled": true,
+        "outbound": -2,
+        "source": "192.0.2.0/24",
+        "ip": "203.0.113.0/24",
+        "sourcePort": "53"
+      }
+    },
+    {
+      "name": "network",
+      "rule": {
+        "id": 210,
+        "enabled": true,
+        "outbound": -2,
+        "source": "192.0.2.0/24",
+        "ip": "203.0.113.0/24",
+        "network": "tcp"
+      }
+    },
+    {
+      "name": "protocol",
+      "rule": {
+        "id": 211,
+        "enabled": true,
+        "outbound": -2,
+        "source": "192.0.2.0/24",
+        "ip": "203.0.113.0/24",
+        "protocol": "dns"
+      }
+    },
+    {
+      "name": "ruleset",
+      "rule": {
+        "id": 212,
+        "enabled": true,
+        "outbound": -2,
+        "source": "192.0.2.0/24",
+        "ip": "203.0.113.0/24",
+        "ruleset": "custom"
+      }
+    },
+    {
+      "name": "package",
+      "rule": {
+        "id": 213,
+        "enabled": true,
+        "outbound": -2,
+        "source": "192.0.2.0/24",
+        "ip": "203.0.113.0/24",
+        "packages": [
+          "example.app"
+        ]
+      }
+    },
+    {
+      "name": "custom config",
+      "rule": {
+        "id": 214,
+        "enabled": true,
+        "outbound": -2,
+        "source": "192.0.2.0/24",
+        "ip": "203.0.113.0/24",
+        "config": "{\"action\":\"reject\"}"
+      }
+    },
+    {
+      "name": "invalid source CIDR",
+      "rule": {
+        "id": 215,
+        "enabled": true,
+        "outbound": -2,
+        "source": "192.0.2.1",
+        "ip": "203.0.113.0/24"
+      }
+    },
+    {
+      "name": "invalid destination CIDR",
+      "rule": {
+        "id": 216,
+        "enabled": true,
+        "outbound": -2,
+        "source": "192.0.2.0/24",
+        "ip": "203.0.113.0/99"
+      }
+    },
+    {
+      "name": "invalid id",
+      "rule": {
+        "id": 0,
+        "enabled": true,
+        "outbound": -2,
+        "source": "192.0.2.0/24",
+        "ip": "203.0.113.0/24"
+      }
+    }
+  ],
+  "sourceParserCases": [
+    {
+      "name": "mixed IPv4 and IPv6 source CIDRs",
+      "ip": "192.0.2.0/24, 2001:db8:1::/48\n198.51.100.7/32",
+      "valid": true,
+      "values": [
+        "192.0.2.0/24",
+        "2001:db8:1::/48",
+        "198.51.100.7/32"
+      ]
+    },
+    {
+      "name": "bad source prefix",
+      "ip": "192.0.2.0/99",
+      "valid": false
+    },
+    {
+      "name": "source host address",
+      "ip": "192.0.2.1",
+      "valid": false
+    }
+  ],
+  "destinationParserCases": [
+    {
+      "name": "mixed IPv4 and IPv6 destination CIDRs",
+      "ip": "203.0.113.0/24, 2001:db8:2::/48",
+      "valid": true,
+      "values": [
+        "203.0.113.0/24",
+        "2001:db8:2::/48"
+      ]
+    },
+    {
+      "name": "bad destination prefix",
+      "ip": "203.0.113.0/99",
+      "valid": false
+    },
+    {
+      "name": "destination host address",
+      "ip": "203.0.113.1",
+      "valid": false
+    }
+  ]
+}

@@ -1,0 +1,168 @@
+{
+  "eligibleRule": {
+    "id": 301,
+    "enabled": true,
+    "outbound": -2,
+    "sourcePort": "53, 123\n443",
+    "port": "80, 443"
+  },
+  "spec": {
+    "rules": [
+      {
+        "ruleId": 301,
+        "sourcePortText": "53, 123\n443",
+        "portText": "80, 443"
+      }
+    ]
+  },
+  "inputConfig": {
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "_wanbox_root_route_source_destination_port_reject_v38": {
+            "ruleId": 301,
+            "sourcePortText": "53, 123\n443",
+            "portText": "80, 443"
+          }
+        },
+        {
+          "domain": [
+            "legacy.example"
+          ],
+          "outbound": "direct"
+        }
+      ]
+    }
+  },
+  "expectedConfig": {
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "source_port": [
+            53,
+            123,
+            443
+          ],
+          "port": [
+            80,
+            443
+          ],
+          "action": "reject"
+        },
+        {
+          "domain": [
+            "legacy.example"
+          ],
+          "outbound": "direct"
+        }
+      ]
+    }
+  },
+  "unsupportedCases": [
+    {
+      "name": "custom action",
+      "rule": {
+        "id": 302,
+        "enabled": true,
+        "outbound": -2,
+        "config": "custom",
+        "sourcePort": "53",
+        "port": "80"
+      }
+    },
+    {
+      "name": "network matcher",
+      "rule": {
+        "id": 303,
+        "enabled": true,
+        "outbound": -2,
+        "sourcePort": "53",
+        "port": "80",
+        "network": "tcp"
+      }
+    },
+    {
+      "name": "missing source port",
+      "rule": {
+        "id": 304,
+        "enabled": true,
+        "outbound": -2,
+        "port": "80"
+      }
+    },
+    {
+      "name": "missing destination port",
+      "rule": {
+        "id": 305,
+        "enabled": true,
+        "outbound": -2,
+        "sourcePort": "53"
+      }
+    },
+    {
+      "name": "source range",
+      "rule": {
+        "id": 306,
+        "enabled": true,
+        "outbound": -2,
+        "sourcePort": "53:55",
+        "port": "80"
+      }
+    },
+    {
+      "name": "destination malformed",
+      "rule": {
+        "id": 307,
+        "enabled": true,
+        "outbound": -2,
+        "sourcePort": "53",
+        "port": "80,bad"
+      }
+    },
+    {
+      "name": "disabled",
+      "rule": {
+        "id": 308,
+        "enabled": false,
+        "outbound": -2,
+        "sourcePort": "53",
+        "port": "80"
+      }
+    }
+  ],
+  "parserCases": [
+    {
+      "name": "valid list",
+      "sourcePortText": "53, 123\n443",
+      "portText": "80, 443",
+      "valid": true,
+      "sourcePorts": [
+        53,
+        123,
+        443
+      ],
+      "ports": [
+        80,
+        443
+      ]
+    },
+    {
+      "name": "bad source",
+      "sourcePortText": "53:55",
+      "portText": "80",
+      "valid": false
+    },
+    {
+      "name": "bad destination",
+      "sourcePortText": "53",
+      "portText": "80,bad",
+      "valid": false
+    }
+  ]
+}

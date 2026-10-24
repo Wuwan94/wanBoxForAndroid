@@ -31,10 +31,6 @@ class NetworkFragment : NamedFragment(R.layout.layout_network) {
         binding.lanSharingCard.setOnClickListener(openLanSharing)
         binding.lanSharingBtn.setOnClickListener(openLanSharing)
 
-        binding.stunTest.setOnClickListener {
-            startActivity(Intent(requireContext(), StunActivity::class.java))
-        }
-
         binding.dnsLeakTest.setOnClickListener {
             binding.dnsLeakResult.visibility = View.VISIBLE
             binding.dnsLeakResult.text = getString(R.string.testing_dns)

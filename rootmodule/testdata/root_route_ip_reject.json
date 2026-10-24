@@ -1,0 +1,53 @@
+{
+  "spec": {
+    "rules": [
+      {"ruleId": 101, "ipText": "192.0.2.0/24, 2001:db8:1::/48\n198.51.100.7/32"},
+      {"ruleId": 102, "ipText": "2001:db8:ffff::/64"}
+    ]
+  },
+  "eligibleRule": {
+    "id": 101,
+    "enabled": true,
+    "outbound": -2,
+    "ip": "192.0.2.0/24, 2001:db8:1::/48\n198.51.100.7/32"
+  },
+  "inputConfig": {
+    "route": {"rules": [
+      {"action": "sniff"},
+      {"_wanbox_root_route_ip_reject_v36": {"ruleId": 101, "ipText": "192.0.2.0/24, 2001:db8:1::/48\n198.51.100.7/32"}},
+      {"domain": ["legacy.example"], "outbound": "direct"},
+      {"_wanbox_root_route_ip_reject_v36": {"ruleId": 102, "ipText": "2001:db8:ffff::/64"}},
+      {"ip_cidr": ["203.0.113.0/24"], "action": "reject"}
+    ]}
+  },
+  "expectedConfig": {
+    "route": {"rules": [
+      {"action": "sniff"},
+      {"ip_cidr": ["192.0.2.0/24", "2001:db8:1::/48", "198.51.100.7/32"], "action": "reject"},
+      {"domain": ["legacy.example"], "outbound": "direct"},
+      {"ip_cidr": ["2001:db8:ffff::/64"], "action": "reject"},
+      {"ip_cidr": ["203.0.113.0/24"], "action": "reject"}
+    ]}
+  },
+  "unsupportedCases": [
+    {"name": "disabled", "rule": {"id": 103, "enabled": false, "outbound": -2, "ip": "192.0.2.0/24"}},
+    {"name": "wrong action", "rule": {"id": 104, "enabled": true, "outbound": -1, "ip": "192.0.2.0/24"}},
+    {"name": "mixed matcher", "rule": {"id": 105, "enabled": true, "outbound": -2, "ip": "192.0.2.0/24", "port": "443"}},
+    {"name": "custom action", "rule": {"id": 106, "enabled": true, "outbound": -2, "ip": "192.0.2.0/24", "config": "{\"action\":\"reject\",\"method\":\"drop\"}"}},
+    {"name": "host address without CIDR", "rule": {"id": 107, "enabled": true, "outbound": -2, "ip": "192.0.2.1"}},
+    {"name": "malformed CIDR", "rule": {"id": 108, "enabled": true, "outbound": -2, "ip": "192.0.2.0/99"}},
+    {"name": "invalid rule id", "rule": {"id": 0, "enabled": true, "outbound": -2, "ip": "192.0.2.0/24"}}
+  ],
+  "parserCases": [
+    {"name": "IPv4 and IPv6 CIDR list", "ip": "192.0.2.0/24, 2001:db8::/48\n198.51.100.7/32", "valid": true, "values": ["192.0.2.0/24", "2001:db8::/48", "198.51.100.7/32"]},
+    {"name": "trim whitespace", "ip": " 203.0.113.0/24 ,\n 2001:db8:2::/64 ", "valid": true, "values": ["203.0.113.0/24", "2001:db8:2::/64"]},
+    {"name": "empty token ignored", "ip": "192.0.2.0/24,,198.51.100.0/24", "valid": true, "values": ["192.0.2.0/24", "198.51.100.0/24"]},
+    {"name": "empty input", "ip": " , \n ", "valid": false},
+    {"name": "host address", "ip": "192.0.2.1", "valid": false},
+    {"name": "invalid prefix", "ip": "192.0.2.0/99", "valid": false},
+    {"name": "multiple slash", "ip": "192.0.2.0/24/1", "valid": false},
+    {"name": "leading zero IPv4 octet is Go-incompatible", "ip": "192.168.001.1/24", "valid": false},
+    {"name": "signed prefix is Go-incompatible", "ip": "192.0.2.0/+24", "valid": false},
+    {"name": "mixed valid and invalid", "ip": "192.0.2.0/24,not-a-cidr", "valid": false}
+  ]
+}

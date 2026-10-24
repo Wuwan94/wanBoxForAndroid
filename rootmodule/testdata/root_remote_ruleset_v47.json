@@ -1,0 +1,502 @@
+{
+  "generatedConfig": {
+    "outbounds": [
+      {
+        "type": "direct",
+        "tag": "direct"
+      },
+      {
+        "type": "selector",
+        "tag": "proxy"
+      }
+    ],
+    "route": {
+      "rules": [
+        {
+          "type": "logical",
+          "mode": "or",
+          "rules": [
+            {
+              "domain": [
+                "example.org"
+              ]
+            },
+            {
+              "ip_cidr": [
+                "203.0.113.0/24"
+              ]
+            },
+            {
+              "rule_set": [
+                "ruleset-site"
+              ]
+            }
+          ],
+          "invert": true,
+          "outbound": "direct"
+        },
+        {
+          "rule_set": [
+            "ruleset-site"
+          ],
+          "outbound": "proxy"
+        },
+        {
+          "domain_regex": [
+            "^legacy\\.example$"
+          ],
+          "rule_set": [
+            "ruleset-site"
+          ],
+          "outbound": "direct"
+        },
+        {
+          "rule_set": [
+            "custom-remote"
+          ],
+          "action": "reject"
+        }
+      ],
+      "rule_set": [
+        {
+          "type": "remote",
+          "tag": "ruleset-site",
+          "format": "binary",
+          "url": "https://example.com/site.srs",
+          "update_interval": "1d"
+        },
+        {
+          "type": "inline",
+          "tag": "keep-local",
+          "rules": [
+            {
+              "domain": [
+                "inline.example"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "remote",
+          "tag": "custom-remote",
+          "format": "binary",
+          "url": "https://example.com/custom.srs",
+          "update_interval": "12h",
+          "download_detour": "direct"
+        },
+        {
+          "type": "remote",
+          "tag": "ruleset-ip",
+          "format": "binary",
+          "url": "https://example.net/ip.srs",
+          "update_interval": "6h"
+        }
+      ]
+    },
+    "dns": {
+      "rules": [
+        {
+          "rule_set": [
+            "ruleset-site"
+          ],
+          "server": "dns-fake",
+          "inbound": [
+            "tun-in"
+          ],
+          "query_type": [
+            "A",
+            "AAAA"
+          ]
+        },
+        {
+          "rule_set": [
+            "custom-remote"
+          ],
+          "action": "reject"
+        }
+      ]
+    }
+  },
+  "projectedConfig": {
+    "outbounds": [
+      {
+        "type": "direct",
+        "tag": "direct"
+      },
+      {
+        "type": "selector",
+        "tag": "proxy"
+      }
+    ],
+    "route": {
+      "rules": [
+        {
+          "_wanbox_root_remote_rule_set_reference_v47": {
+            "index": 0,
+            "rule": {
+              "type": "logical",
+              "mode": "or",
+              "rules": [
+                {
+                  "domain": [
+                    "example.org"
+                  ]
+                },
+                {
+                  "ip_cidr": [
+                    "203.0.113.0/24"
+                  ]
+                },
+                {
+                  "rule_set": [
+                    "ruleset-site"
+                  ]
+                }
+              ],
+              "invert": true,
+              "outbound": "direct"
+            }
+          }
+        },
+        {
+          "_wanbox_root_remote_rule_set_reference_v47": {
+            "index": 1,
+            "rule": {
+              "rule_set": [
+                "ruleset-site"
+              ],
+              "outbound": "proxy"
+            }
+          }
+        },
+        {
+          "domain_regex": [
+            "^legacy\\.example$"
+          ],
+          "rule_set": [
+            "ruleset-site"
+          ],
+          "outbound": "direct"
+        },
+        {
+          "rule_set": [
+            "custom-remote"
+          ],
+          "action": "reject"
+        }
+      ],
+      "rule_set": [
+        {
+          "_wanbox_root_remote_rule_set_v46": {
+            "index": 0,
+            "tag": "ruleset-site",
+            "url": "https://example.com/site.srs",
+            "updateInterval": "1d"
+          }
+        },
+        {
+          "type": "inline",
+          "tag": "keep-local",
+          "rules": [
+            {
+              "domain": [
+                "inline.example"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "remote",
+          "tag": "custom-remote",
+          "format": "binary",
+          "url": "https://example.com/custom.srs",
+          "update_interval": "12h",
+          "download_detour": "direct"
+        },
+        {
+          "_wanbox_root_remote_rule_set_v46": {
+            "index": 3,
+            "tag": "ruleset-ip",
+            "url": "https://example.net/ip.srs",
+            "updateInterval": "6h"
+          }
+        }
+      ]
+    },
+    "dns": {
+      "rules": [
+        {
+          "_wanbox_root_remote_rule_set_reference_v47": {
+            "index": 0,
+            "rule": {
+              "rule_set": [
+                "ruleset-site"
+              ],
+              "server": "dns-fake",
+              "inbound": [
+                "tun-in"
+              ],
+              "query_type": [
+                "A",
+                "AAAA"
+              ]
+            }
+          }
+        },
+        {
+          "rule_set": [
+            "custom-remote"
+          ],
+          "action": "reject"
+        }
+      ]
+    }
+  },
+  "expectedMaterializedRuleSets": [
+    {
+      "type": "remote",
+      "tag": "ruleset-site",
+      "format": "binary",
+      "url": "https://example.com/site.srs",
+      "update_interval": "1d"
+    },
+    {
+      "type": "inline",
+      "tag": "keep-local",
+      "rules": [
+        {
+          "domain": [
+            "inline.example"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "remote",
+      "tag": "custom-remote",
+      "format": "binary",
+      "url": "https://example.com/custom.srs",
+      "update_interval": "12h",
+      "download_detour": "direct"
+    },
+    {
+      "type": "remote",
+      "tag": "ruleset-ip",
+      "format": "binary",
+      "url": "https://example.net/ip.srs",
+      "update_interval": "6h"
+    }
+  ],
+  "expectedRouteRules": [
+    {
+      "type": "logical",
+      "mode": "or",
+      "rules": [
+        {
+          "domain": [
+            "example.org"
+          ]
+        },
+        {
+          "ip_cidr": [
+            "203.0.113.0/24"
+          ]
+        },
+        {
+          "rule_set": [
+            "ruleset-site"
+          ]
+        }
+      ],
+      "invert": true,
+      "outbound": "direct"
+    },
+    {
+      "rule_set": [
+        "ruleset-site"
+      ],
+      "outbound": "proxy"
+    },
+    {
+      "domain_regex": [
+        "^legacy\\.example$"
+      ],
+      "rule_set": [
+        "ruleset-site"
+      ],
+      "outbound": "direct"
+    },
+    {
+      "rule_set": [
+        "custom-remote"
+      ],
+      "action": "reject"
+    }
+  ],
+  "expectedDnsRules": [
+    {
+      "rule_set": [
+        "ruleset-site"
+      ],
+      "server": "dns-fake",
+      "inbound": [
+        "tun-in"
+      ],
+      "query_type": [
+        "A",
+        "AAAA"
+      ]
+    },
+    {
+      "rule_set": [
+        "custom-remote"
+      ],
+      "action": "reject"
+    }
+  ],
+  "projectedConfigV48": {
+    "outbounds": [
+      {
+        "type": "direct",
+        "tag": "direct"
+      },
+      {
+        "type": "selector",
+        "tag": "proxy"
+      }
+    ],
+    "route": {
+      "rules": [
+        {
+          "_wanbox_root_remote_rule_set_reference_v47": {
+            "index": 0,
+            "rule": {
+              "type": "logical",
+              "mode": "or",
+              "rules": [
+                {
+                  "domain": [
+                    "example.org"
+                  ]
+                },
+                {
+                  "ip_cidr": [
+                    "203.0.113.0/24"
+                  ]
+                },
+                {
+                  "rule_set": [
+                    "ruleset-site"
+                  ]
+                }
+              ],
+              "invert": true,
+              "outbound": "direct"
+            }
+          }
+        },
+        {
+          "_wanbox_root_remote_rule_set_reference_v47": {
+            "index": 1,
+            "rule": {
+              "rule_set": [
+                "ruleset-site"
+              ],
+              "outbound": "proxy"
+            }
+          }
+        },
+        {
+          "domain_regex": [
+            "^legacy\\.example$"
+          ],
+          "rule_set": [
+            "ruleset-site"
+          ],
+          "outbound": "direct"
+        },
+        {
+          "_wanbox_root_route_raw_rule_v48": {
+            "index": 3,
+            "rule": {
+              "rule_set": [
+                "custom-remote"
+              ],
+              "action": "reject"
+            }
+          }
+        }
+      ],
+      "rule_set": [
+        {
+          "_wanbox_root_remote_rule_set_v46": {
+            "index": 0,
+            "tag": "ruleset-site",
+            "url": "https://example.com/site.srs",
+            "updateInterval": "1d"
+          }
+        },
+        {
+          "type": "inline",
+          "tag": "keep-local",
+          "rules": [
+            {
+              "domain": [
+                "inline.example"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "remote",
+          "tag": "custom-remote",
+          "format": "binary",
+          "url": "https://example.com/custom.srs",
+          "update_interval": "12h",
+          "download_detour": "direct"
+        },
+        {
+          "_wanbox_root_remote_rule_set_v46": {
+            "index": 3,
+            "tag": "ruleset-ip",
+            "url": "https://example.net/ip.srs",
+            "updateInterval": "6h"
+          }
+        }
+      ]
+    },
+    "dns": {
+      "rules": [
+        {
+          "_wanbox_root_remote_rule_set_reference_v47": {
+            "index": 0,
+            "rule": {
+              "rule_set": [
+                "ruleset-site"
+              ],
+              "server": "dns-fake",
+              "inbound": [
+                "tun-in"
+              ],
+              "query_type": [
+                "A",
+                "AAAA"
+              ]
+            }
+          }
+        },
+        {
+          "_wanbox_root_route_raw_rule_v48": {
+            "index": 1,
+            "rule": {
+              "rule_set": [
+                "custom-remote"
+              ],
+              "action": "reject"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

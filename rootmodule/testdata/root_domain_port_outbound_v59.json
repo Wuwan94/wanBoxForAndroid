@@ -1,0 +1,60 @@
+{
+  "rule": {
+    "id": 59001,
+    "enabled": true,
+    "config": "{\"invert\":true}",
+    "domains": "full:example.com, domain:corp.example, keyword:chat",
+    "ip": "",
+    "port": "443, 8443\n65535",
+    "sourcePort": "",
+    "network": "",
+    "source": "",
+    "protocol": "",
+    "ruleset": "",
+    "outbound": -1,
+    "packages": []
+  },
+  "outbound": "direct",
+  "projectedRouteRule": {
+    "_wanbox_root_domain_port_outbound_v59": {
+      "index": 0,
+      "ruleId": 59001,
+      "domainText": "full:example.com, domain:corp.example, keyword:chat",
+      "portText": "443, 8443\n65535",
+      "outbound": "direct",
+      "invert": true
+    }
+  },
+  "expectedRouteRule": {
+    "domain": [
+      "example.com"
+    ],
+    "domain_suffix": [
+      "corp.example"
+    ],
+    "domain_keyword": [
+      "chat"
+    ],
+    "port": [
+      443,
+      8443,
+      65535
+    ],
+    "outbound": "direct",
+    "invert": true
+  },
+  "unsupportedCases": [
+    {
+      "name": "regex matcher",
+      "domainText": "regexp:.*example.*"
+    },
+    {
+      "name": "geosite matcher",
+      "domainText": "geosite:cn"
+    },
+    {
+      "name": "port range",
+      "portText": "80:90"
+    }
+  ]
+}

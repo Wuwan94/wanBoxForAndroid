@@ -1,0 +1,1901 @@
+{
+  "config": {
+    "dns": {
+      "final": "dns-remote",
+      "strategy": "ipv4_only",
+      "independent_cache": true,
+      "servers": [
+        {
+          "type": "local",
+          "tag": "dns-local",
+          "detour": "direct"
+        },
+        {
+          "type": "https",
+          "tag": "dns-direct",
+          "server": "223.5.5.5",
+          "server_port": 443,
+          "path": "/dns-query",
+          "detour": "direct"
+        },
+        {
+          "type": "https",
+          "tag": "dns-remote",
+          "server": "dns.example"
+        }
+      ],
+      "rules": [
+        {
+          "domain": [
+            "example.org"
+          ],
+          "server": "dns-direct"
+        }
+      ]
+    }
+  },
+  "rootDnsPolicy": {
+    "final": "dns-remote",
+    "strategy": "ipv4_only",
+    "independentCache": true
+  },
+  "expectedDns": {
+    "final": "dns-remote",
+    "strategy": "ipv4_only",
+    "independent_cache": true,
+    "servers": [
+      {
+        "type": "local",
+        "tag": "dns-local",
+        "detour": "direct"
+      },
+      {
+        "type": "https",
+        "tag": "dns-direct",
+        "server": "223.5.5.5",
+        "server_port": 443,
+        "path": "/dns-query",
+        "detour": "direct"
+      },
+      {
+        "type": "https",
+        "tag": "dns-remote",
+        "server": "dns.example"
+      }
+    ],
+    "rules": [
+      {
+        "domain": [
+          "example.org"
+        ],
+        "server": "dns-direct"
+      }
+    ]
+  },
+  "rootDnsLocalServer": {
+    "tag": "dns-local",
+    "detour": "direct"
+  },
+  "rootDnsDirectServer": {
+    "tag": "dns-direct"
+  },
+  "routeFinalProjection": {
+    "config": {
+      "outbounds": [
+        {
+          "type": "direct",
+          "tag": "direct"
+        }
+      ],
+      "route": {
+        "final": "direct",
+        "rules": [
+          {
+            "action": "sniff"
+          }
+        ]
+      }
+    },
+    "rootRouteFinal": {
+      "final": "direct"
+    },
+    "expectedRoute": {
+      "final": "direct",
+      "rules": [
+        {
+          "action": "sniff"
+        }
+      ]
+    }
+  },
+  "routeLoopbackProjection": {
+    "config": {
+      "outbounds": [
+        {
+          "type": "direct",
+          "tag": "direct"
+        }
+      ],
+      "dns": {
+        "servers": [
+          {
+            "type": "https",
+            "tag": "dns-remote"
+          }
+        ]
+      },
+      "route": {
+        "rules": [
+          {
+            "action": "sniff"
+          },
+          {
+            "ip_cidr": [
+              "127.0.0.0/8",
+              "::1/128",
+              "224.0.0.0/4",
+              "169.254.0.0/16",
+              "fe80::/10"
+            ],
+            "outbound": "direct"
+          },
+          {
+            "action": "reject"
+          }
+        ]
+      }
+    },
+    "rootRouteLoopback": {
+      "index": 1
+    },
+    "expectedRoute": {
+      "final": "direct",
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "ip_cidr": [
+            "127.0.0.0/8",
+            "::1/128",
+            "224.0.0.0/4",
+            "169.254.0.0/16",
+            "fe80::/10"
+          ],
+          "outbound": "direct"
+        },
+        {
+          "action": "reject"
+        }
+      ]
+    },
+    "expectedLegacyRoute": {
+      "final": "direct",
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "action": "reject"
+        }
+      ]
+    }
+  },
+  "routeMulticastProjection": {
+    "config": {
+      "outbounds": [
+        {
+          "type": "direct",
+          "tag": "direct"
+        }
+      ],
+      "dns": {
+        "servers": [
+          {
+            "type": "https",
+            "tag": "dns-remote"
+          }
+        ]
+      },
+      "route": {
+        "final": "direct",
+        "rules": [
+          {
+            "action": "sniff"
+          },
+          {
+            "ip_cidr": [
+              "224.0.0.0/3",
+              "ff00::/8"
+            ],
+            "source_ip_cidr": [
+              "224.0.0.0/3",
+              "ff00::/8"
+            ],
+            "action": "reject"
+          },
+          {
+            "action": "reject"
+          }
+        ]
+      }
+    },
+    "rootRouteMulticast": {
+      "index": 1
+    },
+    "expectedLegacyRules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "action": "reject"
+      }
+    ],
+    "expectedRoute": {
+      "final": "direct",
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "ip_cidr": [
+            "224.0.0.0/3",
+            "ff00::/8"
+          ],
+          "source_ip_cidr": [
+            "224.0.0.0/3",
+            "ff00::/8"
+          ],
+          "action": "reject"
+        },
+        {
+          "action": "reject"
+        }
+      ]
+    }
+  },
+  "dnsOutboundAnyRuleProjection": {
+    "config": {
+      "outbounds": [
+        {
+          "type": "direct",
+          "tag": "direct"
+        }
+      ],
+      "dns": {
+        "servers": [
+          {
+            "type": "https",
+            "tag": "dns-remote",
+            "server": "dns.example"
+          }
+        ],
+        "rules": [
+          {
+            "domain": [
+              "before.example"
+            ],
+            "server": "dns-direct"
+          },
+          {
+            "outbound": [
+              "any"
+            ],
+            "server": "dns-direct"
+          },
+          {
+            "domain": [
+              "after.example"
+            ],
+            "server": "dns-remote"
+          }
+        ]
+      },
+      "route": {
+        "final": "direct",
+        "rules": [
+          {
+            "action": "sniff"
+          }
+        ]
+      }
+    },
+    "rootDnsOutboundAnyRule": {
+      "index": 1
+    },
+    "expectedLegacyRules": [
+      {
+        "domain": [
+          "before.example"
+        ],
+        "server": "dns-direct"
+      },
+      {
+        "domain": [
+          "after.example"
+        ],
+        "server": "dns-remote"
+      }
+    ],
+    "expectedRules": [
+      {
+        "domain": [
+          "before.example"
+        ],
+        "server": "dns-direct"
+      },
+      {
+        "outbound": [
+          "any"
+        ],
+        "server": "dns-direct"
+      },
+      {
+        "domain": [
+          "after.example"
+        ],
+        "server": "dns-remote"
+      }
+    ]
+  },
+  "dnsIPv6QueryRuleProjection": {
+    "config": {
+      "dns": {
+        "strategy": "ipv4_only",
+        "servers": [
+          {
+            "tag": "dns-remote"
+          }
+        ],
+        "rules": [
+          {
+            "query_type": [
+              "AAAA"
+            ],
+            "action": "reject"
+          },
+          {
+            "domain": [
+              "retained.example"
+            ],
+            "server": "dns-direct"
+          },
+          {
+            "outbound": [
+              "any"
+            ],
+            "server": "dns-direct"
+          }
+        ]
+      }
+    },
+    "rootDnsIPv6QueryRule": {
+      "index": 0,
+      "queryType": "AAAA"
+    },
+    "expectedLegacyRules": [
+      {
+        "domain": [
+          "retained.example"
+        ],
+        "server": "dns-direct"
+      },
+      {
+        "outbound": [
+          "any"
+        ],
+        "server": "dns-direct"
+      }
+    ],
+    "expectedRules": [
+      {
+        "query_type": [
+          "AAAA"
+        ],
+        "action": "reject"
+      },
+      {
+        "domain": [
+          "retained.example"
+        ],
+        "server": "dns-direct"
+      },
+      {
+        "outbound": [
+          "any"
+        ],
+        "server": "dns-direct"
+      }
+    ]
+  },
+  "routeDNSPort53RuleProjection": {
+    "config": {
+      "outbounds": [
+        {
+          "type": "direct",
+          "tag": "direct"
+        },
+        {
+          "type": "selector",
+          "tag": "proxy",
+          "outbounds": [
+            "direct"
+          ],
+          "default": "direct"
+        }
+      ],
+      "route": {
+        "rules": [
+          {
+            "action": "sniff"
+          },
+          {
+            "port": [
+              53
+            ],
+            "outbound": "proxy"
+          },
+          {
+            "action": "reject"
+          }
+        ]
+      }
+    },
+    "rootRouteDNSPort53Rule": {
+      "index": 1,
+      "outbound": "proxy"
+    },
+    "expectedLegacyRules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "action": "reject"
+      }
+    ],
+    "expectedRules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "port": [
+          53
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "action": "reject"
+      }
+    ]
+  },
+  "routeDNSProtocolRuleProjection": {
+    "config": {
+      "outbounds": [
+        {
+          "type": "direct",
+          "tag": "direct"
+        },
+        {
+          "type": "selector",
+          "tag": "proxy",
+          "outbounds": [
+            "direct"
+          ],
+          "default": "direct"
+        }
+      ],
+      "route": {
+        "rules": [
+          {
+            "action": "sniff"
+          },
+          {
+            "port": [
+              53
+            ],
+            "outbound": "proxy"
+          },
+          {
+            "protocol": [
+              "dns"
+            ],
+            "outbound": "proxy"
+          },
+          {
+            "ip_cidr": [
+              "224.0.0.0/3",
+              "ff00::/8"
+            ],
+            "source_ip_cidr": [
+              "224.0.0.0/3",
+              "ff00::/8"
+            ],
+            "action": "reject"
+          },
+          {
+            "action": "reject"
+          }
+        ]
+      }
+    },
+    "rootRouteDNSProtocolRule": {
+      "index": 1,
+      "outbound": "proxy"
+    },
+    "expectedLegacyRules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "action": "reject"
+      }
+    ],
+    "expectedRules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "port": [
+          53
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "protocol": [
+          "dns"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "source_ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "action": "reject"
+      },
+      {
+        "action": "reject"
+      }
+    ],
+    "rootRouteDNSPort53Rule": {
+      "index": 1,
+      "outbound": "proxy"
+    },
+    "rootRouteMulticast": {
+      "index": 3
+    }
+  },
+  "routeBypassLanProjection": {
+    "config": {
+      "outbounds": [
+        {
+          "tag": "proxy"
+        }
+      ],
+      "route": {
+        "rules": [
+          {
+            "port": [
+              53
+            ],
+            "outbound": "proxy"
+          },
+          {
+            "protocol": [
+              "dns"
+            ],
+            "outbound": "proxy"
+          },
+          {
+            "ip_cidr": [
+              "127.0.0.0/8",
+              "::1/128",
+              "224.0.0.0/4",
+              "169.254.0.0/16",
+              "fe80::/10"
+            ],
+            "outbound": "direct"
+          },
+          {
+            "ip_cidr": [
+              "10.0.0.0/8",
+              "172.16.0.0/12",
+              "192.168.0.0/16",
+              "fc00::/7"
+            ],
+            "outbound": "direct"
+          },
+          {
+            "domain": [
+              "example.org"
+            ],
+            "outbound": "proxy"
+          },
+          {
+            "ip_cidr": [
+              "224.0.0.0/3",
+              "ff00::/8"
+            ],
+            "source_ip_cidr": [
+              "224.0.0.0/3",
+              "ff00::/8"
+            ],
+            "action": "reject"
+          }
+        ]
+      }
+    },
+    "rootRouteLoopback": {
+      "index": 2
+    },
+    "rootRouteMulticast": {
+      "index": 4
+    },
+    "rootRouteBypassLan": {
+      "index": 2
+    },
+    "rootRouteDNSPort53Rule": {
+      "index": 0,
+      "outbound": "proxy"
+    },
+    "rootRouteDNSProtocolRule": {
+      "index": 0,
+      "outbound": "proxy"
+    },
+    "expectedLegacyRules": [
+      {
+        "domain": [
+          "example.org"
+        ],
+        "outbound": "proxy"
+      }
+    ],
+    "expectedRules": [
+      {
+        "port": [
+          53
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "protocol": [
+          "dns"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "ip_cidr": [
+          "127.0.0.0/8",
+          "::1/128",
+          "224.0.0.0/4",
+          "169.254.0.0/16",
+          "fe80::/10"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "ip_cidr": [
+          "10.0.0.0/8",
+          "172.16.0.0/12",
+          "192.168.0.0/16",
+          "fc00::/7"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "domain": [
+          "example.org"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "source_ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "action": "reject"
+      }
+    ]
+  },
+  "routeIPVersionRuleProjection": {
+    "config": {
+      "outbounds": [
+        {
+          "tag": "proxy"
+        }
+      ],
+      "route": {
+        "rules": [
+          {
+            "ip_version": 6,
+            "action": "reject"
+          },
+          {
+            "port": [
+              53
+            ],
+            "outbound": "proxy"
+          },
+          {
+            "protocol": [
+              "dns"
+            ],
+            "outbound": "proxy"
+          },
+          {
+            "ip_cidr": [
+              "127.0.0.0/8",
+              "::1/128",
+              "224.0.0.0/4",
+              "169.254.0.0/16",
+              "fe80::/10"
+            ],
+            "outbound": "direct"
+          },
+          {
+            "ip_cidr": [
+              "10.0.0.0/8",
+              "172.16.0.0/12",
+              "192.168.0.0/16",
+              "fc00::/7"
+            ],
+            "outbound": "direct"
+          },
+          {
+            "domain": [
+              "example.org"
+            ],
+            "outbound": "proxy"
+          },
+          {
+            "ip_cidr": [
+              "224.0.0.0/3",
+              "ff00::/8"
+            ],
+            "source_ip_cidr": [
+              "224.0.0.0/3",
+              "ff00::/8"
+            ],
+            "action": "reject"
+          }
+        ]
+      }
+    },
+    "rootRouteIPVersionRule": {
+      "index": 0,
+      "ipVersion": 6
+    },
+    "rootRouteDNSProtocolRule": {
+      "index": 1,
+      "outbound": "proxy"
+    },
+    "rootRouteDNSPort53Rule": {
+      "index": 1,
+      "outbound": "proxy"
+    },
+    "rootRouteBypassLan": {
+      "index": 3
+    },
+    "rootRouteMulticast": {
+      "index": 5
+    },
+    "rootRouteLoopback": {
+      "index": 3
+    },
+    "expectedLegacyRules": [
+      {
+        "domain": [
+          "example.org"
+        ],
+        "outbound": "proxy"
+      }
+    ],
+    "expectedRules": [
+      {
+        "ip_version": 6,
+        "action": "reject"
+      },
+      {
+        "port": [
+          53
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "protocol": [
+          "dns"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "ip_cidr": [
+          "127.0.0.0/8",
+          "::1/128",
+          "224.0.0.0/4",
+          "169.254.0.0/16",
+          "fe80::/10"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "ip_cidr": [
+          "10.0.0.0/8",
+          "172.16.0.0/12",
+          "192.168.0.0/16",
+          "fc00::/7"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "domain": [
+          "example.org"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "source_ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "action": "reject"
+      }
+    ]
+  },
+  "routePrivateBypassProjection": {
+    "config": {
+      "outbounds": [
+        {
+          "tag": "proxy"
+        }
+      ],
+      "route": {
+        "rules": [
+          {
+            "ip_version": 6,
+            "action": "reject"
+          },
+          {
+            "port": [
+              53
+            ],
+            "action": "hijack-dns"
+          },
+          {
+            "port": [
+              53
+            ],
+            "outbound": "proxy"
+          },
+          {
+            "protocol": [
+              "dns"
+            ],
+            "outbound": "proxy"
+          },
+          {
+            "ip_cidr": [
+              "127.0.0.0/8",
+              "::1/128",
+              "224.0.0.0/4",
+              "169.254.0.0/16",
+              "fe80::/10"
+            ],
+            "outbound": "direct"
+          },
+          {
+            "ip_cidr": [
+              "10.0.0.0/8",
+              "172.16.0.0/12",
+              "192.168.0.0/16",
+              "fc00::/7"
+            ],
+            "outbound": "direct"
+          },
+          {
+            "domain": [
+              "example.org"
+            ],
+            "outbound": "proxy"
+          },
+          {
+            "ip_is_private": true,
+            "outbound": "bypass"
+          },
+          {
+            "ip_cidr": [
+              "224.0.0.0/3",
+              "ff00::/8"
+            ],
+            "source_ip_cidr": [
+              "224.0.0.0/3",
+              "ff00::/8"
+            ],
+            "action": "reject"
+          }
+        ]
+      }
+    },
+    "rootRouteIPVersionRule": {
+      "index": 0,
+      "ipVersion": 6
+    },
+    "rootRouteDNSProtocolRule": {
+      "index": 1,
+      "outbound": "proxy"
+    },
+    "rootRouteDNSPort53Rule": {
+      "index": 1,
+      "outbound": "proxy"
+    },
+    "rootRouteBypassLan": {
+      "index": 3
+    },
+    "rootRouteMulticast": {
+      "index": 5
+    },
+    "rootRouteLoopback": {
+      "index": 3
+    },
+    "expectedLegacyRules": [
+      {
+        "domain": [
+          "example.org"
+        ],
+        "outbound": "proxy"
+      }
+    ],
+    "expectedRules": [
+      {
+        "ip_version": 6,
+        "action": "reject"
+      },
+      {
+        "port": [
+          53
+        ],
+        "action": "hijack-dns"
+      },
+      {
+        "port": [
+          53
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "protocol": [
+          "dns"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "ip_cidr": [
+          "127.0.0.0/8",
+          "::1/128",
+          "224.0.0.0/4",
+          "169.254.0.0/16",
+          "fe80::/10"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "ip_cidr": [
+          "10.0.0.0/8",
+          "172.16.0.0/12",
+          "192.168.0.0/16",
+          "fc00::/7"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "domain": [
+          "example.org"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "bypass"
+      },
+      {
+        "ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "source_ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "action": "reject"
+      }
+    ],
+    "rootRoutePrivateBypass": {
+      "index": 7
+    },
+    "rootRoutePrivateBypassAfterPriorProjections": {
+      "index": 1
+    },
+    "expectedLegacyRulesAfterPrivateBypass": [
+      {
+        "ip_version": 6,
+        "action": "reject"
+      },
+      {
+        "port": [
+          53
+        ],
+        "action": "hijack-dns"
+      },
+      {
+        "port": [
+          53
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "protocol": [
+          "dns"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "ip_cidr": [
+          "127.0.0.0/8",
+          "::1/128",
+          "224.0.0.0/4",
+          "169.254.0.0/16",
+          "fe80::/10"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "ip_cidr": [
+          "10.0.0.0/8",
+          "172.16.0.0/12",
+          "192.168.0.0/16",
+          "fc00::/7"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "domain": [
+          "example.org"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "source_ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "action": "reject"
+      }
+    ],
+    "rootRouteDNSHijackPort53Rule": {
+      "index": 1
+    },
+    "expectedLegacyRulesAfterDNSHijackPort53": [
+      {
+        "ip_version": 6,
+        "action": "reject"
+      },
+      {
+        "port": [
+          53
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "protocol": [
+          "dns"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "ip_cidr": [
+          "127.0.0.0/8",
+          "::1/128",
+          "224.0.0.0/4",
+          "169.254.0.0/16",
+          "fe80::/10"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "ip_cidr": [
+          "10.0.0.0/8",
+          "172.16.0.0/12",
+          "192.168.0.0/16",
+          "fc00::/7"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "domain": [
+          "example.org"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "bypass"
+      },
+      {
+        "ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "source_ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "action": "reject"
+      }
+    ],
+    "rootRoutePrivateBypassModuleIndex": {
+      "index": 6
+    }
+  },
+  "routeDNSProtocolHijackRuleProjection": {
+    "config": {
+      "inbounds": [],
+      "outbounds": [
+        {
+          "type": "direct",
+          "tag": "direct"
+        }
+      ],
+      "route": {
+        "rules": [
+          {
+            "ip_version": 6,
+            "action": "reject"
+          },
+          {
+            "action": "sniff"
+          },
+          {
+            "protocol": [
+              "dns"
+            ],
+            "action": "hijack-dns"
+          },
+          {
+            "outbound": "direct"
+          }
+        ]
+      }
+    },
+    "rootRouteDNSProtocolHijackRule": {
+      "index": 2
+    },
+    "expectedLegacyRules": [
+      {
+        "ip_version": 6,
+        "action": "reject"
+      },
+      {
+        "action": "sniff"
+      },
+      {
+        "outbound": "direct"
+      }
+    ],
+    "expectedRules": [
+      {
+        "ip_version": 6,
+        "action": "reject"
+      },
+      {
+        "action": "sniff"
+      },
+      {
+        "protocol": [
+          "dns"
+        ],
+        "action": "hijack-dns"
+      },
+      {
+        "outbound": "direct"
+      }
+    ],
+    "expectedLegacyRulesAfterPriorProjections": [
+      {
+        "action": "sniff"
+      },
+      {
+        "outbound": "direct"
+      }
+    ]
+  },
+  "routeSniffRuleProjection": {
+    "config": {
+      "inbounds": [],
+      "outbounds": [
+        {
+          "type": "direct",
+          "tag": "direct"
+        }
+      ],
+      "route": {
+        "rules": [
+          {
+            "ip_version": 6,
+            "action": "reject"
+          },
+          {
+            "action": "sniff"
+          },
+          {
+            "protocol": [
+              "dns"
+            ],
+            "action": "hijack-dns"
+          },
+          {
+            "outbound": "direct"
+          }
+        ]
+      }
+    },
+    "rootRouteSniffRule": {
+      "index": 1
+    },
+    "rootRouteIPVersionRule": {
+      "index": 0,
+      "ipVersion": 6
+    },
+    "rootRouteDNSProtocolHijackRule": {
+      "index": 1
+    },
+    "expectedLegacyRules": [
+      {
+        "outbound": "direct"
+      }
+    ],
+    "expectedRules": [
+      {
+        "ip_version": 6,
+        "action": "reject"
+      },
+      {
+        "action": "sniff"
+      },
+      {
+        "protocol": [
+          "dns"
+        ],
+        "action": "hijack-dns"
+      },
+      {
+        "outbound": "direct"
+      }
+    ]
+  },
+  "routeProbeRuleProjection": {
+    "config": {
+      "outbounds": [
+        {
+          "type": "direct",
+          "tag": "direct"
+        }
+      ],
+      "route": {
+        "rules": [
+          {
+            "inbound": [
+              "mixed"
+            ],
+            "domain": [
+              "probe.example"
+            ],
+            "outbound": "proxy"
+          },
+          {
+            "action": "sniff"
+          },
+          {
+            "ip_version": 6,
+            "action": "reject"
+          }
+        ]
+      }
+    },
+    "rootRouteProbeRule": {
+      "index": 0,
+      "host": "probe.example",
+      "outbound": "proxy"
+    },
+    "expectedLegacyRules": [],
+    "expectedRules": [
+      {
+        "inbound": [
+          "mixed"
+        ],
+        "domain": [
+          "probe.example"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "action": "sniff"
+      },
+      {
+        "ip_version": 6,
+        "action": "reject"
+      }
+    ],
+    "rootRouteIPVersionRule": {
+      "index": 0,
+      "ipVersion": 6
+    },
+    "rootRouteSniffRule": {
+      "index": 0
+    }
+  },
+  "routeResolveRuleProjection": {
+    "config": {
+      "outbounds": [
+        {
+          "type": "direct",
+          "tag": "direct"
+        }
+      ],
+      "route": {
+        "rules": [
+          {
+            "inbound": [
+              "mixed"
+            ],
+            "domain": [
+              "probe.example"
+            ],
+            "outbound": "proxy"
+          },
+          {
+            "action": "sniff"
+          },
+          {
+            "action": "resolve",
+            "strategy": "prefer_ipv4"
+          },
+          {
+            "ip_version": 6,
+            "action": "reject"
+          },
+          {
+            "domain": [
+              "example.org"
+            ],
+            "outbound": "proxy"
+          }
+        ]
+      }
+    },
+    "rootRouteProbeRule": {
+      "index": 0,
+      "host": "probe.example",
+      "outbound": "proxy"
+    },
+    "rootRouteSniffRule": {
+      "index": 0
+    },
+    "rootRouteResolveRule": {
+      "strategy": "prefer_ipv4"
+    },
+    "expectedLegacyRules": [
+      {
+        "domain": [
+          "example.org"
+        ],
+        "outbound": "proxy"
+      }
+    ],
+    "expectedRules": [
+      {
+        "inbound": [
+          "mixed"
+        ],
+        "domain": [
+          "probe.example"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "action": "sniff"
+      },
+      {
+        "action": "resolve",
+        "strategy": "prefer_ipv4"
+      },
+      {
+        "ip_version": 6,
+        "action": "reject"
+      },
+      {
+        "domain": [
+          "example.org"
+        ],
+        "outbound": "proxy"
+      }
+    ],
+    "rootRouteIPVersionRule": {
+      "index": 0,
+      "ipVersion": 6
+    }
+  },
+  "routeModeRulesProjection": {
+    "config": {
+      "outbounds": [
+        {
+          "type": "direct",
+          "tag": "direct"
+        }
+      ],
+      "route": {
+        "rules": [
+          {
+            "inbound": [
+              "mixed"
+            ],
+            "domain": [
+              "probe.example"
+            ],
+            "outbound": "proxy"
+          },
+          {
+            "action": "sniff"
+          },
+          {
+            "action": "resolve",
+            "strategy": "prefer_ipv4"
+          },
+          {
+            "ip_version": 6,
+            "action": "reject"
+          },
+          {
+            "clash_mode": "global",
+            "outbound": "proxy"
+          },
+          {
+            "clash_mode": "direct",
+            "outbound": "direct"
+          },
+          {
+            "domain": [
+              "example.org"
+            ],
+            "outbound": "proxy"
+          }
+        ]
+      }
+    },
+    "rootRouteProbeRule": {
+      "index": 0,
+      "host": "probe.example",
+      "outbound": "proxy"
+    },
+    "rootRouteSniffRule": {
+      "index": 0
+    },
+    "rootRouteIPVersionRule": {
+      "index": 0,
+      "ipVersion": 6
+    },
+    "rootRouteResolveRule": {
+      "strategy": "prefer_ipv4"
+    },
+    "rootRouteModeRules": {
+      "index": 4
+    },
+    "expectedAfterModeProjectionRules": [
+      {
+        "inbound": [
+          "mixed"
+        ],
+        "domain": [
+          "probe.example"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "action": "sniff"
+      },
+      {
+        "action": "resolve",
+        "strategy": "prefer_ipv4"
+      },
+      {
+        "ip_version": 6,
+        "action": "reject"
+      },
+      {
+        "domain": [
+          "example.org"
+        ],
+        "outbound": "proxy"
+      }
+    ],
+    "expectedLegacyRules": [
+      {
+        "domain": [
+          "example.org"
+        ],
+        "outbound": "proxy"
+      }
+    ],
+    "expectedRules": [
+      {
+        "inbound": [
+          "mixed"
+        ],
+        "domain": [
+          "probe.example"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "action": "sniff"
+      },
+      {
+        "action": "resolve",
+        "strategy": "prefer_ipv4"
+      },
+      {
+        "ip_version": 6,
+        "action": "reject"
+      },
+      {
+        "clash_mode": "global",
+        "outbound": "proxy"
+      },
+      {
+        "clash_mode": "direct",
+        "outbound": "direct"
+      },
+      {
+        "domain": [
+          "example.org"
+        ],
+        "outbound": "proxy"
+      }
+    ]
+  },
+  "routeDNSTargetRulesProjection": {
+    "config": {
+      "outbounds": [
+        {
+          "type": "direct",
+          "tag": "direct"
+        },
+        {
+          "type": "selector",
+          "tag": "proxy",
+          "outbounds": [
+            "direct"
+          ]
+        }
+      ],
+      "route": {
+        "rules": [
+          {
+            "inbound": [
+              "mixed"
+            ],
+            "domain": [
+              "probe.example"
+            ],
+            "outbound": "proxy"
+          },
+          {
+            "action": "sniff"
+          },
+          {
+            "action": "resolve",
+            "strategy": "prefer_ipv4"
+          },
+          {
+            "ip_version": 6,
+            "action": "reject"
+          },
+          {
+            "port": [
+              53
+            ],
+            "action": "hijack-dns"
+          },
+          {
+            "protocol": [
+              "dns"
+            ],
+            "action": "hijack-dns"
+          },
+          {
+            "domain": [
+              "dns.local"
+            ],
+            "outbound": "direct"
+          },
+          {
+            "ip_cidr": [
+              "192.0.2.53/32",
+              "2001:db8::53/128"
+            ],
+            "outbound": "direct"
+          },
+          {
+            "domain": [
+              "dns.google",
+              "shared.example"
+            ],
+            "outbound": "proxy"
+          },
+          {
+            "ip_cidr": [
+              "8.8.8.8/32",
+              "2001:4860:4860::8888/128"
+            ],
+            "outbound": "proxy"
+          },
+          {
+            "port": [
+              53
+            ],
+            "outbound": "proxy"
+          },
+          {
+            "protocol": [
+              "dns"
+            ],
+            "outbound": "proxy"
+          },
+          {
+            "clash_mode": "global",
+            "outbound": "proxy"
+          },
+          {
+            "clash_mode": "direct",
+            "outbound": "direct"
+          },
+          {
+            "domain": [
+              "example.org"
+            ],
+            "outbound": "proxy"
+          }
+        ]
+      }
+    },
+    "normalizedDnsTargets": {
+      "directDomains": [
+        "dns.local"
+      ],
+      "overlapRemoved": [
+        "shared.example"
+      ],
+      "remoteDomains": [
+        "dns.google",
+        "shared.example"
+      ],
+      "directIPv4CIDRs": [
+        "192.0.2.53/32"
+      ],
+      "directIPv6CIDRs": [
+        "2001:db8::53/128"
+      ],
+      "remoteIPv4CIDRs": [
+        "8.8.8.8/32"
+      ],
+      "remoteIPv6CIDRs": [
+        "2001:4860:4860::8888/128"
+      ]
+    },
+    "rootRouteDnsTargetRules": {
+      "index": 6,
+      "rules": [
+        {
+          "kind": "domain",
+          "targets": [
+            "dns.local"
+          ],
+          "outbound": "direct"
+        },
+        {
+          "kind": "ip_cidr",
+          "targets": [
+            "192.0.2.53/32",
+            "2001:db8::53/128"
+          ],
+          "outbound": "direct"
+        },
+        {
+          "kind": "domain",
+          "targets": [
+            "dns.google",
+            "shared.example"
+          ],
+          "outbound": "proxy"
+        },
+        {
+          "kind": "ip_cidr",
+          "targets": [
+            "8.8.8.8/32",
+            "2001:4860:4860::8888/128"
+          ],
+          "outbound": "proxy"
+        }
+      ]
+    },
+    "expectedAfterProjectionRules": [
+      {
+        "inbound": [
+          "mixed"
+        ],
+        "domain": [
+          "probe.example"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "action": "sniff"
+      },
+      {
+        "action": "resolve",
+        "strategy": "prefer_ipv4"
+      },
+      {
+        "ip_version": 6,
+        "action": "reject"
+      },
+      {
+        "port": [
+          53
+        ],
+        "action": "hijack-dns"
+      },
+      {
+        "protocol": [
+          "dns"
+        ],
+        "action": "hijack-dns"
+      },
+      {
+        "port": [
+          53
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "protocol": [
+          "dns"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "clash_mode": "global",
+        "outbound": "proxy"
+      },
+      {
+        "clash_mode": "direct",
+        "outbound": "direct"
+      },
+      {
+        "domain": [
+          "example.org"
+        ],
+        "outbound": "proxy"
+      }
+    ],
+    "expectedLegacyRules": [
+      {
+        "domain": [
+          "example.org"
+        ],
+        "outbound": "proxy"
+      }
+    ],
+    "expectedRules": [
+      {
+        "inbound": [
+          "mixed"
+        ],
+        "domain": [
+          "probe.example"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "action": "sniff"
+      },
+      {
+        "action": "resolve",
+        "strategy": "prefer_ipv4"
+      },
+      {
+        "ip_version": 6,
+        "action": "reject"
+      },
+      {
+        "port": [
+          53
+        ],
+        "action": "hijack-dns"
+      },
+      {
+        "protocol": [
+          "dns"
+        ],
+        "action": "hijack-dns"
+      },
+      {
+        "domain": [
+          "dns.local"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "ip_cidr": [
+          "192.0.2.53/32",
+          "2001:db8::53/128"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "domain": [
+          "dns.google",
+          "shared.example"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "ip_cidr": [
+          "8.8.8.8/32",
+          "2001:4860:4860::8888/128"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "port": [
+          53
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "protocol": [
+          "dns"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "clash_mode": "global",
+        "outbound": "proxy"
+      },
+      {
+        "clash_mode": "direct",
+        "outbound": "direct"
+      },
+      {
+        "domain": [
+          "example.org"
+        ],
+        "outbound": "proxy"
+      }
+    ]
+  }
+}

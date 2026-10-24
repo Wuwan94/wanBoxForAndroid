@@ -1,18 +1,13 @@
-# wanBox v3.0.10-preview.18 — Root eBPF inbound with TUN fallback
+# wanBox v3.0.10-preview.19 — Root 路由迁移与管理器精简
 
-This preview routes the managed Root configuration through the NetProxy-compatible reF1nd sing-box eBPF inbound by default. If the core rejects or cannot start that inbound, the manager retries with the existing Root TUN path. Ordinary VPN, tests, and exported configurations continue to use TUN.
+本版继续扩展 Root 模块对路由与 DNS 规则的原生处理范围。受支持的规则由模块生成；不兼容或复杂组合仍沿用原有回退路径，避免改变规则语义。
 
-## Changes
-- Add the Root eBPF inbound using the existing per-app UID allowlist/bypass behavior, IPv6 setting, and LAN bypass preference.
-- Preserve the logical `tun-in` route tag and enable TCP/UDP local capture through the cgroup data plane.
-- Retry the same profile on TUN after recognized eBPF configuration or startup failures; other module errors remain visible.
-- Pin reF1nd/sing-box `v1.15.0-alpha.11-reF1nd` at commit `78ea0ce9257bd3bedd4d1185d6cc4723f04096b4` and fix the CI source path.
+## 变更
+- 扩展域名、IP、网络、协议、端口范围、应用 UID/包名及远程规则集条件的 Root 路由迁移。
+- 移除旧的 `ProxyService` 实现和独立 STUN 测试页；Root 模式使用模块侧服务。
+- 移除抽屉中与底部导航重复的仪表盘、设置入口，以及通往同一节点和订阅页面的重复入口。仪表盘、模块状态与控制、日志、YACD、网络工具和配置页面均保留。
 
-## Install and compatibility
-- ARM64, Android 12+, Root. Manager version `3.0.10-preview.18` / Android versionCode `5140`; module versionCode `1028`.
-- Use the APK and module from this release together. The release workflow signs the manager with the project's established preview certificate.
-- Preview.16 used a different signing certificate, so Android will not install this package as an in-place update over it. Back up first; do not uninstall or clear data just to force an update. Migration from preview.16's different communication architecture has not been tested.
-
-## Validation limits
-- Local Preview Debug unit tests: 315 passed, 0 failed, 0 skipped; Debug APK assembled and ZIP integrity checked.
-- This host has no KVM-backed emulator. KSU device behavior, kernel eBPF attachment, traffic capture, and the manager-to-module path on a real device have not been verified.
+## 安装与兼容性
+- ARM64、Android 12+、Root。管理器版本 `3.0.10-preview.19` / Android versionCode `5145`；模块 versionCode `1029`。
+- 请配套使用本次发布提供的管理器 APK 与模块包。APK 使用项目现有的 Preview 签名证书。
+- Preview.16 使用了不同的签名证书，不能直接覆盖安装。安装前请备份；不要为强制升级而卸载应用或清除数据。

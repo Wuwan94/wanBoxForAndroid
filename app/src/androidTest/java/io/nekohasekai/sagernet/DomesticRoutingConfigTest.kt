@@ -3,6 +3,7 @@
 package io.nekohasekai.sagernet
 
 import io.nekohasekai.sagernet.bg.RootModuleSnapshot
+import io.nekohasekai.sagernet.fmt.RootInboundBackend
 import io.nekohasekai.sagernet.bg.proto.ProxyInstance
 import io.nekohasekai.sagernet.database.*
 import io.nekohasekai.sagernet.fmt.buildConfig
@@ -44,7 +45,7 @@ class DomesticRoutingConfigTest {
                 val instance = ProxyInstance(main)
                 try {
                     instance.init()
-                    val snapshot = RootModuleSnapshot(instance, "fixture-revision").build()
+                    val snapshot = RootModuleSnapshot(instance, "fixture-revision", RootInboundBackend.TUN).build()
                     val config = snapshot["config"].asJsonObject
                     val routes = config["route"].asJsonObject["rules"].asJsonArray.toList().map { it.asJsonObject }
                     val app = routes.indexOfFirst { it["rules"]?.toString()?.contains(appPackage) == true }

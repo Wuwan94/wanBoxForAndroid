@@ -1,0 +1,19 @@
+{
+  "eligibleRule":{"id":391,"enabled":true,"outbound":-2,"protocol":"tls, http\ndns","port":"80, 443"},
+  "spec":{"rules":[{"ruleId":391,"protocolText":"tls, http\ndns","portText":"80, 443"}]},
+  "inputConfig":{"route":{"rules":[{"action":"sniff"},{"_wanbox_root_route_protocol_port_reject_v39":{"ruleId":391,"protocolText":"tls, http\ndns","portText":"80, 443"}},{"domain":["legacy.example"],"outbound":"direct"}] }},
+  "expectedConfig":{"route":{"rules":[{"action":"sniff"},{"protocol":["tls","http","dns"],"port":[80,443],"action":"reject"},{"domain":["legacy.example"],"outbound":"direct"}] }},
+  "unsupportedCases":[
+    {"name":"mixed matcher","rule":{"id":392,"enabled":true,"outbound":-2,"protocol":"tls","port":"443","network":"tcp"}},
+    {"name":"custom config","rule":{"id":393,"enabled":true,"outbound":-2,"config":"custom","protocol":"tls","port":"443"}},
+    {"name":"unknown protocol","rule":{"id":394,"enabled":true,"outbound":-2,"protocol":"tls,custom","port":"443"}},
+    {"name":"port range","rule":{"id":395,"enabled":true,"outbound":-2,"protocol":"tls","port":"80:90"}},
+    {"name":"missing port","rule":{"id":396,"enabled":true,"outbound":-2,"protocol":"tls"}},
+    {"name":"disabled","rule":{"id":397,"enabled":false,"outbound":-2,"protocol":"tls","port":"443"}}
+  ],
+  "parserCases":[
+    {"name":"valid tokens","protocolText":"tls, http\ndns","portText":"80,443","valid":true,"protocols":["tls","http","dns"],"ports":[80,443]},
+    {"name":"bad protocol","protocolText":"tls,unknown","portText":"443","valid":false},
+    {"name":"bad port","protocolText":"tls","portText":"443:445","valid":false}
+  ]
+}

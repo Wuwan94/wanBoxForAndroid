@@ -1,0 +1,58 @@
+{
+  "spec": {
+    "rules": [
+      {"ruleId": 41, "portText": "80, 443\n8443"},
+      {"ruleId": 42, "portText": "443,80,443"}
+    ]
+  },
+  "eligibleRule": {
+    "id": 41,
+    "enabled": true,
+    "outbound": -2,
+    "port": "80, 443\n8443"
+  },
+  "inputConfig": {
+    "route": {
+      "rules": [
+        {"action": "sniff"},
+        {"_wanbox_root_route_port_reject_v30": {"ruleId": 41, "portText": "80, 443\n8443"}},
+        {"domain": ["legacy.example"], "outbound": "direct"},
+        {"_wanbox_root_route_port_reject_v30": {"ruleId": 42, "portText": "443,80,443"}}
+      ]
+    }
+  },
+  "expectedConfig": {
+    "route": {
+      "rules": [
+        {"action": "sniff"},
+        {"port": [80, 443, 8443], "action": "reject"},
+        {"domain": ["legacy.example"], "outbound": "direct"},
+        {"port": [443, 80, 443], "action": "reject"}
+      ]
+    }
+  },
+  "unsupportedCases": [
+    {"name": "invalid outbound", "rule": {"id": 43, "enabled": true, "outbound": 9223372036854775807, "port": "80"}},
+    {"name": "custom action", "rule": {"id": 44, "enabled": true, "outbound": -2, "port": "80", "config": "{\"action\":\"reject\",\"custom_field\":true}"}},
+    {"name": "malformed custom config", "rule": {"id": 45, "enabled": true, "outbound": -2, "port": "80", "config": "{not-json"}},
+    {"name": "package uid", "rule": {"id": 46, "enabled": true, "outbound": -2, "port": "80", "packages": ["example.app"]}},
+    {"name": "domain ruleset with refresh semantics", "rule": {"id": 47, "enabled": true, "outbound": -2, "port": "80", "ruleset": "https://rules.example/domain.srs"}, "rulesetContext": {"kind": "domain", "updateIntervalHours": 24}},
+    {"name": "ip ruleset with refresh semantics", "rule": {"id": 48, "enabled": true, "outbound": -2, "port": "80", "ruleset": "https://rules.example/ip.srs#ip"}, "rulesetContext": {"kind": "ip", "updateIntervalHours": 24}},
+    {"name": "dns side effect", "rule": {"id": 49, "enabled": true, "outbound": -1, "port": "80", "domains": "dns-target.example"}},
+    {"name": "or-expanded match", "rule": {"id": 50, "enabled": true, "outbound": -2, "port": "80", "domains": "example.test", "ip": "192.0.2.0/24"}},
+    {"name": "not combination", "rule": {"id": 51, "enabled": true, "outbound": -2, "port": "80", "domains": "example.test", "config": "{\"invert\":true}"}},
+    {"name": "disabled", "rule": {"id": 52, "enabled": false, "outbound": -2, "port": "80"}},
+    {"name": "port range", "rule": {"id": 53, "enabled": true, "outbound": -2, "port": "80:90"}},
+    {"name": "port zero legacy behavior", "rule": {"id": 54, "enabled": true, "outbound": -2, "port": "0"}}
+  ],
+  "legacyFallbackConfig": {
+    "route": {
+      "rules": [
+        {"port": [80], "action": "reject"},
+        {"action": "custom", "custom_field": "kept"},
+        {"domain": ["legacy.example"], "outbound": "proxy"},
+        {"domain_suffix": ["example.test"], "port_range": ["80:90"], "invert": true, "outbound": "proxy"}
+      ]
+    }
+  }
+}

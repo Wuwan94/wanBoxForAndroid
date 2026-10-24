@@ -1,0 +1,232 @@
+{
+  "spec": {
+    "rules": [
+      {
+        "ruleId": 411,
+        "domainText": "keyword:Ads,keyword:TRACK\nkeyword:cdn"
+      }
+    ]
+  },
+  "eligibleRule": {
+    "id": 411,
+    "enabled": true,
+    "domains": "keyword:Ads,keyword:TRACK\nkeyword:cdn",
+    "outbound": -2
+  },
+  "inputConfig": {
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "_wanbox_root_route_domain_keyword_reject_v42": {
+            "ruleId": 411,
+            "domainText": "keyword:Ads,keyword:TRACK\nkeyword:cdn"
+          }
+        },
+        {
+          "domain": [
+            "legacy.example"
+          ],
+          "outbound": "direct"
+        }
+      ]
+    }
+  },
+  "expectedConfig": {
+    "route": {
+      "rules": [
+        {
+          "action": "sniff"
+        },
+        {
+          "domain_keyword": [
+            "ads",
+            "track",
+            "cdn"
+          ],
+          "action": "reject"
+        },
+        {
+          "domain": [
+            "legacy.example"
+          ],
+          "outbound": "direct"
+        }
+      ]
+    }
+  },
+  "unsupportedCases": [
+    {
+      "name": "disabled",
+      "rule": {
+        "id": 1,
+        "enabled": false,
+        "domains": "keyword:ads",
+        "outbound": -2
+      }
+    },
+    {
+      "name": "invalid id",
+      "rule": {
+        "id": 9007199254740992,
+        "enabled": true,
+        "domains": "keyword:ads",
+        "outbound": -2
+      }
+    },
+    {
+      "name": "not reject",
+      "rule": {
+        "id": 2,
+        "enabled": true,
+        "domains": "keyword:ads",
+        "outbound": 0
+      }
+    },
+    {
+      "name": "custom action",
+      "rule": {
+        "id": 3,
+        "enabled": true,
+        "domains": "keyword:ads",
+        "outbound": -2,
+        "config": "{\"action\":\"route-options\"}"
+      }
+    },
+    {
+      "name": "exact domain",
+      "rule": {
+        "id": 4,
+        "enabled": true,
+        "domains": "full:ads.example",
+        "outbound": -2
+      }
+    },
+    {
+      "name": "implicit suffix",
+      "rule": {
+        "id": 5,
+        "enabled": true,
+        "domains": "ads.example",
+        "outbound": -2
+      }
+    },
+    {
+      "name": "mixed port matcher",
+      "rule": {
+        "id": 6,
+        "enabled": true,
+        "domains": "keyword:ads",
+        "port": "443",
+        "outbound": -2
+      }
+    },
+    {
+      "name": "ruleset matcher",
+      "rule": {
+        "id": 7,
+        "enabled": true,
+        "domains": "keyword:ads",
+        "ruleset": "geosite:ads",
+        "outbound": -2
+      }
+    },
+    {
+      "name": "invalid hostname",
+      "rule": {
+        "id": 8,
+        "enabled": true,
+        "domains": "keyword:bad!",
+        "outbound": -2
+      }
+    },
+    {
+      "name": "package matcher",
+      "rule": {
+        "id": 9,
+        "enabled": true,
+        "domains": "keyword:ads",
+        "packages": [
+          "example.app"
+        ],
+        "outbound": -2
+      }
+    },
+    {
+      "name": "mixed matcher",
+      "rule": {
+        "id": 10,
+        "enabled": true,
+        "domains": "keyword:ads,domain:ads.example",
+        "outbound": -2
+      }
+    },
+    {
+      "name": "empty keyword",
+      "rule": {
+        "id": 11,
+        "enabled": true,
+        "domains": "keyword:",
+        "outbound": -2
+      }
+    },
+    {
+      "name": "unsafe keyword",
+      "rule": {
+        "id": 12,
+        "enabled": true,
+        "domains": "keyword:two words",
+        "outbound": -2
+      }
+    }
+  ],
+  "parserCases": [
+    {
+      "name": "comma newline and lowercase",
+      "domainText": "keyword:Ads, keyword:TRACK\nkeyword:cdn",
+      "valid": true,
+      "domains": [
+        "ads",
+        "track",
+        "cdn"
+      ]
+    },
+    {
+      "name": "exact matcher not keyword",
+      "domainText": "full:ads.example",
+      "valid": false
+    },
+    {
+      "name": "implicit matcher not keyword",
+      "domainText": "ads.example",
+      "valid": false
+    },
+    {
+      "name": "suffix matcher not keyword",
+      "domainText": "domain:ads.example",
+      "valid": false
+    },
+    {
+      "name": "empty keyword",
+      "domainText": "keyword:",
+      "valid": false
+    },
+    {
+      "name": "unsupported whitespace",
+      "domainText": "keyword:two words",
+      "valid": false
+    },
+    {
+      "name": "unsupported non-ascii",
+      "domainText": "keyword:例子",
+      "valid": false
+    },
+    {
+      "name": "unsupported separator",
+      "domainText": "keyword:abc/def",
+      "valid": false
+    }
+  ]
+}
