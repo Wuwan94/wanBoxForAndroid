@@ -11,6 +11,7 @@ plugins {
 setupApp()
 
 val generatedLicenseAssets = layout.buildDirectory.dir("generated/assets/rootLicense")
+val generatedLibcoreJni = layout.buildDirectory.dir("generated/libcore-jni")
 val generateRootLicenseAsset by tasks.registering(Copy::class) {
     from(rootProject.layout.projectDirectory.file("LICENSE"))
     into(generatedLicenseAssets)
@@ -61,14 +62,27 @@ android {
     }
     sourceSets.named("main") {
         assets.srcDir(generatedLicenseAssets)
+        // The manager needs the Go binding JNI bridge, while the large core stays in the Root module.
+        jniLibs.srcDir(generatedLibcoreJni)
     }
     sourceSets.named("androidTest") {
         assets.srcDir("schemas")
     }
 }
 
+val extractedLibcoreJni by tasks.registering(Copy::class) {
+    from(zipTree(layout.projectDirectory.file("libs/libcore.aar"))) {
+        include("jni/$wanboxAbi/libgojni.so")
+        eachFile {
+            path = "$wanboxAbi/$name"
+        }
+        includeEmptyDirs = false
+    }
+    into(generatedLibcoreJni)
+}
+
 tasks.matching { it.name == "preBuild" }.configureEach {
-    dependsOn(generateRootLicenseAsset)
+    dependsOn(generateRootLicenseAsset, extractedLibcoreJni)
 }
 
 val extractedLibcoreApi = layout.buildDirectory.file("generated/libcore-api/libcore-api.jar")
