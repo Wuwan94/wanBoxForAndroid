@@ -40,7 +40,10 @@ class FakeRootModulePort(
         current = status
     }
 
-    override suspend fun status(): ModuleStatus = current
+    override suspend fun status(): ModuleStatus {
+        throwIfNeeded()
+        return current
+    }
 
     override fun events(): Flow<ModuleEvent> = eventFlow
 

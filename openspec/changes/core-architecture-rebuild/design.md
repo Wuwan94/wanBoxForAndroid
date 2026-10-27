@@ -59,6 +59,16 @@
 - CI（权威）：`:app` 依赖 core 后，`verify-android` 的 `assembleOssDebug` / `assembleOssRelease` 会连带编译 core；`testOssDebugUnitTest` 不受影响。
 - 后续需在 CI 增加 `./gradlew :core-domain:test`，让 core 单测成为门禁（P2 与 `:adapter-android` 同批提交）。
 
+## 6.1 `:adapter-android` 的循环依赖阻塞（待决策）
+
+工作词要求「适配层实现直接包现有 `RootModuleClient`」，但 `RootModuleClient` 位于 `:app`，而 `:app` 必须依赖 `:adapter-android`——直接包装会形成 `app → adapter → app` 环。三个可选解：
+
+1. 把 `RootModuleClient`（及其 `RootModuleStatusCache`、`RootNotificationSample` 依赖）迁进 `:adapter-android`，`:app` 改为依赖 adapter。改动面大，但一次到位。
+2. adapter 只定义 `RootCommandExecutor` 接缝，由 `:app` 提供实现并注入；adapter 不依赖 app。改动最小，但端口实现分散在两处。
+3. 复制一份 `su` 调用逻辑到 adapter。**不采用**：等于把白名单、Mutex、2 秒 TTL 缓存再实现一遍，违反「不许抽万能工具类」与「不重复造」的初衷。
+
+结论：先不提交 adapter，避免制造两套模块调用路径；下一批按方案 1 或 2 决策后再动。
+
 ## 7. 与工作词的偏差
 
 | 偏差 | 原因 | 处置 |

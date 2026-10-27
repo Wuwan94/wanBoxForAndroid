@@ -27,15 +27,17 @@
 - [x] `SelectNodeUseCase`（U-03）
 - [x] `SetAutoStartUseCase`（U-18）
 - [x] `ToggleServiceUseCase`（U-15 / U-16）
-- [ ] `RefreshStatusUseCase` 与事件流收集器
-- [ ] `ImportSubscriptionUseCase`（U-07）
+- [x] `RefreshStatusUseCase`（U-17）
+- [x] `ImportSubscriptionUseCase`（U-07）
+- [ ] 事件流收集器（把 `RootModulePort.events()` 接到 `CoreEngine`）
 
 ## 4. 测试
 
 - [x] `SelectNodeUseCaseTest`（4 条：成功 / 节点不存在 / 错误码映射 / 清除旧错误）
 - [x] `ServiceControlTest`（6 条：自启成功 / 自启被拒 / 启停 / 状态事件 / 流量事件 / 失败事件）
-- [x] 本地用 Kotlin 2.0.21 + JUnit4 跑通 10/10
-- [ ] CI 增加 `:core-domain:test` 门禁
+- [x] 本地用 Kotlin 2.0.21 + JUnit4 跑通 15/15
+- [x] `buildScript/verify-core-local.sh`：本地构建模拟（编译 + 用例 + 静态检查）
+- [x] CI 增加 `:core-domain:test` 门禁（verify-android 的 `Test core modules` 步骤）
 - [ ] P0 的 30 条用例回归（需 Android 测试环境）
 
 ## 5. 后续阶段入口
