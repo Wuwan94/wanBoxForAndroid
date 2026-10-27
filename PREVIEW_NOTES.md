@@ -1,18 +1,43 @@
-# wanBox v3.0.10-preview.18 — Root eBPF inbound with TUN fallback
+# wanBox v3.0.10-preview.24 — 主分支修复与三层核心验证
 
-This preview routes the managed Root configuration through the NetProxy-compatible reF1nd sing-box eBPF inbound by default. If the core rejects or cannot start that inbound, the manager retries with the existing Root TUN path. Ordinary VPN, tests, and exported configurations continue to use TUN.
+这是新仓库的首个预览版，代码基于 `main`，包含预览通道此前的功能，以及本轮安全、性能和架构改造。
 
-## Changes
-- Add the Root eBPF inbound using the existing per-app UID allowlist/bypass behavior, IPv6 setting, and LAN bypass preference.
-- Preserve the logical `tun-in` route tag and enable TCP/UDP local capture through the cgroup data plane.
-- Retry the same profile on TUN after recognized eBPF configuration or startup failures; other module errors remain visible.
-- Pin reF1nd/sing-box `v1.15.0-alpha.11-reF1nd` at commit `78ea0ce9257bd3bedd4d1185d6cc4723f04096b4` and fix the CI source path.
+## 主要变化
 
-## Install and compatibility
-- ARM64, Android 12+, Root. Manager version `3.0.10-preview.18` / Android versionCode `5140`; module versionCode `1028`.
-- Use the APK and module from this release together. The release workflow signs the manager with the project's established preview certificate.
-- Preview.16 used a different signing certificate, so Android will not install this package as an in-place update over it. Back up first; do not uninstall or clear data just to force an update. Migration from preview.16's different communication architecture has not been tested.
+### 安全与隐私
+- 云备份不再包含节点数据库、配置数据库和偏好设置，避免服务器地址、口令、订阅链接和 WireGuard 私钥进入云端备份。
+- 本地面板增加内容安全策略（CSP），限制页面把面板密钥发往外部地址；面板探活结果增加短时缓存，减少重复携带密钥的请求。
+- 移除对第三方面板站点的脚本注入和自动点击提交。
+- 扫码页面改为不对外导出，缩小外部调用面。
 
-## Validation limits
-- Local Preview Debug unit tests: 315 passed, 0 failed, 0 skipped; Debug APK assembled and ZIP integrity checked.
-- This host has no KVM-backed emulator. KSU device behavior, kernel eBPF attachment, traffic capture, and the manager-to-module path on a real device have not been verified.
+### 性能与稳定性
+- 网络回调中的 4 处 `runBlocking` 改为协程启动，避免阻塞系统网络回调线程。
+- 网络监听器改用独立 `CoroutineScope`，不再依赖 `GlobalScope`。
+- 临时数据库查询改用固定 2 线程池，避免每个查询都新建协程。
+- 移除 `largeHeap`，不再用大堆掩盖潜在内存问题。
+
+### 三层架构验证
+- 新增 `arch/`：`core/contracts`、`core/domain`、`adapters/memory`、`cli`、`tests` 五个模块。
+- 28 条核心用例均已实现并可追溯；本地 JVM 测试 **91/91 通过**。
+- 无 Android 的 CLI 入口跑通核心流程，架构守卫检查通过：核心层无平台依赖、模块无循环依赖。
+
+## 安装与兼容性
+
+- 适用环境：**ARM64、Android 12+、Root**。
+- 管理器版本：`3.0.10-preview.24`；Android `versionCode`：**10010**。
+- Root 模块版本码：**2002**。请使用同一发布页中的 APK 和模块，不要跨版本混用。
+- 本发布包含 APK、Root 模块、带管理器的 Root 模块，以及 `SHA256SUMS`。
+
+### 签名变更（务必阅读）
+
+**本版本启用全新的发布签名，不能覆盖安装任何使用旧签名的版本。**
+
+- 新证书 SHA-256：`F659029AA1E4A08156F789EF55E252CF36AC02626AA13D22175EBB7DE5EF5AEB`
+- 已安装旧版的用户，请先备份/导出配置，再卸载旧版并安装本版本；不要仅为强行升级而清除数据。
+- 后续预览版将继续使用本证书。升级前请核对本页文件校验和及签名信息。
+
+## 验证与限制
+
+本发布包需通过 Preview Build 的 LibCore 与 Root 模块构建、Go/Python 测试、Preview 单元测试、APK ABI/包名/版本/签名校验，以及发布文件 SHA-256 校验。
+
+核心 JVM 的 91 项测试已在本地通过。当前环境没有可用的 KVM 模拟器；KSU、内核 eBPF 挂载、真实流量接管和管理器—Root 模块链路仍需要真机回归。
