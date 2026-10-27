@@ -1,0 +1,40 @@
+# @author 雾晚
+name: Verify Core
+
+# 只验证 :core-contracts / :core-testing / :core-domain 三个纯 JVM 模块。
+# 不构建 libcore.aar，也不编译 :app，因此不受 jitpack 等外部依赖可用性影响。
+on:
+  pull_request:
+    paths:
+      - "core/**"
+      - "settings.gradle.kts"
+      - "build.gradle.kts"
+      - "gradle.properties"
+      - ".github/workflows/verify-core.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    name: Core JVM Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Test core modules
+        run: ./gradlew :core-domain:test --stacktrace
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: core-test-reports
+          path: |
+            core/domain/build/reports/tests/
+            core/domain/build/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
