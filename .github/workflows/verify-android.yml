@@ -116,6 +116,8 @@ jobs:
           ./run init action gradle
           ./gradlew app:tasks --all
           WANBOX_INTERNAL_TEST=1 ./gradlew app:assembleOssDebug -PwanboxInternalTestAbi=x86_64
+      - name: Test core modules
+        run: ./gradlew :core-domain:test --stacktrace
       - name: Test debug unit suite and security contracts
         run: |
           WANBOX_INTERNAL_TEST=1 ./gradlew app:testOssDebugUnitTest app:assembleOssDebugAndroidTest -PwanboxInternalTestAbi=x86_64
