@@ -73,6 +73,10 @@ tasks.matching { it.name == "preBuild" }.configureEach {
 
 dependencies {
 
+    // @author 雾晚: P1 骨架，core 模块先接入编译，业务逻辑仍留在原处。
+    implementation(project(":core-domain"))
+    testImplementation(project(":core-testing"))
+
     // @author 雾晚: the native build produces this single, explicit dependency.
     implementation(files("libs/libcore.aar"))
 
