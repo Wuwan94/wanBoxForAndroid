@@ -1,0 +1,779 @@
+package io.nekohasekai.sagernet.ui
+
+import android.content.Intent
+import android.os.Bundle
+import android.text.format.Formatter
+import android.view.MenuItem
+import android.view.View
+import android.view.ViewGroup
+import android.widget.LinearLayout
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.widget.PopupMenu
+import androidx.appcompat.widget.Toolbar
+import androidx.core.view.*
+import androidx.recyclerview.widget.ItemTouchHelper
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import io.nekohasekai.sagernet.GroupType
+import io.nekohasekai.sagernet.R
+import io.nekohasekai.sagernet.SagerNet
+import io.nekohasekai.sagernet.database.*
+import io.nekohasekai.sagernet.databinding.LayoutGroupItemBinding
+import io.nekohasekai.sagernet.fmt.toUniversalLink
+import io.nekohasekai.sagernet.group.GroupUpdater
+import io.nekohasekai.sagernet.ktx.*
+import io.nekohasekai.sagernet.widget.ListListener
+import io.nekohasekai.sagernet.widget.QRCodeDialog
+import io.nekohasekai.sagernet.widget.UndoSnackbarManager
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.supervisorScope
+import moe.matsuri.nb4a.utils.Util
+import moe.matsuri.nb4a.utils.toBytesString
+import java.lang.NumberFormatException
+import java.util.*
+
+class GroupFragment : ToolbarFragment(R.layout.layout_group),
+    Toolbar.OnMenuItemClickListener {
+
+    private fun runOnDefaultDispatcher(block: suspend kotlinx.coroutines.CoroutineScope.() -> Unit) = viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO, block = block)
+
+    lateinit var activity: MainActivity
+    lateinit var groupListView: RecyclerView
+    lateinit var layoutManager: LinearLayoutManager
+    lateinit var groupAdapter: GroupAdapter
+    lateinit var undoManager: UndoSnackbarManager<ProxyGroup>
+
+    // preview.18 UI 改造：订阅批量选择
+    val selectedGroupIds = mutableSetOf<Long>()
+    var selectionMode = false
+        private set
+
+    fun setSelectionMode(enabled: Boolean) {
+        selectionMode = enabled
+        if (!enabled) selectedGroupIds.clear()
+        selectionMode = true
+        groupAdapter.notifyDataSetChanged()
+        updateSelectionUI()
+    }
+
+    fun toggleGroupSelection(groupId: Long) {
+        if (selectedGroupIds.contains(groupId)) {
+            selectedGroupIds.remove(groupId)
+        } else {
+            selectedGroupIds.add(groupId)
+        }
+        groupAdapter.notifyDataSetChanged()
+        updateSelectionUI()
+    }
+
+    private fun updateSelectionUI() {
+        if (!isToolbarInitialized) return
+        toolbar.setTitle(R.string.minimal_subscriptions_title)
+        view?.findViewById<android.widget.TextView>(R.id.subscriptions_update_selected)?.apply {
+            text = getString(R.string.minimal_update_selected, selectedGroupIds.size)
+            isEnabled = selectedGroupIds.isNotEmpty()
+        }
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        activity = requireActivity() as MainActivity
+
+        selectionMode = true
+        toolbar.setTitle(R.string.minimal_subscriptions_title)
+        toolbar.inflateMenu(R.menu.add_group_menu)
+        toolbar.menu.findItem(R.id.action_update_all).isVisible = false
+        toolbar.menu.findItem(R.id.action_update_selected).isVisible = false
+        toolbar.setOnMenuItemClickListener(this)
+        view.findViewById<View>(R.id.subscriptions_update_all).setOnClickListener { onMenuItemClick(toolbar.menu.findItem(R.id.action_update_all)) }
+        view.findViewById<View>(R.id.subscriptions_update_selected).setOnClickListener { onMenuItemClick(toolbar.menu.findItem(R.id.action_update_selected)) }
+        view.findViewById<View>(R.id.subscriptions_auto_update).setOnClickListener {
+            val groups = groupAdapter.groupList.filter { it.type == GroupType.SUBSCRIPTION }
+            if (groups.isEmpty()) { safeSnackbar(R.string.minimal_settings_empty); return@setOnClickListener }
+            MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.minimal_auto_update)
+                .setItems(groups.map { it.displayName() }.toTypedArray()) { _, index ->
+                    startActivity(Intent(requireContext(), GroupSettingsActivity::class.java).putExtra(GroupSettingsActivity.EXTRA_GROUP_ID, groups[index].id))
+                }.setNegativeButton(android.R.string.cancel, null).show()
+        }
+        updateSelectionUI()
+
+        groupListView = view.findViewById(R.id.group_list)
+        updateBottomPadding()
+        layoutManager = FixedLinearLayoutManager(groupListView)
+        groupListView.layoutManager = layoutManager
+        groupAdapter = GroupAdapter()
+        GroupManager.addListener(groupAdapter)
+        groupListView.adapter = groupAdapter
+        groupAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
+            override fun onChanged() = refreshOverview()
+            override fun onItemRangeInserted(positionStart: Int, itemCount: Int) = refreshOverview()
+            override fun onItemRangeRemoved(positionStart: Int, itemCount: Int) = refreshOverview()
+        })
+
+        undoManager = UndoSnackbarManager(activity, groupAdapter)
+
+        ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
+            ItemTouchHelper.UP or ItemTouchHelper.DOWN, ItemTouchHelper.START
+        ) {
+            override fun getSwipeDirs(
+                recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder
+            ): Int {
+                val proxyGroup = (viewHolder as GroupHolder).proxyGroup
+                if (proxyGroup.id in GroupUpdater.updating) {
+                    return 0
+                }
+                return super.getSwipeDirs(recyclerView, viewHolder)
+            }
+
+            override fun getDragDirs(
+                recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder
+            ): Int {
+                val proxyGroup = (viewHolder as GroupHolder).proxyGroup
+                if (proxyGroup.ungrouped || proxyGroup.id in GroupUpdater.updating) {
+                    return 0
+                }
+                return super.getDragDirs(recyclerView, viewHolder)
+            }
+
+            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
+                val index = viewHolder.bindingAdapterPosition
+                groupAdapter.remove(index)
+                undoManager.remove(index to (viewHolder as GroupHolder).proxyGroup)
+            }
+
+            override fun onMove(
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder,
+            ): Boolean {
+                groupAdapter.move(viewHolder.bindingAdapterPosition, target.bindingAdapterPosition)
+                return true
+            }
+
+            override fun clearView(
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder,
+            ) {
+                super.clearView(recyclerView, viewHolder)
+                groupAdapter.commitMove()
+            }
+        }).attachToRecyclerView(groupListView)
+
+    }
+
+    fun updateBottomPadding() {
+        if (!::groupListView.isInitialized) return
+        groupListView.clipToPadding = false
+        groupListView.updatePadding(bottom = dp2px(8))
+    }
+
+    override fun onMenuItemClick(item: MenuItem): Boolean {
+        when (item.itemId) {
+            R.id.action_new_group -> {
+                startActivity(Intent(context, GroupSettingsActivity::class.java))
+            }
+
+            R.id.action_update_all -> {
+                MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.confirm)
+                    .setMessage(R.string.update_all_subscription)
+                    .setPositiveButton(R.string.yes) { _, _ ->
+                        val subGroups = SagerDatabase.groupDao.allGroups().filter { it.type == GroupType.SUBSCRIPTION }
+                        if (subGroups.isEmpty()) return@setPositiveButton
+                        runOnDefaultDispatcher {
+                            supervisorScope {
+                                val tasks = subGroups.map { group ->
+                                    async {
+                                        runCatching {
+                                            GroupUpdater.executeUpdate(group, false)
+                                        }.getOrElse { e ->
+                                            Logs.w("Batch update failed for ${group.displayName()}: ${e.readableMessage}")
+                                            false
+                                        }
+                                    }
+                                }
+                                val results = tasks.awaitAll()
+                                val successCount = results.count { it }
+                                val failCount = results.count { !it }
+                                onMainDispatcher {
+                                    val msg = if (failCount == 0) {
+                                        "全部订阅更新完成（共 ${successCount} 个）"
+                                    } else {
+                                        "订阅更新完成：${successCount} 个成功，${failCount} 个失败"
+                                    }
+                                    safeSnackbar(msg)
+                                }
+                            }
+                        }
+                    }
+                    .setNegativeButton(R.string.no, null)
+                    .show()
+            }
+
+            // preview.18 UI 改造：更新选中订阅
+            R.id.action_update_selected -> {
+                if (selectedGroupIds.isEmpty()) {
+                    safeSnackbar("请先选择要更新的订阅")
+                } else {
+                    val groups = SagerDatabase.groupDao.allGroups()
+                        .filter { it.id in selectedGroupIds && it.type == GroupType.SUBSCRIPTION }
+                    if (groups.isEmpty()) {
+                        safeSnackbar("选中的订阅中没有可更新的项")
+                    } else {
+                        runOnDefaultDispatcher {
+                            supervisorScope {
+                                val tasks = groups.map { group ->
+                                    async {
+                                        runCatching {
+                                            GroupUpdater.executeUpdate(group, false)
+                                        }.getOrElse { e ->
+                                            Logs.w("Batch update failed for ${group.displayName()}: ${e.readableMessage}")
+                                            false
+                                        }
+                                    }
+                                }
+                                val results = tasks.awaitAll()
+                                val successCount = results.count { it }
+                                val failCount = results.count { !it }
+                                onMainDispatcher {
+                                    val msg = if (failCount == 0) {
+                                        "选中订阅更新完成（共 ${successCount} 个）"
+                                    } else {
+                                        "订阅更新完成：${successCount} 个成功，${failCount} 个失败"
+                                    }
+                                    safeSnackbar(msg)
+                                    setSelectionMode(false)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return true
+    }
+
+    private fun refreshOverview() {
+        if (!::groupAdapter.isInitialized || view == null) return
+        val groups = groupAdapter.groupList
+        selectedGroupIds.retainAll(groups.map { it.id }.toSet())
+        view?.findViewById<android.widget.TextView>(R.id.subscriptions_summary)?.text = getString(R.string.minimal_overview,
+            groups.count { it.type == GroupType.SUBSCRIPTION }, groupAdapter.groupCounts.values.sum().toInt())
+        val empty = groups.isEmpty() || groups.all { it.ungrouped && groupAdapter.groupCounts[it.id] == 0L }
+        view?.findViewById<View>(R.id.subscriptions_empty)?.isVisible = empty
+        groupListView.isVisible = !empty
+        updateSelectionUI()
+    }
+
+    private fun updatedAgo(timestamp: Long): String {
+        if (timestamp <= 0) return getString(R.string.minimal_never_updated)
+        val minutes = ((System.currentTimeMillis() / 1000 - timestamp).coerceAtLeast(0)) / 60
+        return when {
+            minutes < 1 -> getString(R.string.minimal_just_updated)
+            minutes < 60 -> getString(R.string.minimal_minutes_ago, minutes)
+            minutes < 1440 -> getString(R.string.minimal_hours_ago, minutes / 60)
+            else -> getString(R.string.minimal_days_ago, minutes / 1440)
+        }
+    }
+
+    private lateinit var selectedGroup: ProxyGroup
+
+    private val exportProfiles =
+        registerForActivityResult(ActivityResultContracts.CreateDocument()) { data ->
+            if (data != null) {
+                runOnDefaultDispatcher {
+                    val profiles = SagerDatabase.proxyDao.getByGroup(selectedGroup.id)
+                    val links = profiles.joinToString("\n") { it.toStdLink(compact = true) }
+                    try {
+                        val resolver = (context ?: MessageStore.getCurrentActivity() ?: SagerNet.application).contentResolver
+                        resolver.openOutputStream(data)!!.bufferedWriter().use {
+                            it.write(links)
+                        }
+                        onMainDispatcher {
+                            safeSnackbar(R.string.action_export_msg)
+                        }
+                    } catch (e: Exception) {
+                        Logs.w(e)
+                        onMainDispatcher {
+                            safeSnackbar(e.readableMessage)
+                        }
+                    }
+
+                }
+            }
+        }
+
+    inner class GroupAdapter : RecyclerView.Adapter<GroupHolder>(),
+        GroupManager.Listener,
+        UndoSnackbarManager.Interface<ProxyGroup> {
+
+        val groupList = ArrayList<ProxyGroup>()
+        // @author 雾晚: group sizes fetched once per reload; bind() must not hit DB per row.
+        var groupCounts: Map<Long, Long> = emptyMap()
+
+        suspend fun reload() {
+            val groups = SagerDatabase.groupDao.allGroups().toMutableList()
+            groups.find { it.ungrouped }?.let { ungroupedGroup ->
+                if (groups.size > 1 && SagerDatabase.proxyDao.countByGroup(ungroupedGroup.id) == 0L) {
+                    groups.remove(ungroupedGroup)
+                }
+            }
+            groupCounts = SagerDatabase.proxyDao.countByGroups(groups.map { it.id })
+                .associate { it.groupId to it.count }
+            groupList.clear()
+            groupList.addAll(groups)
+            groupListView.post {
+                notifyDataSetChanged()
+                refreshOverview()
+            }
+        }
+
+        init {
+            setHasStableIds(true)
+
+            runOnDefaultDispatcher {
+                reload()
+            }
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): GroupHolder {
+            return GroupHolder(LayoutGroupItemBinding.inflate(layoutInflater, parent, false))
+        }
+
+        override fun onBindViewHolder(holder: GroupHolder, position: Int) {
+            val group = groupList[position]
+            holder.bind(group, groupCounts[group.id] ?: 0L)
+        }
+
+        override fun getItemCount(): Int {
+            return groupList.size
+        }
+
+        override fun getItemId(position: Int): Long {
+            return groupList[position].id
+        }
+
+        private val updated = HashSet<ProxyGroup>()
+
+        fun move(from: Int, to: Int) {
+            val first = groupList[from]
+            var previousOrder = first.userOrder
+            val (step, range) = if (from < to) Pair(1, from until to) else Pair(
+                -1, to + 1 downTo from
+            )
+            for (i in range) {
+                val next = groupList[i + step]
+                val order = next.userOrder
+                next.userOrder = previousOrder
+                previousOrder = order
+                groupList[i] = next
+                updated.add(next)
+            }
+            first.userOrder = previousOrder
+            groupList[to] = first
+            updated.add(first)
+            notifyItemMoved(from, to)
+        }
+
+        fun commitMove() = runOnDefaultDispatcher {
+            updated.forEach { SagerDatabase.groupDao.updateGroup(it) }
+            updated.clear()
+        }
+
+        fun remove(index: Int) {
+            groupList.removeAt(index)
+            notifyItemRemoved(index)
+        }
+
+        override fun undo(actions: List<Pair<Int, ProxyGroup>>) {
+            for ((index, item) in actions) {
+                groupList.add(index, item)
+                notifyItemInserted(index)
+            }
+        }
+
+        override fun commit(actions: List<Pair<Int, ProxyGroup>>) {
+            val groups = actions.map { it.second }
+            runOnDefaultDispatcher {
+                GroupManager.deleteGroup(groups)
+                reload()
+            }
+        }
+
+        override suspend fun groupAdd(group: ProxyGroup) {
+            groupList.add(group)
+            delay(300L)
+
+            onMainDispatcher {
+                undoManager.flush()
+                notifyItemInserted(groupList.size - 1)
+
+                if (group.type == GroupType.SUBSCRIPTION) {
+                    GroupUpdater.startUpdate(group, true)
+                }
+            }
+        }
+
+        override suspend fun groupRemoved(groupId: Long) {
+            val index = groupList.indexOfFirst { it.id == groupId }
+            if (index == -1) return
+            onMainDispatcher {
+                undoManager.flush()
+                if (SagerDatabase.groupDao.allGroups().size <= 2) {
+                    runOnDefaultDispatcher {
+                        reload()
+                    }
+                } else {
+                    groupList.removeAt(index)
+                    notifyItemRemoved(index)
+                }
+            }
+        }
+
+        override suspend fun groupUpdated(group: ProxyGroup) {
+            val index = groupList.indexOfFirst { it.id == group.id }
+            if (index == -1) {
+                reload()
+                return
+            }
+            groupList[index] = group
+            groupCounts = SagerDatabase.proxyDao.countByGroups(groupList.map { it.id }).associate { it.groupId to it.count }
+            onMainDispatcher {
+                undoManager.flush()
+
+                notifyItemChanged(index)
+            }
+        }
+
+        override suspend fun groupUpdated(groupId: Long) {
+            val index = groupList.indexOfFirst { it.id == groupId }
+            if (index == -1) {
+                reload()
+                return
+            }
+            onMainDispatcher {
+                notifyItemChanged(index)
+                refreshOverview()
+            }
+        }
+
+    }
+
+    override fun onDestroy() {
+        if (::groupAdapter.isInitialized) {
+            GroupManager.removeListener(groupAdapter)
+        }
+
+        super.onDestroy()
+
+        if (!::undoManager.isInitialized) return
+        undoManager.flush()
+    }
+
+    inner class GroupHolder(binding: LayoutGroupItemBinding) :
+        RecyclerView.ViewHolder(binding.root),
+        PopupMenu.OnMenuItemClickListener {
+
+        lateinit var proxyGroup: ProxyGroup
+        val groupName = binding.groupName
+        val groupStatus = binding.groupStatus
+        val groupTraffic = binding.groupTraffic
+        val groupUser = binding.groupUser
+        val editButton = binding.edit
+        val optionsButton = binding.options
+        val updateButton = binding.groupUpdate
+        val subscriptionUpdateProgress = binding.subscriptionUpdateProgress
+        val checkBox = binding.groupCheckbox
+
+        override fun onMenuItemClick(item: MenuItem): Boolean {
+
+            fun export(link: String) {
+                val success = SagerNet.trySetPrimaryClip(link)
+                safeSnackbar(if (success) R.string.action_export_msg else R.string.action_export_err)
+            }
+
+            when (item.itemId) {
+                R.id.action_universal_qr -> {
+                    QRCodeDialog(
+                        proxyGroup.toUniversalLink(), proxyGroup.displayName()
+                    ).showAllowingStateLoss(parentFragmentManager)
+                }
+
+                R.id.action_universal_clipboard -> {
+                    export(proxyGroup.toUniversalLink())
+                }
+
+                R.id.action_export_clipboard -> {
+                    runOnDefaultDispatcher {
+                        val profiles = SagerDatabase.proxyDao.getByGroup(selectedGroup.id)
+                        val links = profiles.joinToString("\n") { it.toStdLink(compact = true) }
+                        onMainDispatcher {
+                            SagerNet.trySetPrimaryClip(links)
+                            safeSnackbar(R.string.copy_toast_msg)
+                        }
+                    }
+                }
+
+                R.id.action_export_file -> {
+                    startFilesForResult(exportProfiles, "profiles_${proxyGroup.displayName()}.txt")
+                }
+
+                R.id.action_toggle_group_disabled -> {
+                    val currentDisabled = DataStore.isGroupDisabled(proxyGroup.id)
+                    val newDisabled = !currentDisabled
+                    DataStore.setGroupDisabled(proxyGroup.id, newDisabled)
+                    groupAdapter.notifyItemChanged(bindingAdapterPosition)
+                    val msg = if (newDisabled) R.string.subscription_disabled else R.string.subscription_enabled
+                    safeSnackbar(msg)
+                    runOnDefaultDispatcher {
+                        if (newDisabled && DataStore.selectedProxy > 0L) {
+                            val currentProxy = SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
+                            if (currentProxy != null && currentProxy.groupId == proxyGroup.id) {
+                                val fallback = SagerDatabase.proxyDao.getAll().firstOrNull { !DataStore.isGroupDisabled(it.groupId) }
+                                DataStore.selectedProxy = fallback?.id ?: 0L
+                            }
+                        }
+                        GroupManager.postReload(proxyGroup.id)
+                    }
+                }
+
+                R.id.action_clear -> {
+                    MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.confirm)
+                        .setMessage(R.string.clear_profiles_message)
+                        .setPositiveButton(R.string.yes) { _, _ ->
+                            runOnDefaultDispatcher {
+                                GroupManager.clearGroup(proxyGroup.id)
+                                groupAdapter.reload()
+                            }
+                        }
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show()
+                }
+
+                R.id.action_delete_group -> {
+                    MaterialAlertDialogBuilder(requireContext())
+                        .setTitle(R.string.delete)
+                        .setMessage(R.string.group_delete_confirm_prompt)
+                        .setPositiveButton(R.string.yes) { _, _ ->
+                            val groupId = proxyGroup.id
+                            undoManager.flush()
+                            runOnDefaultDispatcher {
+                                if (DataStore.selectedProxy > 0L) {
+                                    val currentProxy = SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
+                                    if (currentProxy != null && currentProxy.groupId == groupId) {
+                                        val fallback = SagerDatabase.proxyDao.getAll().firstOrNull {
+                                            it.groupId != groupId && !DataStore.isGroupDisabled(it.groupId)
+                                        }
+                                        DataStore.selectedProxy = fallback?.id ?: 0L
+                                    }
+                                }
+                                if (DataStore.selectedGroup == groupId) {
+                                    val remaining = SagerDatabase.groupDao.allGroups().filter { it.id != groupId }
+                                    DataStore.selectedGroup = remaining.firstOrNull()?.id ?: DataStore.currentGroupId()
+                                }
+                                GroupManager.deleteGroup(groupId)
+                                onMainDispatcher {
+                                    safeSnackbar(getString(R.string.group_deleted, proxyGroup.displayName()))
+                                }
+                            }
+                        }
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show()
+                }
+            }
+
+            return true
+        }
+
+
+        fun bind(group: ProxyGroup, size: Long) {
+            proxyGroup = group
+
+            itemView.setOnClickListener {
+                if (!group.ungrouped) startActivity(Intent(requireContext(), GroupSettingsActivity::class.java).putExtra(GroupSettingsActivity.EXTRA_GROUP_ID, group.id))
+            }
+            (itemView as com.google.android.material.card.MaterialCardView).setCardBackgroundColor(requireContext().getColor(if (group.id in selectedGroupIds) R.color.minimal_selected else R.color.minimal_card))
+
+            // preview.18 UI 改造：批量选择勾选框
+            val fragment = this@GroupFragment
+            checkBox.visibility = if (group.type == GroupType.SUBSCRIPTION) View.VISIBLE else View.INVISIBLE
+            checkBox.contentDescription = getString(R.string.minimal_select_subscription, group.displayName())
+            checkBox.setOnCheckedChangeListener(null)
+            checkBox.isChecked = fragment.selectedGroupIds.contains(group.id)
+            checkBox.setOnCheckedChangeListener { _, isChecked ->
+                if (isChecked) {
+                    fragment.selectedGroupIds.add(group.id)
+                } else {
+                    fragment.selectedGroupIds.remove(group.id)
+                }
+                fragment.updateSelectionUI()
+                (itemView as com.google.android.material.card.MaterialCardView).setCardBackgroundColor(requireContext().getColor(if (isChecked) R.color.minimal_selected else R.color.minimal_card))
+            }
+            itemView.setOnLongClickListener {
+                if (!fragment.selectionMode) {
+                    fragment.setSelectionMode(true)
+                    fragment.toggleGroupSelection(group.id)
+                    true
+                } else false
+            }
+
+            val isDisabled = DataStore.isGroupDisabled(proxyGroup.id)
+            editButton.isGone = true
+            updateButton.isInvisible = proxyGroup.type != GroupType.SUBSCRIPTION
+            groupName.text = if (isDisabled) "${proxyGroup.displayName()} ${getString(R.string.group_disabled_status)}" else proxyGroup.displayName()
+            itemView.alpha = if (isDisabled) 0.6f else 1.0f
+
+            editButton.setOnClickListener {
+                startActivity(Intent(it.context, GroupSettingsActivity::class.java).apply {
+                    putExtra(GroupSettingsActivity.EXTRA_GROUP_ID, group.id)
+                })
+            }
+
+            updateButton.setOnClickListener {
+                GroupUpdater.startUpdate(proxyGroup, true)
+            }
+
+            optionsButton.setOnClickListener {
+                selectedGroup = proxyGroup
+
+                val popup = PopupMenu(requireContext(), it)
+                popup.menuInflater.inflate(R.menu.group_action_menu, popup.menu)
+
+                val disabled = DataStore.isGroupDisabled(proxyGroup.id)
+                popup.menu.findItem(R.id.action_toggle_group_disabled)?.title =
+                    getString(if (disabled) R.string.group_enable else R.string.group_disable)
+
+                if (proxyGroup.type != GroupType.SUBSCRIPTION) {
+                    popup.menu.removeItem(R.id.action_share_subscription)
+                }
+                popup.setOnMenuItemClickListener(this)
+                popup.show()
+            }
+
+            if (proxyGroup.id in GroupUpdater.updating) {
+                (groupName.parent as LinearLayout).apply {
+                    setPadding(paddingLeft, dp2px(11), paddingRight, paddingBottom)
+                }
+
+                subscriptionUpdateProgress.isVisible = true
+
+                if (!GroupUpdater.progress.containsKey(proxyGroup.id)) {
+                    subscriptionUpdateProgress.isIndeterminate = true
+                } else {
+                    subscriptionUpdateProgress.isIndeterminate = false
+                    GroupUpdater.progress[proxyGroup.id]?.let {
+                        subscriptionUpdateProgress.max = it.max
+                        subscriptionUpdateProgress.progress = it.progress
+                    }
+                }
+
+                updateButton.isInvisible = true
+                editButton.isGone = true
+            } else {
+                (groupName.parent as LinearLayout).apply {
+                    setPadding(paddingLeft, dp2px(15), paddingRight, paddingBottom)
+                }
+
+                subscriptionUpdateProgress.isVisible = false
+                updateButton.isInvisible = proxyGroup.type != GroupType.SUBSCRIPTION
+                editButton.isGone = true
+            }
+
+            val subscription = proxyGroup.subscription
+            if (subscription != null && subscription.bytesUsed > 0L) { // SIP008 & Open Online Config
+                groupTraffic.isVisible = true
+                groupTraffic.text = if (subscription.bytesRemaining > 0L) {
+                    app.getString(
+                        R.string.subscription_traffic, Formatter.formatFileSize(
+                            app, subscription.bytesUsed
+                        ), Formatter.formatFileSize(
+                            app, subscription.bytesRemaining
+                        )
+                    )
+                } else {
+                    app.getString(
+                        R.string.subscription_used, Formatter.formatFileSize(
+                            app, subscription.bytesUsed
+                        )
+                    )
+                }
+                groupStatus.setPadding(0)
+            } else if (subscription != null && !subscription.subscriptionUserinfo.isNullOrBlank()) { // Raw
+                var text = ""
+
+                fun get(regex: String): String? {
+                    return Regex(regex, RegexOption.IGNORE_CASE).findAll(subscription.subscriptionUserinfo).mapNotNull {
+                        if (it.groupValues.size > 1) it.groupValues[1] else null
+                    }.firstOrNull()
+                }
+
+                try {
+                    var used: Long = 0
+                    get("upload=([0-9]+)")?.apply {
+                        used += toLong()
+                    }
+                    get("download=([0-9]+)")?.apply {
+                        used += toLong()
+                    }
+                    val total = get("total=([0-9]+)")?.toLong() ?: 0
+                    val remain = total - used
+                    if (used > 0 || total > 0) {
+                        text += if (remain > 0) {
+                            getString(
+                                R.string.subscription_traffic,
+                                used.toBytesString(),
+                                remain.toBytesString()
+                            )
+                        } else {
+                            getString(R.string.subscription_used, used.toBytesString())
+                        }
+                    }
+                    get("expire=([0-9]+)")?.apply {
+                        text += "\n"
+                        text += getString(
+                            R.string.subscription_expire,
+                            Util.timeStamp2Text(this.toLong() * 1000)
+                        )
+                    }
+                } catch (_: NumberFormatException) {
+                    // ignore
+                }
+
+                if (text.isNotEmpty()) {
+                    groupTraffic.isVisible = true
+                    groupTraffic.text = text
+                    groupStatus.setPadding(0)
+                }
+            } else {
+                groupTraffic.isVisible = false
+                groupStatus.setPadding(0, 0, 0, dp2px(4))
+            }
+
+            groupUser.text = subscription?.username ?: ""
+            groupUser.isVisible = !groupUser.text.isNullOrBlank()
+
+            // @author 雾晚: use the pre-fetched batch counts; never query per row.
+            @Suppress("DEPRECATION") when (group.type) {
+                GroupType.BASIC -> {
+                    if (size == 0L) {
+                        groupStatus.setText(R.string.group_status_empty)
+                    } else {
+                        groupStatus.text = getString(R.string.group_status_proxies, size)
+                    }
+                }
+
+                GroupType.SUBSCRIPTION -> {
+                    groupStatus.text = if (size == 0L) {
+                        getString(R.string.group_status_empty_subscription)
+                    } else {
+                        getString(R.string.minimal_group_summary, size, updatedAgo(group.subscription!!.lastUpdated?.toLong() ?: 0L))
+                    }
+                }
+            }
+        }
+    }
+}

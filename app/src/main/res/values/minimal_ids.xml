@@ -1,0 +1,5 @@
+<?xml version="1.0" ?>
+<resources>
+    <item name="settings_advanced" type="id"/>
+    <item name="action_minimal_refresh" type="id"/>
+</resources>

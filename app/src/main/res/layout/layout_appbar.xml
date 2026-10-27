@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- @author 雾晚 -->
+<com.google.android.material.appbar.AppBarLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/appbar"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/minimal_background"
+    app:elevation="0dp"
+    app:liftOnScroll="false">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="?attr/actionBarSize"
+        android:background="@android:color/transparent"
+        android:theme="?actionBarTheme"
+        android:touchscreenBlocksFocus="false"
+        app:titleTextAppearance="@style/TextAppearance.WanBox.Minimal.Title"
+        app:contentInsetStart="20dp"
+        app:contentInsetEnd="12dp"
+        app:titleTextColor="?android:attr/textColorPrimary"
+        app:subtitleTextColor="?android:attr/textColorSecondary"
+        app:navigationIconTint="?android:attr/textColorPrimary"
+        app:popupTheme="@style/ThemeOverlay.AppCompat.DayNight"
+        app:title="@string/app_name" />
+</com.google.android.material.appbar.AppBarLayout>

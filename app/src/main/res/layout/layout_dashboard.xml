@@ -1,0 +1,70 @@
+<?xml version="1.0" ?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@color/minimal_background">
+    <include layout="@layout/layout_appbar"/>
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true" android:clipToPadding="false">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingHorizontal="20dp" android:paddingBottom="16dp">
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Root" android:textColor="@color/minimal_secondary" android:textSize="13sp" android:layout_marginBottom="16dp"/>
+            <com.google.android.material.card.MaterialCardView style="@style/Widget.WanBox.Minimal.Card" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="14dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="16dp">
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:gravity="center_vertical">
+                        <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@drawable/ic_minimal_power" android:contentDescription="@null"/>
+                        <TextView android:id="@+id/statusText" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="12dp" android:text="@string/service_state_idle" android:textStyle="bold" android:textColor="@color/minimal_text" android:textSize="16sp" android:accessibilityLiveRegion="polite"/>
+                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/serviceSwitch" android:layout_width="wrap_content" android:layout_height="48dp" android:contentDescription="@string/minimal_root" app:useMaterialThemeColors="false" app:thumbTint="@color/minimal_switch_thumb" app:trackTint="@color/minimal_switch_track"/>
+                    </LinearLayout>
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:text="@string/minimal_current_node" android:textSize="13sp" android:textColor="@color/minimal_secondary"/>
+                    <LinearLayout android:id="@+id/currentNodeLayout" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="72dp" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
+                        <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
+                            <TextView android:id="@+id/nodeName" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="26sp" android:textStyle="bold" android:textColor="@color/minimal_text" android:maxLines="2" android:ellipsize="end"/>
+                            <TextView android:id="@+id/nodeInfo" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="—" android:textColor="@color/minimal_secondary" android:textSize="13sp"/>
+                        </LinearLayout>
+                        <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
+                    </LinearLayout>
+                    <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="12dp" android:background="@color/minimal_line"/>
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:gravity="center_vertical">
+                        <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/minimal_uptime" android:textSize="13sp" android:textColor="@color/minimal_secondary"/>
+                        <TextView android:id="@+id/uptimeText" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="—" android:textColor="@color/minimal_text" android:textSize="14sp"/>
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+            <LinearLayout android:id="@+id/modeSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/bg_minimal_segment" android:padding="2dp" android:layout_marginBottom="14dp">
+                <Button android:id="@+id/modeRule" style="@style/Widget.WanBox.Minimal.Segment" android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp" android:text="@string/minimal_rule"/>
+                <Button android:id="@+id/modeGlobal" style="@style/Widget.WanBox.Minimal.Segment" android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp" android:text="@string/minimal_global"/>
+                <Button android:id="@+id/modeDirect" style="@style/Widget.WanBox.Minimal.Segment" android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp" android:text="@string/minimal_direct"/>
+            </LinearLayout>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:baselineAligned="false" android:layout_marginBottom="12dp">
+                <com.google.android.material.card.MaterialCardView style="@style/Widget.WanBox.Minimal.Card" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="0dp" android:layout_marginEnd="6dp">
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="14dp">
+                        <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@drawable/ic_minimal_upload" android:contentDescription="@null"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/minimal_upload" android:textColor="@color/minimal_secondary" android:textSize="13sp"/>
+                        <TextView android:id="@+id/uploadSpeed" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="—" android:textStyle="bold" android:textSize="24sp" android:textColor="@color/minimal_text"/>
+                        <TextView android:id="@+id/uploadTotal" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="—" android:textColor="@color/minimal_secondary" android:textSize="12sp"/>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+                <com.google.android.material.card.MaterialCardView style="@style/Widget.WanBox.Minimal.Card" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:layout_marginEnd="0dp">
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="14dp">
+                        <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@drawable/ic_minimal_download" android:contentDescription="@null"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/minimal_download" android:textColor="@color/minimal_secondary" android:textSize="13sp"/>
+                        <TextView android:id="@+id/downloadSpeed" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="—" android:textStyle="bold" android:textSize="24sp" android:textColor="@color/minimal_text"/>
+                        <TextView android:id="@+id/downloadTotal" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="—" android:textColor="@color/minimal_secondary" android:textSize="12sp"/>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:baselineAligned="false" android:layout_marginBottom="12dp">
+                <com.google.android.material.card.MaterialCardView style="@style/Widget.WanBox.Minimal.Card" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="0dp" android:layout_marginEnd="6dp">
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="14dp">
+                        <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@drawable/ic_minimal_memory" android:contentDescription="@null"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/minimal_memory" android:textColor="@color/minimal_secondary" android:textSize="13sp"/>
+                        <TextView android:id="@+id/coreMemory" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="—" android:textStyle="bold" android:textSize="24sp" android:textColor="@color/minimal_text"/>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+                <com.google.android.material.card.MaterialCardView style="@style/Widget.WanBox.Minimal.Card" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:layout_marginEnd="0dp">
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="14dp">
+                        <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@drawable/ic_minimal_connections" android:contentDescription="@null"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/minimal_connections" android:textColor="@color/minimal_secondary" android:textSize="13sp"/>
+                        <TextView android:id="@+id/connectionCount" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="—" android:textStyle="bold" android:textSize="24sp" android:textColor="@color/minimal_text"/>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

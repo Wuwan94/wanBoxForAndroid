@@ -1,0 +1,357 @@
+# wanBox 用例基线（验收用）
+# 每条：谁触发 / 输入 / 输出 / 副作用；current_impl 是现状代码位置；verify 是验收方式。
+# 状态：implemented = 核心层已实现并有单测；frozen = 已在真机确认行为一致（待 S0 回填）。
+meta:
+  project: wanBoxForAndroid
+  baseline_commit: 44c359d
+  frozen_at: ""          # S0 完成后填（真机逐条观察，仍待办）
+  implemented: 28         # 2026-10-27：核心层全部实现，91 个单测覆盖
+  total: 28
+
+cases:
+  # ---------- 连接 ----------
+  - id: UC-CONN-01
+    name: 连接
+    status: implemented
+    triggers: [主界面开关, QS 磁贴, 桌面小组件, 快捷方式]
+    inputs: {profile_id: "可选，缺省用当前选中节点"}
+    outputs: {state: Connected, profile_name: String}
+    side_effects:
+      - 前台服务启动并进入 Connected
+      - 通知出现且带停止/切换动作
+      - 磁贴图标与小组件状态刷新
+      - 选中节点写入设置
+    current_impl: [app/.../ui/DashboardFragment.kt:41, app/.../SagerNet.kt]
+    impl_core: "domain/AppCore.kt :: AppCore.connect（先过 PermissionGate，再落选中节点）"
+    tests: "ConnectionTest"
+    verify: cli `connect` + 断言 FakeConnection 进入 Connected；真机看通知与磁贴
+
+  - id: UC-CONN-02
+    name: 断开
+    status: implemented
+    triggers: [主界面开关, 通知动作, 磁贴, 小组件, 快捷方式]
+    inputs: {}
+    outputs: {state: Idle}
+    side_effects: [前台服务停止, 通知移除, 本次流量落库]
+    current_impl: [app/.../ui/QuickDisableShortcut.kt:47, app/.../bg/BaseService.kt]
+    impl_core: "domain/AppCore.kt :: AppCore.disconnect（traffic.persist 后回 Idle）"
+    tests: "ConnectionTest"
+    verify: cli `disconnect` + 断言流量 snapshot 已写入
+
+  - id: UC-CONN-03
+    name: 切换节点（连接中热切换）
+    status: implemented
+    triggers: [节点列表点选, 通知切换动作]
+    inputs: {profile_id: Long}
+    outputs: {state: Connected, current_profile: ProfileSummary}
+    side_effects: [路由重建, 当前连接不中断或按策略重连, 设置写入]
+    current_impl: [app/.../bg/RootTunService.kt, app/.../ui/NodeSelectDialogActivity.kt]
+    impl_core: "domain/AppCore.kt / ProfileUseCases.kt :: switchTo / selectProfile"
+    tests: "ConnectionTest"
+    verify: cli `switch` 断言 profile 变化且状态未落 Idle
+
+  # ---------- 节点 ----------
+  - id: UC-PROF-01
+    name: 从 URI / 剪贴板 / 扫码导入节点
+    status: implemented
+    triggers: [扫码, sn:// 深链, 粘贴]
+    inputs: {uri: String, group_id: "可选"}
+    outputs: {created: [ProfileSummary], duplicates: Int}
+    side_effects: [节点落库, 归属分组, 重复项只提示不覆盖]
+    current_impl: [app/.../ui/ScannerActivity.kt, app/.../fmt/**]
+    impl_core: "domain/ProfileUseCases.kt :: importProfiles + LinkCodec.parse"
+    tests: "ProfileTest"
+    verify: cli `import --uri=...` 三次同 URI，断言第二次 duplicates=1
+
+  - id: UC-PROF-02
+    name: 手动新建节点
+    status: implemented
+    triggers: [节点页新增]
+    inputs: {protocol: String, fields: Map}
+    outputs: {created: ProfileSummary}
+    side_effects: [落库, 列表刷新]
+    current_impl: [app/.../ui/profile/*SettingsActivity.kt]
+    impl_core: "domain/ProfileUseCases.kt :: createProfile"
+    tests: "ProfileTest"
+    verify: cli `create`
+
+  - id: UC-PROF-03
+    name: 编辑节点
+    status: implemented
+    triggers: [节点详情保存]
+    inputs: {profile_id: Long, patch: Map}
+    outputs: {updated: ProfileSummary}
+    side_effects: [落库, 若为当前节点则触发重连]
+    current_impl: [app/.../ui/profile/*SettingsActivity.kt]
+    impl_core: "domain/ProfileUseCases.kt :: updateProfile（连接中自动重连）"
+    tests: "ProfileTest"
+    verify: cli `update`
+
+  - id: UC-PROF-04
+    name: 删除节点
+    status: implemented
+    triggers: [长按删除]
+    inputs: {profile_ids: [Long]}
+    outputs: {deleted: Int}
+    side_effects: [落库删除, 若为当前节点则先断开, 链式配置级联处理]
+    current_impl: [app/.../ui/ConfigurationFragment.kt]
+    impl_core: "domain/ProfileUseCases.kt :: deleteProfiles（先断开 + clearOutbound）"
+    tests: "ProfileTest"
+    verify: cli `delete` 断言级联后无悬挂引用
+
+  - id: UC-PROF-05
+    name: 克隆节点
+    status: implemented
+    triggers: [节点菜单克隆]
+    inputs: {profile_id: Long}
+    outputs: {created: ProfileSummary}
+    side_effects: [名称加后缀, 落库]
+    current_impl: [app/.../ui/ConfigurationFragment.kt]
+    impl_core: "domain/ProfileUseCases.kt :: cloneProfile"
+    tests: "ProfileTest"
+    verify: cli `clone`
+
+  - id: UC-PROF-06
+    name: 节点拖拽排序
+    status: implemented
+    triggers: [长按拖动]
+    inputs: {profile_id: Long, to_index: Int}
+    outputs: {order: [Long]}
+    side_effects: [顺序落库]
+    current_impl: [app/.../ui/ConfigurationFragment.kt]
+    impl_core: "domain/ProfileUseCases.kt :: reorderProfiles"
+    tests: "ProfileTest"
+    verify: cli `reorder` 断言顺序持久化
+
+  # ---------- 订阅 / 分组 ----------
+  - id: UC-SUB-01
+    name: 添加订阅
+    status: implemented
+    triggers: [订阅页新增]
+    inputs: {url: String, name: String, auto_update: Boolean}
+    outputs: {group: GroupSummary, nodes: Int}
+    side_effects: [首次拉取, 生成节点组, lastUpdated 落地]
+    current_impl: [app/.../group/GroupUpdater.kt, app/.../ui/GroupSettingsActivity.kt]
+    impl_core: "domain/SubscriptionUseCases.kt :: addSubscription（首次拉取 + 失败退避）"
+    tests: "SubscriptionTest"
+    verify: cli + FakeHttp 返回固定 sub，断言 nodes 数与解析结果
+
+  - id: UC-SUB-02
+    name: 手动更新订阅
+    status: implemented
+    triggers: [下拉刷新, 菜单更新]
+    inputs: {group_id: Long}
+    outputs: {added: Int, removed: Int, updated: Int}
+    side_effects: [节点增删改, 失败时保留旧数据并计时退避]
+    current_impl: [app/.../group/GroupUpdater.kt:123]
+    impl_core: "domain/SubscriptionUseCases.kt :: updateSubscription + BackoffPolicy"
+    tests: "SubscriptionTest"
+    verify: cli 先成功再让 FakeHttp 500，断言旧数据未丢且 backoff 生效
+
+  - id: UC-SUB-03
+    name: 定时更新
+    status: implemented
+    triggers: [WorkManager 到期]
+    inputs: {}
+    outputs: {updated_groups: [Long]}
+    side_effects: [只更新 autoUpdate 且到期的组, 未连接时跳过 updateWhenConnectedOnly]
+    current_impl: [app/.../bg/SubscriptionUpdater.kt:117]
+    impl_core: "domain/SubscriptionUseCases.kt :: runDueSubscriptions + SubscriptionPolicy"
+    tests: "SubscriptionTest"
+    verify: cli 注入固定时钟，断言到期的被更新、未到期的不动
+
+  - id: UC-SUB-04
+    name: 删除订阅
+    status: implemented
+    triggers: [订阅菜单删除]
+    inputs: {group_id: Long}
+    outputs: {}
+    side_effects: [组与节点一并删除]
+    current_impl: [app/.../ui/GroupFragment.kt]
+    impl_core: "domain/SubscriptionUseCases.kt :: removeSubscription（连带删节点）"
+    tests: "SubscriptionTest"
+    verify: cli `sub delete`
+
+  # ---------- 路由 ----------
+  - id: UC-ROUTE-01
+    name: 修改分流规则
+    status: implemented
+    triggers: [路由页编辑]
+    inputs: {rule: RouteRule}
+    outputs: {rules: [RouteRule]}
+    side_effects: [持久化, 连接中即时生效]
+    current_impl: [app/.../ui/RouteFragment.kt, app/.../route/**]
+    impl_core: "domain/RouteUseCases.kt :: saveRouteRule / deleteRouteRules"
+    tests: "RouteTest"
+    verify: cli 写入后断言导出配置包含该规则
+
+  - id: UC-ROUTE-02
+    name: 规则排序 / 启停
+    status: implemented
+    triggers: [拖动, 开关]
+    inputs: {rule_ids: [Long], enabled: Boolean}
+    outputs: {}
+    side_effects: [顺序与启用态落库]
+    current_impl: [app/.../ui/RouteFragment.kt]
+    impl_core: "domain/RouteUseCases.kt :: reorderRoutes / setRouteEnabled"
+    tests: "RouteTest"
+    verify: cli `route reorder`
+
+  - id: UC-APP-01
+    name: 分应用代理
+    status: implemented
+    triggers: [应用列表勾选]
+    inputs: {packages: [String], mode: "include|exclude"}
+    outputs: {selected: [String]}
+    side_effects: [选择集持久化, 规则重建]
+    current_impl: [app/.../ui/AppManagerActivity.kt, app/.../utils/PackageCache.kt]
+    impl_core: "domain/RouteUseCases.kt :: setPerAppProxy（归一化 + 模式校验）"
+    tests: "RouteTest"
+    verify: cli `apps set --mode=include`
+
+  - id: UC-NET-01
+    name: 全局代理模式切换
+    status: implemented
+    triggers: [设置项]
+    inputs: {mode: "vpn|proxy|tun"}
+    outputs: {}
+    side_effects: [设置写入, 连接中重连]
+    current_impl: [app/.../database/DataStore.kt]
+    impl_core: "domain/SettingsUseCases.kt :: setProxyMode（连接中重连）"
+    tests: "SettingsTest"
+    verify: cli `settings set proxy_mode`
+
+  # ---------- 数据 ----------
+  - id: UC-DATA-01
+    name: 导出配置
+    status: implemented
+    triggers: [备份页导出]
+    inputs: {include_private: Boolean}
+    outputs: {uri: String}
+    side_effects: [生成文件, 分享, 无残留临时文件]
+    current_impl: [app/.../ui/ConfigurationFragment.kt:getProfilesForExport]
+    impl_core: "domain/DataUseCases.kt :: exportConfig"
+    tests: "DataTest / SettingsTest"
+    verify: cli `export` 断言输出可被 UC-DATA-02 导入
+
+  - id: UC-DATA-02
+    name: 导入备份
+    status: implemented
+    triggers: [备份页选择文件]
+    inputs: {uri: String}
+    outputs: {imported: Int, skipped: Int}
+    side_effects: [格式校验, 事务写入, 失败不改动现有数据]
+    current_impl: [app/.../ui/BackupFragment.kt]
+    impl_core: "domain/DataUseCases.kt :: importBackup（先 preview 再写入）"
+    tests: "DataTest / SettingsTest"
+    verify: cli 用损坏文件断言现有数据不变
+
+  - id: UC-DATA-03
+    name: 数据库损坏恢复
+    status: implemented
+    triggers: [启动检测到损坏]
+    inputs: {}
+    outputs: {recovered: Boolean}
+    side_effects: [进入恢复页, 可重建或另存]
+    current_impl: [app/.../ui/DatabaseRecoveryActivity.kt]
+    impl_core: "domain/DataUseCases.kt :: checkAndRecoverStorage"
+    tests: "DataTest / SettingsTest"
+    verify: cli 用损坏 fixture 启动
+
+  - id: UC-DATA-04
+    name: 设置迁移（升级不丢配置）
+    status: implemented
+    triggers: [版本升级首启]
+    inputs: {from_version: "3.0.10"}
+    outputs: {migrated_keys: Int}
+    side_effects: [old key → new key, 失败回滚]
+    current_impl: [app/.../database/DataStore.kt]
+    impl_core: "domain/SettingsUseCases.kt :: migrateSettings + SettingsMigration（只合并存在的键）"
+    tests: "DataTest / SettingsTest"
+    verify: cli 用 v3.0.10 的 prefs fixture 断言关键字段一致
+
+  # ---------- 统计 / 日志 ----------
+  - id: UC-STAT-01
+    name: 查看流量曲线
+    status: implemented
+    triggers: [流量页]
+    inputs: {window: "day|week|month", profile_id: "可选"}
+    outputs: {series: [TrafficPoint], unit: String}
+    side_effects: [只读]
+    current_impl: [app/.../ui/TrafficChartActivity.kt]
+    impl_core: "domain/StatsUseCases.kt :: trafficReport + TrafficAggregator + ByteFormat"
+    tests: "StatsTest"
+    verify: cli `stats --window=day` 断言聚合与单位换算
+
+  - id: UC-STAT-02
+    name: 清零流量
+    status: implemented
+    triggers: [流量页菜单]
+    inputs: {profile_ids: [Long]}
+    outputs: {}
+    side_effects: [计数归零并落库]
+    current_impl: [app/.../bg/RootObserverBinder.kt:requestTrafficReset]
+    impl_core: "domain/StatsUseCases.kt :: resetTraffic"
+    tests: "StatsTest"
+    verify: cli `traffic reset`
+
+  - id: UC-LOG-01
+    name: 导出日志
+    status: implemented
+    triggers: [日志页分享]
+    inputs: {level: "info|debug"}
+    outputs: {uri: String}
+    side_effects: [脱敏后生成文件]
+    current_impl: [app/.../ui/LogcatFragment.kt, moe/matsuri/nb4a/utils/SendLog.kt]
+    impl_core: "domain/DataUseCases.kt :: exportLogs + LogRedactor"
+    tests: "DataTest"
+    verify: cli 断言输出不含 `password=` 与 `Bearer`
+
+  # ---------- 平台 / 权限 ----------
+  - id: UC-SYS-01
+    name: 首次启动申请 VPN 权限
+    status: implemented
+    triggers: [首次连接]
+    inputs: {}
+    outputs: {granted: Boolean}
+    side_effects: [系统弹窗, 拒绝则保持 Idle]
+    current_impl: [app/.../bg/BaseService.kt]
+    impl_core: "domain/AppCore.kt :: connect 前置 requireVpn，拒绝则保持 Idle"
+    tests: "ConnectionTest / PlatformTest"
+    verify: cli 用 FakePermissionGate 返回 false，断言状态仍 Idle
+
+  - id: UC-SYS-02
+    name: 开机自启
+    status: implemented
+    triggers: [BOOT_COMPLETED]
+    inputs: {}
+    outputs: {}
+    side_effects: [按设置决定是否启动服务]
+    current_impl: [app/.../BootReceiver.kt]
+    impl_core: "domain/AppCore.kt :: onBoot（只看设置，不碰系统 API）"
+    tests: "ConnectionTest / PlatformTest"
+    verify: cli `boot --autostart=true`
+
+  - id: UC-SYS-03
+    name: 小组件 / 磁贴点击
+    status: implemented
+    triggers: [桌面小组件, QS 磁贴]
+    inputs: {action: "toggle|switch"}
+    outputs: {}
+    side_effects: [与 UC-CONN-01/02 一致, 但入口在 UI 之外]
+    current_impl: [app/.../widget/OwnBoxWidgets.kt, app/.../bg/TileService.kt]
+    impl_core: "domain/AppCore.kt :: onPlatformAction（与 CONN-01/02 同一用例）"
+    tests: "ConnectionTest / PlatformTest"
+    verify: 通过 PlatformPorts 断言同一状态源
+
+  - id: UC-ROOT-01
+    name: 安装 / 更新 root 模块
+    status: implemented
+    triggers: [工具页]
+    inputs: {bundle: String}
+    outputs: {installed: Boolean, version: String}
+    side_effects: [模块落盘, 校验, 重启服务]
+    current_impl: [app/.../bg/RootModuleClient.kt]
+    impl_core: "domain/PlatformUseCases.kt :: rootCommand + RootCommandPolicy"
+    tests: "PlatformTest"
+    verify: cli 用 fake su 通道断言命令白名单生效

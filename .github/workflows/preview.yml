@@ -1,0 +1,285 @@
+
+# @author 雾晚
+name: Preview Build
+on:
+  push:
+    branches:
+      - beta1-1.15
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: '发布预览版；取消勾选仅构建验证并保留下载产物'
+        type: boolean
+        default: true
+
+concurrency:
+  group: wanbox-release-publication
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  libcore:
+    name: Native Build (LibCore)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Golang Status
+        run: find buildScript libcore/*.sh nb4a.properties | xargs cat | sha1sum > golang_status
+      - name: Libcore Status
+        run: git ls-files libcore | xargs cat | sha1sum > libcore_status
+      - name: LibCore Cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            app/libs/libcore.aar
+            app/executableSo
+          # @author 雾晚: share the verified cache for exactly the same core inputs.
+          key: native-audit-${{ hashFiles('libcore/**', 'buildScript/lib/**', 'buildScript/init/**', 'nb4a.properties') }}
+      - name: Install Golang
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.10
+      - name: Native Build
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: ./run lib core
+      - name: Prepare pinned source for cached-core tests
+        if: steps.cache.outputs.cache-hit == 'true'
+        run: |
+          bash buildScript/lib/core/get_source.sh
+          (cd libcore && go mod tidy)
+      - name: Verify LibCore AAR
+        run: |
+          test -s app/libs/libcore.aar
+          for abi in armeabi-v7a arm64-v8a x86 x86_64; do
+            test -s "app/executableSo/$abi/librootbox.so"
+          done
+      - name: Upload LibCore AAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: libcore-aar
+          path: app/libs/libcore.aar
+          if-no-files-found: error
+      - name: Upload Root TUN executables
+        uses: actions/upload-artifact@v4
+        with:
+          name: root-tun-executables
+          path: app/executableSo
+          if-no-files-found: error
+      - name: Ensure NDK clang present
+        run: |
+                    NDK_DIR="$ANDROID_HOME/ndk/25.0.8775105"
+                    CLANG="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
+                    if [ ! -f "$CLANG" ]; then
+                        echo "NDK clang missing, installing ndk;25.0.8775105 via sdkmanager"
+                        yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;25.0.8775105"
+                    fi
+                    test -f "$CLANG"
+      - name: Verify and package Root module
+        run: |
+          go -C rootmodule test -race ./...
+          go -C rootmodule vet ./...
+          python3 -m unittest discover -s rootmodule -p 'test_*.py'
+          python3 -m unittest discover -s tools/diagnostics -p test_sample_root_runtime.py
+          python3 -m unittest discover -s tools -p test_verify_apk_abi.py
+          (cd libcore && go test -tags=with_clash_api,with_gvisor,with_quic,with_wireguard,with_utls .)
+          (cd libcore && go test ./internal/... ./protocol/urltest ./protocol/loadbalance)
+          ANDROID_NDK_HOME="$ANDROID_HOME/ndk/25.0.8775105" bash rootmodule/build.sh
+      - name: Upload Root module
+        uses: actions/upload-artifact@v4
+        with:
+          name: root-module
+          path: rootmodule/build/wanbox-root-module-arm64-v8a.zip
+          if-no-files-found: error
+  build:
+    name: Build OSS APK
+    runs-on: ubuntu-latest
+    needs:
+      - libcore
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Download LibCore AAR
+        uses: actions/download-artifact@v4
+        with:
+          name: libcore-aar
+          path: app/libs
+      - name: Download Root TUN executables
+        uses: actions/download-artifact@v4
+        with:
+          name: root-tun-executables
+          path: app/executableSo
+      - name: Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle
+          key: gradle-oss-${{ hashFiles('**/*.gradle.kts') }}
+      - name: Prepare release signing key
+        env:
+          WANBOX_KEYSTORE_BASE64: ${{ secrets.WANBOX_KEYSTORE_BASE64 }}
+          WANBOX_KEYSTORE_PASSWORD: ${{ secrets.WANBOX_KEYSTORE_PASSWORD }}
+        run: |
+          test -n "$WANBOX_KEYSTORE_BASE64"
+          test -n "$WANBOX_KEYSTORE_PASSWORD"
+          printf '%s' "$WANBOX_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/wanbox-release.p12"
+          test -s "$RUNNER_TEMP/wanbox-release.p12"
+      - name: Gradle Build
+        env:
+          BUILD_PLUGIN: none
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WANBOX_KEYSTORE_FILE: ${{ runner.temp }}/wanbox-release.p12
+          WANBOX_KEYSTORE_PASSWORD: ${{ secrets.WANBOX_KEYSTORE_PASSWORD }}
+        run: |
+          echo "sdk.dir=${ANDROID_HOME}" > local.properties
+          echo "ndk.dir=${ANDROID_HOME}/ndk/25.0.8775105" >> local.properties
+          export LOCAL_PROPERTIES="${{ secrets.LOCAL_PROPERTIES }}"
+          ./run init action gradle
+          ./gradlew app:testPreviewDebugUnitTest app:compilePreviewDebugAndroidTestKotlin
+          python3 -m unittest discover -s tools -p 'test_*.py'
+          python3 tools/check_android_security.py
+          ./gradlew app:assemblePreviewRelease
+          APK_DIR=app/build/outputs/apk/preview/release
+          find app/build/outputs/apk -type f -name '*.apk' -print
+          test -d "$APK_DIR"
+          APKSIGNER=$(find "${ANDROID_HOME}/build-tools" -name apksigner | sort -V | tail -n 1)
+          AAPT=$(find "${ANDROID_HOME}/build-tools" -name aapt | sort -V | tail -n 1)
+          test -n "$APKSIGNER"
+          test -n "$AAPT"
+          PREVIEW_VERSION=$(grep '^PRE_VERSION_NAME=' nb4a.properties | cut -d= -f2 | tr -d '\r')
+          PREVIEW_CODE=$(grep '^PRE_VERSION_CODE=' nb4a.properties | cut -d= -f2 | tr -d '\r')
+          FORMAL_CODE=$(grep '^VERSION_CODE=' nb4a.properties | cut -d= -f2 | tr -d '\r')
+          test "$PREVIEW_CODE" -gt "$FORMAL_CODE"
+          PREVIEW_CODE=$((PREVIEW_CODE * 5))
+          test "$(find "$APK_DIR" -maxdepth 1 -name '*.apk' | wc -l)" -eq 1
+          test "$(grep -c 'android:targetPackage="com.lit008834.pixel.wanboxforandroid"' app/src/main/res/xml/shortcuts.xml)" -eq 4
+          for apk in "$APK_DIR"/*.apk; do
+            case "$(basename "$apk")" in wanBoxForAndroid-"$PREVIEW_VERSION"-*.apk) ;; *) exit 1 ;; esac
+            python3 tools/verify_apk_abi.py "$apk"
+            "$AAPT" dump badging "$apk" | grep -q "^package: name='com.lit008834.pixel.wanboxforandroid' versionCode='$PREVIEW_CODE' versionName='$PREVIEW_VERSION' "
+            manifest=$($AAPT dump xmltree "$apk" AndroidManifest.xml)
+            printf '%s\n' "$manifest" | grep -q 'com.lit008834.pixel.wanboxforandroid.cache'
+            printf '%s\n' "$manifest" | grep -q 'io.nekohasekai.sagernet.widget.WidgetControlReceiver'
+            signer_digest=$("$APKSIGNER" verify --verbose --print-certs "$apk" | grep -m1 -i 'certificate SHA-256 digest' | sed 's/.*: *//' | tr -d ' \r' | tr '[:lower:]' '[:upper:]')
+            echo "$(basename "$apk") certificate SHA-256: $signer_digest"
+            test "$signer_digest" = 'AEC62C7003FA515534817250D3CD0DC705E19F4CD578A7A9A1D22519596EA598'
+          done
+          mkdir -p public-apks
+          cp "$APK_DIR"/*arm64-v8a*.apk public-apks/
+          echo "APK=public-apks" >> "$GITHUB_ENV"
+          # @author 雾晚: same source and signature, emulator-only ABI; never uploaded to Release.
+          WANBOX_INTERNAL_TEST=1 ./gradlew app:assemblePreviewRelease -PwanboxInternalTestAbi=x86_64
+          mkdir -p internal-apks
+          cp "$APK_DIR"/*x86_64*.apk internal-apks/
+          for fixture in internal-apks/*.apk; do "$APKSIGNER" verify "$fixture"; done
+          # @author 雾晚: disposable emulator fixture for real Room/portable backup roundtrip.
+          WANBOX_INTERNAL_TEST=1 ./gradlew app:assemblePreviewDebug app:assemblePreviewDebugAndroidTest -PwanboxInternalTestAbi=x86_64
+          mkdir -p internal-policy
+          cp app/build/outputs/apk/preview/debug/*x86_64*.apk internal-policy/manager.apk
+          cp app/build/outputs/apk/androidTest/preview/debug/*.apk internal-policy/tests.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: APKs
+          path: ${{ env.APK }}
+      - name: Download module without manager
+        uses: actions/download-artifact@v4
+        with:
+          name: root-module
+          path: module-artifacts
+      - name: Bundle verified signed management APK
+        run: |
+          python3 rootmodule/bundle_manager.py --source module-artifacts/wanbox-root-module-arm64-v8a.zip --apk public-apks/*arm64-v8a*.apk --output module-artifacts/wanbox-root-module-with-manager-arm64-v8a.zip
+          python3 -m zipfile -t module-artifacts/wanbox-root-module-with-manager-arm64-v8a.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: root-module-with-manager
+          path: module-artifacts/wanbox-root-module-with-manager-arm64-v8a.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: internal-upgrade-fixture
+          path: internal-apks/*.apk
+          if-no-files-found: error
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: internal-data-policy-fixture
+          path: internal-policy/*.apk
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish Preview Release
+    # @author 雾晚: validation-only runs must never replace an existing Release.
+    if: github.event_name != 'workflow_dispatch' || inputs.publish_release
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Get Version
+        run: |
+          VERSION=$(grep '^PRE_VERSION_NAME=' nb4a.properties | cut -d'=' -f2 | tr -d '\r\n')
+          # @author 雾晚: a new preview must never overwrite an already published tag.
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" > "$RUNNER_TEMP/preview-existing-tag.txt"; then
+            echo "Preview tag v$VERSION already exists; refusing to replace it."
+            exit 1
+          else
+            test "$?" -eq 2
+          fi
+          echo "PREVIEW_TAG=v$VERSION" >> "$GITHUB_ENV"
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: APKs
+          path: artifacts
+      - name: Prepare APKs
+        run: |
+          mkdir -p apks
+          find artifacts -name "*.apk" -exec cp {} apks/ \;
+          ls -la apks/
+          test "$(find apks -maxdepth 1 -name '*.apk' | wc -l)" -eq 1
+          (cd apks && sha256sum *.apk > SHA256SUMS && sha256sum --check SHA256SUMS)
+          CODE=$(grep '^PRE_VERSION_CODE=' nb4a.properties | cut -d= -f2 | tr -d '\r')
+          CODE=$((CODE * 5))
+          cp PREVIEW_NOTES.md "$RUNNER_TEMP/preview-notes.md"
+      - name: Download Root module
+        uses: actions/download-artifact@v4
+        with:
+          name: root-module
+          path: apks
+      - name: Verify module and combined checksums
+        run: |
+          test -s apks/wanbox-root-module-arm64-v8a.zip
+          python3 -m zipfile -t apks/wanbox-root-module-arm64-v8a.zip
+          (cd apks && sha256sum *.apk *.zip > SHA256SUMS && sha256sum --check SHA256SUMS)
+      - name: Download module with manager
+        uses: actions/download-artifact@v4
+        with:
+          name: root-module-with-manager
+          path: apks
+      - name: Verify both module variants
+        run: |
+          test "$(find apks -maxdepth 1 -name '*.zip' | wc -l)" -eq 2
+          python3 rootmodule/verify_version.py apks/*.zip
+          python3 -m zipfile -t apks/wanbox-root-module-with-manager-arm64-v8a.zip
+          (cd apks && sha256sum *.apk *.zip > SHA256SUMS && sha256sum --check SHA256SUMS)
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.PREVIEW_TAG }}
+          target_commitish: ${{ github.sha }}
+          name: wanBox ${{ env.PREVIEW_TAG }}
+          body_path: ${{ runner.temp }}/preview-notes.md
+          files: apks/*
+          draft: false
+          prerelease: true
+          make_latest: false
+      - name: Verify published preview and retain only newest prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/prune_prereleases.py --repo "$GITHUB_REPOSITORY" --keep-tag "$PREVIEW_TAG"

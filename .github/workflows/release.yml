@@ -1,0 +1,296 @@
+# @author 雾晚
+name: Release Build
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release Tag (e.g. v3.0.0)"
+        required: true
+        default: "v3.0.1"
+
+concurrency:
+  group: wanbox-release-publication
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  libcore:
+    name: Native Build (LibCore)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Golang Status
+        run: find buildScript libcore/*.sh nb4a.properties | xargs cat | sha1sum > golang_status
+      - name: Libcore Status
+        run: git ls-files libcore | xargs cat | sha1sum > libcore_status
+      - name: LibCore Cache
+        id: cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            app/libs/libcore.aar
+            app/executableSo
+          key: ${{ hashFiles('.github/workflows/*', 'golang_status', 'libcore_status') }}
+      - name: Install Golang
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/setup-go@v6
+        with:
+          go-version: ^1.25
+      - name: Native Build
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: ./run lib core
+      - name: Verify LibCore AAR
+        run: |
+          test -s app/libs/libcore.aar
+          for abi in armeabi-v7a arm64-v8a x86 x86_64; do
+            test -s "app/executableSo/$abi/librootbox.so"
+          done
+          unzip -p app/libs/libcore.aar classes.jar > /tmp/libcore-classes.jar
+          unzip -l /tmp/libcore-classes.jar | grep -q 'libcore/Libcore.class'
+          unzip -l /tmp/libcore-classes.jar | grep -q 'go/Seq.class'
+      - name: Upload LibCore AAR
+        uses: actions/upload-artifact@v5
+        with:
+          name: libcore-aar
+          path: app/libs/libcore.aar
+          if-no-files-found: error
+          retention-days: 1
+      - name: Upload Root TUN executables
+        uses: actions/upload-artifact@v5
+        with:
+          name: root-tun-executables
+          path: app/executableSo
+          if-no-files-found: error
+          retention-days: 1
+      - name: Ensure NDK clang present
+        run: |
+          NDK_DIR="$ANDROID_HOME/ndk/25.0.8775105"
+          CLANG="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
+          if [ ! -f "$CLANG" ]; then
+            echo "NDK clang missing, installing ndk;25.0.8775105 via sdkmanager"
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;25.0.8775105"
+          fi
+          test -f "$CLANG"
+      - name: Build Root Module
+        run: |
+          ANDROID_NDK_HOME="$ANDROID_HOME/ndk/25.0.8775105" bash rootmodule/build.sh
+      - name: Upload Root module
+        uses: actions/upload-artifact@v5
+        with:
+          name: root-module
+          path: rootmodule/build/wanbox-root-module-arm64-v8a.zip
+          if-no-files-found: error
+          retention-days: 1
+
+  build:
+    name: Build OSS APK
+    runs-on: ubuntu-latest
+    needs:
+      - libcore
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Download LibCore AAR
+        uses: actions/download-artifact@v5
+        with:
+          name: libcore-aar
+          path: app/libs
+      - name: Download Root TUN executables
+        uses: actions/download-artifact@v5
+        with:
+          name: root-tun-executables
+          path: app/executableSo
+      - name: Verify LibCore AAR
+        run: |
+          test -s app/libs/libcore.aar
+          unzip -p app/libs/libcore.aar classes.jar > /tmp/libcore-classes.jar
+          unzip -l /tmp/libcore-classes.jar | grep -q 'libcore/Libcore.class'
+          unzip -l /tmp/libcore-classes.jar | grep -q 'go/Seq.class'
+      # Release 构建禁用 Gradle 缓存，确保每次都是干净构建（避免旧代码残留）
+      - name: Prepare release signing key
+        env:
+          WANBOX_KEYSTORE_BASE64: ${{ secrets.WANBOX_KEYSTORE_BASE64 }}
+          WANBOX_KEYSTORE_PASSWORD: ${{ secrets.WANBOX_KEYSTORE_PASSWORD }}
+        run: |
+          test -n "$WANBOX_KEYSTORE_BASE64"
+          test -n "$WANBOX_KEYSTORE_PASSWORD"
+          printf '%s' "$WANBOX_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/wanbox-release.p12"
+          test -s "$RUNNER_TEMP/wanbox-release.p12"
+      - name: Gradle Build
+        env:
+          BUILD_PLUGIN: none
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WANBOX_KEYSTORE_FILE: ${{ runner.temp }}/wanbox-release.p12
+          WANBOX_KEYSTORE_PASSWORD: ${{ secrets.WANBOX_KEYSTORE_PASSWORD }}
+        run: |
+          echo "sdk.dir=${ANDROID_HOME}" > local.properties
+          echo "ndk.dir=${ANDROID_HOME}/ndk/25.0.8775105" >> local.properties
+          export LOCAL_PROPERTIES="${{ secrets.LOCAL_PROPERTIES }}"
+          ./run init action gradle
+          ./gradlew app:assembleOssRelease
+          APK_DIR=app/build/outputs/apk/oss/release
+          find app/build/outputs/apk -type f -name '*.apk' -print
+          test -d "$APK_DIR"
+          APKSIGNER=$(find "${ANDROID_HOME}/build-tools" -name apksigner | sort -V | tail -n 1)
+          AAPT=$(find "${ANDROID_HOME}/build-tools" -name aapt | sort -V | tail -n 1)
+          test -n "$APKSIGNER"
+          test -n "$AAPT"
+          VERSION_NAME=$(grep '^VERSION_NAME=' nb4a.properties | cut -d= -f2 | tr -d '\r')
+          VERSION_CODE=$(grep '^VERSION_CODE=' nb4a.properties | cut -d= -f2 | tr -d '\r')
+          VERSION_CODE=$((VERSION_CODE * 5))
+          RELEASE_TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          test "$RELEASE_TAG" = "v$VERSION_NAME"
+          test "$(find "$APK_DIR" -maxdepth 1 -name '*.apk' | wc -l)" -eq 1
+          test "$(grep -c 'android:targetPackage="com.lit008834.pixel.wanboxforandroid"' app/src/main/res/xml/shortcuts.xml)" -eq 4
+          for apk in "$APK_DIR"/*.apk; do
+            case "$(basename "$apk")" in wanBoxForAndroid-"$VERSION_NAME"-*.apk) ;; *) exit 1 ;; esac
+            python3 tools/verify_apk_abi.py "$apk"
+            "$AAPT" dump badging "$apk" | grep -q "^package: name='com.lit008834.pixel.wanboxforandroid' versionCode='$VERSION_CODE' versionName='$VERSION_NAME' "
+            manifest=$($AAPT dump xmltree "$apk" AndroidManifest.xml)
+            printf '%s\n' "$manifest" | grep -q 'com.lit008834.pixel.wanboxforandroid.cache'
+            # @author 雾晚: Match the private receiver used by current Preview and security checks.
+            printf '%s\n' "$manifest" | grep -q 'io.nekohasekai.sagernet.widget.WidgetControlReceiver'
+            if ! verify_output=$("$APKSIGNER" verify --verbose --print-certs "$apk" 2>&1); then
+              printf '%s\n' "$verify_output"
+              exit 1
+            fi
+            printf '%s\n' "$verify_output"
+            signer_digest=$(printf '%s\n' "$verify_output" | grep -m1 -i 'certificate SHA-256 digest' | sed 's/.*: *//' | tr -d ' \r' | tr '[:lower:]' '[:upper:]')
+            echo "$(basename "$apk") certificate SHA-256: $signer_digest"
+            test "$signer_digest" = 'AEC62C7003FA515534817250D3CD0DC705E19F4CD578A7A9A1D22519596EA598'
+          done
+          mkdir -p public-apks
+          cp "$APK_DIR"/*arm64-v8a*.apk public-apks/
+          echo "APK=public-apks" >> "$GITHUB_ENV"
+          # @author 雾晚: same source and signature, emulator-only ABI; never uploaded to Release.
+          WANBOX_INTERNAL_TEST=1 ./gradlew app:assembleOssRelease -PwanboxInternalTestAbi=x86_64
+          mkdir -p internal-apks
+          cp "$APK_DIR"/*x86_64*.apk internal-apks/
+          for fixture in internal-apks/*.apk; do "$APKSIGNER" verify "$fixture"; done
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: APKs
+          path: ${{ env.APK }}
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        with:
+          name: internal-upgrade-fixture
+          path: internal-apks/*.apk
+          if-no-files-found: error
+          retention-days: 1
+
+  verify_upgrade:
+    name: Verify formal update beside OwnBox
+    if: false  # 用户决定：OwnBox 共存/升级验证以后都不用管，允许覆盖安装
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          name: internal-upgrade-fixture
+          path: apks
+      - name: Download previous preview and OwnBox
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p previous
+          gh release download v3.0.5-preview.2 \
+            -R lit008834-pixel/wanBoxForAndroid \
+            -p wanBoxForAndroid-3.0.5-preview.2-x86_64-release.apk -D previous
+          gh release download v3.0.0 \
+            -R Own716/OwnBoxForAndroid \
+            -p OwnBox-3.0.0-x86_64-release.apk -D previous
+          echo '8dba440911f90b60d94574d62c28ce20dbab80dded19a580142ddaf0413fc863  previous/wanBoxForAndroid-3.0.5-preview.2-x86_64-release.apk' | sha256sum --check
+          echo '86062de59591df18cbd257e484f43e1a1483d961af3f793b4194ac019d618348  previous/OwnBox-3.0.0-x86_64-release.apk' | sha256sum --check
+          # @author 雾晚: pinned read-only co-install fixture.
+          OWNBOX=previous/OwnBox-3.0.0-x86_64-release.apk
+          AAPT=$(find "${ANDROID_HOME}/build-tools" -name aapt | sort -V | tail -n 1)
+          APKSIGNER=$(find "${ANDROID_HOME}/build-tools" -name apksigner | sort -V | tail -n 1)
+          test -s "$OWNBOX"
+          "$AAPT" dump badging "$OWNBOX" | grep -q "^package: name='com.ownbox.app' "
+          "$APKSIGNER" verify "$OWNBOX"
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Update installed preview beside OwnBox
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          script: bash tools/diagnostics/verify_formal_upgrade.sh
+
+  publish:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Download Artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: APKs
+          path: artifacts
+      - name: Download Root Module
+        uses: actions/download-artifact@v5
+        with:
+          name: root-module
+          path: module-artifacts
+      - name: Bundle Module with Manager APK
+        run: |
+          python3 rootmodule/bundle_manager.py --source module-artifacts/wanbox-root-module-arm64-v8a.zip --apk artifacts/*arm64-v8a*.apk --output module-artifacts/wanbox-root-module-with-manager-arm64-v8a.zip
+          python3 -m zipfile -t module-artifacts/wanbox-root-module-with-manager-arm64-v8a.zip
+      - name: Prepare APKs and Modules
+        run: |
+          mkdir -p apks
+          find artifacts -name "*.apk" -exec cp {} apks/ \;
+          cp module-artifacts/wanbox-root-module-arm64-v8a.zip apks/
+          cp module-artifacts/wanbox-root-module-with-manager-arm64-v8a.zip apks/
+          ls -la apks/
+          test "$(find apks -maxdepth 1 -name '*.apk' | wc -l)" -eq 1
+          test "$(find apks -maxdepth 1 -name '*.zip' | wc -l)" -eq 2
+          (cd apks && sha256sum *.apk *.zip > SHA256SUMS && sha256sum --check SHA256SUMS)
+          cat apks/SHA256SUMS
+      - name: Show Release Notes
+        run: cat RELEASE_NOTES.md
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          # @author 雾晚: publish the tested dispatch commit, not the default branch.
+          target_commitish: ${{ github.sha }}
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: wanBox ${{ github.event.inputs.tag || github.ref_name }}
+          body_path: RELEASE_NOTES.md
+          files: apks/*
+          draft: false
+          prerelease: ${{ contains(github.event.inputs.tag || github.ref_name, 'preview') || contains(github.event.inputs.tag || github.ref_name, 'alpha') || contains(github.event.inputs.tag || github.ref_name, 'beta') }}
+          make_latest: ${{ !(contains(github.event.inputs.tag || github.ref_name, 'preview') || contains(github.event.inputs.tag || github.ref_name, 'alpha') || contains(github.event.inputs.tag || github.ref_name, 'beta')) }}
+          generate_release_notes: false
+
+      - name: Verify published preview and retain only newest prerelease
+        if: contains(github.event.inputs.tag || github.ref_name, 'preview') || contains(github.event.inputs.tag || github.ref_name, 'alpha') || contains(github.event.inputs.tag || github.ref_name, 'beta')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: python3 tools/prune_prereleases.py --repo "$GITHUB_REPOSITORY" --keep-tag "$RELEASE_TAG"

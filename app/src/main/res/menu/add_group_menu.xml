@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/action_update_all"
+        android:icon="@drawable/ic_baseline_update_24"
+        android:title="@string/update_all_subscription"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_update_selected"
+        android:title="@string/update_selected_subscription"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_new_group"
+        android:icon="@drawable/ic_minimal_plus"
+        android:title="@string/group_create"
+        app:showAsAction="always" />
+</menu>

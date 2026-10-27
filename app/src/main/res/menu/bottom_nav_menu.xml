@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- @author 雾晚 - preview.18 UI 改造：底部四栏导航 -->
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_dashboard"
+        android:icon="@drawable/ic_minimal_home"
+        android:title="@string/tab_dashboard" />
+    <item
+        android:id="@+id/nav_nodes"
+        android:icon="@drawable/ic_minimal_layers"
+        android:title="@string/tab_nodes" />
+    <item
+        android:id="@+id/nav_subscriptions"
+        android:icon="@drawable/ic_minimal_subscription"
+        android:title="@string/tab_subscriptions" />
+    <item
+        android:id="@+id/nav_settings"
+        android:icon="@drawable/ic_minimal_settings"
+        android:title="@string/tab_settings" />
+</menu>

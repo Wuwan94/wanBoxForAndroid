@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- @author 雾晚
+     云备份不得携带代理凭据：sager_net.db / configuration.db 内含节点地址、口令、
+     WireGuard 私钥与订阅 URL，进入 Google 账号备份即脱离设备加密边界。
+     需要迁移请在应用内用「导出配置」显式操作。 -->
+<data-extraction-rules>
+    <cloud-backup disableIfNoEncryptionCapabilities="true">
+        <exclude domain="database" path="."/>
+        <exclude domain="device_database" path="."/>
+        <exclude domain="sharedpref" path="."/>
+        <exclude domain="device_sharedpref" path="."/>
+        <exclude domain="root" path="."/>
+        <exclude domain="device_root" path="."/>
+        <exclude domain="file" path="."/>
+        <exclude domain="device_file" path="."/>
+        <exclude domain="external" path="."/>
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="database" path="."/>
+        <exclude domain="device_database" path="."/>
+        <exclude domain="root" path="."/>
+        <exclude domain="device_root" path="."/>
+        <exclude domain="file" path="."/>
+        <exclude domain="device_file" path="."/>
+        <exclude domain="sharedpref" path="."/>
+        <exclude domain="device_sharedpref" path="."/>
+        <exclude domain="external" path="."/>
+    </device-transfer>
+</data-extraction-rules>
