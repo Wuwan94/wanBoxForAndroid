@@ -384,28 +384,42 @@ jobs:
           print()
           print('UPX 方案只验证了「压缩后可逐字节还原」，Android arm64 加载兼容性未验证。')
           PY
-      # @author 雾晚: 唯一能证实「去掉内嵌核心能省多少」的办法——真编两个 APK 对比。
-      # 产物不可运行（缺 librootbox.so），只进 lab artifact，不进发布。
+      # @author 雾晚: 测「去掉内嵌引擎能省多少」。上一版用 Gradle -P 编两次，得到 71 字节的
+      # 荒谬差额——多半是打包任务被判 up-to-date，跳过重打包。改用确定性做法：
+      # 只编一次基线 APK，再从副本里精确删掉该条目并重算 zip，差额即该条目真实占用。
       - name: Measure APK without embedded core
         run: |
           set +e
           ./gradlew app:assembleOssDebug --console=plain -q
           if [ $? -ne 0 ]; then echo "基线 debug 构建失败"; exit 1; fi
           cp app/build/outputs/apk/oss/debug/*.apk lab/apk-base.apk
-          ./gradlew app:assembleOssDebug -PwanboxDropEmbeddedCore --console=plain -q
-          if [ $? -ne 0 ]; then echo "去核心 debug 构建失败"; exit 1; fi
-          cp app/build/outputs/apk/oss/debug/*.apk lab/apk-nocore.apk
           python3 - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
           import os, zipfile
-          base, nocore = 'lab/apk-base.apk', 'lab/apk-nocore.apk'
-          b, n = os.stat(base).st_size, os.stat(nocore).st_size
-          def has_core(path):
-              with zipfile.ZipFile(path) as z:
-                  return any('libgojni.so' in i.filename for i in z.infolist())
-          print('| APK(debug) | 字节 | 含 libgojni.so |')
-          print('| --- | --- | --- |')
-          print(f'| 基线 | {b:,} | {has_core(base)} |')
-          print(f'| 去内嵌核心 | {n:,} | {has_core(nocore)} |')
+          base = 'lab/apk-base.apk'
+          stripped = 'lab/apk-nocore.apk'
+          with zipfile.ZipFile(base) as source:
+              infos = source.infolist()
+              print('| APK 内 lib/ 条目 | 未压缩 | 压缩后 |')
+              print('| --- | --- | --- |')
+              total = 0
+              for item in infos:
+                  if item.filename.startswith('lib/'):
+                      total += item.compress_size
+                      print(f'| {item.filename} | {item.file_size:,} | {item.compress_size:,} |')
+              print()
+              print(f'lib/ 合计占用（压缩后）: {total:,} 字节')
+              # 重写一个不含 lib/ 的副本，只用于量体积，产物不可运行、不发布
+              with zipfile.ZipFile(stripped, 'w', zipfile.ZIP_DEFLATED) as target:
+                  for item in infos:
+                      if item.filename.startswith('lib/'):
+                          continue
+                      target.writestr(item, source.read(item.filename))
+          b, n = os.stat(base).st_size, os.stat(stripped).st_size
+          print()
+          print('| APK(debug) | 字节 |')
+          print('| --- | --- |')
+          print(f'| 基线 | {b:,} |')
+          print(f'| 删除 lib/ 后 | {n:,} |')
           print()
           print(f'差额 **{b - n:,} 字节**（{(b - n) / 1048576:.2f} MiB）')
           PY
