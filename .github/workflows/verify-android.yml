@@ -208,11 +208,15 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       - name: Build Magisk module
+        # @author 雾晚: 模块 zip 与 App APK 都不依赖模拟器校验；前序步骤失败时仍要产出，
+        # 否则体积门禁会被「模拟器起不来」这类环境故障连带跳过，数字就永远拿不到。
+        if: ${{ always() }}
         run: |
           cd rootmodule
           chmod +x build.sh
           ./build.sh
       - name: Upload Magisk module
+        if: ${{ always() }}
         uses: actions/upload-artifact@v5
         with:
           name: magisk-module
@@ -223,7 +227,7 @@ jobs:
       # 当前绝对值仍超 26MB，所以这里判的是「相对已记录基线不回退」，
       # 绝对预算用 --enforce-limit 在 P7 验收时判定，避免每次构建都红且无信息量。
       - name: Measure download budget
-        if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+        if: ${{ always() && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository) }}
         run: |
           set -o pipefail
           mkdir -p audit-baseline
