@@ -46,6 +46,17 @@ android {
         viewBinding = true
         aidl = true
     }
+    // @author 雾晚: 体积实验专用开关。APK 里的引擎是 gomobile 生成的 libgojni.so
+    // （librootbox.so 是模块侧 PIE，早已在 packaging 里排除）。剔除后 App 内所有
+    // libcore 调用都会 UnsatisfiedLinkError —— 该产物只用于测量「砍掉内嵌引擎省多少」，
+    // 禁止进入发布链路。方案分析见 docs/rebuild/DEDUP-FEASIBILITY.md。
+    if (providers.gradleProperty("wanboxDropEmbeddedCore").isPresent) {
+        packaging {
+            jniLibs {
+                excludes += "**/libgojni.so"
+            }
+        }
+    }
     namespace = "io.nekohasekai.sagernet"
     packaging {
         jniLibs {

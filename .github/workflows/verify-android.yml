@@ -299,6 +299,11 @@ jobs:
             yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;25.0.8775105"
           fi
           test -f "$CLANG"
+      # @author 雾晚: 去重复实验要编 app，补 JDK 17
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
       - name: Build root module
         run: |
           cd rootmodule
@@ -379,10 +384,37 @@ jobs:
           print()
           print('UPX 方案只验证了「压缩后可逐字节还原」，Android arm64 加载兼容性未验证。')
           PY
+      # @author 雾晚: 唯一能证实「去掉内嵌核心能省多少」的办法——真编两个 APK 对比。
+      # 产物不可运行（缺 librootbox.so），只进 lab artifact，不进发布。
+      - name: Measure APK without embedded core
+        run: |
+          set +e
+          ./gradlew app:assembleOssDebug --console=plain -q
+          if [ $? -ne 0 ]; then echo "基线 debug 构建失败"; exit 1; fi
+          cp app/build/outputs/apk/oss/debug/*.apk lab/apk-base.apk
+          ./gradlew app:assembleOssDebug -PwanboxDropEmbeddedCore --console=plain -q
+          if [ $? -ne 0 ]; then echo "去核心 debug 构建失败"; exit 1; fi
+          cp app/build/outputs/apk/oss/debug/*.apk lab/apk-nocore.apk
+          python3 - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import os, zipfile
+          base, nocore = 'lab/apk-base.apk', 'lab/apk-nocore.apk'
+          b, n = os.stat(base).st_size, os.stat(nocore).st_size
+          def has_core(path):
+              with zipfile.ZipFile(path) as z:
+                  return any('libgojni.so' in i.filename for i in z.infolist())
+          print('| APK(debug) | 字节 | 含 libgojni.so |')
+          print('| --- | --- | --- |')
+          print(f'| 基线 | {b:,} | {has_core(base)} |')
+          print(f'| 去内嵌核心 | {n:,} | {has_core(nocore)} |')
+          print()
+          print(f'差额 **{b - n:,} 字节**（{(b - n) / 1048576:.2f} MiB）')
+          PY
       - name: Upload lab artifacts
         uses: actions/upload-artifact@v5
         with:
           name: size-lab
-          path: lab/module-*.zip
+          path: |
+            lab/module-*.zip
+            lab/apk-*.apk
           if-no-files-found: warn
           retention-days: 7
