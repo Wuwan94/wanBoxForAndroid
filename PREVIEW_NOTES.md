@@ -1,53 +1,61 @@
-# wanBox v3.0.10-preview.25 — 核心模块接入与验证链
+# wanBox v3.0.10-preview.26 — 基础设施版本
 
-本版在 preview.24 的基础上接入了独立的核心模块，并把核心单元测试纳入持续集成。**面向普通用户的可感知行为与 preview.24 基本一致**：界面、协议、路由与数据读写仍走原有实现，本版只是把新骨架编译进来并验证它能在无 Android 环境下独立成立。
+**本版 APK 与 preview.25 行为一致，没有面向用户的改动。**业务代码、协议、路由、界面均未修改；这一版的价值在于把体积测量与门禁固化进仓库，让「26MB 预算」从讨论变成每次构建都会回读的数字。
 
-> 如果你只关心能不能用：可以按下面的「安装与兼容性」直接覆盖安装 preview.24，无需卸载。
+如果你只是要用，直接覆盖安装 preview.25 即可正常升级，无需卸载、数据保留。
 
-## 主要变化
+## 本版新增
 
-### 新增核心模块（纯 JVM，零 Android 依赖）
+### 体积门禁
 
-仓库拆出三个纯 JVM 模块，构建时与 `:app` 一起编译：
+- `tools/size_budget.py`：按工作词 7.1 口径测量「Root 模块 zip + App APK」，只读 `stat` 的真实字节，打印三行数字。`--enforce-limit` 用于终态判定，`--baseline` 用于回归判定（阈值 512 KiB）。
+- CI 的 `Verify Android Build` 增加测量与构成分析，结果写入 Job Summary；并加了 `always()`，避免模拟器校验失败时把这两步一起跳过。
 
-- `:core-contracts`：7 个端口与统一 DTO —— `RootModulePort`、`ProfileRepository`、`SettingsPort`、`SubscriptionPort`、`TrafficPort`、`ProbePort`、`NotificationPort`。
-- `:core-domain`：`CoreEngine` 作为唯一状态源，加三个用例 `SelectNodeUseCase`（切换节点）、`SetAutoStartUseCase`（开关自启）、`ToggleServiceUseCase`（启停服务）。
-- `:core-testing`：端口的内存实现，供测试直接驱动状态机。
+### 产物构成分析
 
-这些模块不引用任何 `android.*`/`androidx.*`，也不持有协程作用域，因此可以在普通 JVM 里同步跑完整个流程。
+- `tools/size_breakdown.py`：摊开模块 zip 与 APK 的内部构成（未压缩、压缩后、占比、Top N），用于定位重量到底落在哪个文件上。
 
-### 验证链
+### 体积实验室
 
-- 核心用例 **15 条**，覆盖成功路径、模块拒绝、模块不可用、自启写入顺序、订阅导入与状态刷新。
-- 新增 `buildScript/verify-core-local.sh`：无 Android SDK 时也能编译核心、跑用例、做静态检查（平台引用、许可证头、依赖方向）。
-- CI 新增 `Verify Core` 工作流，只跑 `:core-domain:test`，几分钟内给出结论，不被原生库构建拖住。
-- `Verify Android Build` 增加 `Test core modules` 步骤，核心测试与既有 Debug 单测一起进门禁。
+- `Verify Android Build` 新增可选作业 `lab`，仅在手动触发并勾选 `size_lab` 时运行：构建模块后依次尝试 `llvm-strip` 与 UPX，并校验压缩后能否逐字节还原。**只出报告与实验产物，不进入发布链路。**
 
-### 继承自 preview.24 的修复
+## 体积实测（务必看）
 
-preview.24 包含的安全与性能改动（云备份不再含节点库/配置库/偏好、本地面板 CSP、移除 `largeHeap`、网络回调去 `runBlocking`、临时查询改用固定线程池等）本版全部保留。
+按工作词 7.1 口径，preview.25 实测：
+
+| 对象 | 字节 | 说明 |
+| --- | --- | --- |
+| 模块 zip | 19,064,473 | `bin/rootbox` 一项占 85.7% |
+| App APK | 26,802,141 | |
+| 合计 | 45,866,614 | |
+| 预算上限 | 26,214,400 | |
+| 缺口 | 19,652,214 | 超出 75.0% |
+
+压模块的实测结果（实验室数据，非估算）：
+
+| 手段 | 模块 zip | 变化 |
+| --- | --- | --- |
+| 原始 | 19,063,600 | — |
+| `llvm-strip --strip-all` | 19,063,211 | −389 字节 |
+| UPX -9 | ≈17,381,041 | −1.68 MB |
+
+UPX 能把 `rootbox` 压到 14,762,112 字节（30.19%），解压后与原文件逐字节相同，但**只能省 1.68 MB，对 19.65 MB 的缺口没有决定性作用**；且 UPX 在 Android arm64 上的加载兼容性尚未在真机验证，本版没有采用。
+
+结构性原因：模块里的 `rootbox` 与 APK 里的 `librootbox.so` 是同一份约 48.9 MB 的 Go 二进制，被装了两遍，合计约 32 MB，占总量 70%。压缩只能在两份上各刮一点，真正缩量要靠「App 不再自带核心」这类架构改动。
+
+**因此本版没有达成、也无法在本版内达成 26MB 预算。**该目标需维护者裁决后再动。
 
 ## 安装与兼容性
 
 - 适用环境：**ARM64、Android 12+、Root**。
-- 管理器版本：`3.0.10-preview.25`；Android `versionCode`：**10015**。
-- Root 模块版本码：**2003**。请使用同一发布页中的 APK 和模块，不要跨版本混用。
+- 管理器版本：`3.0.10-preview.26`；Android `versionCode`：**10020**。
+- Root 模块版本码：**2004**。请使用同一发布页中的 APK 与模块，不要跨版本混用。
+- 签名与 preview.24 / .25 相同（`80ECEE1C…21F6`），可覆盖安装，配置与数据保留。
 - 本发布包含 APK、Root 模块、带管理器的 Root 模块，以及 `SHA256SUMS`。
-- 签名与 preview.24 相同，可直接覆盖安装，配置与数据保留。
 
-### 签名（重要）
+## 已知限制
 
-- 发布证书 SHA-256：`80ECEE1C42D861D59CDC460447335FC4BFDF80103D6225A17C1BDF83A33521F6`
-- 该证书自 preview.24 起启用。**仍在用更早旧签名的安装无法覆盖升级**，需先导出配置，再卸载重装。
-- 升级前请核对本页文件校验和与签名信息。
-
-## 验证与限制
-
-本发布包需通过 Preview Build 的 LibCore 与 Root 模块构建、Go/Python 测试、核心 JVM 测试、Debug 单测、APK ABI/包名/版本/签名校验，以及发布文件 SHA-256 校验。
-
-必须说明的限制：
-
-- **核心模块目前只是接入，尚未接管界面。** 设置读写、节点管理、服务启停仍由原实现执行，本版不改变这些行为的运行时表现。
-- Android 侧的适配层（`RootModulePort` 的真实实现）**尚未落地**：`RootModuleClient` 位于 `:app` 内，直接包装会形成 `app → adapter → app` 的循环依赖，方案待定后再动。
-- 当前环境没有可用的 KVM 模拟器；KSU、内核 eBPF 挂载、真实流量接管、管理器—Root 模块链路仍需真机回归。
+- 核心模块（`:core-contracts` / `:core-domain` / `:core-testing`）目前只接入编译与测试，**尚未接管界面**；设置、节点、启停仍走原实现。
+- Android 侧适配层未落地：`RootModuleClient` 位于 `:app`，直接包装会形成 `app → adapter → app` 循环依赖，方案待定。
+- CI 的 `Verify Android Build` 有一项环境性失败：数据库迁移校验需要模拟器，runner 上 `emulator-5554` 启动超时（KVM 规则已加载）。此项与代码无关，但意味着迁移校验目前没有 CI 覆盖。
 - 预览通道只保留最新一个预览版，旧预览版的发布页会被清理；需要旧包请自行留档。
