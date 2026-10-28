@@ -219,3 +219,20 @@ jobs:
           path: rootmodule/build/wanbox-root-module-arm64-v8a.zip
           if-no-files-found: error
           retention-days: 7
+      # @author 雾晚: 工作词 7.1 口径——只算模块 zip 与 App APK 两个用户下载物。
+      # 当前绝对值仍超 26MB，所以这里判的是「相对已记录基线不回退」，
+      # 绝对预算用 --enforce-limit 在 P7 验收时判定，避免每次构建都红且无信息量。
+      - name: Measure download budget
+        if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+        run: |
+          set -o pipefail
+          mkdir -p audit-baseline
+          APK=$(ls public-apks/*arm64-v8a*.apk | head -n 1)
+          echo "### 用户实际下载量（工作词 7.1 口径）" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          python3 tools/size_budget.py \
+            --module rootmodule/build/wanbox-root-module-arm64-v8a.zip \
+            --apk "$APK" \
+            --baseline docs/rebuild/size-baseline.json \
+            --json audit-baseline/size-budget.json 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

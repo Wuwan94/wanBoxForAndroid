@@ -1,0 +1,10 @@
+{
+  "note": "体积回归基线：只随真实构建产物更新，禁止手填估算值",
+  "source": "v3.0.10-preview.25 已发布资产的真实字节数（Release asset size 字段）",
+  "measured_at": "2026-10-28",
+  "limit": 26214400,
+  "tolerance": 524288,
+  "module": 19064473,
+  "apk": 26802141,
+  "total": 45866614
+}
