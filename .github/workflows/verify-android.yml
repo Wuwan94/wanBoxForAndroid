@@ -9,6 +9,10 @@ on:
         description: '同时运行体积实验室（strip/UPX 实验，只出报告不发布）'
         type: boolean
         default: false
+      skip_app:
+        description: '跳过 libcore 与 app 作业，只跑体积实验室'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -16,6 +20,7 @@ permissions:
 jobs:
   libcore:
     name: Build LibCore
+    if: ${{ github.event.inputs.skip_app != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -87,6 +92,7 @@ jobs:
 
   app:
     name: Build Android Debug APK
+    if: ${{ github.event.inputs.skip_app != 'true' }}
     runs-on: ubuntu-latest
     needs: libcore
     env:
@@ -313,6 +319,8 @@ jobs:
                   data = z.read(name)
                   target = pathlib.Path('lab/orig') / pathlib.Path(name).name
                   target.write_bytes(data)
+                  # @author 雾晚: zipfile 不保留 exec 位，UPX 要求输入可执行，必须补回
+                  target.chmod(0o755)
                   print(f'{name}: 未压缩 {len(data):,} 字节')
           PY
           ls -l lab/orig
@@ -330,7 +338,7 @@ jobs:
           "$UPX" --version | head -2
           echo "=== UPX -9（不通过不代表体积不可压，只代表该工具不适用）==="
           for f in rootbox wanboxctl; do
-            if "$UPX" -9 -o "lab/out/upx-$f" "lab/orig/$f" 2>&1 | tail -4; then
+            if "$UPX" -9 -o "lab/out/upx-$f" "lab/orig/$f"; then
               echo "  $f: $(stat -c%s lab/orig/$f) -> $(stat -c%s lab/out/upx-$f)"
               "$UPX" -d -o "lab/out/roundtrip-$f" "lab/out/upx-$f"
               if cmp -s "lab/orig/$f" "lab/out/roundtrip-$f"; then
