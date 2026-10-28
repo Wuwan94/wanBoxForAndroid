@@ -4,6 +4,11 @@ name: Verify Android Build
 on:
   pull_request:
   workflow_dispatch:
+    inputs:
+      size_lab:
+        description: '同时运行体积实验室（strip/UPX 实验，只出报告不发布）'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -240,3 +245,136 @@ jobs:
             --baseline docs/rebuild/size-baseline.json \
             --json audit-baseline/size-budget.json 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+      # @author 雾晚: 压体积必须知道分量，不能只报总量。
+      - name: Break down download payload
+        if: ${{ always() && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        run: |
+          set +e
+          APK=$(ls public-apks/*arm64-v8a*.apk | head -n 1)
+          {
+            echo '### 产物构成（未压缩 / 压缩后）'
+            echo '```'
+            python3 tools/size_breakdown.py rootmodule/build/wanbox-root-module-arm64-v8a.zip "$APK" --top 8
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+  lab:
+    name: Module Size Lab
+    # 只有显式勾选 size_lab 才跑，普通 PR 不付这笔构建成本
+    if: ${{ github.event.inputs.size_lab == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ^1.25
+          cache-dependency-path: libcore/go.sum
+      - uses: actions/cache@v4
+        id: native-cache
+        with:
+          path: |
+            app/libs/libcore.aar
+            app/executableSo
+          key: native-audit-${{ hashFiles('libcore/**', 'buildScript/lib/**', 'buildScript/init/**', 'nb4a.properties') }}
+      - name: Prepare core source for cached tests
+        if: steps.native-cache.outputs.cache-hit == 'true'
+        run: |
+          bash buildScript/lib/core/init.sh
+          (cd libcore && go mod tidy)
+      - name: Build native core
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        run: ./run lib core
+      - name: Ensure Android NDK
+        run: |
+          NDK_DIR="$ANDROID_HOME/ndk/25.0.8775105"
+          CLANG="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
+          if [ ! -f "$CLANG" ]; then
+            echo "NDK clang missing, installing ndk;25.0.8775105 via sdkmanager"
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;25.0.8775105"
+          fi
+          test -f "$CLANG"
+      - name: Build root module
+        run: |
+          cd rootmodule
+          chmod +x build.sh
+          ./build.sh
+      - name: Break down module composition
+        run: |
+          python3 tools/size_breakdown.py rootmodule/build/wanbox-root-module-arm64-v8a.zip --top 12 \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Experiment with strip and UPX
+        run: |
+          set +e
+          mkdir -p lab/orig lab/out
+          python3 - <<'PY'
+          import zipfile, pathlib
+          with zipfile.ZipFile('rootmodule/build/wanbox-root-module-arm64-v8a.zip') as z:
+              for name in ('bin/rootbox', 'bin/wanboxctl'):
+                  data = z.read(name)
+                  target = pathlib.Path('lab/orig') / pathlib.Path(name).name
+                  target.write_bytes(data)
+                  print(f'{name}: 未压缩 {len(data):,} 字节')
+          PY
+          ls -l lab/orig
+          STRIP="$ANDROID_HOME/ndk/25.0.8775105/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
+          echo "=== llvm-strip --strip-all ==="
+          for f in rootbox wanboxctl; do
+            cp "lab/orig/$f" "lab/out/strip-$f"
+            "$STRIP" --strip-all "lab/out/strip-$f" 2>&1 | tail -2
+            echo "  $f: $(stat -c%s lab/orig/$f) -> $(stat -c%s lab/out/strip-$f)"
+          done
+          echo "=== 安装 UPX ==="
+          curl -fsSL -o /tmp/upx.tar.xz https://github.com/upx/upx/releases/download/v4.2.4/upx-4.2.4-amd64_linux.tar.xz
+          tar -C /tmp -xf /tmp/upx.tar.xz
+          UPX=/tmp/upx-4.2.4-amd64_linux/upx
+          "$UPX" --version | head -2
+          echo "=== UPX -9（不通过不代表体积不可压，只代表该工具不适用）==="
+          for f in rootbox wanboxctl; do
+            if "$UPX" -9 -o "lab/out/upx-$f" "lab/orig/$f" 2>&1 | tail -4; then
+              echo "  $f: $(stat -c%s lab/orig/$f) -> $(stat -c%s lab/out/upx-$f)"
+              "$UPX" -d -o "lab/out/roundtrip-$f" "lab/out/upx-$f"
+              if cmp -s "lab/orig/$f" "lab/out/roundtrip-$f"; then
+                echo "  还原校验：$f 解压后与原文件逐字节相同"
+              else
+                echo "  还原校验失败：$f 解压后不一致"
+              fi
+            fi
+          done
+      - name: Repack lab variants and report
+        run: |
+          set +e
+          python3 - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import os, subprocess, pathlib
+          base = pathlib.Path('lab/orig')
+          rows = [('原始', base / 'rootbox', base / 'wanboxctl')]
+          for variant in ('strip', 'upx'):
+              core = pathlib.Path(f'lab/out/{variant}-rootbox')
+              cli = pathlib.Path(f'lab/out/{variant}-wanboxctl')
+              if core.exists() and cli.exists():
+                  rows.append((variant, core, cli))
+          print('| 方案 | 模块 zip 字节 | 与原始差额 |')
+          print('| --- | --- | --- |')
+          baseline = None
+          for name, core, cli in rows:
+              out = f'lab/module-{name}.zip'
+              result = subprocess.run(
+                  ['python3', 'rootmodule/pack.py', '--abi', 'arm64-v8a',
+                   '--core', str(core), '--cli', str(cli), '--output', out],
+                  capture_output=True, text=True)
+              if result.returncode != 0:
+                  print(f'| {name} | 打包失败：{result.stderr.strip()[:120]} | - |')
+                  continue
+              size = os.stat(out).st_size
+              if baseline is None:
+                  baseline = size
+              print(f'| {name} | {size:,} | {size - baseline:+,} |')
+          print()
+          print('UPX 方案只验证了「压缩后可逐字节还原」，Android arm64 加载兼容性未验证。')
+          PY
+      - name: Upload lab artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: size-lab
+          path: lab/module-*.zip
+          if-no-files-found: warn
+          retention-days: 7
