@@ -24,6 +24,16 @@ class ManagerNativePayloadTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             verify(self.apk(tmp, ["lib/arm64-v8a/libgojni.so", "lib/arm64-v8a/libplugin.so"]))
 
+    def test_thin_manager_apk_must_have_no_native_libraries(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            verify(self.apk(tmp, []), thin=True)
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(AssertionError):
+                verify(self.apk(tmp, ["lib/arm64-v8a/libgojni.so"]), thin=True)
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(AssertionError):
+                verify(self.apk(tmp, []))
+
     def test_duplicate_core_missing_jni_extra_abi_and_uncompressed_payload_fail(self):
         cases = [(["lib/arm64-v8a/libgojni.so", "lib/arm64-v8a/librootbox.so"], zipfile.ZIP_DEFLATED),
                  (["lib/arm64-v8a/libplugin.so"], zipfile.ZIP_DEFLATED),
