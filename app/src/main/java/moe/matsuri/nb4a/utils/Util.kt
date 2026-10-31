@@ -195,6 +195,18 @@ object Util {
         return ""
     }
 
+    /**
+     * @author 雾晚 (B 路线)
+     *
+     * 订阅/更新这些调用点拿到的是 HTTP 头（`String?`）和响应体（`ByteArray`），
+     * 不是 gomobile 的 `StringBox`。原先只有 `StringBox?` 一个重载，调用点全部类型不匹配；
+     * 这里补齐两个语义直白的分流，避免调用方各自写着色代码。
+     */
+    fun getStringBox(s: String?): String = s ?: ""
+
+    fun getStringBox(b: ByteArray?): String =
+        if (b == null || b.isEmpty()) "" else String(b, Charsets.UTF_8)
+
     fun decodeFilename(headerValue: String): String {
         val regex = Regex("filename\\*=[^']*''(.+)")
         val match = regex.find(headerValue)

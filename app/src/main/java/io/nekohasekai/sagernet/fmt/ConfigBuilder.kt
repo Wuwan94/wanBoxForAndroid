@@ -57,6 +57,15 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import io.nekohasekai.sagernet.route.RouteRuleEditor
 import io.nekohasekai.sagernet.route.RouteRulePriority
 
+/**
+ * @author 雾晚 (B 路线)
+ *
+ * TUN 使用的 sing-box 栈。核心已裁掉 `with_gvisor` 构建标签，因此必须显式使用 system 栈：
+ * sing-box 的默认值（mixed）会引用 gVisor 组件，裁剪后无法初始化 TUN。
+ * 测试 `ConfigBuilderLoadBalanceTest` 以此常量为回归锚点。
+ */
+internal const val TUN_STACK = "system"
+
 const val TAG_MIXED = "mixed-in"
 
 const val TAG_PROXY = "proxy"
@@ -724,7 +733,9 @@ fun buildConfig(
                     clash_api = ClashAPIOptions().apply {
                         external_controller = "127.0.0.1:9090"
                         secret = DataStore.clashApiSecret
-                        external_ui = "../files/yacd"
+                        // @author 雾晚 (size-budget): 不再下发 external_ui。yacd 网页面板已从
+                        // APK 移除（省 0.73MiB assets），Clash API 本身保留——首页仪表盘的
+                        // 速率/总流量/连接数全靠 wanboxctl → Clash API 采集，砍掉它仪表盘就空了。
                         if (!forExport) default_mode = clashModeStringOf(DataStore.dashboardMode)
                     }
                 }
@@ -799,7 +810,9 @@ fun buildConfig(
                 type = "tun"
                 tag = "tun-in"
                 interface_name = "tun0"
-                                                /* preview.17: 仅使用 sing-box 原生默认 TUN 栈，不再输出 stack 字段（旧 gVisor/System/Mixed 模式已移除，DataStore 层已迁移为 SING_TUN） */ stack = null
+                /* @author 雾晚 (B 路线): 核心已裁掉 with_gvisor，TUN 必须显式声明 system 栈；
+                   sing-box 的默认栈（mixed）会引用 gVisor 组件，裁剪后不可用。
+                   system 栈完整支持 TCP/UDP、auto_route、auto_redirect 与分应用 UID 规则。 */ stack = TUN_STACK
                 mtu = DataStore.mtu
                 auto_route = true
                 auto_redirect = if (isRootTun) true else null

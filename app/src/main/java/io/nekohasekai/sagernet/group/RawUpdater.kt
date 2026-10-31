@@ -43,6 +43,8 @@ import org.yaml.snakeyaml.TypeDescription
 import org.yaml.snakeyaml.Yaml
 import androidx.core.net.toUri
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import io.nekohasekai.sagernet.core.CoreRuntime
+import io.nekohasekai.sagernet.core.WanHttpResponse
 
 @Suppress("EXPERIMENTAL_API_USAGE")
 object RawUpdater : GroupUpdater() {
@@ -86,8 +88,8 @@ object RawUpdater : GroupUpdater() {
             var lastRespHeaderProfileTitle: String? = null
             var lastException: Throwable? = null
 
-            fun executeRequest(ua: String, useProxy: Boolean): libcore.HTTPResponse {
-                val client = Libcore.newHttpClient().apply {
+            fun executeRequest(ua: String, useProxy: Boolean): WanHttpResponse {
+                val client = CoreRuntime.httpClient().apply {
                     if (useProxy) {
                         tryProxyOutbound()
                     }

@@ -273,9 +273,24 @@ func checkPaths(v any, files map[string][]byte, parent string) error {
 				if strings.Contains(text, "/data/user/") || strings.Contains(text, "/data/data/") || strings.Contains(text, "/storage/emulated/") {
 					return errors.New("app_path_not_portable")
 				}
+				// @author 雾晚 (size-budget): external_ui 只做**安全性**校验，不再要求资源存在。
+				// yacd 已从 APK 移除，配置也不再生效它；旧快照里残留的
+				// external_ui="../files/yacd" 必须依然能通过校验，否则升级后旧快照
+				// 会被 config_resource_missing 挡住。缺失时 Clash API 只是返回 404，
+				// 不影响代理与遥测。但穿越路径仍必须拒绝，否则 web UI 的 base path
+				// 会变成读任意目录的入口。
 				filePath := strings.HasSuffix(k, "_path") || k == "external_ui" ||
 					(k == "path" && (x["type"] == "local" || parent == "cache_file")) || (k == "output" && parent == "log")
 				if filePath {
+					if k == "external_ui" {
+						if text != "" {
+							name := strings.TrimPrefix(text, "../")
+							if !strings.HasPrefix(text, "../") || !safeRelative(name) {
+								return errors.New("unsafe_config_path")
+							}
+						}
+						continue
+					}
 					// Existing wanBox geo aliases are interpreted by libcore, not
 					// filesystem traversal. Require their portable backing asset.
 					if k == "path" && x["type"] == "local" {
@@ -289,12 +304,7 @@ func checkPaths(v any, files map[string][]byte, parent string) error {
 						}
 					}
 					// Paths are relative to generation/run; writable cache has one fixed location.
-					if text == "../files/yacd" {
-						if _, ok := files["files/yacd/index.html"]; !ok {
-							return errors.New("config_resource_missing")
-						}
-					}
-					if text != "" && text != "cache.db" && text != "../files/yacd" && !(parent == "log" && (text == "stdout" || text == "stderr")) {
+					if text != "" && text != "cache.db" && !(parent == "log" && (text == "stdout" || text == "stderr")) {
 						name := strings.TrimPrefix(text, "../")
 						if !strings.HasPrefix(text, "../") || !safeRelative(name) {
 							return errors.New("unsafe_config_path")

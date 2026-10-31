@@ -1,7 +1,7 @@
 package io.nekohasekai.sagernet.ktx
 
 import io.nekohasekai.sagernet.database.DataStore
-import libcore.Libcore
+import io.nekohasekai.sagernet.core.CoreRuntime
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -23,49 +23,49 @@ object Logs {
 
     fun d(message: String) {
         if (!enabled(3)) return
-        Libcore.nekoLogPrintln("[Debug] [${mkTag()}] $message")
+        CoreRuntime.log("[Debug] [${mkTag()}] $message")
     }
 
     fun d(message: String, exception: Throwable) {
         if (!enabled(3)) return
-        Libcore.nekoLogPrintln("[Debug] [${mkTag()}] $message" + "\n" + exception.stackTraceToString())
+        CoreRuntime.log("[Debug] [${mkTag()}] $message" + "\n" + exception.stackTraceToString())
     }
 
     fun i(message: String) {
         if (!enabled(2)) return
-        Libcore.nekoLogPrintln("[Info] [${mkTag()}] $message")
+        CoreRuntime.log("[Info] [${mkTag()}] $message")
     }
 
     fun i(message: String, exception: Throwable) {
         if (!enabled(2)) return
-        Libcore.nekoLogPrintln("[Info] [${mkTag()}] $message" + "\n" + exception.stackTraceToString())
+        CoreRuntime.log("[Info] [${mkTag()}] $message" + "\n" + exception.stackTraceToString())
     }
 
     fun w(message: String) {
         if (!enabled(1)) return
-        Libcore.nekoLogPrintln("[Warning] [${mkTag()}] $message")
+        CoreRuntime.log("[Warning] [${mkTag()}] $message")
     }
 
     fun w(message: String, exception: Throwable) {
         if (!enabled(1)) return
-        Libcore.nekoLogPrintln("[Warning] [${mkTag()}] $message" + "\n" + exception.stackTraceToString())
+        CoreRuntime.log("[Warning] [${mkTag()}] $message" + "\n" + exception.stackTraceToString())
     }
 
     fun w(exception: Throwable) {
         if (!enabled(1)) return
-        Libcore.nekoLogPrintln("[Warning] [${mkTag()}] " + exception.stackTraceToString())
+        CoreRuntime.log("[Warning] [${mkTag()}] " + exception.stackTraceToString())
     }
 
     fun e(message: String) {
-        Libcore.nekoLogPrintln("[Error] [${mkTag()}] $message")
+        CoreRuntime.log("[Error] [${mkTag()}] $message")
     }
 
     fun e(message: String, exception: Throwable) {
-        Libcore.nekoLogPrintln("[Error] [${mkTag()}] $message" + "\n" + exception.stackTraceToString())
+        CoreRuntime.log("[Error] [${mkTag()}] $message" + "\n" + exception.stackTraceToString())
     }
 
     fun e(exception: Throwable) {
-        Libcore.nekoLogPrintln("[Error] [${mkTag()}] " + exception.stackTraceToString())
+        CoreRuntime.log("[Error] [${mkTag()}] " + exception.stackTraceToString())
     }
 
 }

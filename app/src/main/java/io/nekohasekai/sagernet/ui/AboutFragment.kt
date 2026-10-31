@@ -43,6 +43,7 @@ import io.nekohasekai.sagernet.database.DataStore
 import moe.matsuri.nb4a.utils.Util
 import org.json.JSONArray
 import org.json.JSONObject
+import io.nekohasekai.sagernet.core.CoreRuntime
 
 class AboutFragment : ToolbarFragment(R.layout.layout_about) {
 
@@ -133,7 +134,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                             MaterialAboutActionItem.Builder()
                                 .icon(R.drawable.ic_baseline_layers_24)
                                 .text(getString(R.string.version_x, "sing-box"))
-                                .subText(Libcore.versionBox())
+                                .subText(CoreRuntime.versionBox())
                                 .setOnClickAction { }
                                 .build())
                         .apply {
@@ -275,7 +276,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
         fun checkUpdate(isPreview: Boolean = false) {
             runOnIoDispatcher {
                 try {
-                    val client = Libcore.newHttpClient().apply {
+                    val client = CoreRuntime.httpClient().apply {
                         modernTLS()
                         tryProxyOutbound()
                     }

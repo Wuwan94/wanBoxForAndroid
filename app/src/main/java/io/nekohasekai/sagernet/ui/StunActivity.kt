@@ -9,6 +9,7 @@ import io.nekohasekai.sagernet.ktx.onMainDispatcher
 import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import libcore.Libcore
+import io.nekohasekai.sagernet.core.CoreRuntime
 
 class StunActivity : ThemedActivity() {
 
@@ -34,6 +35,8 @@ class StunActivity : ThemedActivity() {
         binding.waitLayout.isVisible = true
         runOnDefaultDispatcher {
             val result = try {
+                // @author 雾晚 (B 路线): STUN 走内嵌核心，瘦版提示改用完整版。
+                CoreRuntime.requireAvailable("STUN 测试")
                 val _result = Libcore.stunTest(binding.natStunServer.text.toString())
                 if (_result!!.success) {
                     _result.text

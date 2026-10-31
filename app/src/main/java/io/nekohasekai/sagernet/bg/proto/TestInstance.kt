@@ -21,6 +21,7 @@ import libcore.Libcore
 import moe.matsuri.nb4a.net.LocalResolverImpl
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.suspendCoroutine
+import io.nekohasekai.sagernet.core.CoreRuntime
 
 class TestInstance(profile: ProxyEntity, val link: String, private val timeout: Int) :
     BoxInstance(profile) {
@@ -33,6 +34,8 @@ class TestInstance(profile: ProxyEntity, val link: String, private val timeout: 
     }
 
     suspend fun doTest(): Int = kotlinx.coroutines.coroutineScope {
+        // @author 雾晚 (B 路线): 本地测速要在进程内起核心，瘦版不支持。
+        CoreRuntime.requireAvailable("连接测试")
         val owner = this
         processes = GuardedProcessPool { error ->
             owner.cancel("测速插件退出", error)
@@ -78,6 +81,7 @@ class TestInstance(profile: ProxyEntity, val link: String, private val timeout: 
         // 测速实例用 NewTestSingBoxInstance：不注册 PlatformLogWriter，
         // 官方内核不再强制创建 CacheFile/ClashServer（见 libcore/box.go 批注）。
         val started = SystemClock.elapsedRealtime()
+        CoreRuntime.requireAvailable("连接测试")
         box = Libcore.newTestSingBoxInstance(config.config, LocalResolverImpl)
         trace("create-box", "ok elapsed=${SystemClock.elapsedRealtime() - started}ms")
     }

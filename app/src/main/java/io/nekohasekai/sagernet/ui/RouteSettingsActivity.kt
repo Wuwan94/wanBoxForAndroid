@@ -44,6 +44,7 @@ import moe.matsuri.nb4a.ui.EditConfigPreference
 import io.nekohasekai.sagernet.route.RouteRuleEditor
 import io.nekohasekai.sagernet.ui.route.RouteRulePreferences
 import java.util.concurrent.atomic.AtomicBoolean
+import io.nekohasekai.sagernet.core.CoreRuntime
 
 @Suppress("UNCHECKED_CAST")
 class RouteSettingsActivity(
@@ -332,7 +333,10 @@ class RouteSettingsActivity(
         try {
             // Constructor + close only: actual pinned core schema/Go RE2 validation, no Start(),
             // TUN creation, DNS downloads or change to the running proxy instance.
-            libcore.Libcore.newTestSingBoxInstance(RouteRuleEditor.validationConfig(candidate), null).close()
+            // @author 雾晚 (B 路线): 本地 schema/RE2 校验依赖内嵌核心，瘦版交给模块侧 --check。
+            if (CoreRuntime.available) {
+                libcore.Libcore.newTestSingBoxInstance(RouteRuleEditor.validationConfig(candidate), null).close()
+            }
         } catch (e: Exception) {
             onMainDispatcher { MaterialAlertDialogBuilder(this@RouteSettingsActivity).setTitle(R.string.rr_invalid)
                 .setMessage(getString(R.string.rr_core_error, e.message.orEmpty()))

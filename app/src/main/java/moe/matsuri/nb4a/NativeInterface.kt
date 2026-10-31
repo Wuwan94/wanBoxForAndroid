@@ -34,6 +34,7 @@ import java.net.InetSocketAddress
 import java.net.InterfaceAddress
 import java.net.NetworkInterface
 import libcore.NetworkInterface as LibcoreNetworkInterface
+import io.nekohasekai.sagernet.core.CoreRuntime
 
 class NativeInterface : BoxPlatformInterface, NB4AInterface {
 
@@ -194,7 +195,7 @@ class NativeInterface : BoxPlatformInterface, NB4AInterface {
         Logs.d("checkDefaultInterfaceUpdate enter network=$network thread=${Thread.currentThread().name}")
         // 同步「网络变化时重置出站」开关到 Go：控制 name/index 变化时是否
         // callback → 官方 ResetNetwork（见 libcore/interface_monitor.go）。
-        Libcore.setNetworkChangeResetConnections(DataStore.networkChangeResetConnections)
+        if (CoreRuntime.available) Libcore.setNetworkChangeResetConnections(DataStore.networkChangeResetConnections)
         val state = reportState(listener)
         if (network == null) {
             Logs.i("checkDefaultInterfaceUpdate network=null -> clear default interface suppressedSinceLast=${state.suppressed} elapsed=${SystemClock.elapsedRealtime() - start}ms")
@@ -282,10 +283,11 @@ class NativeInterface : BoxPlatformInterface, NB4AInterface {
             boxInterface.dnsServer = linkProperties.dnsServers.mapNotNull { it.hostAddress }
                 .let { it.toStringIterator(it.size) }
             boxInterface.type = when {
-                networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> Libcore.InterfaceTypeWIFI
-                networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> Libcore.InterfaceTypeCellular
-                networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> Libcore.InterfaceTypeEthernet
-                else -> Libcore.InterfaceTypeOther
+                // @author 雾晚 (B 路线): 瘦版没有核心，接口类型常量所在类不可加载，回落 0(unknown)。
+                networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> if (CoreRuntime.available) Libcore.InterfaceTypeWIFI else 0
+                networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> if (CoreRuntime.available) Libcore.InterfaceTypeCellular else 0
+                networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> if (CoreRuntime.available) Libcore.InterfaceTypeEthernet else 0
+                else -> if (CoreRuntime.available) Libcore.InterfaceTypeOther else 0
             }
             boxInterface.index = networkInterface.index
             runCatching { boxInterface.mtu = networkInterface.mtu }
@@ -331,7 +333,7 @@ class NativeInterface : BoxPlatformInterface, NB4AInterface {
             Logs.d("other selector: $selectorTag")
             return
         }
-        Libcore.resetAllConnections(true)
+        CoreRuntime.resetAllConnections()
         DataStore.baseService?.apply {
             runOnDefaultDispatcher {
                 val id = data.proxy!!.config.profileTagMap

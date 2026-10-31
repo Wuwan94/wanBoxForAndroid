@@ -140,7 +140,7 @@ jobs:
           ./gradlew app:testPreviewDebugUnitTest app:compilePreviewDebugAndroidTestKotlin
           python3 -m unittest discover -s tools -p 'test_*.py'
           python3 tools/check_android_security.py
-          ./gradlew app:assemblePreviewRelease
+          ./gradlew app:assemblePreviewRelease -PwanboxThin=true
           APK_DIR=app/build/outputs/apk/preview/release
           find app/build/outputs/apk -type f -name '*.apk' -print
           test -d "$APK_DIR"

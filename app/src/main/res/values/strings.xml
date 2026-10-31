@@ -319,6 +319,7 @@
         device.</string>
     <!-- alert category -->
     <string name="profile_empty">Please select a profile</string>
+    <string name="core_requires_full_apk">This build has no built-in core. Install the root module, or use the full APK for standalone VPN mode.</string>
     <string name="connect">Connect</string>
     <string name="clipboard_empty">Clipboard is empty</string>
     <!-- menu category -->

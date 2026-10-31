@@ -60,23 +60,21 @@ class ConfigBuilderLoadBalanceTest {
     }
 
     @Test
-    fun verifyTunImplementationSingTunMapping() {
-        /* preview.17: 仅保留 Sing-Tun，不再输出 stack 字段 */ val stack: String? = null; org.junit.Assert.assertNull(stack)
+    fun verifyTunStackFollowsGvisorTrim() {
+        /* B 路线：核心裁掉 with_gvisor 后，TUN 必须显式使用 system 栈 */
+        assertEquals("system", TUN_STACK)
     }
 
     @Test
-    fun verifySingTunStackOmittedInJson() {
+    fun verifySingTunStackSerialized() {
         val tunOptions = moe.matsuri.nb4a.SingBoxOptions.Inbound_TunOptions().apply {
             type = "tun"
             tag = "tun-in"
             interface_name = "tun0"
-            /* preview.17: Sing-Tun 为唯一实现，stack 字段必须省略（null） */ stack = null
+            stack = TUN_STACK
         }
         val map = tunOptions.asMap()
-        assertFalse("Sing-Tun must omit stack field completely", map.containsKey("stack"))
-
-        tunOptions.stack = "gvisor"
-        assertEquals("gvisor", tunOptions.asMap()["stack"])
+        assertEquals("system", map["stack"])
     }
 
     @Test

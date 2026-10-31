@@ -106,7 +106,8 @@ def main():
     files['LIBCORE-LICENSE'] = (pathlib.Path(__file__).parent.parent / 'libcore' / 'LICENSE').read_bytes()
     files['bin/rootbox'], files['bin/wanboxctl'] = core, cli
     files['package-manifest.json'] = manifest(files, False)
-    with zipfile.ZipFile(args.output, 'w', zipfile.ZIP_DEFLATED) as out:
+    # @author 雾晚 (size-budget): level 9 实测比默认 level 6 再省 ~0.1MB（rootbox 二进制）
+    with zipfile.ZipFile(args.output, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as out:
         for name, data in files.items(): out.writestr(name, data)
 
 def manifest(files, with_manager):

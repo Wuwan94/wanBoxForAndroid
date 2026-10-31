@@ -24,6 +24,7 @@ import java.io.File
 import java.io.FileWriter
 import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
+import io.nekohasekai.sagernet.core.CoreRuntime
 
 class AssetsActivity : ThemedActivity() {
 
@@ -290,7 +291,7 @@ class AssetsActivity : ThemedActivity() {
         val repo = rulesProviders[DataStore.rulesProvider].repoByFileName[fileName]
             ?: error("No repository configured for $fileName")
 
-        val client = Libcore.newHttpClient().apply {
+        val client = CoreRuntime.httpClient().apply {
                     modernTLS()
                     keepAlive()
                     tryProxyOutbound()
@@ -349,7 +350,7 @@ class AssetsActivity : ThemedActivity() {
             response.writeTo(cacheFile.canonicalPath)
 
             if (fileName.endsWith(".xz")) {
-                Libcore.unxz(cacheFile.absolutePath, file.absolutePath)
+                CoreRuntime.unxz(cacheFile.absolutePath, file.absolutePath)
                 cacheFile.delete()
             } else {
                 cacheFile.renameTo(file)
@@ -377,7 +378,7 @@ class AssetsActivity : ThemedActivity() {
         } else {
             return false
         }
-        val client = Libcore.newHttpClient().apply {
+        val client = CoreRuntime.httpClient().apply {
                     modernTLS()
                     keepAlive()
                     tryProxyOutbound()

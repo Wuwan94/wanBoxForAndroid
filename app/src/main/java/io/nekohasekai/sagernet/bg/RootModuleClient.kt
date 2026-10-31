@@ -7,6 +7,7 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import android.os.SystemClock
 import io.nekohasekai.sagernet.SagerNet
+import io.nekohasekai.sagernet.core.CoreAssets
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.fmt.RootInboundBackend
@@ -271,6 +272,10 @@ internal class RootModuleSnapshot(private val instance: ProxyInstance, private v
     }
     fun build(): JsonObject {
         val app = SagerNet.application
+        // @author 雾晚 (B 路线): 快照必须带 geoip/geosite 规则库，模块侧缺失即
+        // config_resource_missing。启动时若解压失败，这里再补一次（幂等）。
+        // yacd 已移除：配置不再下发 external_ui，模块侧也不再要求 files/yacd。
+        CoreAssets.ensure(app)
         app.externalAssets.walkTopDown().filter { it.isFile && it.extension.lowercase() in setOf("db", "dat", "srs", "pem") }.forEach {
             val relative = it.relativeTo(app.externalAssets).invariantSeparatorsPath
             val name = if (relative.matches(Regex("[a-zA-Z0-9][a-zA-Z0-9._/-]{0,180}"))) relative
@@ -278,9 +283,6 @@ internal class RootModuleSnapshot(private val instance: ProxyInstance, private v
                     .take(8).joinToString("") { byte -> "%02x".format(byte) } + "." + it.extension
             add("assets/$name", it)
         }
-        File(app.filesDir, "yacd").let { dir -> if (dir.isDirectory) dir.walkTopDown().filter { it.isFile }.forEach {
-            add("files/yacd/" + it.relativeTo(dir).invariantSeparatorsPath, it)
-        } }
         val plugins = com.google.gson.JsonArray()
         instance.config.externalIndex.forEach { (chain) -> chain.forEach { (port, profile) ->
             val bean = profile.requireBean()

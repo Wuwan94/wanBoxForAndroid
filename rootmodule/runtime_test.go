@@ -307,18 +307,28 @@ func TestGeoAliasesRequirePortableBackingAssets(t *testing.T) {
 	}
 }
 
-func TestCacheLogAndDashboardResourcesRemainInsideSnapshot(t *testing.T) {
+func TestCacheAndLogResourcesRemainInsideSnapshot(t *testing.T) {
 	_, s := fixture(t)
-	for _, cfg := range []string{`{"experimental":{"cache_file":{"enabled":true,"path":"../../other.db"}}}`, `{"log":{"output":"/data/adb/other/file"}}`, `{"experimental":{"clash_api":{"external_ui":"../files/yacd"}}}`} {
+	for _, cfg := range []string{`{"experimental":{"cache_file":{"enabled":true,"path":"../../other.db"}}}`, `{"log":{"output":"/data/adb/other/file"}}`} {
 		s.Config = json.RawMessage(cfg)
 		if CheckSnapshot(s) == nil {
 			t.Fatal("unsafe or missing resource accepted")
 		}
 	}
+}
+
+// @author 雾晚 (size-budget): yacd 已移除，external_ui 不再是必须落地的资源。
+// 旧快照里残留的 external_ui 必须继续通过校验（升级不砸旧配置），
+// 且不得因此放开其它 *_path 的资源存在性校验。
+func TestLegacyExternalUIToleratedButNotRequired(t *testing.T) {
+	_, s := fixture(t)
 	s.Config = json.RawMessage(`{"experimental":{"clash_api":{"external_ui":"../files/yacd"}}}`)
-	s.Files["files/yacd/index.html"] = []byte("<!doctype html>")
 	if e := CheckSnapshot(s); e != nil {
-		t.Fatal(e)
+		t.Fatalf("legacy external_ui rejected after yacd removal: %v", e)
+	}
+	s.Config = json.RawMessage(`{"experimental":{"clash_api":{"external_ui":"../../escape"}}}`)
+	if CheckSnapshot(s) == nil {
+		t.Fatal("external_ui must not become a path-check bypass for other resources")
 	}
 }
 

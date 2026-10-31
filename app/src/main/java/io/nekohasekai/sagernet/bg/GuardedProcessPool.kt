@@ -17,6 +17,7 @@ import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import kotlin.concurrent.thread
+import io.nekohasekai.sagernet.core.CoreRuntime
 
 class GuardedProcessPool(private val onFatal: suspend (IOException) -> Unit) : CoroutineScope {
     companion object {
@@ -51,10 +52,10 @@ class GuardedProcessPool(private val onFatal: suspend (IOException) -> Unit) : C
             try {
                 while (true) {
                     thread(name = "stderr-$cmdName") {
-                        streamLogger(process.errorStream) { Libcore.nekoLogPrintln("[$cmdName] $it") }
+                        streamLogger(process.errorStream) { CoreRuntime.log("[$cmdName] $it") }
                     }
                     thread(name = "stdout-$cmdName") {
-                        streamLogger(process.inputStream) { Libcore.nekoLogPrintln("[$cmdName] $it") }
+                        streamLogger(process.inputStream) { CoreRuntime.log("[$cmdName] $it") }
                         // this thread also acts as a daemon thread for waitFor
                         runBlocking { exitChannel.send(process.waitFor()) }
                     }
