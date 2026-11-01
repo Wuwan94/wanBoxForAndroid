@@ -43,6 +43,8 @@ import org.yaml.snakeyaml.TypeDescription
 import org.yaml.snakeyaml.Yaml
 import androidx.core.net.toUri
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import io.nekohasekai.sagernet.core.CoreRuntime
+import io.nekohasekai.sagernet.core.WanHttpResponse
 
 @Suppress("EXPERIMENTAL_API_USAGE")
 object RawUpdater : GroupUpdater() {
@@ -86,8 +88,8 @@ object RawUpdater : GroupUpdater() {
             var lastRespHeaderProfileTitle: String? = null
             var lastException: Throwable? = null
 
-            fun executeRequest(ua: String, useProxy: Boolean): libcore.HTTPResponse {
-                val client = Libcore.newHttpClient().apply {
+            suspend fun executeRequest(ua: String, useProxy: Boolean): WanHttpResponse {
+                val client = CoreRuntime.httpClient().apply {
                     if (useProxy) {
                         tryProxyOutbound()
                     }
@@ -101,16 +103,19 @@ object RawUpdater : GroupUpdater() {
                     }
                     setURL(subscription.link)
                     setUserAgent(ua)
+                    setCallTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
                 }
-                return request.execute()
+                return request.executeCancellable()
             }
 
             for (ua in candidateUas) {
                 try {
-                    // @author 雾晚: bound each UA attempt; a hung server must not stall the update.
-                    val response = kotlinx.coroutines.withTimeout(60_000) { if (DataStore.serviceState.connected) {
+                    // @author 雾晚: cancel the underlying HTTP call when this UA attempt times out.
+                    val response = kotlinx.coroutines.withTimeoutOrNull(60_000L) { if (DataStore.serviceState.connected) {
                         try {
                             executeRequest(ua, useProxy = true)
+                        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                            throw cancelled
                         } catch (proxyError: Throwable) {
                             Logs.w("Subscription proxy fetch failed for UA $ua (${proxyError.readableMessage}), falling back to direct network...")
                             executeRequest(ua, useProxy = false)
@@ -118,6 +123,12 @@ object RawUpdater : GroupUpdater() {
                     } else {
                         executeRequest(ua, useProxy = false)
                     } }
+                    if (response == null) {
+                        val timeout = java.net.SocketTimeoutException("Subscription request timed out for UA $ua")
+                        Logs.w(timeout.message ?: "Subscription request timed out")
+                        lastException = timeout
+                        continue
+                    }
 
                     val userInfo = response.getHeader("Subscription-Userinfo")
                         ?: response.getHeader("subscription-userinfo")
@@ -149,6 +160,8 @@ object RawUpdater : GroupUpdater() {
                     } else {
                         Logs.w("Subscription returned 0 proxies with UA: $ua, trying next candidate...")
                     }
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
                 } catch (e: Throwable) {
                     Logs.w("Subscription download failed with UA: $ua: ${e.readableMessage}")
                     lastException = e

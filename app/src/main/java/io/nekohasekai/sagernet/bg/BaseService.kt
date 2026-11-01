@@ -30,6 +30,7 @@ import moe.matsuri.nb4a.Protocols
 import moe.matsuri.nb4a.utils.Util
 import java.io.File
 import java.net.UnknownHostException
+import io.nekohasekai.sagernet.core.CoreRuntime
 
 class BaseService {
 
@@ -69,7 +70,7 @@ class BaseService {
                         if (!SagerNet.power.isDeviceIdleMode) {
                             runCatching { proxy?.box }.getOrNull()?.wake()
                             if (DataStore.wakeResetConnections) {
-                                Libcore.resetAllConnections(true)
+                                CoreRuntime.resetAllConnections()
                             }
                         }
                     }
@@ -79,7 +80,7 @@ class BaseService {
                     Logs.i("BaseService: Action.RESET_UPSTREAM_CONNECTIONS received, resetting connections and restarting runner")
                     runOnDefaultDispatcher {
                         try {
-                            Libcore.resetAllConnections(true)
+                            CoreRuntime.resetAllConnections()
                         } catch (e: Throwable) {
                             Logs.w(e)
                         }
@@ -111,7 +112,7 @@ class BaseService {
                         proxy?.looper?.postLastSnapshotSpeed()
                     }
                     if (DataStore.wakeResetConnections) {
-                        Libcore.resetAllConnections(true)
+                        CoreRuntime.resetAllConnections()
                     }
                 }
 
@@ -204,6 +205,8 @@ class BaseService {
             val current = data ?: return 0
             // The owning service is available even when Root TUN has no ProxyInstance/box yet.
             val root = current.service as? RootTunService
+            // @author 雾晚 (B 路线): 本地 urlTest 依赖进程内核心，瘦版交由模块侧/降级。
+            CoreRuntime.requireAvailable("连接测试")
             return try {
                 ConnectedUrlTest.measure(
                     current.state.connected, url, timeoutMs,
@@ -560,7 +563,7 @@ class BaseService {
                         }
                         if (DataStore.networkChangeResetConnections) {
                             try {
-                                Libcore.resetAllConnections(true)
+                                CoreRuntime.resetAllConnections()
                             } catch (e: Exception) {
                                 Logs.w(e)
                             }
@@ -607,6 +610,13 @@ class BaseService {
                 return Service.START_NOT_STICKY
             }
 
+            // @author 雾晚 (B 路线): 瘦管理器没有内嵌核心。本构建的正式通路是
+            // RootTunService（纯观察者 + wanboxctl），不受影响；只有历史遗留的
+            // ProxyService（VpnService 单机代理）需要进程内核心，这里明确拒绝而不是崩溃。
+            if (!CoreRuntime.available && this is ProxyService) {
+                stopRunner(false, getString(R.string.core_requires_full_apk))
+                return Service.START_NOT_STICKY
+            }
             val proxy = ProxyInstance(profile, this)
             data.proxy = proxy
             BootReceiver.enabled = DataStore.persistAcrossReboot

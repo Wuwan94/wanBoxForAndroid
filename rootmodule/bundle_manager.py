@@ -26,7 +26,8 @@ def bundle(source, apk, output):
         if m['files'][name] != {'size': len(data), 'sha256': hashlib.sha256(data).hexdigest()}: raise ValueError('checksum mismatch')
     with zipfile.ZipFile(apk) as z:
         if 'AndroidManifest.xml' not in z.namelist(): raise ValueError('invalid APK')
-        if not any(i.startswith('lib/arm64-v8a/') for i in z.namelist()): raise ValueError('missing ARM64 libraries')
+        # @author 雾晚 (B 路线): 瘦管理器（-PwanboxThin=true）不含 libgojni.so，
+        # 允许 APK 完全没有 native 库；仍拒绝混入非 arm64 ABI。
         if any(i.startswith('lib/') and not i.startswith('lib/arm64-v8a/') for i in z.namelist()): raise ValueError('unexpected APK ABI')
     files['manager.apk'] = apk.read_bytes()
     files['package-manifest.json'] = manifest(files, True)

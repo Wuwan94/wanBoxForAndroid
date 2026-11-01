@@ -3,19 +3,20 @@ package io.nekohasekai.sagernet.ui
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import com.google.android.material.snackbar.Snackbar
+import androidx.core.view.isVisible
+import androidx.lifecycle.lifecycleScope
+import io.nekohasekai.sagernet.core.CoreRuntime
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.databinding.LayoutNetworkBinding
 import io.nekohasekai.sagernet.ktx.app
-import io.nekohasekai.sagernet.ktx.onMainDispatcher
-import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
-import io.nekohasekai.sagernet.utils.BackupHelper
 import moe.matsuri.nb4a.utils.SendLog
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONObject
 import java.net.InetAddress
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class NetworkFragment : NamedFragment(R.layout.layout_network) {
 
@@ -25,12 +26,9 @@ class NetworkFragment : NamedFragment(R.layout.layout_network) {
         super.onViewCreated(view, savedInstanceState)
 
         val binding = LayoutNetworkBinding.bind(view)
-        val openLanSharing = View.OnClickListener {
-            startActivity(Intent(requireContext(), LanSharingActivity::class.java))
-        }
-        binding.lanSharingCard.setOnClickListener(openLanSharing)
-        binding.lanSharingBtn.setOnClickListener(openLanSharing)
 
+        // @author 雾晚：STUN 探测依赖内嵌核心；瘦管理器（仅 Root 模块）里直接隐藏入口。
+        binding.stunCard.isVisible = CoreRuntime.available
         binding.stunTest.setOnClickListener {
             startActivity(Intent(requireContext(), StunActivity::class.java))
         }
@@ -40,29 +38,31 @@ class NetworkFragment : NamedFragment(R.layout.layout_network) {
             binding.dnsLeakResult.text = getString(R.string.testing_dns)
             binding.dnsLeakTest.isEnabled = false
 
-            runOnDefaultDispatcher {
+            viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
                 val sb = StringBuilder()
                 try {
                     // 1. Check DNS resolution for Fake-IP
                     val testHost = "www.google.com"
-                    val resolvedIp = try {
-                        val addresses = InetAddress.getAllByName(testHost)
-                        addresses.firstOrNull()?.hostAddress ?: "未知"
+                    val resolvedIps = try {
+                        InetAddress.getAllByName(testHost).mapNotNull { it.hostAddress }.distinct()
                     } catch (e: Exception) {
-                        "解析失败 (${e.message})"
+                        emptyList()
                     }
 
-                    val isFakeIp = resolvedIp.startsWith("198.18.") || resolvedIp.startsWith("198.19.")
-                    if (isFakeIp) {
-                        sb.append("• Fake-IP 状态: 已生效 ($resolvedIp)\n")
+                    val fakeIp = resolvedIps.firstOrNull { it.startsWith("198.18.") || it.startsWith("198.19.") }
+                    if (fakeIp != null) {
+                        sb.append("• Fake-IP 状态: 已生效 ($fakeIp)\n")
+                    } else if (resolvedIps.isEmpty()) {
+                        sb.append("• DNS 解析: 失败\n")
                     } else {
-                        sb.append("• 解析 IP: $resolvedIp (非 Fake-IP 网段)\n")
+                        sb.append("• 解析 IP: ${resolvedIps.joinToString()} (未检测到 Fake-IP)\n")
                     }
 
                     // 2. Check egress IP & resolver via public API
                     val client = OkHttpClient.Builder()
                         .connectTimeout(5, TimeUnit.SECONDS)
                         .readTimeout(5, TimeUnit.SECONDS)
+                        .callTimeout(5, TimeUnit.SECONDS)
                         .build()
 
                     val req = Request.Builder().url("https://1.1.1.1/cdn-cgi/trace").build()
@@ -81,17 +81,16 @@ class NetworkFragment : NamedFragment(R.layout.layout_network) {
                         }
                         val ip = lines["ip"]
                         val loc = lines["loc"]
-                        val warp = lines["warp"]
                         sb.append("• 出口公网 IP: ${ip ?: "未知"} (${loc ?: "未知"})\n")
-                        sb.append("• DNS 链路: ${getString(R.string.dns_safe)}\n")
+                        sb.append("• Cloudflare trace: 可达（仅表示接口连通，不代表无 DNS 泄漏）\n")
                     } else {
-                        sb.append("• 网络链路: 直连或代理已接管\n")
+                        sb.append("• Cloudflare trace 未响应（无法据此判断 DNS 泄漏）\n")
                     }
                 } catch (e: Exception) {
                     sb.append("• 检测完成: ${e.message}")
                 }
 
-                onMainDispatcher {
+                withContext(Dispatchers.Main.immediate) {
                     binding.dnsLeakResult.text = sb.toString().trim()
                     binding.dnsLeakTest.isEnabled = true
                 }
@@ -100,15 +99,6 @@ class NetworkFragment : NamedFragment(R.layout.layout_network) {
 
         binding.exportCrashLog.setOnClickListener {
             SendLog.sendLog(requireContext(), "OWN_Diagnostics")
-        }
-
-        binding.localBackupNow.setOnClickListener {
-            runOnDefaultDispatcher {
-                val success = BackupHelper.autoBackupLocal()
-                onMainDispatcher {
-                    Snackbar.make(binding.root, if (success) "本地备份成功 (已保存至应用备份目录)" else "备份失败", Snackbar.LENGTH_SHORT).show()
-                }
-            }
         }
     }
 }

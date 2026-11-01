@@ -282,7 +282,7 @@ object DataStore : OnPreferenceDataStoreChangeListener {
                 value
             }
         })
-    var yacdURL by configurationStore.string("yacdURL") { "http://127.0.0.1:9090/ui" }
+    // @author 雾晚 (size-budget): yacdURL 随 yacd 网页面板一并移除。
     // protocol
     var globalAllowInsecure by configurationStore.boolean(Key.GLOBAL_ALLOW_INSECURE) { false }
     var enableTLSFragment by configurationStore.boolean(Key.ENABLE_TLS_FRAGMENT) { false }

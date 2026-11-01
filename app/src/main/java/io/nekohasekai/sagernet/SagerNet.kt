@@ -35,6 +35,8 @@ import moe.matsuri.nb4a.utils.JavaUtil
 import moe.matsuri.nb4a.utils.cleanWebview
 import java.io.File
 import androidx.work.Configuration as WorkConfiguration
+import io.nekohasekai.sagernet.core.CoreAssets
+import io.nekohasekai.sagernet.core.CoreRuntime
 
 class SagerNet : Application(),
     WorkConfiguration.Provider {
@@ -99,7 +101,8 @@ class SagerNet : Application(),
                 noBackupFilesDir.listFiles { file -> file.name.startsWith("urltest_") }
                     ?.forEach { it.delete() }
             }
-            Seq.setContext(this)
+            // @author 雾晚 (B 路线): 瘦管理器没有 gojni，静态初始化会 UnsatisfiedLinkError。
+            if (CoreRuntime.available) Seq.setContext(this)
             // Write performance mode flag so Go's InitCore can read it and apply correct GC settings.
             // Using a flag file avoids needing a new JNI binding for SetMemoryProfile.
             runCatching {
@@ -107,7 +110,12 @@ class SagerNet : Application(),
                     if (DataStore.performancePriorityMode) writeText("1") else delete()
                 }
             }
-            Libcore.initCore(
+            // @author 雾晚 (B 路线): 瘦管理器没有 gojni，libcore.InitCore 里的
+            // extractAssets() 不会执行。geoip/geosite 规则库必须由纯 Kotlin 补上——
+            // 模块侧对 assets/geoip.db / assets/geosite.db 是硬校验，缺失会以
+            // config_resource_missing 拒绝启动。（yacd 已整体移除，不再需要落地。）
+            CoreAssets.ensure(this)
+            if (CoreRuntime.available) Libcore.initCore(
                 process,
                 cacheDir.absolutePath + "/",
                 filesDir.absolutePath + "/",

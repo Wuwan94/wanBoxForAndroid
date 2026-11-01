@@ -11,6 +11,11 @@ plugins {
 setupApp()
 
 val generatedLicenseAssets = layout.buildDirectory.dir("generated/assets/rootLicense")
+// @author 雾晚 (B 路线 · 体积预算): 瘦管理器构建开关。
+//   ./gradlew assembleRelease -PwanboxThin=true
+// 该产物不含 lib/libgojni.so：核心只随 root 模块分发，管理器改为通过 wanboxctl / 回环 HTTP 驱动它。
+// 默认构建（不带该参数）行为与历史版本完全一致，CI 与产物路径不变。
+val wanboxThin: Boolean = providers.gradleProperty("wanboxThin").map { it.toBoolean() }.getOrElse(false)
 val generateRootLicenseAsset by tasks.registering(Copy::class) {
     from(rootProject.layout.projectDirectory.file("LICENSE"))
     into(generatedLicenseAssets)
@@ -22,6 +27,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         versionName = requireMetadata().getProperty("VERSION_NAME")
         versionCode = requireMetadata().getProperty("VERSION_CODE").toInt() * 5
+        // @author 雾晚 (B 路线): 运行时能力闸门（见 io.nekohasekai.sagernet.core.CoreRuntime）。
+        buildConfigField("boolean", "WITH_CORE", (!wanboxThin).toString())
     }
     // Internal x86_64 verification is never a published ABI.
     if (providers.gradleProperty("wanboxReleaseTests").isPresent) {
@@ -54,6 +61,15 @@ android {
             // @author 雾晚: the standalone core belongs to the module, not the manager APK.
             // Keep executableSo outputs for module packaging and all JNI/plugin libraries.
             excludes += "**/librootbox.so"
+            // @author 雾晚 (B 路线): 瘦管理器剔除内嵌核心（APK 内 ~15.8MB），核心只随模块分发。
+            if (wanboxThin) excludes += "**/libgojni.so"
+        }
+        // @author 雾晚 (size-budget): AGP 8.x stores classes.dex uncompressed by default;
+        // forcing legacy packaging deflates it again (~4.12 MB -> ~1.92 MB in APK).
+        // Pure download-size win on Android 12+ (minSdk 31): ART dexopt re-encodes
+        // the dex at install time either way, runtime behaviour is unchanged.
+        dex {
+            useLegacyPackaging = true
         }
     }
     androidResources {
@@ -78,6 +94,8 @@ dependencies {
     testImplementation(project(":core-testing"))
 
     // @author 雾晚: the native build produces this single, explicit dependency.
+    // 编译期仍需 libcore.aar 里的类型（SpeedTestResult / BoxInstance 等），
+    // 但瘦构建（-PwanboxThin=true）会在打包阶段剔除 libgojni.so，产物不含任何 native 库。
     implementation(files("libs/libcore.aar"))
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4")
@@ -97,6 +115,8 @@ dependencies {
 
     implementation("com.google.android.material:material:1.8.0")
     implementation("com.google.code.gson:gson:2.9.0")
+    // @author 雾晚 (B 路线): 瘦管理器没有内嵌核心，.xz 资源解压改由纯 Java 实现（约 120KB dex）。
+    implementation("org.tukaani:xz:1.10")
 
     implementation("com.github.jenly1314:zxing-lite:2.1.1")
     implementation("com.blacksquircle.ui:editorkit:2.6.0")

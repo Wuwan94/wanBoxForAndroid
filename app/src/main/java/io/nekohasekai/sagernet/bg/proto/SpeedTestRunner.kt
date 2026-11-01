@@ -16,6 +16,7 @@ import libcore.SpeedTestResult
 import libcore.SpeedTestSession
 import moe.matsuri.nb4a.net.LocalResolverImpl
 import kotlin.coroutines.coroutineContext
+import io.nekohasekai.sagernet.core.CoreRuntime
 
 data class SpeedTestSnapshot(
     val profileId: Long,
@@ -113,6 +114,8 @@ class AndroidSpeedTestSession(profile: ProxyEntity) : BoxInstance(profile), Spee
         if (processes.processCount > 0) delay(500)
         if (BuildConfig.DEBUG) Logs.d("Core configuration prepared (credentials omitted)")
 
+        // @author 雾晚 (B 路线): 测速在进程内起核心，瘦版不支持。
+        CoreRuntime.requireAvailable("测速")
         val session = Libcore.newSpeedTestSession(
             profile.id.toString(),
             config.config,

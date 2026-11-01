@@ -105,7 +105,14 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 		s.Error = ""
 		persist()
 		mu.Unlock()
+		generationStart := time.Now()
 		err := r.runGeneration(ctx, rev, snapshot, &s, &mu, persist)
+		mu.Lock()
+		// @author 雾晚: a core that stayed connected for a while is a fresh failure,
+		// not part of the startup crash loop; never let rare crashes over days
+		// accumulate into a permanent retry_limit_reached.
+		stableRun := s.Phase == "connected" && time.Since(generationStart) >= stableRunReset
+		mu.Unlock()
 		if ctx.Err() != nil {
 			return nil
 		}
@@ -129,6 +136,9 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 		s.Stats = nil
 		persist()
 		mu.Unlock()
+		if stableRun {
+			attempt = -1
+		}
 		if attempt == 3 {
 			mu.Lock()
 			s.Phase = "failed"
@@ -141,11 +151,23 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-time.After(time.Duration(1<<attempt) * time.Second):
+		case <-time.After(retryBackoff(attempt)):
 		}
 	}
 	return nil
 }
+
+// stableRunReset is how long a generation must stay connected before its exit
+// resets the retry budget.
+const stableRunReset = 5 * time.Minute
+
+func retryBackoff(attempt int) time.Duration {
+	if attempt < 0 {
+		return time.Second
+	}
+	return time.Duration(1<<attempt) * time.Second
+}
+
 func (r *Runtime) runGeneration(ctx context.Context, rev string, snapshot Snapshot, s *State, mu *sync.Mutex, persist func()) error {
 	dir := r.path("generations", rev)
 	childCtx, cancel := context.WithCancel(ctx)
@@ -240,43 +262,45 @@ func (r *Runtime) runGeneration(ctx context.Context, rev string, snapshot Snapsh
 	readerDone := make(chan struct{})
 	go func() {
 		defer close(readerDone)
-		scanner := bufio.NewScanner(output)
-		scanner.Buffer(make([]byte, 4096), 8192)
+		reader := bufio.NewReaderSize(output, 8192)
 		last := time.Time{}
-		for scanner.Scan() {
-			line := scanner.Text()
-			if !strings.HasPrefix(line, "WANBOX_STATS:") {
+		for {
+			chunk, readErr := reader.ReadSlice('\n')
+			if readErr == bufio.ErrBufferFull {
+				// Oversized raw log line: discard the rest of it and keep reading.
+				for readErr == bufio.ErrBufferFull {
+					_, readErr = reader.ReadSlice('\n')
+				}
+				if readErr != nil {
+					break
+				}
 				continue
 			}
-			raw := strings.TrimPrefix(line, "WANBOX_STATS:")
-			var stats struct {
-				Tag      string `json:"tag"`
-				Tx       int64  `json:"tx"`
-				Rx       int64  `json:"rx"`
-				DirectTx int64  `json:"directTx"`
-				DirectRx int64  `json:"directRx"`
+			line := strings.TrimRight(string(chunk), "\r\n")
+			if strings.HasPrefix(line, "WANBOX_STATS:") && time.Since(last) >= 5*time.Second {
+				raw := strings.TrimPrefix(line, "WANBOX_STATS:")
+				var stats struct {
+					Tag      string `json:"tag"`
+					Tx       int64  `json:"tx"`
+					Rx       int64  `json:"rx"`
+					DirectTx int64  `json:"directTx"`
+					DirectRx int64  `json:"directRx"`
+				}
+				if json.Unmarshal([]byte(raw), &stats) == nil && len(stats.Tag) <= 512 && stats.Tx >= 0 && stats.Rx >= 0 && stats.DirectTx >= 0 && stats.DirectRx >= 0 {
+					last = time.Now()
+					b, _ := json.Marshal(stats)
+					mu.Lock()
+					if replaceStats(s, b) {
+						persist()
+					}
+					mu.Unlock()
+				}
 			}
-			if json.Unmarshal([]byte(raw), &stats) != nil || len(stats.Tag) > 512 || stats.Tx < 0 || stats.Rx < 0 || stats.DirectTx < 0 || stats.DirectRx < 0 {
-				continue
+			if readErr != nil {
+				break
 			}
-			if time.Since(last) < 5*time.Second {
-				continue
-			}
-			last = time.Now()
-			b, _ := json.Marshal(stats)
-			mu.Lock()
-			if replaceStats(s, b) {
-				persist()
-			}
-			mu.Unlock()
 		}
-		if scanner.Err() != nil {
-			mu.Lock()
-			s.Stats = nil
-			persist()
-			mu.Unlock()
-			_, _ = io.Copy(io.Discard, output) // Drain a malformed/oversized raw log instead of blocking the core.
-		}
+		_, _ = io.Copy(io.Discard, output) // Never block the core on a full pipe.
 	}()
 	wait := make(chan error, 1)
 	go func() { wait <- cmd.Wait() }()
@@ -304,7 +328,19 @@ func (r *Runtime) runGeneration(ctx context.Context, rev string, snapshot Snapsh
 				}
 				return errors.New("plugin_exited")
 			case <-time.After(20 * time.Second):
-				return errors.New("cleanup_timeout_no_restart")
+				// @author 雾晚: escalate on the identity captured at start; only a core
+				// that survives SIGKILL is left for manual cleanup.
+				_ = forceTerminate(p)
+				select {
+				case <-wait:
+					<-readerDone
+					if ctx.Err() != nil {
+						return nil
+					}
+					return errors.New("core_killed_after_timeout")
+				case <-time.After(5 * time.Second):
+					return errors.New("cleanup_timeout_no_restart")
+				}
 			}
 		case <-probe.deadline:
 			startupFailed = true

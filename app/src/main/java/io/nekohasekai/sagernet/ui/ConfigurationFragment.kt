@@ -49,6 +49,7 @@ import kotlinx.coroutines.delay
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceDataStore
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -66,6 +67,7 @@ import io.nekohasekai.sagernet.GroupOrder
 import io.nekohasekai.sagernet.GroupType
 import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
+import io.nekohasekai.sagernet.core.CoreRuntime
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.SpeedTestDirection
 import io.nekohasekai.sagernet.SpeedTestOutcome
@@ -702,12 +704,19 @@ class ConfigurationFragment @JvmOverloads constructor(
 
         toolbar.inflateMenu(R.menu.add_profile_menu)
         toolbar.menu.findItem(R.id.action_add)?.isVisible = false
-        toolbar.menu.findItem(R.id.action_misc)?.setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
-        toolbar.menu.findItem(R.id.action_misc)?.subMenu?.removeItem(R.id.action_display_settings)
-        toolbar.menu.add(Menu.NONE, R.id.action_display_settings, 2, R.string.node_display_settings).apply {
-            setIcon(R.drawable.ic_minimal_sliders)
+        // @author 雾晚：顶栏只保留 搜索 / 重测 / 更多 三个入口；显示设置收进“更多”，
+        // 更多按钮直接展开子菜单（不再出现一个空标题的溢出项）。
+        toolbar.menu.findItem(R.id.action_misc)?.apply {
             setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
-            setOnMenuItemClickListener { toggleDisplayPanel(); true }
+            title = getString(R.string.more)
+        }
+        toolbar.menu.findItem(R.id.action_display_settings)?.setOnMenuItemClickListener {
+            toggleDisplayPanel(); true
+        }
+        // @author 雾晚：瘦管理器不含内嵌核心，本地 URL 测试 / 测速不可用，直接从菜单移除入口。
+        if (!CoreRuntime.available) {
+            toolbar.menu.findItem(R.id.action_connection_url_test)?.isVisible = false
+            toolbar.menu.findItem(R.id.action_speed_test_group)?.isVisible = false
         }
         toolbar.menu.add(Menu.NONE, R.id.action_minimal_refresh, 1, R.string.retest).apply {
             setIcon(R.drawable.ic_minimal_refresh)
@@ -2503,7 +2512,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                                 // Show tab if there are ≥2 real groups (or ≥3 items including sentinel)
                                 val realGroupCount = groupList.count { it.id != ALL_GROUPS_SENTINEL_ID }
                                 val hideTab = realGroupCount < 2
-                                tabLayout.isGone = groupList.isEmpty()
+                                tabLayout.isGone = hideTab
                                 toolbar.elevation = 0f
                                 toolbar.setTitle(R.string.tab_nodes)
                                 refreshNodeSummary()
@@ -2548,10 +2557,7 @@ class ConfigurationFragment @JvmOverloads constructor(
             tabLayoutView?.post {
                 if (!isCurrentGroupPagerAdapter(this)) return@post
                 groupList.add(group)
-
-                if (groupList.any { !it.ungrouped }) tabLayout.post {
-                    tabLayout.visibility = View.VISIBLE
-                }
+                tabLayout.isGone = groupList.count { it.id != ALL_GROUPS_SENTINEL_ID } < 2
 
                 notifyItemInserted(groupList.size - 1)
                 tabLayout.getTabAt(groupList.size - 1)?.select()
@@ -2907,6 +2913,13 @@ class ConfigurationFragment @JvmOverloads constructor(
             }
         }
         
+        fun rebuildNodeSections() {
+            val current = adapter ?: return
+            nodeSections.update(current.configurationIdList.map { current.configurationList[it]?.groupId ?: proxyGroup.id })
+            configurationListView.invalidateItemDecorations()
+            (parentFragment as? ConfigurationFragment)?.refreshNodeSummary()
+        }
+
         fun switchLayoutMode() {
             setupLayoutManager()
             configurationListView.layoutManager = layoutManager
@@ -2927,11 +2940,10 @@ class ConfigurationFragment @JvmOverloads constructor(
             adapter = ConfigurationAdapter()
             configurationListView.addItemDecoration(sectionDecoration)
             adapter?.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
+                // @author 雾晚：DiffUtil 批量派发期间跳过，批次结束后统一重建一次分节信息
                 private fun rebuild() {
-                    val current = adapter ?: return
-                    nodeSections.update(current.configurationIdList.map { current.configurationList[it]?.groupId ?: proxyGroup.id })
-                    configurationListView.invalidateItemDecorations()
-                    (parentFragment as? ConfigurationFragment)?.refreshNodeSummary()
+                    if (adapter?.batchUpdating == true) return
+                    rebuildNodeSections()
                 }
                 override fun onChanged() = rebuild()
                 override fun onItemRangeInserted(positionStart: Int, itemCount: Int) = rebuild()
@@ -2942,6 +2954,9 @@ class ConfigurationFragment @JvmOverloads constructor(
             GroupManager.addListener(adapter!!)
             configurationListView.adapter = adapter
             configurationListView.setItemViewCacheSize(20)
+            // @author 雾晚：延迟/测速结果逐行刷新时不做交叉淡入，批量测试期间列表不再闪烁
+            (configurationListView.itemAnimator as? androidx.recyclerview.widget.SimpleItemAnimator)
+                ?.supportsChangeAnimations = false
             setupAdaptiveListChrome()
             configurationListView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
                 override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
@@ -3436,18 +3451,70 @@ class ConfigurationFragment @JvmOverloads constructor(
 
             private val updated = HashSet<ProxyEntity>()
 
+            var batchUpdating = false
+                private set
+
+            private fun sameDisplay(a: ProxyEntity?, b: ProxyEntity?): Boolean {
+                if (a == null || b == null) return false
+                if (a === b) return true
+                return a.status == b.status && a.ping == b.ping && a.error == b.error &&
+                        a.tx == b.tx && a.rx == b.rx && a.groupId == b.groupId && a.type == b.type &&
+                        a.speedTestMode == b.speedTestMode &&
+                        a.speedTestDownloadBitsPerSecond == b.speedTestDownloadBitsPerSecond &&
+                        a.speedTestUploadBitsPerSecond == b.speedTestUploadBitsPerSecond &&
+                        runCatching { a.displayName() == b.displayName() && a.displayAddress() == b.displayAddress() }
+                            .getOrDefault(false)
+            }
+
+            /**
+             * @author 雾晚：列表整体替换改走 DiffUtil——搜索过滤、排序、刷新时条目平滑增删/移动，
+             * 不再整表闪烁；超大列表仍整表刷新，避免主线程计算差异过久。
+             */
+            private fun dispatchIdChange(
+                oldIds: List<Long>,
+                newIds: List<Long>,
+                oldEntities: Map<Long, ProxyEntity>?,
+            ) {
+                val diffLimit = 1000
+                if (oldIds.isEmpty() || newIds.isEmpty() || oldIds.size > diffLimit || newIds.size > diffLimit) {
+                    notifyDataSetChanged()
+                    return
+                }
+                val diff = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+                    override fun getOldListSize() = oldIds.size
+                    override fun getNewListSize() = newIds.size
+                    override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int) =
+                        oldIds[oldItemPosition] == newIds[newItemPosition]
+
+                    override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+                        if (oldEntities == null) return true
+                        val id = newIds[newItemPosition]
+                        return sameDisplay(oldEntities[id], configurationList[id])
+                    }
+                }, true)
+                batchUpdating = true
+                try {
+                    diff.dispatchUpdatesTo(this)
+                } finally {
+                    batchUpdating = false
+                }
+                rebuildNodeSections()
+            }
+
             fun applyFilterResult(matched: List<Long>) {
+                val oldIds = configurationIdList.toList()
                 configurationIdList.clear()
                 configurationIdList.addAll(matched)
-                notifyDataSetChanged()
+                dispatchIdChange(oldIds, matched, null)
             }
 
             fun filter(name: String) {
                 val query = name.trim()
+                val oldIds = configurationIdList.toList()
                 if (query.isEmpty()) {
                     configurationIdList.clear()
                     configurationIdList.addAll(allConfigurationIdList)
-                    notifyDataSetChanged()
+                    dispatchIdChange(oldIds, configurationIdList.toList(), null)
                     return
                 }
                 configurationIdList.clear()
@@ -3459,7 +3526,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                             (entity.displayAddress()?.lowercase()?.contains(lower) == true)
                 }
                 configurationIdList.addAll(matched)
-                notifyDataSetChanged()
+                dispatchIdChange(oldIds, matched, null)
             }
 
             fun move(from: Int, to: Int) {
@@ -3775,13 +3842,15 @@ class ConfigurationFragment @JvmOverloads constructor(
 
                 listView?.post {
                     if (adapter !== this || listView == null) return@post
+                    val oldIds = configurationIdList.toList()
+                    val oldEntities = HashMap(configurationList)
                     configurationList.clear()
                     configurationList.putAll(newProfileMap)
                     allConfigurationIdList.clear()
                     allConfigurationIdList.addAll(newProfileIds)
                     configurationIdList.clear()
                     configurationIdList.addAll(newProfileIds)
-                    notifyDataSetChanged()
+                    dispatchIdChange(oldIds, newProfileIds, oldEntities)
 
                     if (selectedProfileIndex != -1) {
                         configurationListView.scrollTo(selectedProfileIndex, true)
@@ -3810,6 +3879,11 @@ class ConfigurationFragment @JvmOverloads constructor(
                 val popup = PopupMenu(requireContext(), anchor)
                 activeNodePopupMenu = popup
                 popup.menuInflater.inflate(R.menu.profile_share_menu, popup.menu)
+                if (!CoreRuntime.available) {
+                    // @author 雾晚：单节点测速 / URL 测试依赖内嵌核心，瘦管理器不展示
+                    popup.menu.removeItem(R.id.action_test_profile_speed)
+                    popup.menu.removeItem(R.id.action_urltest)
+                }
 
                 val hasStd = proxyEntity.haveStandardLink()
                 val hasLink = proxyEntity.haveLink()

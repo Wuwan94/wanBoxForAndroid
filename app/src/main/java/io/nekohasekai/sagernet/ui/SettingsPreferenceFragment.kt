@@ -17,6 +17,7 @@ import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.SpeedTestSettings
+import io.nekohasekai.sagernet.core.CoreRuntime
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.preference.EditTextPreferenceModifiers
 import io.nekohasekai.sagernet.database.preference.OnPreferenceDataStoreChangeListener
@@ -99,8 +100,6 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
 
         val iconColor = Theme.getPrimaryColor(requireContext())
         tintPreferenceIcons(preferenceScreen, iconColor)
-
-        val categoryUI = findPreference<ExpandablePreferenceCategory>("categoryUI")
 
         val nightTheme = findPreference<SimpleMenuPreference>(Key.NIGHT_THEME)!!
         nightTheme.setOnPreferenceChangeListener { _, newTheme ->
@@ -211,16 +210,14 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
         // preview.17: TUN 实现固定为 Sing-Tun，不再提供选择入口
         val resolveDestination = findPreference<SwitchPreference>(Key.RESOLVE_DESTINATION)!!
 
-        val categoryCore = findPreference<ExpandablePreferenceCategory>("categoryCore")
         val rulesProvider = findPreference<SimpleMenuPreference>(Key.RULES_PROVIDER)!!
-        categoryCore?.setChildVisibilityRule(Key.RULES_GEOSITE_URL) { DataStore.rulesProvider == 4 }
-        categoryCore?.setChildVisibilityRule(Key.RULES_GEOIP_URL) { DataStore.rulesProvider == 4 }
+        // @author 雾晚：自定义规则库地址只在“自定义”来源（4）下显示
+        fun updateRulesUrlVisibility(provider: Int = DataStore.rulesProvider) {
+            findPreference<Preference>(Key.RULES_GEOSITE_URL)?.isVisible = provider == 4
+            findPreference<Preference>(Key.RULES_GEOIP_URL)?.isVisible = provider == 4
+        }
         rulesProvider.setOnPreferenceChangeListener { _, newValue ->
-            val provider = (newValue as String).toInt()
-            categoryCore?.setChildVisibilityRule(Key.RULES_GEOSITE_URL) { provider == 4 }
-            categoryCore?.setChildVisibilityRule(Key.RULES_GEOIP_URL) { provider == 4 }
-            categoryCore?.updateChildVisibility(Key.RULES_GEOSITE_URL)
-            categoryCore?.updateChildVisibility(Key.RULES_GEOIP_URL)
+            updateRulesUrlVisibility((newValue as String).toInt())
             true
         }
 
@@ -369,22 +366,11 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             startActivity(Intent(requireContext(), LanSharingActivity::class.java))
             true
         }
-        // Keep all preference bindings alive; each new entry reveals its relevant section.
+        // @author 雾晚：所有绑定保持不变，再按入口把对应的设置项平铺到本页。
+        // 旧实现按已不存在的分组 key 过滤，导致 外观/Root/DNS/网络 子页几乎是空白。
         val section = arguments?.getString("section")
-        val categories = when (section) {
-            "dns" -> setOf("categoryDNS")
-            "root" -> setOf("categoryMode", "categoryVPN")
-            "network" -> setOf("categoryVPN", "categoryCore")
-            "appearance" -> setOf("categoryUI")
-            else -> null
-        }
-        if (categories != null) {
-            for (index in 0 until preferenceScreen.preferenceCount) {
-                val preference = preferenceScreen.getPreference(index)
-                preference.isVisible = preference.key in categories
-                if (preference.isVisible && preference is ExpandablePreferenceCategory) preference.setExpanded(true)
-            }
-        }
+        applySection(section)
+        updateRulesUrlVisibility()
         if (section == "appearance") {
             val colors = ColorPickerPreference(requireContext()).apply {
                 key = "minimalThemePicker"
@@ -417,6 +403,42 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
                 } catch (e: kotlinx.coroutines.CancellationException) { throw e }
                   catch (e: Exception) { io.nekohasekai.sagernet.bg.RootModuleErrors.message(requireContext(), e) }
             }
+        }
+    }
+
+    private fun collectLeaves(group: PreferenceGroup, out: MutableList<Preference>) {
+        for (index in 0 until group.preferenceCount) {
+            val preference = group.getPreference(index)
+            if (preference is PreferenceGroup) collectLeaves(preference, out) else out.add(preference)
+        }
+    }
+
+    /** @author 雾晚：按入口平铺设置项；未归入任何入口的项进入“高级”。 */
+    private fun applySection(section: String?) {
+        val hidden = mutableSetOf(
+            "perAppProxyEntry", // 设置首页已有“分应用代理”入口
+            "aboutVersion", "aboutCoreVersion", "aboutGithub", // 与“关于”页重复
+        )
+        if (!CoreRuntime.available) {
+            // 测速依赖内嵌核心，瘦管理器无法使用
+            hidden += setOf(Key.SPEED_TEST_MODE, Key.SPEED_TEST_TIMEOUT_MS, Key.SIMPLE_DOWNLOAD_URL)
+        }
+        val keys = section?.let { sectionKeys[it] } ?: run {
+            val assigned = sectionKeys.values.flatten().toSet()
+            val all = mutableListOf<Preference>().also { collectLeaves(preferenceScreen, it) }
+            all.mapNotNull { it.key }.filter { it !in assigned }
+        }
+        val leaves = mutableListOf<Preference>().also { collectLeaves(preferenceScreen, it) }
+        val byKey = leaves.filter { it.key != null }.associateBy { it.key }
+        leaves.forEach { it.parent?.removePreference(it) }
+        preferenceScreen.removeAll()
+        var order = 0
+        for (key in keys) {
+            if (key in hidden) continue
+            val preference = byKey[key] ?: continue
+            preference.order = order++
+            preference.isVisible = true
+            preferenceScreen.addPreference(preference)
         }
     }
 
@@ -501,6 +523,33 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             return true
         }
         return false
+    }
+
+    companion object {
+        /** @author 雾晚：设置首页各入口对应的设置项（顺序即显示顺序）。 */
+        private val sectionKeys: Map<String, List<String>> = mapOf(
+            "appearance" to listOf(
+                "nightTheme", "appLanguage", "profileCardStyle", "profileTrafficStatistics",
+                "showLandingIp", "alwaysShowAddress", "show_subscription_info_card",
+                "hideUnavailableProfiles", "confirmProfileDelete", "hapticFeedback",
+            ),
+            "root" to listOf(
+                "serviceMode", "proxyApps", "bypassLan", "bypassLanInCore", "strictRoute",
+                "tunImplementation", "mtu", "performancePriorityMode",
+                "disableMixedInbound", "mixedPort", "mixedAuthConfig", "lanSharing",
+            ),
+            "dns" to listOf(
+                "remoteDns", "domain_strategy_for_remote", "directDns", "domain_strategy_for_direct",
+                "domain_strategy_for_server", "enableDnsRouting", "enableFakeDns", "dnsHosts",
+            ),
+            "network" to listOf(
+                "trafficSniffing", "resolveDestination", "ipv6Mode", "dualNetworkAcceleration",
+                "concurrentDial", "enableTLSFragment", "fragmentLength", "fragmentInterval",
+                "connectionTestURL", "speedTestMode", "speedTestTimeoutMs", "simpleDownloadURL",
+                "defaultSubscriptionUserAgent", "appTLSVersion", "globalAllowInsecure",
+                "allowInsecureOnRequest",
+            ),
+        )
     }
 
     class ListSummaryProvider(

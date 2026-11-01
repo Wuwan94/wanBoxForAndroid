@@ -3,11 +3,12 @@
     <dimen name="main_list_padding_bottom">88dp</dimen>
     <dimen name="bottom_sheet_padding">8dp</dimen>
 
-    <dimen name="card_corner_radius">16dp</dimen>
+    <!-- @author 雾晚：全应用卡片统一 12dp 圆角（与输入框/弹出菜单一致） -->
+    <dimen name="card_corner_radius">12dp</dimen>
     <dimen name="card_elevation">1dp</dimen>
     <dimen name="card_stroke_width">1dp</dimen>
     <dimen name="card_stroke_width_selected">2dp</dimen>
-    <dimen name="profile_card_corner_radius">16dp</dimen>
+    <dimen name="profile_card_corner_radius">@dimen/card_corner_radius</dimen>
     <dimen name="chip_corner_radius">8dp</dimen>
     <dimen name="profile_card_selected_bar_width">5dp</dimen>
     <dimen name="profile_card_elevation_classic">2dp</dimen>

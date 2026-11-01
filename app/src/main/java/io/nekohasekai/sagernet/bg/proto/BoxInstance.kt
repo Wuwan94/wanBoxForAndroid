@@ -25,6 +25,7 @@ import libcore.BoxInstance
 import libcore.Libcore
 import moe.matsuri.nb4a.net.LocalResolverImpl
 import java.io.File
+import io.nekohasekai.sagernet.core.CoreRuntime
 
 abstract class BoxInstance(
     val profile: ProxyEntity,
@@ -55,7 +56,7 @@ abstract class BoxInstance(
 
     protected open suspend fun loadConfig() {
         // @author 雾晚: root TUN runs the core in a privileged process, not through VpnService.
-        if (DataStore.serviceMode != Key.MODE_ROOT) {
+        if (CoreRuntime.available && DataStore.serviceMode != Key.MODE_ROOT) {
             box = Libcore.newSingBoxInstance(config.config, LocalResolverImpl)
         }
     }

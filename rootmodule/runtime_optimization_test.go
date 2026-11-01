@@ -198,3 +198,12 @@ func TestStartupProbeStopsAllStartupWorkAfterReadyOrCancellation(t *testing.T) {
 		t.Fatal("unready core no longer times out")
 	}
 }
+
+func TestRetryBackoffResetsAfterStableRun(t *testing.T) {
+	if got := retryBackoff(-1); got != time.Second {
+		t.Fatalf("reset backoff = %v", got)
+	}
+	if got := retryBackoff(2); got != 4*time.Second {
+		t.Fatalf("attempt 2 backoff = %v", got)
+	}
+}

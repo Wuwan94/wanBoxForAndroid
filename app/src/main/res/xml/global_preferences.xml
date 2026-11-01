@@ -50,7 +50,6 @@
             app:summary="@string/show_subscription_info_card_summary"
             app:title="@string/show_subscription_info_card" />
 
-
         <moe.matsuri.nb4a.ui.SimpleMenuPreference
             app:defaultValue="0"
             app:entries="@array/night_mode"
@@ -121,8 +120,6 @@
             app:key="lanSharing"
             app:title="@string/lan_sharing" />
 
-        app:title="@string/connection_background_settings">
-
         <SwitchPreference
             app:icon="@drawable/ic_navigation_apps"
             app:key="proxyApps"
@@ -144,7 +141,6 @@
             app:key="strictRoute"
             app:summary="@string/strict_route_sum"
             app:title="@string/strict_route" />
-
 
         <Preference
             app:key="tunImplementation"
@@ -300,8 +296,6 @@
             app:title="@string/dns_hosts"
             app:useSimpleSummaryProvider="true" />
 
-        app:title="@string/core_settings">
-
         <moe.matsuri.nb4a.ui.SimpleMenuPreference
             app:defaultValue="1"
             app:entries="@array/traffic_sniffing_values"
@@ -366,7 +360,6 @@
             app:summary="@string/ruleset_update_interval_summary"
             app:title="@string/ruleset_update_interval" />
 
-
         <!-- 6. 分片 (Fragment) 设置 -->
         <moe.matsuri.nb4a.ui.ExpandablePreferenceCategory
             app:key="categoryFragment"
@@ -403,10 +396,6 @@
             app:title="@string/enable_clash_api"
             app:summary="Root 模式固定启用（内部控制需要）" />
 
-
-
-
-
         <SwitchPreference
             app:icon="@drawable/ic_action_lock_open"
             app:key="globalAllowInsecure"
@@ -424,12 +413,6 @@
             app:key="appTLSVersion"
             app:title="@string/app_tls_version"
             app:useSimpleSummaryProvider="true" />
-
-
-
-
-
-
 
         <moe.matsuri.nb4a.ui.LongClickListPreference
             app:defaultValue="0"

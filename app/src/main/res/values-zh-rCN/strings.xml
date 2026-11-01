@@ -792,11 +792,11 @@
     <string name="strict_route_sum">阻止流量绕过 TUN 接口，连接异常或中断时阻断裸奔直连，杜绝 DNS 泄漏</string>
     <string name="import_preview_title">智能识别节点 (%d 个)</string>
     <string name="import_preview_confirm">确认导入全部节点</string>
-    <string name="tools_dns_leak">DNS 泄漏与 Fake-IP 检测</string>
-    <string name="tools_dns_leak_summary">探测真实 DNS 解析归属地、检测是否绕过 TUN 裸奔及 Fake-IP 状态</string>
-    <string name="start_dns_leak_test">开始检测</string>
-    <string name="testing_dns">正在检测 DNS 链路与泄漏情况...</string>
-    <string name="dns_safe">DNS 解析安全（无泄漏）</string>
+    <string name="tools_dns_leak">网络连通与 Fake-IP 检查</string>
+    <string name="tools_dns_leak_summary">查看 DNS 解析地址和 Cloudflare trace 连通性；不等同于完整 DNS 泄漏检测</string>
+    <string name="start_dns_leak_test">开始检查</string>
+    <string name="testing_dns">正在查询 DNS 解析与 trace 连通性...</string>
+    <string name="dns_safe">Cloudflare trace 可达（非 DNS 泄漏结论）</string>
     <string name="dns_fakeip_active">Fake-IP 已生效</string>
     <string name="dns_direct_warning">检测到直连 DNS 解析（可能存在泄漏）</string>
     <string name="export_crash_log">导出崩溃日志</string>

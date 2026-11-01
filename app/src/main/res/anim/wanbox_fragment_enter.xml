@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- @author 雾晚：页面切换——轻微上移 + 淡入，时长短以保证跟手 -->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:duration="180"
+    android:interpolator="@android:interpolator/decelerate_quad"
+    android:shareInterpolator="true">
+    <alpha
+        android:fromAlpha="0.0"
+        android:toAlpha="1.0" />
+    <translate
+        android:fromYDelta="2%"
+        android:toYDelta="0%" />
+</set>

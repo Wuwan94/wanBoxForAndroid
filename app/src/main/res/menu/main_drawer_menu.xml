@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- @author 雾晚：抽屉仅供 TV/D-pad 使用；移除与底栏重复的仪表盘入口和外链社区入口 -->
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
 
     <group android:checkableBehavior="single">
@@ -34,19 +35,11 @@
             android:id="@+id/nav_tools"
             android:icon="@drawable/baseline_construction_24"
             android:title="@string/menu_tools" />
-        <item
-            android:id="@+id/nav_dashboard"
-            android:icon="@drawable/ic_dashboard"
-            android:title="@string/menu_dashboard" />
     </group>
 
     <group
         android:id="@+id/about"
         android:checkableBehavior="single">
-        <item
-            android:id="@+id/nav_faq"
-            android:icon="@drawable/baseline_send_24"
-            android:title="@string/menu_community" />
         <item
             android:id="@+id/nav_docs"
             android:icon="@drawable/ic_baseline_import_contacts_24"
