@@ -11,9 +11,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.widget.PopupMenu
 import androidx.appcompat.widget.Toolbar
 import androidx.core.view.*
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.SimpleItemAnimator
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.nekohasekai.sagernet.GroupType
 import io.nekohasekai.sagernet.R
@@ -68,7 +70,9 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
         } else {
             selectedGroupIds.add(groupId)
         }
-        groupAdapter.notifyDataSetChanged()
+        // @author 雾晚：只刷新被点选的那一行，避免整表重绘
+        val index = groupAdapter.groupList.indexOfFirst { it.id == groupId }
+        if (index >= 0) groupAdapter.notifyItemChanged(index) else groupAdapter.notifyDataSetChanged()
         updateSelectionUI()
     }
 
@@ -110,6 +114,8 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
         groupAdapter = GroupAdapter()
         GroupManager.addListener(groupAdapter)
         groupListView.adapter = groupAdapter
+        // @author 雾晚：行内容刷新不做交叉淡入，避免流量/状态更新时整行闪烁
+        (groupListView.itemAnimator as? SimpleItemAnimator)?.supportsChangeAnimations = false
         groupAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
             override fun onChanged() = refreshOverview()
             override fun onItemRangeInserted(positionStart: Int, itemCount: Int) = refreshOverview()
@@ -322,12 +328,27 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
                     groups.remove(ungroupedGroup)
                 }
             }
-            groupCounts = SagerDatabase.proxyDao.countByGroups(groups.map { it.id })
+            val counts = SagerDatabase.proxyDao.countByGroups(groups.map { it.id })
                 .associate { it.groupId to it.count }
-            groupList.clear()
-            groupList.addAll(groups)
+            // @author 雾晚：列表只在主线程替换（原先在 IO 线程改 groupList 存在竞态），
+            // 并用 DiffUtil 派发增删/移动，订阅增减时有平滑动画。
             groupListView.post {
-                notifyDataSetChanged()
+                val oldIds = groupList.map { it.id }
+                val newIds = groups.map { it.id }
+                groupCounts = counts
+                groupList.clear()
+                groupList.addAll(groups)
+                if (oldIds.isEmpty()) {
+                    notifyDataSetChanged()
+                } else {
+                    DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+                        override fun getOldListSize() = oldIds.size
+                        override fun getNewListSize() = newIds.size
+                        override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int) =
+                            oldIds[oldItemPosition] == newIds[newItemPosition]
+                        override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int) = false
+                    }, true).dispatchUpdatesTo(this)
+                }
                 refreshOverview()
             }
         }

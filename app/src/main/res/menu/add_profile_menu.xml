@@ -148,19 +148,18 @@
                     android:checkable="true"
                     android:checked="false"
                     app:showAsAction="never" />
+                <!-- @author 雾晚：仅影响导出配置的旧开关，与仪表盘的 规则/全局/直连 重复，隐藏 -->
                 <item
                     android:id="@+id/action_global_mode"
                     android:title="@string/global_mode"
                     android:checkable="true"
                     android:checked="false"
+                    android:visible="false"
                     app:showAsAction="never" />
                 <item
                     android:id="@+id/action_order_layout"
-                    android:title="@string/sort_and_layout">
+                    android:title="@string/group_order">
                     <menu>
-                        <item
-                            android:title="@string/group_order"
-                            android:enabled="false" />
                         <group android:id="@+id/order_group" android:checkableBehavior="single">
                             <item
                                 android:id="@+id/action_order_origin"
@@ -172,10 +171,15 @@
                                 android:id="@+id/action_order_by_delay"
                                 android:title="@string/group_order_by_delay" />
                         </group>
+                        <!-- @author 雾晚：列数/卡片样式已由“显示设置”面板与 设置→外观 提供，这里隐藏避免重复 -->
                         <item
                             android:title="@string/layout"
-                            android:enabled="false" />
-                        <group android:id="@+id/layout_group" android:checkableBehavior="single">
+                            android:enabled="false"
+                            android:visible="false" />
+                        <group
+                            android:id="@+id/layout_group"
+                            android:checkableBehavior="single"
+                            android:visible="false">
                             <item
                                 android:id="@+id/action_layout_single"
                                 android:title="@string/layout_single_column" />
@@ -185,8 +189,12 @@
                         </group>
                         <item
                             android:title="@string/card_style"
-                            android:enabled="false" />
-                        <group android:id="@+id/card_style_group" android:checkableBehavior="single">
+                            android:enabled="false"
+                            android:visible="false" />
+                        <group
+                            android:id="@+id/card_style_group"
+                            android:checkableBehavior="single"
+                            android:visible="false">
                             <item
                                 android:id="@+id/action_card_style_classic"
                                 android:title="@string/card_style_classic" />

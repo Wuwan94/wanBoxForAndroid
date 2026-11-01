@@ -13,7 +13,7 @@ class ToolsFragment : ToolbarFragment(R.layout.layout_tools) {
 
     companion object {
         private const val ARG_INITIAL_TAB = "initial_tab"
-        private const val CUSTOM_ICON_TAB = 2
+        private const val CUSTOM_ICON_TAB = 1
 
         fun forCustomIcon() = ToolsFragment().apply {
             arguments = Bundle().apply { putInt(ARG_INITIAL_TAB, CUSTOM_ICON_TAB) }
@@ -25,8 +25,8 @@ class ToolsFragment : ToolbarFragment(R.layout.layout_tools) {
         toolbar.setTitle(R.string.menu_tools)
 
         val tools = mutableListOf<NamedFragment>()
+        // @author 雾晚：备份已在 设置→备份 提供，工具页不再重复放一份
         tools.add(NetworkFragment())
-        tools.add(BackupFragment())
         tools.add(CustomIconFragment())
 
         val binding = LayoutToolsBinding.bind(view)

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- @author 雾晚：页面切换——旧页面快速淡出 -->
+<alpha xmlns:android="http://schemas.android.com/apk/res/android"
+    android:duration="120"
+    android:fromAlpha="1.0"
+    android:interpolator="@android:interpolator/accelerate_quad"
+    android:toAlpha="0.0" />

@@ -222,8 +222,6 @@ class MainActivity : ThemedActivity(),
             onNewIntent(intent)
         }
 
-        refreshNavMenu(DataStore.enableClashAPI)
-
         val isPreRelease = isPreview && (BuildConfig.PRE_VERSION_NAME.contains("preview", true) || BuildConfig.PRE_VERSION_NAME.contains("beta", true) || BuildConfig.PRE_VERSION_NAME.contains("alpha", true))
         if (isPreRelease && DataStore.previewHintDismissedVersion != BuildConfig.PRE_VERSION_NAME) {
             MaterialAlertDialogBuilder(this)
@@ -249,7 +247,6 @@ class MainActivity : ThemedActivity(),
 
         checkClipboardOnResume()
         binding.stats.refreshDisplay()
-        refreshNavMenu(DataStore.enableClashAPI)
     }
 
     private var lastPromptedClipboard: String = ""
@@ -347,10 +344,6 @@ class MainActivity : ThemedActivity(),
         } catch (e: Exception) {
             Logs.w("Failed to set excludeFromRecents: ${e.message}")
         }
-    }
-
-    fun refreshNavMenu(clashApi: Boolean) {
-        navigation.menu.findItem(R.id.nav_dashboard)?.isVisible = clashApi
     }
 
     private fun handleTileIntent(incoming: Intent?): Boolean {
@@ -597,6 +590,9 @@ class MainActivity : ThemedActivity(),
     fun displayFragment(fragment: ToolbarFragment) {
         currentMainFragment = fragment
         supportFragmentManager.beginTransaction()
+            // @author 雾晚：统一的淡入切换，底栏 / 设置子页切换不再生硬闪烁
+            .setCustomAnimations(R.anim.wanbox_fragment_enter, R.anim.wanbox_fragment_exit)
+            .setReorderingAllowed(true)
             .replace(R.id.fragment_holder, fragment)
             .commitAllowingStateLoss()
         binding.drawerLayout.closeDrawers()
@@ -652,11 +648,6 @@ class MainActivity : ThemedActivity(),
             R.id.nav_route -> displayFragment(RouteFragment())
             R.id.nav_tools -> displayFragment(ToolsFragment())
             R.id.nav_logcat -> displayFragment(LogcatFragment())
-            R.id.nav_faq -> {
-                launchCustomTab("https://t.me/OwnBoxs")
-                return false
-            }
-
             R.id.nav_docs -> displayFragment(DocsFragment())
 
             R.id.nav_about -> displayFragment(AboutFragment())

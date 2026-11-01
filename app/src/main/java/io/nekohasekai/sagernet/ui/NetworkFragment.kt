@@ -3,13 +3,13 @@ package io.nekohasekai.sagernet.ui
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import com.google.android.material.snackbar.Snackbar
+import androidx.core.view.isVisible
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.databinding.LayoutNetworkBinding
 import io.nekohasekai.sagernet.ktx.app
 import io.nekohasekai.sagernet.ktx.onMainDispatcher
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
-import io.nekohasekai.sagernet.utils.BackupHelper
+import io.nekohasekai.sagernet.core.CoreRuntime
 import moe.matsuri.nb4a.utils.SendLog
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -25,12 +25,9 @@ class NetworkFragment : NamedFragment(R.layout.layout_network) {
         super.onViewCreated(view, savedInstanceState)
 
         val binding = LayoutNetworkBinding.bind(view)
-        val openLanSharing = View.OnClickListener {
-            startActivity(Intent(requireContext(), LanSharingActivity::class.java))
-        }
-        binding.lanSharingCard.setOnClickListener(openLanSharing)
-        binding.lanSharingBtn.setOnClickListener(openLanSharing)
 
+        // @author 雾晚：STUN 探测依赖内嵌核心；瘦管理器（仅 Root 模块）里直接隐藏入口。
+        binding.stunCard.isVisible = CoreRuntime.available
         binding.stunTest.setOnClickListener {
             startActivity(Intent(requireContext(), StunActivity::class.java))
         }
@@ -100,15 +97,6 @@ class NetworkFragment : NamedFragment(R.layout.layout_network) {
 
         binding.exportCrashLog.setOnClickListener {
             SendLog.sendLog(requireContext(), "OWN_Diagnostics")
-        }
-
-        binding.localBackupNow.setOnClickListener {
-            runOnDefaultDispatcher {
-                val success = BackupHelper.autoBackupLocal()
-                onMainDispatcher {
-                    Snackbar.make(binding.root, if (success) "本地备份成功 (已保存至应用备份目录)" else "备份失败", Snackbar.LENGTH_SHORT).show()
-                }
-            }
         }
     }
 }
