@@ -46,7 +46,16 @@ class WanHttpResponse(
     fun writeTo(path: String) {
         val target = File(path)
         target.parentFile?.mkdirs()
-        target.writeBytes(contentString)
+        // @author 雾晚: write-then-rename so an interrupted write never leaves a half file.
+        val part = File(target.parentFile, target.name + ".part")
+        part.writeBytes(contentString)
+        if (!part.renameTo(target)) {
+            target.delete()
+            if (!part.renameTo(target)) {
+                part.delete()
+                throw java.io.IOException("cannot replace ${target.name}")
+            }
+        }
     }
 }
 
@@ -83,13 +92,28 @@ class WanHttpRequest internal constructor(private val owner: WanHttpClient) {
         }
         val client = owner.buildClient(insecure)
         client.newCall(builder.build()).execute().use { response ->
-            val bytes = response.body?.bytes() ?: ByteArray(0)
+            // @author 雾晚: an error page (404/403/5xx HTML) must never be treated as a
+            // subscription or written over geoip.db / geosite.db.
+            if (!response.isSuccessful) {
+                throw java.io.IOException("HTTP ${response.code} for $url")
+            }
+            val respBody = response.body
+            val declared = respBody?.contentLength() ?: -1L
+            if (declared > WanHttpClient.MAX_BODY_BYTES) {
+                throw java.io.IOException("response too large ($declared bytes) for $url")
+            }
+            val bytes = respBody?.source()?.let { source ->
+                val buffer = okio.Buffer()
+                while (source.read(buffer, 64 * 1024L) != -1L) {
+                    if (buffer.size > WanHttpClient.MAX_BODY_BYTES) {
+                        throw java.io.IOException("response too large for $url")
+                    }
+                }
+                buffer.readByteArray()
+            } ?: ByteArray(0)
             val map = LinkedHashMap<String, String>()
             for (i in 0 until response.headers.size) {
                 map[response.headers.name(i)] = response.headers.value(i)
-            }
-            if (!response.isSuccessful && bytes.isEmpty()) {
-                throw IllegalStateException("HTTP ${response.code} for $url")
             }
             return WanHttpResponse(bytes, map, response.code)
         }
@@ -97,13 +121,6 @@ class WanHttpRequest internal constructor(private val owner: WanHttpClient) {
 }
 
 class WanHttpClient {
-
-    private val base: OkHttpClient.Builder = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)
-        .writeTimeout(120, TimeUnit.SECONDS)
-        .followRedirects(true)
-        .followSslRedirects(true)
 
     private var tls13Only = false
 
@@ -117,8 +134,8 @@ class WanHttpClient {
     fun keepAlive() = apply { }
 
     /**
-     * 旧实现让请求经核心代理出站。瘦管理器没有核心，这里退化为直连；
-     * 保留方法是为了让 4 处调用点保持原样。
+     * 旧实现让请求经核心代理出站。管理器只跑 root 模式，自身流量由模块 TUN 接管，这里直连即可；
+     * 保留方法是为了让调用点保持原样。
      */
     fun tryProxyOutbound() = apply { }
 
@@ -127,37 +144,43 @@ class WanHttpClient {
     /** 对齐旧 `HTTPClient.close()`。OkHttp 的连接池是进程级共享的，这里不做实际释放。 */
     fun close() = Unit
 
-    private var client: OkHttpClient? = null
-    private var insecureClient: OkHttpClient? = null
-
+    /**
+     * @author 雾晚: every variant is derived with `newBuilder()` from one immutable base.
+     * The old code mutated a shared Builder, so after one "allow insecure" request the
+     * normal client silently trusted every certificate and skipped hostname checks.
+     */
     internal fun buildClient(insecure: Boolean): OkHttpClient {
-        if (!insecure && !tls13Only) {
-            return client ?: base.build().also { client = it }
-        }
+        val versions = if (tls13Only) arrayOf(TlsVersion.TLS_1_3) else arrayOf(TlsVersion.TLS_1_3, TlsVersion.TLS_1_2)
+        if (!insecure && !tls13Only) return shared
+        val spec = ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS).tlsVersions(*versions).build()
+        val builder = shared.newBuilder().connectionSpecs(listOf(spec, ConnectionSpec.CLEARTEXT))
         if (insecure) {
-            return insecureClient ?: buildInsecure().also { insecureClient = it }
+            val trustAll = object : X509TrustManager {
+                override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+                override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+                override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+            }
+            val context = SSLContext.getInstance("TLS")
+            context.init(null, arrayOf<javax.net.ssl.TrustManager>(trustAll), java.security.SecureRandom())
+            builder.sslSocketFactory(context.socketFactory, trustAll).hostnameVerifier { _, _ -> true }
         }
-        val spec = ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS)
-            .tlsVersions(TlsVersion.TLS_1_3)
-            .build()
-        return base.connectionSpecs(listOf(spec, ConnectionSpec.CLEARTEXT)).build()
+        return builder.build()
     }
 
-    private fun buildInsecure(): OkHttpClient {
-        val trustAll = object : X509TrustManager {
-            override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
-            override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
-            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+    companion object {
+        /** Subscriptions and rule databases are far below this; anything larger is not ours. */
+        const val MAX_BODY_BYTES = 64L * 1024 * 1024
+
+        private val shared: OkHttpClient by lazy {
+            OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)
+                .writeTimeout(60, TimeUnit.SECONDS)
+                // Blocking execute() ignores coroutine withTimeout; bound the whole call here.
+                .callTimeout(90, TimeUnit.SECONDS)
+                .followRedirects(true)
+                .followSslRedirects(true)
+                .build()
         }
-        val context = SSLContext.getInstance("TLS")
-        context.init(null, arrayOf<javax.net.ssl.TrustManager>(trustAll), java.security.SecureRandom())
-        val spec = ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS)
-            .tlsVersions(TlsVersion.TLS_1_3, TlsVersion.TLS_1_2)
-            .build()
-        return base
-            .sslSocketFactory(context.socketFactory, trustAll)
-            .hostnameVerifier { _, _ -> true }
-            .connectionSpecs(listOf(spec, ConnectionSpec.CLEARTEXT))
-            .build()
     }
 }

@@ -350,10 +350,18 @@ class AssetsActivity : ThemedActivity() {
             response.writeTo(cacheFile.canonicalPath)
 
             if (fileName.endsWith(".xz")) {
-                CoreRuntime.unxz(cacheFile.absolutePath, file.absolutePath)
-                cacheFile.delete()
+                // @author 雾晚: decompress beside the target, then swap, so a failed unxz
+                // never leaves a truncated rule database that the module refuses to load.
+                val unpacked = File(file.parentFile, fileName + ".unxz")
+                try {
+                    CoreRuntime.unxz(cacheFile.absolutePath, unpacked.absolutePath)
+                    replaceAssetFile(unpacked, file)
+                } finally {
+                    unpacked.delete()
+                    cacheFile.delete()
+                }
             } else {
-                cacheFile.renameTo(file)
+                replaceAssetFile(cacheFile, file)
             }
 
             versionFile.writeText(tagName)
@@ -366,6 +374,18 @@ class AssetsActivity : ThemedActivity() {
             return true
         } finally {
             client.close()
+        }
+    }
+
+    /** Swap a fully written temp file into place; fail loudly instead of keeping a stale or half file. */
+    private fun replaceAssetFile(source: File, target: File) {
+        if (source.length() == 0L) {
+            source.delete()
+            throw java.io.IOException("downloaded ${target.name} is empty")
+        }
+        if (!source.renameTo(target)) {
+            source.copyTo(target, overwrite = true)
+            source.delete()
         }
     }
 
@@ -390,7 +410,7 @@ class AssetsActivity : ThemedActivity() {
             val cacheFile = File(file.parentFile, fileName + ".tmp")
             cacheFile.parentFile?.mkdirs()
             response.writeTo(cacheFile.canonicalPath)
-            cacheFile.renameTo(file)
+            replaceAssetFile(cacheFile, file)
 
             val currentDate = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.getDefault()).format(java.util.Date())
             versionFile.writeText(currentDate)
