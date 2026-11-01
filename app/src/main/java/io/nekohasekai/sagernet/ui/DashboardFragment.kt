@@ -72,7 +72,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     private fun renderMode(root: View) {
         listOf(R.id.modeRule, R.id.modeGlobal, R.id.modeDirect).forEachIndexed { mode, id ->
             root.findViewById<Button>(id).apply {
-                background = ContextCompat.getDrawable(context, if (DataStore.dashboardMode == mode) R.drawable.bg_minimal_active else R.drawable.bg_minimal_segment)
+                background = ContextCompat.getDrawable(context, if (DataStore.dashboardMode == mode) R.drawable.bg_dashboard_active else R.drawable.bg_dashboard_segment)
                 backgroundTintList = null
                 isSelected = DataStore.dashboardMode == mode
             }
@@ -82,6 +82,9 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     private fun render(root: View) {
         val host = activity as? MainActivity ?: return
         val state = host.serviceState
+        val statusDot = root.findViewById<View>(R.id.statusDot)
+        val statusColor = if (state == BaseService.State.Connected) R.color.minimal_connected else R.color.minimal_icon
+        statusDot.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), statusColor))
         val switch = root.findViewById<SwitchMaterial>(R.id.serviceSwitch)
         if (renderedState != state) operationUntil = 0L
         renderedState = state
@@ -114,6 +117,13 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         }
         val stats = host.lastSpeedStats.takeIf { state.connected }
         fun text(id: Int, value: CharSequence) { root.findViewById<TextView>(id).text = value }
+        fun value(id: Int, value: CharSequence, activeColor: Int) {
+            root.findViewById<TextView>(id).apply {
+                text = value
+                val color = if (value.toString() == "—") R.color.minimal_secondary else activeColor
+                setTextColor(ContextCompat.getColor(requireContext(), color))
+            }
+        }
         fun rate(value: Long): CharSequence {
             val formatted = Formatter.formatFileSize(requireContext(), value) + "/s"
             val unit = formatted.indexOf(' ')
@@ -121,22 +131,22 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
                 if (unit >= 0) setSpan(RelativeSizeSpan(0.55f), unit, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
         }
-        text(R.id.uploadSpeed, stats?.let { rate(it.txRateProxy) } ?: "—")
-        text(R.id.downloadSpeed, stats?.let { rate(it.rxRateProxy) } ?: "—")
+        value(R.id.uploadSpeed, stats?.let { rate(it.txRateProxy) } ?: "—", R.color.minimal_data)
+        value(R.id.downloadSpeed, stats?.let { rate(it.rxRateProxy) } ?: "—", R.color.minimal_data)
         text(R.id.uploadTotal, getString(R.string.minimal_total, stats?.let { Formatter.formatFileSize(requireContext(), it.txTotal) } ?: "—"))
         text(R.id.downloadTotal, getString(R.string.minimal_total, stats?.let { Formatter.formatFileSize(requireContext(), it.rxTotal) } ?: "—"))
         val memoryText = stats?.let {
             if (it.vmRSSBytes > 0L) Formatter.formatFileSize(requireContext(), it.vmRSSBytes) else null
         } ?: "—"
-        text(R.id.coreMemory, memoryText)
+        value(R.id.coreMemory, memoryText, R.color.minimal_text)
         val connectionsText = stats?.connectionCountOrNull()?.toString() ?: "—"
-        text(R.id.connectionCount, connectionsText)
+        value(R.id.connectionCount, connectionsText, R.color.minimal_text)
         val uptime = stats?.let {
             if (it.uptimeSeconds >= 0L) {
                 String.format(Locale.ROOT, "%02d:%02d:%02d", it.uptimeSeconds / 3600, it.uptimeSeconds % 3600 / 60, it.uptimeSeconds % 60)
             } else null
         } ?: "—"
-        text(R.id.uptimeText, uptime)
+        value(R.id.uptimeText, uptime, R.color.minimal_text)
     }
 
     override fun onPause() { statsJob?.cancel(); statsJob = null; super.onPause() }

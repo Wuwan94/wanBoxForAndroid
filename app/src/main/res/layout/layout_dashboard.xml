@@ -1,70 +1,398 @@
-<?xml version="1.0" ?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@color/minimal_background">
-    <include layout="@layout/layout_appbar"/>
-    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true" android:clipToPadding="false">
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingHorizontal="20dp" android:paddingBottom="16dp">
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Root" android:textColor="@color/minimal_secondary" android:textSize="13sp" android:layout_marginBottom="16dp"/>
-            <com.google.android.material.card.MaterialCardView style="@style/Widget.WanBox.Minimal.Card" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="14dp">
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="16dp">
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:gravity="center_vertical">
-                        <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@drawable/ic_minimal_power" android:contentDescription="@null"/>
-                        <TextView android:id="@+id/statusText" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="12dp" android:text="@string/service_state_idle" android:textStyle="bold" android:textColor="@color/minimal_text" android:textSize="16sp" android:accessibilityLiveRegion="polite"/>
-                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/serviceSwitch" android:layout_width="wrap_content" android:layout_height="48dp" android:contentDescription="@string/minimal_root" app:useMaterialThemeColors="false" app:thumbTint="@color/minimal_switch_thumb" app:trackTint="@color/minimal_switch_track"/>
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/minimal_background"
+    android:orientation="vertical">
+
+    <include layout="@layout/layout_appbar" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="20dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="20dp">
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.WanBox.Minimal.DashboardCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:gravity="center_vertical">
+
+                        <View
+                            android:id="@+id/statusDot"
+                            android:layout_width="8dp"
+                            android:layout_height="8dp"
+                            android:background="@drawable/bg_dashboard_status_dot"
+                            android:backgroundTint="@color/minimal_icon"
+                            android:contentDescription="@null" />
+
+                        <TextView
+                            android:id="@+id/statusText"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="10dp"
+                            android:layout_weight="1"
+                            android:accessibilityLiveRegion="polite"
+                            android:fontFamily="sans-serif-medium"
+                            android:text="@string/service_state_idle"
+                            android:textColor="@color/minimal_text"
+                            android:textSize="16sp" />
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/serviceSwitch"
+                            android:layout_width="wrap_content"
+                            android:layout_height="48dp"
+                            android:contentDescription="@string/minimal_connection_toggle"
+                            app:thumbTint="@color/minimal_switch_thumb"
+                            app:trackTint="@color/minimal_switch_track"
+                            app:useMaterialThemeColors="false" />
                     </LinearLayout>
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:text="@string/minimal_current_node" android:textSize="13sp" android:textColor="@color/minimal_secondary"/>
-                    <LinearLayout android:id="@+id/currentNodeLayout" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="72dp" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
-                        <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
-                            <TextView android:id="@+id/nodeName" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="26sp" android:textStyle="bold" android:textColor="@color/minimal_text" android:maxLines="2" android:ellipsize="end"/>
-                            <TextView android:id="@+id/nodeInfo" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="—" android:textColor="@color/minimal_secondary" android:textSize="13sp"/>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="8dp"
+                        android:background="@color/minimal_line" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:text="@string/minimal_current_node"
+                        android:textColor="@color/minimal_secondary"
+                        android:textSize="12sp" />
+
+                    <LinearLayout
+                        android:id="@+id/currentNodeLayout"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center_vertical"
+                        android:minHeight="64dp">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:paddingVertical="8dp">
+
+                            <TextView
+                                android:id="@+id/nodeName"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:ellipsize="end"
+                                android:fontFamily="sans-serif-medium"
+                                android:maxLines="2"
+                                android:text="—"
+                                android:textColor="@color/minimal_text"
+                                android:textSize="21sp" />
+
+                            <TextView
+                                android:id="@+id/nodeInfo"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="3dp"
+                                android:fontFamily="@font/jetbrains_mono"
+                                android:text="—"
+                                android:textColor="@color/minimal_secondary"
+                                android:textSize="12sp" />
                         </LinearLayout>
-                        <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
-                    </LinearLayout>
-                    <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="12dp" android:background="@color/minimal_line"/>
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:gravity="center_vertical">
-                        <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/minimal_uptime" android:textSize="13sp" android:textColor="@color/minimal_secondary"/>
-                        <TextView android:id="@+id/uptimeText" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="—" android:textColor="@color/minimal_text" android:textSize="14sp"/>
+
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_minimal_chevron" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
-            <LinearLayout android:id="@+id/modeSwitch" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/bg_minimal_segment" android:padding="2dp" android:layout_marginBottom="14dp">
-                <Button android:id="@+id/modeRule" style="@style/Widget.WanBox.Minimal.Segment" android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp" android:text="@string/minimal_rule"/>
-                <Button android:id="@+id/modeGlobal" style="@style/Widget.WanBox.Minimal.Segment" android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp" android:text="@string/minimal_global"/>
-                <Button android:id="@+id/modeDirect" style="@style/Widget.WanBox.Minimal.Segment" android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp" android:text="@string/minimal_direct"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-medium"
+                android:text="@string/minimal_routing_mode"
+                android:textColor="@color/minimal_text"
+                android:textSize="14sp" />
+
+            <LinearLayout
+                android:id="@+id/modeSwitch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="16dp"
+                android:background="@drawable/bg_dashboard_segment"
+                android:padding="2dp">
+
+                <Button
+                    android:id="@+id/modeRule"
+                    style="@style/Widget.WanBox.Minimal.DashboardSegment"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:minWidth="80dp"
+                    android:text="@string/minimal_rule" />
+
+                <Button
+                    android:id="@+id/modeGlobal"
+                    style="@style/Widget.WanBox.Minimal.DashboardSegment"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:minWidth="80dp"
+                    android:text="@string/minimal_global" />
+
+                <Button
+                    android:id="@+id/modeDirect"
+                    style="@style/Widget.WanBox.Minimal.DashboardSegment"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:minWidth="80dp"
+                    android:text="@string/minimal_direct" />
             </LinearLayout>
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:baselineAligned="false" android:layout_marginBottom="12dp">
-                <com.google.android.material.card.MaterialCardView style="@style/Widget.WanBox.Minimal.Card" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="0dp" android:layout_marginEnd="6dp">
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="14dp">
-                        <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@drawable/ic_minimal_upload" android:contentDescription="@null"/>
-                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/minimal_upload" android:textColor="@color/minimal_secondary" android:textSize="13sp"/>
-                        <TextView android:id="@+id/uploadSpeed" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="—" android:textStyle="bold" android:textSize="24sp" android:textColor="@color/minimal_text"/>
-                        <TextView android:id="@+id/uploadTotal" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="—" android:textColor="@color/minimal_secondary" android:textSize="12sp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:fontFamily="sans-serif-medium"
+                android:text="@string/minimal_live_traffic"
+                android:textColor="@color/minimal_text"
+                android:textSize="14sp" />
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.WanBox.Minimal.DashboardCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:baselineAligned="false"
+                    android:gravity="center_vertical"
+                    android:minHeight="100dp"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="16dp"
+                    android:paddingVertical="14dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/minimal_upload"
+                            android:textColor="@color/minimal_secondary"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:id="@+id/uploadSpeed"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:fontFamily="@font/jetbrains_mono"
+                            android:text="—"
+                            android:textColor="@color/minimal_data"
+                            android:textSize="22sp" />
+
+                        <TextView
+                            android:id="@+id/uploadTotal"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="5dp"
+                            android:fontFamily="@font/jetbrains_mono"
+                            android:text="—"
+                            android:textColor="@color/minimal_secondary"
+                            android:textSize="12sp" />
                     </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-                <com.google.android.material.card.MaterialCardView style="@style/Widget.WanBox.Minimal.Card" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:layout_marginEnd="0dp">
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="14dp">
-                        <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@drawable/ic_minimal_download" android:contentDescription="@null"/>
-                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/minimal_download" android:textColor="@color/minimal_secondary" android:textSize="13sp"/>
-                        <TextView android:id="@+id/downloadSpeed" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="—" android:textStyle="bold" android:textSize="24sp" android:textColor="@color/minimal_text"/>
-                        <TextView android:id="@+id/downloadTotal" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="—" android:textColor="@color/minimal_secondary" android:textSize="12sp"/>
+
+                    <View
+                        android:layout_width="1dp"
+                        android:layout_height="52dp"
+                        android:layout_marginHorizontal="14dp"
+                        android:background="@color/minimal_line" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/minimal_download"
+                            android:textColor="@color/minimal_secondary"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:id="@+id/downloadSpeed"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:fontFamily="@font/jetbrains_mono"
+                            android:text="—"
+                            android:textColor="@color/minimal_data"
+                            android:textSize="22sp" />
+
+                        <TextView
+                            android:id="@+id/downloadTotal"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="5dp"
+                            android:fontFamily="@font/jetbrains_mono"
+                            android:text="—"
+                            android:textColor="@color/minimal_secondary"
+                            android:textSize="12sp" />
                     </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-            </LinearLayout>
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:baselineAligned="false" android:layout_marginBottom="12dp">
-                <com.google.android.material.card.MaterialCardView style="@style/Widget.WanBox.Minimal.Card" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="0dp" android:layout_marginEnd="6dp">
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="14dp">
-                        <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@drawable/ic_minimal_memory" android:contentDescription="@null"/>
-                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/minimal_memory" android:textColor="@color/minimal_secondary" android:textSize="13sp"/>
-                        <TextView android:id="@+id/coreMemory" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="—" android:textStyle="bold" android:textSize="24sp" android:textColor="@color/minimal_text"/>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:fontFamily="sans-serif-medium"
+                android:text="@string/minimal_runtime_summary"
+                android:textColor="@color/minimal_text"
+                android:textSize="14sp" />
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.WanBox.Minimal.DashboardCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:baselineAligned="false"
+                    android:gravity="center_vertical"
+                    android:minHeight="78dp"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="14dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1.2"
+                        android:gravity="center_horizontal"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center"
+                            android:text="@string/minimal_uptime"
+                            android:textColor="@color/minimal_secondary"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/uptimeText"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:fontFamily="@font/jetbrains_mono"
+                            android:gravity="center"
+                            android:text="—"
+                            android:textColor="@color/minimal_text"
+                            android:textSize="14sp" />
                     </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-                <com.google.android.material.card.MaterialCardView style="@style/Widget.WanBox.Minimal.Card" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:layout_marginEnd="0dp">
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="14dp">
-                        <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@drawable/ic_minimal_connections" android:contentDescription="@null"/>
-                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/minimal_connections" android:textColor="@color/minimal_secondary" android:textSize="13sp"/>
-                        <TextView android:id="@+id/connectionCount" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="—" android:textStyle="bold" android:textSize="24sp" android:textColor="@color/minimal_text"/>
+
+                    <View
+                        android:layout_width="1dp"
+                        android:layout_height="40dp"
+                        android:layout_marginHorizontal="8dp"
+                        android:background="@color/minimal_line" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="0.9"
+                        android:gravity="center_horizontal"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center"
+                            android:text="@string/minimal_connections"
+                            android:textColor="@color/minimal_secondary"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/connectionCount"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:fontFamily="@font/jetbrains_mono"
+                            android:gravity="center"
+                            android:text="—"
+                            android:textColor="@color/minimal_text"
+                            android:textSize="18sp" />
                     </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-            </LinearLayout>
+
+                    <View
+                        android:layout_width="1dp"
+                        android:layout_height="40dp"
+                        android:layout_marginHorizontal="8dp"
+                        android:background="@color/minimal_line" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center_horizontal"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center"
+                            android:text="@string/minimal_memory"
+                            android:textColor="@color/minimal_secondary"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/coreMemory"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:fontFamily="@font/jetbrains_mono"
+                            android:gravity="center"
+                            android:text="—"
+                            android:textColor="@color/minimal_text"
+                            android:textSize="16sp" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
     </ScrollView>
 </LinearLayout>
