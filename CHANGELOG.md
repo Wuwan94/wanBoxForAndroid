@@ -1,8 +1,21 @@
 # wanBoxForAndroid 更新日志（Changelog）
 
-> 维护范围：下列 wanBox 3.0.x 条目按各自 GitHub Release 汇总；详细回归覆盖与兼容/升级信息请见对应版本页面。截至 2026-10-21，当前可见 GitHub Releases 的正式版为 v3.0.7、预览版为 v3.0.10-preview.16；文中更早维护的 v3.0.8/v3.0.9 等条目保留为历史记录，不表示对应 Release 当前存在。源码元数据与发布记录的差异见 [版本对照](docs/current-version.zh-CN.md)。预览渠道只保留最新一版，更早的预览条目以其发行说明为准。项目起源与当前定位见 [README](README.md)。
+> 维护范围：下列 wanBox 3.0.x 条目按各自 GitHub Release 汇总；详细回归覆盖与兼容/升级信息请见对应版本页面。2026-11-01 的 preview.31 发布准备核对发现：当时 GitHub Releases 仅有预览版 v3.0.10-preview.30，没有可见的稳定版 Release；preview.31 是本次候选，在官方发布成功前不代表公开版本。更早维护的版本条目保留为历史记录。源码元数据与发布记录的差异见 [版本对照](docs/current-version.zh-CN.md)。预览渠道只保留最新一版，更早的预览条目以其发行说明为准。项目起源与当前定位见 [README](README.md)。
 
 ## wanBox 3.0.x 发布记录
+
+### v3.0.10-preview.31（预览版）
+
+- 重排代理首页的连接状态、当前节点、路由模式、实时流量与运行概况；适配浅色/深色主题，数值对齐并将缺失数据显示为灰色占位。
+- 保留连接开关、节点跳转和模式切换逻辑，不改配置格式或代理策略；按候选发行说明与 preview.30 同签名，可直接升级。
+- 版本元数据：`PRE_VERSION_NAME=3.0.10-preview.31`、Root 模块版本码 `2009`、Android APK `versionCode=10045`；内核 `sing-box v1.15.0-alpha.11-reF1nd`。
+
+### v3.0.10-preview.30（预览版，2026-11-01）
+
+来源：[本仓库 Release](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.10-preview.30)。
+
+- 修复订阅更新取消/超时处理、分组选择显示与网络诊断措辞；网络诊断不等同于完整 DNS 泄漏测试。
+- 管理器版本 `3.0.10-preview.30`，Root 模块版本码 `2008`；该版说明签名不变、可覆盖安装，瘦管理器需配合同发布页的 Root 模块。
 
 ### v3.0.10-preview.16（预览版，发行说明日期 2026-10-20）
 
