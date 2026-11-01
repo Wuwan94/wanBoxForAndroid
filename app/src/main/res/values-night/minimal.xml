@@ -9,4 +9,6 @@
     <color name="minimal_secondary">#A0A4AC</color>
     <color name="minimal_line">#303237</color>
     <color name="minimal_icon">#C0C4CC</color>
+    <color name="minimal_data">#8AB4F8</color>
+    <color name="minimal_connected">#3FC07A</color>
 </resources>
