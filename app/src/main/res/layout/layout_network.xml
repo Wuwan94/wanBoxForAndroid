@@ -14,7 +14,7 @@
         android:paddingHorizontal="16dp"
         android:paddingTop="12dp">
 
-        <!-- DNS 泄漏 / Fake-IP 检测 -->
+        <!-- DNS 解析地址 / trace 连通性 / Fake-IP 检查（非完整泄漏测试） -->
         <com.google.android.material.card.MaterialCardView
             style="@style/Widget.WanBox.Minimal.Card"
             android:layout_width="match_parent"

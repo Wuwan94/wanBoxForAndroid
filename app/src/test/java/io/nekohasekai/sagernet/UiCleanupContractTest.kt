@@ -35,4 +35,50 @@ class UiCleanupContractTest {
         assertFalse(drawer.contains("nav_faq"))
         assertFalse(drawer.contains("nav_dashboard"))
     }
+
+    @Test fun subscriptionSelectionCanExitAndSingleGroupTabsAreHidden() {
+        val groups = source("java/io/nekohasekai/sagernet/ui/GroupFragment.kt")
+        val setSelectionMode = groups.substringAfter("fun setSelectionMode(enabled: Boolean)")
+            .substringBefore("fun toggleGroupSelection")
+        assertTrue(setSelectionMode.contains("selectionMode = enabled"))
+        assertFalse(setSelectionMode.contains("selectionMode = true"))
+        assertTrue(groups.contains("fragment.selectionMode && group.type == GroupType.SUBSCRIPTION"))
+
+        val nodes = source("java/io/nekohasekai/sagernet/ui/ConfigurationFragment.kt")
+        assertTrue(nodes.contains("val hideTab = realGroupCount < 2"))
+        assertTrue(nodes.contains("tabLayout.isGone = hideTab"))
+        assertTrue(nodes.contains("tabLayout.isGone = groupList.count { it.id != ALL_GROUPS_SENTINEL_ID } < 2"))
+    }
+
+    @Test fun networkDiagnosticsDoNotClaimDnsSafetyFromTraceReachability() {
+        val network = source("java/io/nekohasekai/sagernet/ui/NetworkFragment.kt")
+        assertTrue(network.contains("viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO)"))
+        assertTrue(network.contains("it.startsWith(\"198.18.\") || it.startsWith(\"198.19.\")"))
+        assertTrue(network.contains("不代表无 DNS 泄漏"))
+        assertFalse(network.contains("getString(R.string.dns_safe)"))
+        val chineseStrings = source("res/values-zh-rCN/strings.xml")
+        assertTrue(chineseStrings.contains("不等同于完整 DNS 泄漏检测"))
+        assertFalse(chineseStrings.contains("DNS 解析安全（无泄漏）"))
+    }
+
+    @Test fun cancelledSubscriptionRequestsAreNotRetriedOrSentDirectly() {
+        val updater = source("java/io/nekohasekai/sagernet/group/RawUpdater.kt")
+        val cancellationCatch = updater.indexOf("catch (cancelled: kotlinx.coroutines.CancellationException)")
+        val proxyFallbackCatch = updater.indexOf("catch (proxyError: Throwable)")
+        val uaLoopCancellationCatch = updater.lastIndexOf("catch (cancelled: kotlinx.coroutines.CancellationException)")
+        val uaLoopGenericCatch = updater.indexOf("catch (e: Throwable)", uaLoopCancellationCatch)
+        assertTrue(cancellationCatch >= 0 && cancellationCatch < proxyFallbackCatch)
+        assertTrue(uaLoopCancellationCatch >= 0 && uaLoopCancellationCatch < uaLoopGenericCatch)
+        assertTrue(updater.contains("withTimeoutOrNull(60_000L)"))
+        assertTrue(updater.contains("request.executeCancellable()"))
+
+        val http = source("java/io/nekohasekai/sagernet/core/WanHttp.kt")
+        assertTrue(http.contains("continuation.invokeOnCancellation { call.cancel() }"))
+        assertTrue(http.contains("callTimeout?.let { (timeout, unit) -> builder.callTimeout(timeout, unit) }"))
+        val groupUpdater = source("java/io/nekohasekai/sagernet/group/GroupUpdater.kt")
+        assertTrue(groupUpdater.contains("catch (cancelled: CancellationException)"))
+        assertTrue(groupUpdater.contains("finally {\n                    finishUpdate(proxyGroup)"))
+        val batchUi = source("java/io/nekohasekai/sagernet/ui/GroupFragment.kt")
+        assertTrue(batchUi.contains("catch (cancelled: CancellationException)"))
+    }
 }

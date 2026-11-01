@@ -29,6 +29,7 @@ import io.nekohasekai.sagernet.widget.ListListener
 import io.nekohasekai.sagernet.widget.QRCodeDialog
 import io.nekohasekai.sagernet.widget.UndoSnackbarManager
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
@@ -45,6 +46,15 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
 
     private fun runOnDefaultDispatcher(block: suspend kotlinx.coroutines.CoroutineScope.() -> Unit) = viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO, block = block)
 
+    private suspend fun updateGroup(group: ProxyGroup): Boolean = try {
+        GroupUpdater.executeUpdate(group, false)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (e: Throwable) {
+        Logs.w("Batch update failed for ${group.displayName()}: ${e.readableMessage}")
+        false
+    }
+
     lateinit var activity: MainActivity
     lateinit var groupListView: RecyclerView
     lateinit var layoutManager: LinearLayoutManager
@@ -59,7 +69,6 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
     fun setSelectionMode(enabled: Boolean) {
         selectionMode = enabled
         if (!enabled) selectedGroupIds.clear()
-        selectionMode = true
         groupAdapter.notifyDataSetChanged()
         updateSelectionUI()
     }
@@ -194,12 +203,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
                             supervisorScope {
                                 val tasks = subGroups.map { group ->
                                     async {
-                                        runCatching {
-                                            GroupUpdater.executeUpdate(group, false)
-                                        }.getOrElse { e ->
-                                            Logs.w("Batch update failed for ${group.displayName()}: ${e.readableMessage}")
-                                            false
-                                        }
+                                        updateGroup(group)
                                     }
                                 }
                                 val results = tasks.awaitAll()
@@ -234,12 +238,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
                             supervisorScope {
                                 val tasks = groups.map { group ->
                                     async {
-                                        runCatching {
-                                            GroupUpdater.executeUpdate(group, false)
-                                        }.getOrElse { e ->
-                                            Logs.w("Batch update failed for ${group.displayName()}: ${e.readableMessage}")
-                                            false
-                                        }
+                                        updateGroup(group)
                                     }
                                 }
                                 val results = tasks.awaitAll()
@@ -621,7 +620,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
 
             // preview.18 UI 改造：批量选择勾选框
             val fragment = this@GroupFragment
-            checkBox.visibility = if (group.type == GroupType.SUBSCRIPTION) View.VISIBLE else View.INVISIBLE
+            checkBox.visibility = if (fragment.selectionMode && group.type == GroupType.SUBSCRIPTION) View.VISIBLE else View.INVISIBLE
             checkBox.contentDescription = getString(R.string.minimal_select_subscription, group.displayName())
             checkBox.setOnCheckedChangeListener(null)
             checkBox.isChecked = fragment.selectedGroupIds.contains(group.id)

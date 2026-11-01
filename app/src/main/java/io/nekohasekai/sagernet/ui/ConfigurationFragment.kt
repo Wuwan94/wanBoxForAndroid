@@ -2512,7 +2512,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                                 // Show tab if there are ≥2 real groups (or ≥3 items including sentinel)
                                 val realGroupCount = groupList.count { it.id != ALL_GROUPS_SENTINEL_ID }
                                 val hideTab = realGroupCount < 2
-                                tabLayout.isGone = groupList.isEmpty()
+                                tabLayout.isGone = hideTab
                                 toolbar.elevation = 0f
                                 toolbar.setTitle(R.string.tab_nodes)
                                 refreshNodeSummary()
@@ -2557,10 +2557,7 @@ class ConfigurationFragment @JvmOverloads constructor(
             tabLayoutView?.post {
                 if (!isCurrentGroupPagerAdapter(this)) return@post
                 groupList.add(group)
-
-                if (groupList.any { !it.ungrouped }) tabLayout.post {
-                    tabLayout.visibility = View.VISIBLE
-                }
+                tabLayout.isGone = groupList.count { it.id != ALL_GROUPS_SENTINEL_ID } < 2
 
                 notifyItemInserted(groupList.size - 1)
                 tabLayout.getTabAt(groupList.size - 1)?.select()

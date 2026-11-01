@@ -1,10 +1,14 @@
 package io.nekohasekai.sagernet.core
 
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.ConnectionSpec
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.TlsVersion
+import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
@@ -67,6 +71,7 @@ class WanHttpRequest internal constructor(private val owner: WanHttpClient) {
     private var userAgent: String? = null
     private val headers = LinkedHashMap<String, String>()
     private var insecure: Boolean = false
+    private var callTimeout: Pair<Long, TimeUnit>? = null
 
     fun setURL(url: String) = apply { this.url = url }
 
@@ -80,7 +85,12 @@ class WanHttpRequest internal constructor(private val owner: WanHttpClient) {
 
     fun allowInsecure() = apply { insecure = true }
 
-    fun execute(): WanHttpResponse {
+    fun setCallTimeout(timeout: Long, unit: TimeUnit) = apply {
+        require(timeout > 0)
+        callTimeout = timeout to unit
+    }
+
+    private fun buildCall(): Call {
         require(url.isNotBlank()) { "empty url" }
         val builder = Request.Builder().url(url)
         userAgent?.let { builder.header("User-Agent", it) }
@@ -90,33 +100,57 @@ class WanHttpRequest internal constructor(private val owner: WanHttpClient) {
             "HEAD" -> builder.head()
             else -> builder.method(method, body?.toRequestBody(null))
         }
-        val client = owner.buildClient(insecure)
-        client.newCall(builder.build()).execute().use { response ->
-            // @author 雾晚: an error page (404/403/5xx HTML) must never be treated as a
-            // subscription or written over geoip.db / geosite.db.
-            if (!response.isSuccessful) {
-                throw java.io.IOException("HTTP ${response.code} for $url")
+        val client = owner.buildClient(insecure, callTimeout)
+        return client.newCall(builder.build())
+    }
+
+    fun execute(): WanHttpResponse = buildCall().execute().use(::readResponse)
+
+    suspend fun executeCancellable(): WanHttpResponse = suspendCancellableCoroutine { continuation ->
+        val call = buildCall()
+        continuation.invokeOnCancellation { call.cancel() }
+        call.enqueue(object : Callback {
+            override fun onFailure(call: Call, e: java.io.IOException) {
+                continuation.resumeWith(Result.failure(e))
             }
-            val respBody = response.body
-            val declared = respBody?.contentLength() ?: -1L
-            if (declared > WanHttpClient.MAX_BODY_BYTES) {
-                throw java.io.IOException("response too large ($declared bytes) for $url")
-            }
-            val bytes = respBody?.source()?.let { source ->
-                val buffer = okio.Buffer()
-                while (source.read(buffer, 64 * 1024L) != -1L) {
-                    if (buffer.size > WanHttpClient.MAX_BODY_BYTES) {
-                        throw java.io.IOException("response too large for $url")
-                    }
+
+            override fun onResponse(call: Call, response: Response) {
+                val result = try {
+                    response.use(::readResponse)
+                } catch (e: Throwable) {
+                    continuation.resumeWith(Result.failure(e))
+                    return
                 }
-                buffer.readByteArray()
-            } ?: ByteArray(0)
-            val map = LinkedHashMap<String, String>()
-            for (i in 0 until response.headers.size) {
-                map[response.headers.name(i)] = response.headers.value(i)
+                continuation.resumeWith(Result.success(result))
             }
-            return WanHttpResponse(bytes, map, response.code)
+        })
+    }
+
+    private fun readResponse(response: Response): WanHttpResponse {
+        // @author 雾晚: an error page (404/403/5xx HTML) must never be treated as a
+        // subscription or written over geoip.db / geosite.db.
+        if (!response.isSuccessful) {
+            throw java.io.IOException("HTTP ${response.code} for $url")
         }
+        val respBody = response.body
+        val declared = respBody?.contentLength() ?: -1L
+        if (declared > WanHttpClient.MAX_BODY_BYTES) {
+            throw java.io.IOException("response too large ($declared bytes) for $url")
+        }
+        val bytes = respBody?.source()?.let { source ->
+            val buffer = okio.Buffer()
+            while (source.read(buffer, 64 * 1024L) != -1L) {
+                if (buffer.size > WanHttpClient.MAX_BODY_BYTES) {
+                    throw java.io.IOException("response too large for $url")
+                }
+            }
+            buffer.readByteArray()
+        } ?: ByteArray(0)
+        val map = LinkedHashMap<String, String>()
+        for (i in 0 until response.headers.size) {
+            map[response.headers.name(i)] = response.headers.value(i)
+        }
+        return WanHttpResponse(bytes, map, response.code)
     }
 }
 
@@ -149,11 +183,15 @@ class WanHttpClient {
      * The old code mutated a shared Builder, so after one "allow insecure" request the
      * normal client silently trusted every certificate and skipped hostname checks.
      */
-    internal fun buildClient(insecure: Boolean): OkHttpClient {
+    internal fun buildClient(insecure: Boolean, callTimeout: Pair<Long, TimeUnit>? = null): OkHttpClient {
         val versions = if (tls13Only) arrayOf(TlsVersion.TLS_1_3) else arrayOf(TlsVersion.TLS_1_3, TlsVersion.TLS_1_2)
-        if (!insecure && !tls13Only) return shared
-        val spec = ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS).tlsVersions(*versions).build()
-        val builder = shared.newBuilder().connectionSpecs(listOf(spec, ConnectionSpec.CLEARTEXT))
+        if (!insecure && !tls13Only && callTimeout == null) return shared
+        val builder = shared.newBuilder()
+        if (insecure || tls13Only) {
+            val spec = ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS).tlsVersions(*versions).build()
+            builder.connectionSpecs(listOf(spec, ConnectionSpec.CLEARTEXT))
+        }
+        callTimeout?.let { (timeout, unit) -> builder.callTimeout(timeout, unit) }
         if (insecure) {
             val trustAll = object : X509TrustManager {
                 override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit

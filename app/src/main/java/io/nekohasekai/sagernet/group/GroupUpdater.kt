@@ -145,13 +145,16 @@ abstract class GroupUpdater {
                 try {
                     RawUpdater.doUpdate(proxyGroup, subscription, userInterface, byUser)
                     true
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
                 } catch (e: Throwable) {
                     Logs.w(e)
                     if (byUser) {
                         userInterface?.onUpdateFailure(proxyGroup, e.readableMessage)
                     }
-                    finishUpdate(proxyGroup)
                     false
+                } finally {
+                    finishUpdate(proxyGroup)
                 }
             }
         }

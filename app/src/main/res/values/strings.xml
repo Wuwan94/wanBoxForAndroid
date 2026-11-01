@@ -892,11 +892,11 @@
     <string name="strict_route_sum">Prevent traffic from bypassing TUN, blocking leaks if connection drops</string>
     <string name="import_preview_title">Detected Nodes (%d found)</string>
     <string name="import_preview_confirm">Import All Nodes</string>
-    <string name="tools_dns_leak">DNS Leak &amp; Fake-IP Check</string>
-    <string name="tools_dns_leak_summary">Detect DNS resolution egress, check for leaks, and inspect Fake-IP</string>
-    <string name="start_dns_leak_test">Run Test</string>
-    <string name="testing_dns">Checking DNS routing and leak status...</string>
-    <string name="dns_safe">DNS routing secure (no leak)</string>
+    <string name="tools_dns_leak">Network Reachability &amp; Fake-IP Check</string>
+    <string name="tools_dns_leak_summary">Checks DNS resolution addresses and Cloudflare trace reachability; this is not a full DNS leak test</string>
+    <string name="start_dns_leak_test">Run Check</string>
+    <string name="testing_dns">Checking DNS resolution and trace reachability...</string>
+    <string name="dns_safe">Cloudflare trace reachable (not a DNS leak result)</string>
     <string name="dns_fakeip_active">Fake-IP active</string>
     <string name="dns_direct_warning">Direct DNS query detected (possible leak)</string>
     <string name="export_crash_log">Export Crash Log</string>
