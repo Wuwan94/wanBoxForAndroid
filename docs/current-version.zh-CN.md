@@ -1,28 +1,21 @@
 # 发布与源码版本对照
 
-核对日期：2026-10-21。此页只更新文档，不修改版本字段、代码、签名、工作流或任何已发布 Release。
+核对时间：2026-11-01（preview.31 发布准备阶段）。本文区分当时已发布的 Release、默认分支源码和待发布候选；版本字段或 PR 中的说明本身都不能证明 Release 已公开。
 
-## 当前可见发布与代码
+## 核对时的 Release 与源码
 
-| 对象 | 当前依据 | 不能据此推断 |
+| 对象 | 核对结果 | 边界 |
 |---|---|---|
-| 最新可见正式 Release | [v3.0.7](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.7)，API `prerelease=false` | 不能因 `main` 写了 3.0.9 就说 3.0.9 已正式发布 |
-| 最新可见预览 Release | [v3.0.10-preview.16](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.10-preview.16)，API `prerelease=true` | 不能当作正式版；发行说明不是本次重新执行的真机测试 |
-| 本次核对的 `main` | [d7c269031a18dc5697f53920b16c375911450810](https://github.com/Wuwan94/wanBoxForAndroid/tree/d7c269031a18dc5697f53920b16c375911450810) | 不是上述预览 tag 的同一源码快照 |
-| `main/nb4a.properties` | `VERSION_NAME=3.0.9`、`PRE_VERSION_NAME=3.0.10-preview.1`、`SINGBOX_VERSION=v1.15.0-alpha.10` | 这些字段既不证明对应 Release 存在，也不证明远端附件使用该核心 |
+| 稳定版 Release | GitHub Releases 列表中没有已发布的稳定版；旧 README 中的 `v3.0.7` Release 与 tag 当前均不存在 | 不把 `VERSION_NAME=3.0.9` 或历史 changelog 条目当作已发布稳定版 |
+| 最新已发布预览 | [v3.0.10-preview.30](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.10-preview.30)，`prerelease=true`，发布于 2026-11-01 | 这是核对时实际可下载的最新预览，不是正式版 |
+| preview.30 发布源码 | tag 指向 `9b9cb9b57cbabe667fc6855b411c6b79f998eccd` | tag 与后来合入 UI 改动的 `main` 不完全相同 |
+| 核对时的 `main` | `024bd8cb6151a2e6eaa19ef11d96e4819ccf60bf`，已包含 PR #5 首页改版 | 当时 `nb4a.properties` 仍为 preview.30 元数据；源码合入不等于发布 |
+| preview.31 候选 | 独立发布分支 `chore/preview31-release`，拟用 `PRE_VERSION_NAME=3.0.10-preview.31`、`PRE_VERSION_CODE=2009` | 在用户批准并由官方 Preview Build 成功发布之前，不是已发布 Release |
 
-preview.16 的源码有 `module.yaml`、`src/`、`README_EN.md`，没有 `nb4a.properties`。它是模块项目布局；`main` 仍有 Android App 与 `rootmodule/` 布局。历史 changelog、技术审查和回归记录按各自日期/提交保留，不把不同快照的实现、版本和验证结果强行合并。
+## preview.31 候选的兼容信息
 
-## preview.16 安装与更新边界
+本次改动只重排 Android 管理器首页与主题资源，不改数据库、备份格式、Root 模块协议或代理配置。候选发行说明计划复用 preview.30 的包名和官方签名；构建工作流会校验签名，preview.30 用户按同一签名版本升级。发布时必须以 preview.31 目标 tag 的实际 Release 正文、APK、Root 模块和校验和文件为准。
 
-- 发行说明明确说管理器更换了签名密钥，preview.15 及更早版本（包括 v3.0.7）不能直接覆盖安装。先备份并按该版说明卸载旧管理器，再安装目标版。
-- 发行说明称节点和订阅位于模块目录，卸载管理器不会删除这些模块数据；这不是对 App 私有设置、历史数据迁移或任意 Root 环境的保留保证。
-- 该版说明中的 APK `versionCode` 规则为历史峰值 1875 加提交数，不是旧 App 分支文档的 `*_CODE × 5`；发布版移除 `-ci.<sha>` 后缀。
-- 模块自更新清单改从固定 `update-index` 分支读取；`releases/latest` 不代表最新预览版。
-- 发行说明列出的支持范围为 arm64-v8a、Android 12+、Root（Magisk / KernelSU / APatch）。每个版本仍需核对其 tag 文档与附件，不将源码编译或发行文字等同于真机联网、安装或升级验证。
+## 旧预览版边界
 
-## 维护时如何判定“最新”
-
-1. 分别读取正式和预览 Release 的 tag、`prerelease` 状态、附件与正文，不只比较版本字符串或 `releases/latest`。
-2. 对照目标 tag 的源码布局和版本声明。默认分支、历史技术说明与已发布附件可能来自不同快照。
-3. 只在版本来源一致时更新当前说明；历史记录保留日期和适用范围。版本字段或实际代码不一致需要单独处理，不能用文档修改伪装为已完成代码同步或发布。
+更早的预览 tag 可能来自不同源码布局或签名阶段，不能用它们的安装步骤、版本代码或兼容结论替代目标版本说明。尤其是旧预览的管理器签名迁移警告不应套用到当前 `main` 上基于 preview.30 的候选；安装和升级前请核对同一发布页中的 APK 与模块。

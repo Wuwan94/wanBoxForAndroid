@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases"><img src="https://img.shields.io/badge/Stable-v3.0.7-blue.svg?style=flat-square" alt="Latest stable release"></a>
-  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.10-preview.16"><img src="https://img.shields.io/badge/Preview-v3.0.10--preview.16-orange.svg?style=flat-square" alt="Latest preview build"></a>
+  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases"><img src="https://img.shields.io/badge/Stable-not%20published-lightgrey.svg?style=flat-square" alt="No stable release published"></a>
+  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases"><img src="https://img.shields.io/badge/Preview-v3.0.10--preview.31-orange.svg?style=flat-square" alt="Preview 3.0.10-preview.31"></a>
   <a href="https://android-arsenal.com/api?level=31"><img src="https://img.shields.io/badge/Android-12%2B%20(API%2031%2B)-brightgreen.svg?style=flat-square" alt="Minimum Android version"></a>
   <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases"><img src="https://img.shields.io/badge/ABI-arm64--v8a-informational.svg?style=flat-square" alt="Supported ABI"></a>
   <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPL--3.0-orange.svg?style=flat-square" alt="License"></a>
@@ -29,13 +29,13 @@
 ---
 ## 当前版本核对 / Release and source snapshot
 
-截至 **2026-10-21**，本仓库 GitHub Releases 当前可见的最新正式版是 [v3.0.7](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.7)，最新预览版是 [v3.0.10-preview.16](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.10-preview.16)。`main` 的 `nb4a.properties` 仍声明 `VERSION_NAME=3.0.9`、`PRE_VERSION_NAME=3.0.10-preview.1` 与 `SINGBOX_VERSION=v1.15.0-alpha.10`；这些是源码构建元数据，不能作为该版本已经发布的证明。
+截至 **2026-11-01（preview.31 发布准备时）**，GitHub Releases 列表中最新已发布预览版为 [v3.0.10-preview.30](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.10-preview.30)，未找到已发布的稳定版 Release 或 `v3.0.7` tag。下一预览候选为 `3.0.10-preview.31`；须经审核并通过官方 Preview Build 后才会成为公开版本。当前 `main` 在 UI PR #5 合入后为 `024bd8c`，发布候选将把 `PRE_VERSION_NAME` / `PRE_VERSION_CODE` 更新为 `3.0.10-preview.31` / `2009`；`SINGBOX_VERSION=v1.15.0-alpha.11-reF1nd`。源码元数据本身不证明 Release 已发布。详细依据见 [发布与源码版本对照](docs/current-version.zh-CN.md)。
 
-**preview.16 管理器更换了签名密钥，不能直接覆盖旧管理器。** 请先阅读该 Release 的卸载旧管理器/重新安装说明并做好备份，不要把下文或旧版本记录中的覆盖安装结论套用到本版。Release 说明称节点与订阅保存在模块目录；这并不等于所有 App 私有设置都能保留。
+**preview.31 以当前 `main` 的 Android App + Root 模块结构构建，并沿用 preview.30 的包名和签名流程。** 官方构建会校验签名；preview.30 用户按同一发布页的 APK 与 Root 模块升级。更早预览 tag 可能采用不同源码布局或签名迁移方式，不要把旧版安装步骤和数据保留结论直接套用到目标版本。
 
-预览 tag 已采用 `src/` + `module.yaml` 的模块项目结构，与 `main` 的 Android App / `rootmodule/` 布局不同。下载包的功能、版本与安装步骤应以下载包对应的 tag 为准，不将不同源码快照混写为同一版本。详细依据见 [发布与源码版本对照](docs/current-version.zh-CN.md)。下文架构及历史说明保留其原有范围。
+发布后请从同一个 Release 页面下载 preview.31 的管理器 APK、Root 模块和校验和；以目标 tag 的发行说明为准，不将不同源码快照混写为同一版本。下文架构及历史说明保留其原有范围。
 
-As of **2026-10-21**, the repository's currently visible stable release is **v3.0.7**, and its newest prerelease is **v3.0.10-preview.16**. The `main` source metadata is different and is not proof of publication. **The preview.16 manager uses a new signing key and cannot overwrite the old manager.** Read its release-specific migration instructions first. Its tagged source layout also differs from `main`; do not apply this branch's architecture or historical upgrade guarantees to a different release snapshot.
+As of **2026-11-01**, the latest published preview found during preparation is **v3.0.10-preview.30**; no stable Release or `v3.0.7` tag was found. **v3.0.10-preview.31** is the candidate for the next official Preview Build and is not public until that workflow succeeds. The source candidate uses the current `main` Android app and Root module layout, with the same package/signing flow as preview.30; older preview tags may have different installation requirements. Always use the exact Release notes and assets for the tag you install.
 
 ## 📖 项目介绍 / Introduction
 
