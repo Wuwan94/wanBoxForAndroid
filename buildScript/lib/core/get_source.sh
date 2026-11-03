@@ -38,7 +38,7 @@ fi
 
 pushd sing-box-netproxy
 EXPECTED_COMMIT=$(git rev-parse "$SINGBOX_VERSION^{commit}")
-PINNED_COMMIT="78ea0ce9257bd3bedd4d1185d6cc4723f04096b4"
+PINNED_COMMIT="17397d022647b73378705e1f91ff031dddaaec21"
 if [ "$EXPECTED_COMMIT" != "$PINNED_COMMIT" ]; then
   echo ">> ERROR: $SINGBOX_VERSION resolves to $EXPECTED_COMMIT, expected pinned commit $PINNED_COMMIT" >&2
   exit 1

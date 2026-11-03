@@ -22,7 +22,7 @@ permissions:
 jobs:
   libcore:
     name: Native Build (LibCore)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -96,7 +96,7 @@ jobs:
           if-no-files-found: error
   build:
     name: Build OSS APK
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - libcore
     steps:
@@ -214,7 +214,7 @@ jobs:
     name: Publish Preview Release
     # @author 雾晚: validation-only runs must never replace an existing Release.
     if: github.event_name != 'workflow_dispatch' || inputs.publish_release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: build
     permissions:
       contents: write
