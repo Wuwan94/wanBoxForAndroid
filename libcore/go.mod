@@ -10,14 +10,14 @@ require (
 	github.com/gofrs/uuid/v5 v5.5.1
 	github.com/miekg/dns v1.1.72
 	github.com/oschwald/maxminddb-golang v1.13.1
-	github.com/sagernet/quic-go v0.61.0-sing-box-mod.9
-	github.com/sagernet/sing v0.9.7-0.20260929150544-6f21f2425a95
+	github.com/sagernet/quic-go v0.61.0-sing-box-mod.12
+	github.com/sagernet/sing v0.9.7-0.20261023115510-03a6cce64bf7
 	// 版本唯一来源是 ../nb4a.properties 的 SINGBOX_VERSION；此处仅为 Go
 	// module graph 所需占位值，实际源码始终由下方 replace 指向 CI 检出的官方 tag。
 	github.com/sagernet/sing-box v0.0.0
-	github.com/sagernet/sing-quic v0.7.2-0.20261002084117-75c3ac4fa12b
-	github.com/sagernet/sing-tun v0.9.7-0.20261009022811-5c2edb183cc9
-	github.com/sagernet/sing-vmess v0.2.9-0.20260929152519-9b95ab8c9478
+	github.com/sagernet/sing-quic v0.7.2-0.20261020082049-7e0a5869a5f4
+	github.com/sagernet/sing-tun v0.9.7-0.20261023115453-611d83b7a57b
+	github.com/sagernet/sing-vmess v0.2.9-0.20261019223527-a0c58542bd9d
 	github.com/ulikunitz/xz v0.5.15
 	golang.org/x/crypto v0.54.0 // indirect
 	golang.org/x/mobile v0.0.0-20231108233038-35478a0c49da
@@ -26,7 +26,7 @@ require (
 )
 
 require (
-	github.com/CHIZI-0618/sing-ebpf v0.1.0-alpha.11.0.20261006150015-27de53a4729d // indirect
+	github.com/CHIZI-0618/sing-ebpf v0.1.0-alpha.13.0.20261020173703-baddc865aa11 // indirect
 	github.com/ajg/form v1.5.1 // indirect
 	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/caddyserver/certmagic v0.25.3-0.20260421143802-60d9d8b415d6 // indirect
@@ -107,12 +107,13 @@ require (
 // NetProxy-compatible fork replacements must be repeated here because dependency-module
 // replace directives are not inherited by the main module. Keep versions aligned to the pinned fork.
 replace (
-	github.com/sagernet/quic-go => github.com/reF1nd/quic-go v0.61.0-sing-box-mod.9.0.20261005174718-e897ed66d562
-	github.com/sagernet/sing => github.com/reF1nd/sing v0.9.7-0.20261005174720-97b52bac92a7
+	github.com/sagernet/quic-go => github.com/reF1nd/quic-go v0.61.0-sing-box-mod.12.0.20261025115808-5207c13c5ab9
+	github.com/sagernet/sing => github.com/reF1nd/sing v0.9.7-0.20261025115535-d4dda9140332
 	github.com/sagernet/sing-anytls => github.com/reF1nd/sing-anytls v0.0.0-20261005110320-ca02db16051a
 	github.com/sagernet/sing-box => ../../sing-box-netproxy
-	github.com/sagernet/sing-quic => github.com/reF1nd/sing-quic v0.7.2-0.20261005175123-6b634e78a4bd
-	github.com/sagernet/sing-snell => github.com/reF1nd/sing-snell v0.0.0-20260929062538-94040c75f854
-	github.com/sagernet/sing-tun => github.com/reF1nd/sing-tun v0.9.7-0.20261009120252-3a38f1971879
-	github.com/sagernet/wireguard-go => github.com/reF1nd/wireguard-go v0.0.8-0.20261005151230-5fa91e620316
+	github.com/sagernet/sing-quic => github.com/reF1nd/sing-quic v0.7.2-0.20261025120135-9783393d09e9
+	github.com/sagernet/sing-snell => github.com/reF1nd/sing-snell v0.0.0-20261023074937-e056cb336137
+	github.com/sagernet/sing-tun => github.com/reF1nd/sing-tun v0.9.7-0.20261023142205-68a8ad81087d
+	github.com/sagernet/tailscale => github.com/reF1nd/tailscale v1.102.1-sing-box-1.14-mod.5.0.20261023130017-22d26a5ce74c
+	github.com/sagernet/wireguard-go => github.com/reF1nd/wireguard-go v0.0.8-0.20261025115602-efd86415af1a
 )
