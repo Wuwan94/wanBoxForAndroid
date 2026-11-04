@@ -11,12 +11,17 @@ on:
         description: "获批 PR 合并后的确切提交 SHA（必须等于本次运行的 github.sha）"
         required: true
       publish_release:
-        description: "默认只构建候选；仅在用户确认完整发布载荷后设为 true。"
+        description: "默认只构建候选；发布时须提供同一提交的成功候选 run ID 与清单哈希。"
         type: boolean
         required: true
         default: false
+      candidate_run_id:
+        description: "发布时使用的成功候选构建 run ID（必须来自本工作流及 approved_sha）。"
+        type: string
+        required: false
+        default: ""
       expected_checksums_sha256:
-        description: "发布时须与已确认候选的 SHA256SUMS 文件 SHA-256 完全一致。"
+        description: "发布时须与指定候选 run 的 SHA256SUMS 文件 SHA-256 完全一致。"
         type: string
         required: false
         default: ""
@@ -377,6 +382,7 @@ jobs:
 
   prepare_assets:
     name: Prepare Release Candidate Assets (No Publish)
+    if: ${{ inputs.publish_release != true }}
     runs-on: ubuntu-24.04
     needs:
       - build
@@ -430,7 +436,6 @@ jobs:
           PY
           (cd apks && sha256sum *.apk *.zip > SHA256SUMS && sha256sum --check SHA256SUMS)
           cat apks/SHA256SUMS
-          cp apks/SHA256SUMS /tmp/wanbox-SHA256SUMS
       - name: Upload Release Candidate Assets
         uses: actions/upload-artifact@v5
         with:
@@ -446,17 +451,87 @@ jobs:
     needs:
       - build
       - verify_upgrade
-      - prepare_assets
     permissions:
+      actions: read
       contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-      - name: Download Release Candidate Assets
+      - name: Validate verified candidate run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import urllib.request
+
+          repository = os.environ["GITHUB_REPOSITORY"]
+          token = os.environ["GH_TOKEN"]
+          run_id = os.environ["CANDIDATE_RUN_ID"].strip()
+          approved_sha = os.environ["APPROVED_SHA"].strip()
+          current_run_id = os.environ["CURRENT_RUN_ID"].strip()
+          if not re.fullmatch(r"[0-9]{1,20}", run_id):
+              raise SystemExit("candidate_run_id must be a numeric successful candidate run ID")
+
+          api = f"https://api.github.com/repos/{repository}"
+          headers = {
+              "Authorization": f"Bearer {token}",
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          def get(path):
+              request = urllib.request.Request(api + path, headers=headers)
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return json.load(response)
+
+          current = get(f"/actions/runs/{current_run_id}")
+          candidate = get(f"/actions/runs/{run_id}")
+          if current.get("head_sha") != approved_sha or candidate.get("head_sha") != approved_sha:
+              raise SystemExit("candidate and publication runs must use the exact approved commit")
+          if current.get("path") != ".github/workflows/release.yml" or candidate.get("path") != current.get("path"):
+              raise SystemExit("candidate run must come from this Release Build workflow")
+          if candidate.get("workflow_id") != current.get("workflow_id"):
+              raise SystemExit("candidate run workflow ID does not match this publication workflow")
+          if candidate.get("event") != "workflow_dispatch" or candidate.get("head_branch") != "main":
+              raise SystemExit("candidate run must be dispatched from main")
+          if candidate.get("status") != "completed" or candidate.get("conclusion") != "success":
+              raise SystemExit("candidate run must have completed successfully")
+          if candidate.get("created_at", "") >= current.get("created_at", ""):
+              raise SystemExit("candidate run must precede the publication run")
+
+          jobs = get(f"/actions/runs/{run_id}/jobs?per_page=100").get("jobs", [])
+          conclusions = {job.get("name"): job.get("conclusion") for job in jobs}
+          required = (
+              "Native Build (LibCore)",
+              "Build OSS APK",
+              "Verify formal update contract",
+              "Prepare Release Candidate Assets (No Publish)",
+          )
+          if any(conclusions.get(name) != "success" for name in required):
+              raise SystemExit("candidate run is missing a successful build, test, update, or asset-preparation job")
+          if conclusions.get("Publish Release") != "skipped":
+              raise SystemExit("candidate run must not have published a Release")
+
+          artifacts = get(f"/actions/runs/{run_id}/artifacts?per_page=100").get("artifacts", [])
+          matches = [item for item in artifacts if item.get("name") == "release-candidate-assets" and not item.get("expired")]
+          if len(matches) != 1 or matches[0].get("size_in_bytes", 0) <= 0:
+              raise SystemExit("candidate run must have one unexpired release-candidate-assets artifact")
+          print(f"Verified candidate run {run_id} on {approved_sha}; artifact size {matches[0]['size_in_bytes']} bytes")
+          PY
+      - name: Download verified candidate assets
         uses: actions/download-artifact@v5
         with:
           name: release-candidate-assets
           path: apks
+          run-id: ${{ inputs.candidate_run_id }}
+          github-token: ${{ github.token }}
       - name: Verify confirmed asset manifest
         env:
           EXPECTED_CHECKSUMS_SHA256: ${{ inputs.expected_checksums_sha256 }}
@@ -509,7 +584,7 @@ jobs:
           import hashlib, json, os, pathlib, sys
           release = json.load(open('/tmp/published.json', encoding='utf-8'))
           local = {}
-          for line in pathlib.Path('/tmp/wanbox-SHA256SUMS').read_text().splitlines():
+          for line in pathlib.Path('apks/SHA256SUMS').read_text().splitlines():
               digest, name = line.split(None, 1)
               local[name.strip().lstrip('*')] = digest
           assets = {a['name']: a for a in release['assets']}
