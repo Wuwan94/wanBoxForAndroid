@@ -190,6 +190,10 @@ abstract class BoxInstance(
 
                         val commands = mutableListOf(
                             initPlugin("hysteria-plugin").path,
+                            // @author 雾晚: Hysteria v1 的 --no-check 是
+                            // "disable update check"（关闭版本更新检查），不是 TLS
+                            // 证书校验开关。保留它可避免运行时外联；证书校验由
+                            // allowInsecure / globalAllowInsecure 控制，默认启用。
                             "--no-check",
                             "--config",
                             configFile.absolutePath,

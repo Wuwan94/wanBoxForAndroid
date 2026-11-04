@@ -5,7 +5,7 @@ set -euo pipefail
 preview=previous/wanBoxForAndroid-3.0.5-preview.2-x86_64-release.apk
 own=previous/OwnBox-3.0.0-x86_64-release.apk
 shopt -s nullglob
-new_apks=(apks/wanBoxForAndroid-*-x86_64.apk)
+new_apks=(apks/*.apk)
 test "${#new_apks[@]}" -eq 1
 current=${new_apks[0]}
 formal_name=$(sed -n 's/^VERSION_NAME=//p' nb4a.properties | tr -d '\r')
@@ -28,4 +28,5 @@ printf '%s\n' "$output"
 grep -q 'Events injected: 1' <<< "$output"
 sleep 3
 adb shell pidof com.lit008834.pixel.wanboxforandroid >/dev/null
-echo 'The formal release updated the installed preview while OwnBox remained installed.'
+echo 'x86_64 co-install smoke passed: formal build replaced the pinned 3.0.5 preview while OwnBox remained installed.'
+echo 'NOTE: this fixture is NOT the released arm64-v8a v3.0.10-preview.32; data retention, TUN restart and D1-D10 remain unverified.'

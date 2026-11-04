@@ -1,68 +1,101 @@
-# wanBox 发布清单（覆盖上一次）
+# wanBox 正式版发布清单
 
-> 适用范围：下列流程记录 `main` 的 Android App 构建规则，不是所有已发布 tag 的统一规则。截至 2026-10-21，最新预览 preview.16 已改用模块源码布局、更换管理器签名、调整版本代码和更新索引。**该版必须卸载旧管理器再安装，不能承诺覆盖安装或 App 数据全量保留。** 实际发布先核对 [版本对照](current-version.zh-CN.md) 与目标 tag 自己的工作流；本文不授权发布、删 tag 或更改签名。
+> 适用范围：`main` 上的正式版（非预览）发布。**本文不授权发布**：正式 Release 必须在获批 PR 合并、构建与资产核验完成后，再取得明确批准。
+> **本次流程明确要求不删除旧版、不覆盖已有 tag、不强推**；历史文档中「每次发布覆盖上一次」的策略已废止，见第一节。
 
-> 本文档固化发布规则：**正式版与预览版每次发布都覆盖上一次**，只保留最新一版。
-> 覆盖安装、版本号递增、文档更新三件事在每次发布前必须完成。
+## 一、核心规则（与旧清单的差异）
 
-## 一、核心规则
-
-1. **覆盖上一次**：发布新版本后，自动删除同渠道（正式版/预览版各自独立）的旧 release 与旧 tag，只保留最新一版。
-2. **核验安装兼容性**：只有包名、签名、数据库/备份兼容且 `versionCode` 满足升级条件时，才能声明可覆盖安装。preview.16 已换签名，是明确例外；是否保留数据必须按目标版本实际迁移路径验证。
-3. **版本号必须递增**：每次发布都要把对应版本号 +1，否则发布流程会在「版本号 tag 已存在」检查处失败。
-4. **文档同步更新**：发布前更新 `CHANGELOG.md`，并按渠道更新 `PREVIEW_NOTES.md`（预览版）或 `RELEASE_NOTES.md`（正式版）。
-
-## 二、版本号规则（`nb4a.properties`）
-
-| 字段 | 含义 | 发布时操作 |
+| 项 | 旧清单 | 本版规则 |
 |---|---|---|
-| `VERSION_NAME` | 正式版版本名（如 `3.0.9`） | 正式版发布时递增 |
-| `VERSION_CODE` | 正式版版本号（如 `362`） | 正式版发布时 +1（APK code = `×5`） |
-| `PRE_VERSION_NAME` | 预览版版本名（如 `3.0.10-preview.6`） | 预览版发布时递增 `preview.N` 的 N |
-| `PRE_VERSION_CODE` | 预览版版本号（如 `368`） | 预览版发布时 +1，且必须 `> VERSION_CODE` |
+| 旧 Release / tag | 发布后自动删除同渠道旧版 | **不删除**。正式版不触发 `prune_prereleases.py`；预览线的既有 prune 只作用于 prerelease，且不在正式发布流程中执行 |
+| 覆盖升级声明 | 同签名即可声明「覆盖安装不丢数据」 | **禁止**。只有真机 D1–D10 通过后才可改写；当前统一用卸载 / 备份 / 迁移口径 |
+| 版本码 | 每次 +1 | 必须**严格大于已发布 `.32`**：APK `> 10050`、模块 `> 2010` |
+| 触发方式 | push tag 即发 | dispatch 必须提供 `approved_sha`，且 `github.sha` 等于获批 PR 合并提交；tag 已存在则拒绝 |
+| 测试 | 仅构建 + 签名校验 | Go / Kotlin / Android / Python 全量测试 + 13 项发布门禁 |
 
-> 预览版的 `PRE_VERSION_CODE` 必须大于正式版 `VERSION_CODE`（构建脚本会校验）。
-> 换一个新的 `PRE_VERSION_NAME` 是关键——发布流程会检查 `v<PRE_VERSION_NAME>` 这个 tag 是否已存在，已存在则拒绝覆盖。
+## 二、版本规则（`nb4a.properties`）
 
-## 三、预览版发布流程
-
-1. 改 `nb4a.properties`：`PRE_VERSION_NAME` → 下一个 `preview.N`，`PRE_VERSION_CODE` +1。
-2. 更新 `PREVIEW_NOTES.md`（本版预览说明）+ `CHANGELOG.md`（追加一条）。
-3. 提交，push 到 `beta1-1.15` 分支。
-4. CI（`preview.yml`）自动：构建 LibCore + APK → 跑 `go test -race` + 单元测试 → 发布 prerelease → 清理旧预览版。
-
-## 四、正式版发布流程
-
-1. 改 `nb4a.properties`：`VERSION_NAME` → 新正式版本号，`VERSION_CODE` +1。
-2. 更新 `RELEASE_NOTES.md`（本版正式说明）+ `CHANGELOG.md`（追加一条）。
-3. 提交，push tag `v<VERSION_NAME>`（如 `v3.0.10`）。
-4. CI（`release.yml`）自动：构建 + 校验签名 → 发布正式版 → 清理旧正式版（本次新增）。
-
-## 五、「覆盖上一次」的实现位置
-
-| 渠道 | 清理步骤 | 行为 |
+| 字段 | 当前值 | 说明 |
 |---|---|---|
-| 预览版 | `preview.yml` → `Prune older preview releases` | 删除旧的 `prerelease=true` 且 tag 含 `-preview.` 的 release + tag |
-| 正式版 | `release.yml` → `Prune older stable releases` | 删除旧的 `prerelease=false` 的 release + tag |
+| `VERSION_NAME` | `3.0.10` | tag 必须严格等于 `v$VERSION_NAME` → `v3.0.10` |
+| `VERSION_CODE` | `2011` | APK `versionCode = 2011 × 5 = 10055`；Root 模块码 `2011` |
+| `PRE_VERSION_NAME` | `3.0.10-preview.33` | **未发布候选**，只为满足 `PRE > FORMAL` 断言 |
+| `PRE_VERSION_CODE` | `2012` | 必须 `> VERSION_CODE`（`preview.yml` 硬断言） |
+| `SINGBOX_VERSION` | `v1.15.0-alpha.13-reF1nd` | 与 `.32` 一致 |
 
-两个渠道**相互独立**：正式版清理时不动预览版，预览版清理时不动正式版。清理失败只告警（`continue-on-error`），不影响已经完成的发布。
+`×5` 换算与渠道判定由 `tools/version_code.py` 统一实现（`python3 -m unittest discover -s tools -p 'test_*.py'` 覆盖 9 个用例），两条渠道不得各自用 shell 算术推断。
 
-## 六、同签名构建的覆盖安装前提（不适用于 preview.16 换签名迁移）
+## 三、发布前门禁清单（G1–G13）
 
-- **包名/签名不变**：`build.gradle.kts` 与 keystore 固定，覆盖安装不触发签名冲突。
-- **versionCode 递增**：APK 的 versionCode 由 `nb4a.properties` 的 `*_CODE × 5` 计算，每次发布 +1 保证系统认可覆盖升级。
-- **数据兼容**：数据库 schema、便携备份格式、模块数据目录均向后兼容，覆盖安装不丢数据（相关回归见 `PortableBackupCompatibilityTest` 与 `RootModuleDataUpdateTest`）。
+| ID | 门禁 | 失败处理 |
+|---|---|---|
+| G1 | 4 个 `release.yml` 作业固定 `ubuntu-24.04`；Go `1.26.10`、JDK 17、NDK `25.0.8775105`；其余工作流同步固定 | 停止 |
+| G2 | `libcore` 与 `rootmodule` 的 Go 测试（含 `-race`） | 停止 |
+| G3 | `app:testOssDebugUnitTest`、`app:compileOssDebugAndroidTestKotlin`、`:core-domain:test`、Python 全量单测 | 停止 |
+| G4 | tag == `v$VERSION_NAME`；tag 不存在；dispatch 的 `approved_sha` == `github.sha` | 停止 |
+| G5 | `version_code.py --enforce`：APK `> 10050`、模块 `> 2010` | 停止 |
+| G6 | `aapt`：包名 / `versionName` / `versionCode` / `minSdk=31` / `targetSdk=35`；`verify_apk_abi.py --thin`；`lib/` 条目为 0 | 停止 |
+| G7 | `apksigner`：v2 验签 + 证书 `80ecee…21f6`；**下载 `.32` 实际 APK 做跨版本包名 / 签名 / 版本码比对** | 停止 |
+| G8 | 正式模块 `--channel formal`；`module.prop` 为 `3.0.10` / `2011`；ZIP 完整性 | 停止 |
+| G9 | 普通模块 ZIP 与带管理器 ZIP 均通过 `python3 -m zipfile -t` | 停止 |
+| G10 | 资产白名单恰为 `{APK, 普通模块 ZIP, 带管理器 ZIP, SHA256SUMS}` | 停止 |
+| G11 | 上传前 `sha256sum --check`；发布后回读资产并比对大小 / SHA256 | 停止 |
+| G12 | `verify_upgrade` 静态契约（同包名、同签名、版本递增、共存包不冲突）；`publish needs: [build, verify_upgrade]` | 停止 |
+| G13 | 发布后 Release 的 `prerelease=false`、资产数量 / 名称 / 大小 / digest 与本地一致；**正式版不得触发 prune** | 停止 |
+
+模拟器共存冒烟测试为参考项（`continue-on-error`），**不能替代**真机 D1–D10；其输出会明确标注「x86_64 fixture 不是已发布的 arm64-v8a `.32` 产物」。
+
+## 四、真机验证（发布前置条件）
+
+在支持的 Root Android 设备上记录设备型号、Android 版本 / API、Root 方案与版本、已装 `.32` 与目标的 SHA256，逐项执行：
+
+| ID | 用例 | 当前状态 |
+|---|---|---|
+| D1 | 从 `.32` 覆盖升级（`adb install -r`） | 未验证 |
+| D2 | 数据保留（节点 / 订阅 / 规则 / 分应用代理 / 偏好） | 未验证 |
+| D3 | 安装与冷启动 | 未验证 |
+| D4 | TUN / 核心重启、热重载、App 退出后代理继续 | 未验证 |
+| D5 | 订阅与节点操作 | 未验证 |
+| D6 | 网络异常恢复 | 未验证 |
+| D7 | APK 与模块对应（同一发布页、模块码 2011） | 未验证 |
+| D8 | 回滚到 `.32` | 未验证 |
+| D9 | 卸载迁移路径（备份 → 卸载 → 安装 → 导入） | 未验证 |
+| D10 | 无效证书真机侧（默认失败 / 显式开启才成功） | 未验证 |
+
+`adb devices` 为空时，以上一律保持「未验证」，不得以 CI 模拟器结果或静态推断替代。
+
+## 五、发布停止条件（任一命中即停止，不发布）
+
+1. 版本码、签名、包名任一与 `.32` 不兼容或为降级。
+2. 正式 APK 不是瘦管理器（含任何 `lib/` 条目）或 `--thin` 校验未通过。
+3. TLS 默认证书验证被破坏、`globalAllowInsecure` 可在未显式授权下生效、无效证书回归测试失败。
+4. 构建环境未固定、Go / Kotlin / Android / Python 测试未通过、资产白名单 / 两个 ZIP 完整性 / SHA256 任一门禁失败。
+5. tag 未指向获批 PR 合并后的确切提交，或 tag 已存在。
+6. 从 `.32` 覆盖升级的真机验证未完成，或数据保留、安装启动、TUN / 核心重启、订阅与节点操作、网络异常恢复任一项失败。
+7. 发布后资产回读与本地 `SHA256SUMS` 不一致。
+
+命中任一项时：保留已完成产物与证据，报告具体失败项与原因，**不删除旧版、不覆盖 tag、不强推**。
+
+## 六、流程顺序（不可跳步）
+
+```
+S0 只读审查报告 / 版本与升级方案 / 测试矩阵        （已完成）
+S1 独立分支最小修复                                （本分支）
+S2 行为测试 + 全量测试 + 五份文档与发行说明
+S3 开 PR（不合并）  → 等待明确审查并批准 PR
+S4 合并 → 从合并提交构建 → 核验版本 / 签名 / 资产
+S5 等待明确批准正式 Release → 打 tag / 发布 → 回读资产
+```
 
 ## 七、文档同步清单
 
-每次发布前，以下文件必须一起更新，缺一不可：
+| 文件 | 本版更新内容 |
+|---|---|
+| `PREVIEW_NOTES.md` | 标注 `.33` 为未发布候选，保留 `.32` 历史正文 |
+| `RELEASE_NOTES.md` | 正式版说明：版本与产物、环境要求、与 `.32` 差异、备份 / 卸载 / 迁移 / 回滚、未验证清单 |
+| `CHANGELOG.md` | 补 `.32` 与 `3.0.10` 两条 |
+| `README.md` | 徽章、版本核对段、`main` 与内核版本、Android / Root / ABI 要求 |
+| `docs/current-version.zh-CN.md` | 重新核对已发布 Release 与源码候选的边界 |
+| `docs/release-checklist.zh-CN.md` | 本文件：删除旧清理策略，补门禁与停止条件 |
 
-| 文件 | 更新内容 | 触发渠道 |
-|---|---|---|
-| `PREVIEW_NOTES.md` | 本版预览说明（会成为预览 Release 正文，CI 直接读取该文件） | 预览版 |
-| `RELEASE_NOTES.md` | 本版正式说明（会成为正式 Release 正文） | 正式版 |
-| `CHANGELOG.md` | 顶部追加一条版本记录，并修正首行「最新正式版 / 当前预览构建」 | 两者 |
-| `README.md` | 头部版本行、`Stable` / `Preview` 徽章链接与版本号、内核版本、最低 Android 版本 | 两者 |
-| `docs/project-positioning.zh-CN.md` | 「截至 xxx」段的版本号与架构描述 | 架构有变化时 |
-
-> Release 正文由 CI 从 `PREVIEW_NOTES.md` / `RELEASE_NOTES.md` 复制生成；如果发布后才发现文案过期，需要手动 `PATCH /repos/{owner}/{repo}/releases/{id}` 或到 Release 页面编辑，不会自动重新读取文件。
+> Release 正文由 CI 从 `RELEASE_NOTES.md` 复制生成；发布后若需勘误，只编辑 Release 正文（`PATCH /repos/{owner}/{repo}/releases/{id}`），不覆盖 tag、不重发同名 Release。

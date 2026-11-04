@@ -7,12 +7,19 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 )
 
 // App database changes are performed by Room, never by the root module. A journal
 // blocks reconnect/upgrade until the App has committed its own backup transaction.
-// Archives are retained, not automatically pruned or deleted.
+//
+// @author 雾晚: 归档必须保留最近若干份供回滚，但**不能无限增长**。此前每调用一次
+// PrepareDataUpdate 就 MkdirTemp 一份且从无清理（已复现缺陷 B8）。现在保留最近
+// maxDataResetArchives 份，清理时绝不触碰 journal 正在使用的那一份。
+const maxDataResetArchives = 5
+
 var dataEntries = []string{"generations", "runtime", "current", "previous", "state.json", "boot.json", "events.json"}
 
 type dataReset struct {
@@ -33,6 +40,58 @@ func (r *Runtime) resetJournal() (dataReset, error) {
 	}
 	return j, nil
 }
+// pruneDataResetArchives keeps the newest archives and removes older ones.
+// Only entries directly under archives/ with the data-reset- prefix are touched;
+// symlinks and non-directories are rejected instead of being followed.
+func (r *Runtime) pruneDataResetArchives(active string) error {
+	dir := r.path("archives")
+	entries, e := os.ReadDir(dir)
+	if os.IsNotExist(e) {
+		return nil
+	}
+	if e != nil {
+		return e
+	}
+	type candidate struct {
+		name string
+		mod  time.Time
+	}
+	var list []candidate
+	for _, entry := range entries {
+		name := entry.Name()
+		if !strings.HasPrefix(name, "data-reset-") || name == active {
+			continue
+		}
+		info, e := os.Lstat(filepath.Join(dir, name))
+		if e != nil {
+			return e
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+			return errors.New("unsafe_data_path")
+		}
+		list = append(list, candidate{name, info.ModTime()})
+	}
+	keep := maxDataResetArchives
+	if active != "" {
+		keep-- // the in-flight archive must never be removed
+	}
+	if len(list) <= keep {
+		return nil
+	}
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].mod.Equal(list[j].mod) {
+			return list[i].name > list[j].name
+		}
+		return list[i].mod.After(list[j].mod)
+	})
+	for _, c := range list[keep:] {
+		if e := os.RemoveAll(filepath.Join(dir, c.name)); e != nil {
+			return e
+		}
+	}
+	return syncDir(dir)
+}
+
 func (r *Runtime) PrepareDataUpdate(ctx context.Context) error {
 	return r.withDataLock(func() error {
 		if _, e := os.Lstat(r.path("data-reset.json")); e == nil {
@@ -47,6 +106,10 @@ func (r *Runtime) PrepareDataUpdate(ctx context.Context) error {
 			return e
 		}
 		if e := privateDirectory(r.path("archives")); e != nil {
+			return e
+		}
+		// No journal exists at this point, so every archive is historical.
+		if e := r.pruneDataResetArchives(""); e != nil {
 			return e
 		}
 		archive, e := os.MkdirTemp(r.path("archives"), "data-reset-")
@@ -106,6 +169,10 @@ func (r *Runtime) FinishDataUpdate() error {
 		}
 		// init() creates empty runtime/generations; old ones are safely archived.
 		if e := os.Remove(r.path("data-reset.json")); e != nil {
+			return e
+		}
+		// Journal is gone: all remaining archives are historical and bounded.
+		if e := r.pruneDataResetArchives(""); e != nil {
 			return e
 		}
 		return syncDir(r.Root)

@@ -213,6 +213,9 @@ func (r *Runtime) runGeneration(ctx context.Context, rev string, snapshot Snapsh
 				env = append(env, "SSL_CERT_FILE="+filepath.Join(dir, plugin.Certificate))
 			}
 		case "hysteria":
+			// @author 雾晚: --no-check disables Hysteria v1's update check, not TLS
+			// certificate verification ("disable update check"). Certificate policy
+			// lives in the generated config (insecure), which defaults to false.
 			args = []string{"--no-check", "--config", config, "--log-level", "warn", "client"}
 		default:
 			return errors.New("plugin_unsupported")

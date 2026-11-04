@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases"><img src="https://img.shields.io/badge/Stable-not%20published-lightgrey.svg?style=flat-square" alt="No stable release published"></a>
-  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases"><img src="https://img.shields.io/badge/Preview-v3.0.10--preview.31-orange.svg?style=flat-square" alt="Preview 3.0.10-preview.31"></a>
+  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases"><img src="https://img.shields.io/badge/Stable-3.0.10%20candidate-yellow.svg?style=flat-square" alt="Stable 3.0.10 candidate, not yet published"></a>
+  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases"><img src="https://img.shields.io/badge/Preview-v3.0.10--preview.32-orange.svg?style=flat-square" alt="Preview 3.0.10-preview.32"></a>
   <a href="https://android-arsenal.com/api?level=31"><img src="https://img.shields.io/badge/Android-12%2B%20(API%2031%2B)-brightgreen.svg?style=flat-square" alt="Minimum Android version"></a>
   <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases"><img src="https://img.shields.io/badge/ABI-arm64--v8a-informational.svg?style=flat-square" alt="Supported ABI"></a>
   <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPL--3.0-orange.svg?style=flat-square" alt="License"></a>
@@ -29,36 +29,15 @@
 ---
 ## 当前版本核对 / Release and source snapshot
 
-截至 **2026-11-01（preview.31 发布准备时）**，GitHub Releases 列表中最新已发布预览版为 [v3.0.10-preview.30](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.10-preview.30)，未找到已发布的稳定版 Release 或 `v3.0.7` tag。下一预览候选为 `3.0.10-preview.31`；须经审核并通过官方 Preview Build 后才会成为公开版本。当前 `main` 在 UI PR #5 合入后为 `024bd8c`，发布候选将把 `PRE_VERSION_NAME` / `PRE_VERSION_CODE` 更新为 `3.0.10-preview.31` / `2009`；`SINGBOX_VERSION=v1.15.0-alpha.11-reF1nd`。源码元数据本身不证明 Release 已发布。详细依据见 [发布与源码版本对照](docs/current-version.zh-CN.md)。
+截至 **2026-11-04（正式版 3.0.10 准备阶段）**，GitHub Releases 中**唯一已发布的版本**是 [v3.0.10-preview.32](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.10-preview.32)（`prerelease=true`），**尚无任何已发布的稳定版 Release**。`main` 的 S0 复核基线为 `2aa9239`，内核 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd`。
 
-**preview.31 以当前 `main` 的 Android App + Root 模块结构构建，并沿用 preview.30 的包名和签名流程。** 官方构建会校验签名；preview.30 用户按同一发布页的 APK 与 Root 模块升级。更早预览 tag 可能采用不同源码布局或签名迁移方式，不要把旧版安装步骤和数据保留结论直接套用到目标版本。
+**正式版 `3.0.10` 是待发布候选**：`versionName=3.0.10`、APK `versionCode=10055`（元数据 `2011 × 5`）、Root 模块码 `2011`，包名与签名证书和 `.32` 相同。它必须经 PR 获批合并 → 构建与资产核验 → 明确的正式 Release 批准后才发布；源码元数据本身不证明 Release 已公开。`PRE_VERSION_NAME=3.0.10-preview.33` / `2012` 只是为满足「预览码 > 正式码」断言而预置的**未发布候选**，没有 tag 或下载资产。详细依据见 [发布与源码版本对照](docs/current-version.zh-CN.md)。
 
-发布后请从同一个 Release 页面下载 preview.31 的管理器 APK、Root 模块和校验和；以目标 tag 的发行说明为准，不将不同源码快照混写为同一版本。下文架构及历史说明保留其原有范围。
+**安装要求：Android 12+（API 31+）、arm64-v8a、已 Root（Magisk / KernelSU / APatch）**，不提供普通 VPN 模式。正式版与 `.32` **同为瘦管理器**：APK 不含内嵌核心，必须从**同一个 Release 页面**安装配套的 Root 模块 ZIP，并用该页 `SHA256SUMS` 校验；不要把不同版本的 APK 与模块混用。
 
-As of **2026-11-01**, the latest published preview found during preparation is **v3.0.10-preview.30**; no stable Release or `v3.0.7` tag was found. **v3.0.10-preview.31** is the candidate for the next official Preview Build and is not public until that workflow succeeds. The source candidate uses the current `main` Android app and Root module layout, with the same package/signing flow as preview.30; older preview tags may have different installation requirements. Always use the exact Release notes and assets for the tag you install.
+**升级口径**：包名、签名与版本码满足覆盖安装的静态前提，但覆盖升级后的数据保留、Root 模块状态与 TUN 重启**尚未在真机验证**。当前推荐「备份 → 卸载 → 安装 → 导入」路径，不承诺无损覆盖升级；完整步骤、数据保留边界与回滚见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。下文架构及历史说明保留其原有范围。
 
-## 📖 项目介绍 / Introduction
-
-**wanBoxForAndroid 从 OwnBoxForAndroid 的早期代码基础发展而来，目前由本仓库独立维护，拥有自己的代码、版本发布与功能路线；它不是 OwnBoxForAndroid 的官方版本，也不再以持续同步上游作为项目目标。项目面向已 Root 的 Android 设备，采用独立 Root TUN 模块承载内核与代理生命周期：模块自行保存节点、订阅与配置，并通过仅限回环的 HTTPS 管理接口对外提供能力，App 只做展示与指令下发，退出或被终止都不影响代理运行，也不提供普通 VPN 模式。本段为当前源码分支的架构说明，不代表所有已发布包均采用同一实现。公开发布版本与本分支元数据并不一致，见上方版本核对；各版本功能和安装兼容性以对应 tag 与发行说明为准。**
-
-**wanBoxForAndroid evolved from an early OwnBoxForAndroid codebase and is independently maintained with its own code, releases, and roadmap. It is not an official OwnBoxForAndroid release and does not aim to continuously sync upstream. The project targets rooted Android devices and runs its core through an independent Root TUN module: the module owns node, subscription and configuration data and exposes a loopback-only HTTPS management API, while the app only presents state and sends commands, so the proxy keeps running after the app exits or is killed. Ordinary VPN mode is not offered. This paragraph describes the current source branch, not every published artifact. Published releases and this branch's metadata differ; use the release/source snapshot above and each tag's own documentation for features and installation compatibility.**
-
-项目起源、当前状态与发展方向详见[项目定位与发展说明](docs/project-positioning.zh-CN.md)。
-
-### 当前架构要点 / Architecture Highlights
-
-* **模块拥有代理生命周期**：配置有效后由模块独立启动、监督与停止核心，App 退出、被清理或强行停止都不会中断代理。
-* **模块是数据真值**：节点、订阅与全局配置保存在模块 `store/` 目录，App 只做展示、编辑与指令下发；覆盖升级保留原有数据与设置。
-* **仅限回环的 HTTPS 管理面**：每次安装独立的 Bearer token + 自签证书钉扎，接口包含状态、事件流（SSE）、节点、订阅、配置、启停与热重载；核心停止时接口仍可访问。
-* **节点热切换不重启**：切换经 Clash API 选择器完成，状态由 `runtime/selection.json` 承载，界面按钮与节点名不闪烁。
-* **纯 Root TUN**：不提供 VPN 模式，也不申请 VPN 权限。
-
-* **The module owns the proxy lifecycle**: once a config validates, the module starts, supervises and stops the core on its own; killing the app never tears the proxy down.
-* **The module is the source of truth**: nodes, subscriptions and global config live in the module's `store/` directory; the app only presents, edits and sends commands, and upgrades keep existing data.
-* **Loopback-only HTTPS management API**: a per-install bearer token plus self-signed certificate pinning, covering status, an SSE event stream, nodes, subscriptions, config, start/stop and hot reload; the API stays reachable while the core is stopped.
-* **Hot node switching without a restart**: switching goes through the Clash API selector and is persisted in `runtime/selection.json`, so the header button and node name never flicker.
-* **Root TUN only**: no VPN mode and no VPN permission.
-
+As of **2026-11-04**, the only published release is **v3.0.10-preview.32**; no stable Release exists yet. **3.0.10** is a candidate (`versionCode 10055`, module code `2011`) and is not public until the approved PR is merged, the build/assets are verified and the formal Release is explicitly approved. Both preview.32 and the candidate are thin managers: the APK contains no embedded core and must be paired with the Root module ZIP from the **same** Release page. Requires Android 12+ (API 31+), arm64-v8a and a rooted device; no ordinary VPN mode. Data-preserving in-place upgrade from preview.32 is **not verified on a real device** - follow the backup / uninstall / install / import path in RELEASE_NOTES.md instead. 
 ---
 
 ## 📥 发行版下载 / Downloads

@@ -1,8 +1,30 @@
 # wanBoxForAndroid 更新日志（Changelog）
 
-> 维护范围：下列 wanBox 3.0.x 条目按各自 GitHub Release 汇总；详细回归覆盖与兼容/升级信息请见对应版本页面。2026-11-01 的 preview.31 发布准备核对发现：当时 GitHub Releases 仅有预览版 v3.0.10-preview.30，没有可见的稳定版 Release；preview.31 是本次候选，在官方发布成功前不代表公开版本。更早维护的版本条目保留为历史记录。源码元数据与发布记录的差异见 [版本对照](docs/current-version.zh-CN.md)。预览渠道只保留最新一版，更早的预览条目以其发行说明为准。项目起源与当前定位见 [README](README.md)。
+> 维护范围：下列 wanBox 3.0.x 条目按各自 GitHub Release 汇总；详细回归覆盖与兼容/升级信息请见对应版本页面。**2026-11-04 复核**：GitHub Releases 中唯一已发布版本为 `v3.0.10-preview.32`，尚无任何已发布稳定版；`3.0.10` 为待发布候选，`.33` 为未发布预览候选（仅有元数据，无 tag 与资产）。源码元数据不构成已发布证据，边界见 [版本对照](docs/current-version.zh-CN.md)。更早条目保留为历史记录；预览渠道的旧版清理策略不适用于正式版。项目起源与当前定位见 [README](README.md)。
 
 ## wanBox 3.0.x 发布记录
+
+### 3.0.10（正式版候选，尚未发布）
+
+来源：本仓库独立分支 `release/3.0.10-stabilization`，**不是已发布 Release**。
+
+- **版本码修正**：正式线从 `3.0.9` / APK `1810` / 模块 `362` 改为 `3.0.10` / `10055`（`2011 × 5`）/ `2011`，严格高于已发布 `.32` 的 `10050` / `2010`，消除降级；`PRE` 同步预置为 `.33` / `2012`（未发布候选，仅为满足既有「预览码 > 正式码」断言）。
+- **同为瘦管理器**：正式构建带 `-PwanboxThin=true`，ABI 校验带 `--thin`，APK 不含 `lib/` 原生库，与 `.32` 形态一致。
+- **版本规则收敛**：新增 `tools/version_code.py`（`×5` 与渠道判定的唯一规则）+ 9 条单测；两条渠道共用。
+- **TLS 默认启用证书验证**：`allowInsecure` / `globalAllowInsecure` 默认 false，跳过必须显式开启；新增自签 / 过期 / 域名不匹配三类无效证书必须失败的 Go 回归测试与 Kotlin 默认值测试。澄清 Hysteria v1 `--no-check` 是「关闭版本更新检查」，不是 TLS 开关。
+- **发布 CI 加固**：所有工作流固定 `ubuntu-24.04` / Go `1.26.10` / JDK 17 / NDK `25.0.8775105`；纳入 Go / Kotlin / Android / Python 测试、正式模块渠道与版本断言、APK 身份与 `.32` 跨版本签名比对、两个 ZIP 完整性、资产白名单、上传前后 SHA256、发布后资产回读、tag 与获批合并提交断言。
+- **Root 模块归档上限**（已复现缺陷）：`data_update.go` 此前归档无限增长，现保留最近 5 份并拒绝符号链接，配 4 个 Go 行为测试。
+- **建议优化未改代码**：`GlobalScope` / 页面生命周期、主线程数据库查询、订阅失败重试三项未复现缺陷，只补静态契约记录。
+- **升级口径**：包名 / 签名 / 版本码满足覆盖安装的静态前提，但真机 D1–D10 全部未验证；推荐备份 → 卸载 → 安装 → 导入，**不承诺无损覆盖升级**。详见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。
+
+### v3.0.10-preview.32（预览版，2026-11-03）
+
+来源：[本仓库 Release](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.10-preview.32)，tag → `de59193`，4 个资产。
+
+- 唯一已发布的公开版本；`versionName=3.0.10-preview.32`、APK `versionCode=10050`、Root 模块码 `2010`。
+- 内核升级至 sing-box `v1.15.0-alpha.13-reF1nd`；管理器界面、代理策略与配置格式未改动。
+- **瘦管理器**：APK 内 `lib/` 条目为 0，必须配合同发布页的 Root 模块使用；实测包名 `com.lit008834.pixel.wanboxforandroid`、签名证书 SHA-256 `80ecee…21f6`、`minSdk 31` / `targetSdk 35`。
+- APK SHA-256 `4ec372492e0c9b54c091f0693bc416db6726e5cd727d936a6edee6e0b8aa0016`（`aapt` / `apksigner` 实测，见 `docs/current-version.zh-CN.md`）。
 
 ### v3.0.10-preview.31（预览版）
 

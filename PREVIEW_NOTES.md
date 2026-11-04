@@ -1,3 +1,9 @@
+> **版本状态（2026-11-04）**：本文描述的是**已发布**的 `v3.0.10-preview.32`。
+> 仓库元数据中的 `PRE_VERSION_NAME=3.0.10-preview.33` / `PRE_VERSION_CODE=2012`
+> 只是为满足「预览码高于正式码」既有断言而预置的**下一预览候选**，
+> **从未构建、从未发布**，没有对应的 tag、Release 或下载资产。
+> 当前正式版为 `3.0.10` / APK `versionCode 10055`，见 `RELEASE_NOTES.md`。
+
 
 # wanBox v3.0.10-preview.32 — 内核升级至 sing-box v1.15.0-alpha.13
 
