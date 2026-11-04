@@ -2,7 +2,7 @@
 
 作者：@author 雾晚
 
-> **发布状态**：本文是正式版候选的发行说明；在获批 PR 合并、构建与资产核验、以及明确的正式 Release 批准之前，`v3.0.10` 尚未发布。
+> **发布状态**：本文对应 tag `v3.0.10`，正文由流水线在发布时写入 Release 页；资产清单与第 1 节逐项一致。
 > **升级结论**：包名与签名证书与 `v3.0.10-preview.32` 相同、版本码严格递增，满足覆盖安装的**静态前提**；但覆盖升级后的数据保留、Root 模块状态与 TUN 重启**尚未在真机验证**。本版**不承诺无损覆盖升级**，请按第 4 节的备份 → 卸载 → 安装 → 导入路径操作。
 
 ## 1. 版本与产物
@@ -22,11 +22,13 @@
 本发布页提供 4 个资产，必须**成套使用**：
 
 ```
-wanBoxForAndroid-3.0.10-arm64-v8a-release.apk          管理器
+wanBoxForAndroid-3.0.10-arm64-v8a.apk                 管理器
 wanbox-root-module-arm64-v8a.zip                      Root 模块（内核 + wanboxctl）
 wanbox-root-module-with-manager-arm64-v8a.zip          模块 + 管理器合一变体
 SHA256SUMS                                            上述三项的校验和
 ```
+
+> 命名说明：正式渠道（`VERSION_NAME=3.0.10`）的 APK 产物名不带 `-release` 后缀，这是 `buildSrc` 中正式/预览两条渠道的既定命名规则（预览产物才保留 `-release`，如 `.32` 的 `...-preview.32-arm64-v8a-release.apk`）。下载时以本页资产名与 `SHA256SUMS` 为准。
 
 **APK 与模块的对应关系**：APK 是瘦管理器，不能单独建立代理；必须从**同一个 Release 页面**安装对应版本的 Root 模块（模块码 `2011`），不要混用 `.32` 的模块（`2010`）。下载后先执行 `sha256sum --check SHA256SUMS`。
 
