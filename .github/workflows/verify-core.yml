@@ -19,7 +19,7 @@ permissions:
 jobs:
   core:
     name: Core JVM Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-java@v5

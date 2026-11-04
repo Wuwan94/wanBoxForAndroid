@@ -3,6 +3,7 @@ package io.nekohasekai.sagernet.fmt.hysteria
 import moe.matsuri.nb4a.SingBoxOptions
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HysteriaFmtTest {
@@ -58,6 +59,39 @@ class HysteriaFmtTest {
         assertEquals("www.bing.com", hy2.tls.server_name)
         assertEquals(true, hy2.tls.insecure)
         assertEquals(listOf("h3"), hy2.tls.alpn)
+    }
+
+    // B1 / B3：默认配置不得跳过证书校验；只有显式设置 allowInsecure 才允许跳过。
+    @Test
+    fun hysteria2KeepsCertificateVerificationEnabledByDefault() {
+        val bean = HysteriaBean().apply {
+            protocolVersion = 2
+            serverAddress = "203.10.99.59"
+            serverPorts = "8443"
+            authPayload = "secret-token"
+            sni = "www.bing.com"
+            // allowInsecure 保持默认（HysteriaBean 初始化为 false）
+        }
+
+        val hy2 = buildSingBoxOutboundHysteriaBean(bean) as SingBoxOptions.Outbound_Hysteria2Options
+
+        // 未经 initializeDefaultValues() 时字段为 null；两条路径都不得等于 true
+        assertTrue(bean.allowInsecure != true)
+        // 未显式授权时绝不能生成 insecure=true；null 与 false 都表示「不跳过」
+        assertTrue(hy2.tls.insecure != true)
+    }
+
+    @Test
+    fun hysteria2SkipsVerificationOnlyWhenExplicitlyAllowed() {
+        val bean = HysteriaBean().apply {
+            protocolVersion = 2
+            serverAddress = "203.10.99.59"
+            serverPorts = "8443"
+            authPayload = "secret-token"
+            allowInsecure = true
+        }
+        val hy2 = buildSingBoxOutboundHysteriaBean(bean) as SingBoxOptions.Outbound_Hysteria2Options
+        assertEquals(true, hy2.tls.insecure)
     }
 
     @Test

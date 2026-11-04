@@ -21,12 +21,12 @@ jobs:
   libcore:
     name: Build LibCore
     if: ${{ github.event.inputs.skip_app != 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
         with:
-          go-version: ^1.25
+          go-version: 1.26.10
           cache-dependency-path: libcore/go.sum
       - uses: actions/cache@v4
         id: native-cache
@@ -63,6 +63,7 @@ jobs:
           (cd libcore && go test -race log.go log_test.go)
           (cd libcore && go test -race tun_source.go tun_source_test.go)
           python3 -m unittest discover -s tools -p test_clean_subscription.py
+          python3 -m unittest discover -s tools -p 'test_*.py'
           go -C ../sing-box-netproxy run ./cmd/sing-box check -c "$GITHUB_WORKSPACE/docs/config/local-proxy.json"
           go -C ../sing-box-netproxy run ./cmd/sing-box check -c "$GITHUB_WORKSPACE/docs/config/tun-fakeip.json"
       - name: Test and package independent Root module
@@ -93,7 +94,7 @@ jobs:
   app:
     name: Build Android Debug APK
     if: ${{ github.event.inputs.skip_app != 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: libcore
     env:
       BUILD_PLUGIN: none
@@ -268,12 +269,12 @@ jobs:
     name: Module Size Lab
     # 只有显式勾选 size_lab 才跑，普通 PR 不付这笔构建成本
     if: ${{ github.event.inputs.size_lab == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
         with:
-          go-version: ^1.25
+          go-version: 1.26.10
           cache-dependency-path: libcore/go.sum
       - uses: actions/cache@v4
         id: native-cache
