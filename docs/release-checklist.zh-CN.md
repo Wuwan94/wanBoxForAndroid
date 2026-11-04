@@ -40,10 +40,10 @@
 | G9 | 普通模块 ZIP 与带管理器 ZIP 均通过 `python3 -m zipfile -t` | 停止 |
 | G10 | 资产白名单恰为 `{APK, 普通模块 ZIP, 带管理器 ZIP, SHA256SUMS}` | 停止 |
 | G11 | 上传前 `sha256sum --check`；发布后回读资产并比对大小 / SHA256 | 停止 |
-| G12 | `verify_upgrade` 静态契约（同包名、同签名、版本递增、共存包不冲突）；`publish needs: [build, verify_upgrade]` | 停止 |
+| G12 | `verify_upgrade` 静态契约（同包名、同签名、版本码严格递增）；`publish needs: [build, verify_upgrade]` | 停止 |
 | G13 | 发布后 Release 的 `prerelease=false`、资产数量 / 名称 / 大小 / digest 与本地一致；**正式版不得触发 prune** | 停止 |
 
-模拟器共存冒烟测试为参考项（`continue-on-error`），**不能替代**真机 D1–D10；其输出会明确标注「x86_64 fixture 不是已发布的 arm64-v8a `.32` 产物」。
+CI 层**不执行**覆盖安装：旧脚本依赖的外部 x86_64 共存 fixture （`lit008834-pixel/wanBoxForAndroid` 的 `v3.0.5-preview.2`）已返回 HTTP 404，且 runner 模拟器启动多次超时。`verify_upgrade` 因此只保留纯静态契约硬门禁，工作流输出明确标注「CI 层不执行覆盖安装，真机 D1–D10 未验证」。
 
 ## 四、真机验证（发布前置条件）
 

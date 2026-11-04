@@ -327,9 +327,12 @@ jobs:
           retention-days: 1
 
   verify_upgrade:
-    name: Verify formal update beside OwnBox
-    # @author 雾晚: 恢复该作业。静态跨版本门禁是硬断言；模拟器覆盖安装为
-    # 参考项（GitHub runner 的模拟器启动曾多次超时），不能替代真机 D1-D10。
+    name: Verify formal update contract
+    # @author 雾晚: 硬门禁只依赖本次构建的 fixture 与仓库元数据。
+    # 旧脚本的外部 x86_64 共存 fixture（lit008834-pixel/wanBoxForAndroid 的
+    # v3.0.5-preview.2）源已返回 HTTP 404，且 runner 模拟器启动多次超时；
+    # 保留这些步骤会让 publish 被无关外部依赖卡死。CI 层不执行覆盖安装，
+    # 真机 D1-D10 仍是发布前置条件。
     runs-on: ubuntu-24.04
     needs: build
     permissions:
@@ -340,56 +343,25 @@ jobs:
         with:
           name: internal-upgrade-fixture
           path: apks
-      - name: Download pinned co-install fixtures
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          mkdir -p previous
-          gh release download v3.0.5-preview.2 \
-            -R lit008834-pixel/wanBoxForAndroid \
-            -p wanBoxForAndroid-3.0.5-preview.2-x86_64-release.apk -D previous
-          gh release download v3.0.0 \
-            -R Own716/OwnBoxForAndroid \
-            -p OwnBox-3.0.0-x86_64-release.apk -D previous
-          echo '8dba440911f90b60d94574d62c28ce20dbab80dded19a580142ddaf0413fc863  previous/wanBoxForAndroid-3.0.5-preview.2-x86_64-release.apk' | sha256sum --check
-          echo '86062de59591df18cbd257e484f43e1a1483d961af3f793b4194ac019d618348  previous/OwnBox-3.0.0-x86_64-release.apk' | sha256sum --check
       - name: Static upgrade contract (hard gate)
         run: |
           set -euo pipefail
           AAPT=$(find "${ANDROID_HOME}/build-tools" -name aapt | sort -V | tail -n 1)
           APKSIGNER=$(find "${ANDROID_HOME}/build-tools" -name apksigner | sort -V | tail -n 1)
-          OWNBOX=previous/OwnBox-3.0.0-x86_64-release.apk
-          test -s "$OWNBOX"
-          "$AAPT" dump badging "$OWNBOX" | grep -q "^package: name='com.ownbox.app' "
-          "$APKSIGNER" verify "$OWNBOX"
           formal_code=$(python3 tools/version_code.py --properties nb4a.properties --channel formal --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["apk_version_code"])')
           test "$formal_code" -gt "${{ env.WANBOX_BASELINE_VERSION_CODE }}"
           new=$(find apks -name '*.apk' | head -1)
+          test -n "$new"
           "$APKSIGNER" verify "$new"
           "$AAPT" dump badging "$new" | grep -q "^package: name='${{ env.WANBOX_PACKAGE }}' "
           "$AAPT" dump badging "$new" | grep -q "versionCode='$formal_code' "
           echo "Static upgrade contract OK: fixture versionCode=$formal_code > baseline ${{ env.WANBOX_BASELINE_VERSION_CODE }}"
           {
             echo '### 覆盖升级验证边界'
-            echo '本作业只验证：同包名、同签名、版本码严格递增、共存包不冲突。'
-            echo 'CI 的 x86_64 fixture **不是** 已发布的 arm64-v8a preview.32 产物。'
-            echo '数据保留、TUN/核心重启、订阅与节点操作、网络异常恢复（D1-D10）仍为**未验证**，需真机执行。'
+            echo '本作业只验证：同包名、同签名、版本码严格递增（静态契约）。'
+            echo '外部 x86_64 共存 fixture 源已不可达（HTTP 404），CI 层不执行覆盖安装。'
+            echo '数据保留、TUN/核心重启、订阅与节点操作、网络异常恢复（D1-D10）仍为未验证，需真机执行。'
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-      - name: Emulator co-install smoke (informational)
-        continue-on-error: true
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: ${{ env.WANBOX_EMULATOR_API }}
-          target: google_apis
-          arch: x86_64
-          profile: pixel_7_pro
-          script: bash tools/diagnostics/verify_formal_upgrade.sh
 
   publish:
     name: Publish Release
