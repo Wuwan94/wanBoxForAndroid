@@ -108,12 +108,14 @@ func (r *Runtime) PrepareDataUpdate(ctx context.Context) error {
 		if e := privateDirectory(r.path("archives")); e != nil {
 			return e
 		}
-		// No journal exists at this point, so every archive is historical.
-		if e := r.pruneDataResetArchives(""); e != nil {
-			return e
-		}
 		archive, e := os.MkdirTemp(r.path("archives"), "data-reset-")
 		if e != nil {
+			return e
+		}
+		// @author 雾晚: 裁剪必须发生在新归档创建**之后**，并把新归档标为在用，
+		// 否则 Prepare 结束瞬间总数会是 max+1（实测连续 13 次更新后 6 份）。
+		// 这样即使 App 未走到 FinishDataUpdate，目录也已受控。
+		if e := r.pruneDataResetArchives(filepath.Base(archive)); e != nil {
 			return e
 		}
 		if e = jsonWrite(r.path("data-reset.json"), dataReset{filepath.Base(archive)}); e != nil {

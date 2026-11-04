@@ -122,17 +122,22 @@ func TestArchiveCountIsBoundedAcrossRepeatedUpdates(t *testing.T) {
 	}
 	rounds := maxDataResetArchives + 8
 	for i := 0; i < rounds; i++ {
-		// 与 PrepareDataUpdate 相同的顺序：先裁剪历史，再创建新归档。
-		if e := r.pruneDataResetArchives(""); e != nil {
-			t.Fatal(e)
-		}
+		// 与 PrepareDataUpdate 相同的顺序：先创建新归档，再裁剪历史（新归档为在用）。
 		p, e := os.MkdirTemp(r.path("archives"), "data-reset-")
 		if e != nil {
+			t.Fatal(e)
+		}
+		if e := r.pruneDataResetArchives(filepath.Base(p)); e != nil {
 			t.Fatal(e)
 		}
 		stamp := time.Now().Add(time.Duration(i) * time.Minute)
 		if e := os.Chtimes(p, stamp, stamp); e != nil {
 			t.Fatal(e)
+		}
+		// 每一次 Prepare 结束后都必须已经受控，不能等 FinishDataUpdate 才收敛
+		names := archiveNames(t, r)
+		if len(names) > maxDataResetArchives {
+			t.Fatalf("after update %d: %d archives, want <= %d", i+1, len(names), maxDataResetArchives)
 		}
 	}
 	names := archiveNames(t, r)
