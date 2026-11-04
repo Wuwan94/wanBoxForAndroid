@@ -71,6 +71,12 @@ jobs:
       - name: Native Build
         if: steps.cache.outputs.cache-hit != 'true'
         run: ./run lib core
+      - name: Prepare pinned source for cached-core tests
+        if: steps.cache.outputs.cache-hit == 'true'
+        run: |
+          bash buildScript/lib/core/get_source.sh
+          test -f ../sing-box-netproxy/go.mod
+          (cd libcore && go mod tidy -diff)
       - name: Verify LibCore AAR
         run: |
           test -s app/libs/libcore.aar
@@ -80,8 +86,12 @@ jobs:
           unzip -p app/libs/libcore.aar classes.jar > /tmp/libcore-classes.jar
           unzip -l /tmp/libcore-classes.jar | grep -q 'libcore/Libcore.class'
           unzip -l /tmp/libcore-classes.jar | grep -q 'go/Seq.class'
+      - name: Verify tracked Go module metadata unchanged
+        run: git diff --exit-code -- libcore/go.mod libcore/go.sum
       # @author 雾晚: G2 / G3 的 Go 与 Python 测试，与 preview.yml 保持同一组命令。
       - name: Go and Python tests
+        env:
+          GOFLAGS: -mod=readonly
         run: |
           go -C rootmodule test -race ./...
           python3 -m unittest discover -s rootmodule -p 'test_*.py'
