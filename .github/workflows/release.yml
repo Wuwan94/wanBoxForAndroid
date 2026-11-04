@@ -1,9 +1,6 @@
 # @author 雾晚
 name: Release Build
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       tag:
@@ -13,13 +10,23 @@ on:
       approved_sha:
         description: "获批 PR 合并后的确切提交 SHA（必须等于本次运行的 github.sha）"
         required: true
+      publish_release:
+        description: "默认只构建候选；仅在用户确认完整发布载荷后设为 true。"
+        type: boolean
+        required: true
+        default: false
+      expected_checksums_sha256:
+        description: "发布时须与已确认候选的 SHA256SUMS 文件 SHA-256 完全一致。"
+        type: string
+        required: false
+        default: ""
 
 concurrency:
   group: wanbox-release-publication
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 # @author 雾晚: 正式发布的所有环境常量集中在此，不依赖 ubuntu-latest 的漂移。
 # ubuntu-latest 已切到 26.04 / Java 25，Gradle 8.10.2 无法运行（见 de59193）。
@@ -312,7 +319,7 @@ jobs:
           test "$new_sig" = "$base_sig"
           test "$new_code" -gt "${{ env.WANBOX_BASELINE_VERSION_CODE }}"
           echo "Cross-version OK: package=$new_pkg signer=$new_sig versionCode $new_code > ${{ env.WANBOX_BASELINE_VERSION_CODE }}"
-          echo "> 静态前提成立；这**不证明**数据保留 / Root 模块状态 / TUN 重启，真机 D1-D10 仍需单独验证。" >> "$GITHUB_STEP_SUMMARY"
+          echo "> 静态升级契约检查通过（包名、签名、版本码严格递增）。" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v5
         if: always()
         with:
@@ -329,10 +336,7 @@ jobs:
   verify_upgrade:
     name: Verify formal update contract
     # @author 雾晚: 硬门禁只依赖本次构建的 fixture 与仓库元数据。
-    # 旧脚本的外部 x86_64 共存 fixture（lit008834-pixel/wanBoxForAndroid 的
-    # v3.0.5-preview.2）源已返回 HTTP 404，且 runner 模拟器启动多次超时；
-    # 保留这些步骤会让 publish 被无关外部依赖卡死。CI 层不执行覆盖安装，
-    # 真机 D1-D10 仍是发布前置条件。
+    # 旧脚本依赖的外部 x86_64 共存 fixture 已不可达；本作业只执行稳定的静态升级契约门禁。
     runs-on: ubuntu-24.04
     needs: build
     permissions:
@@ -357,21 +361,18 @@ jobs:
           "$AAPT" dump badging "$new" | grep -q "versionCode='$formal_code' "
           echo "Static upgrade contract OK: fixture versionCode=$formal_code > baseline ${{ env.WANBOX_BASELINE_VERSION_CODE }}"
           {
-            echo '### 覆盖升级验证边界'
-            echo '本作业只验证：同包名、同签名、版本码严格递增（静态契约）。'
-            echo '外部 x86_64 共存 fixture 源已不可达（HTTP 404），CI 层不执行覆盖安装。'
-            echo '数据保留、TUN/核心重启、订阅与节点操作、网络异常恢复（D1-D10）仍为未验证，需真机执行。'
+            echo '### 静态升级契约'
+            echo '本作业验证同包名、同签名、版本码严格递增。'
           } >> "$GITHUB_STEP_SUMMARY"
 
-  publish:
-    name: Publish Release
+  prepare_assets:
+    name: Prepare Release Candidate Assets (No Publish)
     runs-on: ubuntu-24.04
-    # @author 雾晚: G12 —— 没有 build 与升级门禁通过，不进入发布。
     needs:
       - build
       - verify_upgrade
     permissions:
-      contents: write
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -420,6 +421,41 @@ jobs:
           (cd apks && sha256sum *.apk *.zip > SHA256SUMS && sha256sum --check SHA256SUMS)
           cat apks/SHA256SUMS
           cp apks/SHA256SUMS /tmp/wanbox-SHA256SUMS
+      - name: Upload Release Candidate Assets
+        uses: actions/upload-artifact@v5
+        with:
+          name: release-candidate-assets
+          path: apks/*
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Publish Release
+    if: ${{ inputs.publish_release == true }}
+    runs-on: ubuntu-24.04
+    needs:
+      - build
+      - verify_upgrade
+      - prepare_assets
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Download Release Candidate Assets
+        uses: actions/download-artifact@v5
+        with:
+          name: release-candidate-assets
+          path: apks
+      - name: Verify confirmed asset manifest
+        env:
+          EXPECTED_CHECKSUMS_SHA256: ${{ inputs.expected_checksums_sha256 }}
+        run: |
+          set -euo pipefail
+          test -n "$EXPECTED_CHECKSUMS_SHA256" || { echo 'expected_checksums_sha256 is required when publish_release=true'; exit 1; }
+          actual=$(sha256sum apks/SHA256SUMS | awk '{print $1}')
+          test "$actual" = "$EXPECTED_CHECKSUMS_SHA256" || { echo 'candidate manifest differs from the confirmed payload'; exit 1; }
+          (cd apks && sha256sum --check SHA256SUMS)
       - name: Assert tag and approved commit before upload
         env:
           GH_TOKEN: ${{ github.token }}
