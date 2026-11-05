@@ -26,22 +26,23 @@ class UiCleanupContractTest {
 
     @Test fun coreOnlyEntriesAreHiddenInThinManager() {
         val nodes = source("java/io/nekohasekai/sagernet/ui/ConfigurationFragment.kt")
-        assertTrue(nodes.contains("findItem(R.id.action_connection_url_test)?.isVisible = false"))
-        assertTrue(nodes.contains("findItem(R.id.action_speed_test_group)?.isVisible = false"))
+        // phase2 D1: thin build removes the items outright
+        assertTrue(nodes.contains("findItem(R.id.action_connection_url_test)?.let { toolbar.menu.removeItem(it.itemId) }"))
+        assertTrue(nodes.contains("findItem(R.id.action_speed_test_group)?.let { toolbar.menu.removeItem(it.itemId) }"))
         assertTrue(nodes.contains("popup.menu.removeItem(R.id.action_test_profile_speed)"))
         assertTrue(source("java/io/nekohasekai/sagernet/ui/NetworkFragment.kt")
             .contains("binding.stunCard.isVisible = CoreRuntime.available"))
-        val drawer = source("res/menu/main_drawer_menu.xml")
-        assertFalse(drawer.contains("nav_faq"))
-        assertFalse(drawer.contains("nav_dashboard"))
+        // phase2 D2: StunActivity closes immediately in thin builds; D5: legacy drawer deleted
+        assertTrue(source("java/io/nekohasekai/sagernet/ui/StunActivity.kt").contains("if (!CoreRuntime.available) {"))
+        assertFalse(File("src/main/res/menu/main_drawer_menu.xml").exists())
     }
 
-    @Test fun subscriptionSelectionCanExitAndSingleGroupTabsAreHidden() {
+    @Test fun subscriptionSelectionIsPermanentAndSingleGroupTabsAreHidden() {
         val groups = source("java/io/nekohasekai/sagernet/ui/GroupFragment.kt")
-        val setSelectionMode = groups.substringAfter("fun setSelectionMode(enabled: Boolean)")
-            .substringBefore("fun toggleGroupSelection")
-        assertTrue(setSelectionMode.contains("selectionMode = enabled"))
-        assertFalse(setSelectionMode.contains("selectionMode = true"))
+        // phase2 D10c: checkboxes are permanent, long-press multi-select removed, update clears selection
+        assertTrue(groups.contains("val selectionMode = true"))
+        assertFalse(groups.contains("setOnLongClickListener"))
+        assertTrue(groups.contains("fun clearSelection()"))
         assertTrue(groups.contains("fragment.selectionMode && group.type == GroupType.SUBSCRIPTION"))
 
         val nodes = source("java/io/nekohasekai/sagernet/ui/ConfigurationFragment.kt")
