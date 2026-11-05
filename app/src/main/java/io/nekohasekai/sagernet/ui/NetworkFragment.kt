@@ -29,7 +29,8 @@ class NetworkFragment : NamedFragment(R.layout.layout_network) {
 
         // @author 雾晚：STUN 探测依赖内嵌核心；瘦管理器（仅 Root 模块）里直接隐藏入口。
         binding.stunCard.isVisible = CoreRuntime.available
-        binding.stunTest.setOnClickListener {
+        // remove(D2): 瘦构建不绑定 STUN 入口
+        if (CoreRuntime.available) binding.stunTest.setOnClickListener {
             startActivity(Intent(requireContext(), StunActivity::class.java))
         }
 

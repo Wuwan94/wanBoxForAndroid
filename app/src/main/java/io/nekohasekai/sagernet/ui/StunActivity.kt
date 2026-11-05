@@ -17,6 +17,11 @@ class StunActivity : ThemedActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // remove(D2): 瘦构建无内嵌核心，STUN 不可用；任何残留跳转（含外部 Intent）直接关闭本页
+        if (!CoreRuntime.available) {
+            finish()
+            return
+        }
 
         binding = LayoutStunBinding.inflate(layoutInflater)
         setContentView(binding.root)
