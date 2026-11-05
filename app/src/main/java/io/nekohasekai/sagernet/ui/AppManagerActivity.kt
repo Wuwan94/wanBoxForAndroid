@@ -215,20 +215,27 @@ class AppManagerActivity : ThemedActivity() {
             setHomeAsUpIndicator(R.drawable.ic_navigation_close)
         }
 
-        if (!DataStore.proxyApps) {
-            DataStore.proxyApps = true
-        }
-
-        binding.bypassGroup.check(if (DataStore.bypass) R.id.appProxyModeBypass else R.id.appProxyModeOn)
+        // fix: 仅打开本页不再自动开启分应用代理；状态如实显示，用户选择「代理/绕过」才开启。
+        binding.bypassGroup.check(
+            when {
+                !DataStore.proxyApps -> R.id.appProxyModeDisable
+                DataStore.bypass -> R.id.appProxyModeBypass
+                else -> R.id.appProxyModeOn
+            }
+        )
         binding.bypassGroup.setOnCheckedChangeListener { _, checkedId ->
             when (checkedId) {
-                R.id.appProxyModeDisable -> {
-                    DataStore.proxyApps = false
-                    finish()
+                R.id.appProxyModeDisable -> DataStore.proxyApps = false
+
+                R.id.appProxyModeOn -> {
+                    DataStore.bypass = false
+                    DataStore.proxyApps = true
                 }
 
-                R.id.appProxyModeOn -> DataStore.bypass = false
-                R.id.appProxyModeBypass -> DataStore.bypass = true
+                R.id.appProxyModeBypass -> {
+                    DataStore.bypass = true
+                    DataStore.proxyApps = true
+                }
             }
         }
         binding.autoSelectProxyApps.setOnClickListener { selectProxyApp() }
