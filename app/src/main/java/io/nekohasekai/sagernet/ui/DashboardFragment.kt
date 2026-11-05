@@ -46,8 +46,8 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         listOf(R.id.modeRule, R.id.modeGlobal, R.id.modeDirect).forEachIndexed { mode, id ->
             view.findViewById<Button>(id).setOnClickListener {
                 if (DataStore.dashboardMode != mode) {
-                    DataStore.bypass = mode != MODE_GLOBAL
-                    DataStore.proxyApps = false
+                    // fix: 路由模式只写 dashboardMode（Clash 模式 rule/global/direct）。
+                    // bypass / proxyApps 属于分应用代理，模式切换不得改写或关闭它们。
                     DataStore.dashboardMode = mode
                     SagerNet.reloadService()
                     renderMode(view)
