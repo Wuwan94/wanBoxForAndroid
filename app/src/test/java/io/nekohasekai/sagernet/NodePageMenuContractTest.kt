@@ -49,13 +49,10 @@ class NodePageMenuContractTest {
         assertTrue("action_order_by_name missing", ids.contains("action_order_by_name"))
         assertTrue("action_order_by_delay missing", ids.contains("action_order_by_delay"))
 
-        // 单双列布局
-        assertTrue("action_layout_single missing", ids.contains("action_layout_single"))
-        assertTrue("action_layout_double missing", ids.contains("action_layout_double"))
-
-        // 卡片样式
-        assertTrue("action_card_style_classic missing", ids.contains("action_card_style_classic"))
-        assertTrue("action_card_style_stroke missing", ids.contains("action_card_style_stroke"))
+        // phase2 D6：单双列布局与卡片样式菜单已按批准删除（原本永久隐藏），确认不再残留
+        for (removed in listOf("action_layout_single", "action_layout_double", "action_card_style_classic", "action_card_style_stroke")) {
+            assertFalse("$removed should be removed (D6)", ids.contains(removed))
+        }
 
         // 添加节点入口（应存在，供隐藏逻辑使用）
         assertTrue("action_add missing", ids.contains("action_add"))

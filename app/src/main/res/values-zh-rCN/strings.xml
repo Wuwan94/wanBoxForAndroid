@@ -466,12 +466,6 @@
     <string name="copy_failed">复制失败。</string>
     <string name="copy_success">复制成功！</string>
     <string name="copy_toast_msg">链接已复制到剪贴板。</string>
-    <string name="create_rule">创建路由</string>
-    <string name="open_market">打开应用市场</string>
-    <string name="open_settings">打开设置</string>
-    <string name="open_app">打开应用</string>
-    <string name="copy_package_name">复制包名</string>
-    <string name="copy_label">复制应用名</string>
     <string name="udp_connections">%d UDP 连接</string>
     <string name="tcp_connections">%d TCP 连接</string>
     <string name="route_need_vpn">路由规则 %s 依赖 VPN 以生效，所以其已被忽略。</string>
@@ -525,8 +519,6 @@
     <string name="backup_importing">正在导入…</string>
     <string name="action_import_throne_desktop">从Throne电脑版导入</string>
     <string name="backup_import_throne_desktop_summary">从 Throne 电脑版 .thrbackup 导入配置档、路由与设置（忽略自定义图标）。勾选的类别将覆盖本地现有数据。</string>
-    <string name="action_copy">复制</string>
-    <string name="action_open">打开</string>
     <string name="please_update">您的 APP (%1$s) 太旧了喵，%2$s 再不更新就没的用了喵～</string>
     <string name="please_update_force">您的 APP (%1$s) 版本过旧，已于 %2$s 停止工作，请立即升级。</string>
     <string name="connection_test_delete_unavailable">清理不可用配置</string>
@@ -559,12 +551,9 @@
     <string name="is_outbound_only">设置的 JSON 是出站</string>
     <string name="save">保存</string>
     <string name="set_panel_url">设置面板 URL</string>
-    <string name="dashboard_preset_label">选择推荐面板预设</string>
     <string name="dashboard_preset_zashboard">Zashboard (现代推荐 · 界面精美)</string>
     <string name="dashboard_preset_yacd">内置 Yacd (官方离线 · 极速轻量)</string>
     <string name="dashboard_preset_custom">自定义链接 (手动输入或粘贴)</string>
-    <string name="dashboard_url_hint">仪表盘 URL (HTTP / HTTPS)</string>
-    <string name="dashboard_url_tips">支持输入任意兼容 Clash API 的 Web 仪表盘。已放行混合协议与跨域，打开即自动连接本地内核。</string>
     <string name="dashboard_reset_default">重置默认</string>
     <string name="dashboard_switched_toast">已切换仪表盘并重新加载</string>
     <string name="enable_clash_api_summary">在 127.0.0.1:9090 提供 clash api 和 yacd 仪表板</string>

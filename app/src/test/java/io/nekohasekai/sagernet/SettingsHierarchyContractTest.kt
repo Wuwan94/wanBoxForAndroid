@@ -16,7 +16,9 @@ class SettingsHierarchyContractTest {
         "acquireWakeLock", "wakeResetConnections", "networkChangeResetConnections", "showDirectSpeed", "speedInterval",
         "appTheme", "showBottomBar", "showAllGroupsTab")
     // @author 雾晚：明确授权移除的 UI 项（Root 精简），key 保留迁移兼容
-    private val authorizedUiRemovals = setOf("enableClashAPI", "hideFromRecentApps", "isAutoConnect")
+    private val authorizedUiRemovals = setOf("enableClashAPI", "hideFromRecentApps", "isAutoConnect",
+        // phase2 D8/D9/D10b：只读伪设置行、恒隐藏项与重复开关已移除 UI；键保留，proxyApps/hideUnavailableProfiles 仍由分应用页与节点页读写
+        "serviceMode", "tunImplementation", "perAppProxyEntry", "proxyApps", "hideUnavailableProfiles")
     @Test fun everyOldKeyKeepsItsValueContractAndControlType() {
         val old = JSONObject(javaClass.getResource("/settings-before-3.0.7.json")!!.readText())
         val factory = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
@@ -54,7 +56,8 @@ class SettingsHierarchyContractTest {
             val attributes = before.getJSONObject("attributes")
             attributes.keys().forEach { attribute ->
                 val name = attribute.substringAfter('}')
-                if (name !in setOf("title", "summary")) {
+                // phase2：图标统一为线性风格，icon 属于视觉而非取值契约，与 title/summary 一样不比对
+                if (name !in setOf("title", "summary", "icon")) {
                     assertEquals("$key/$name", attributes.getString(attribute),
                         node.getAttributeNS(attribute.substringAfter('{').substringBefore('}'), name))
                 }

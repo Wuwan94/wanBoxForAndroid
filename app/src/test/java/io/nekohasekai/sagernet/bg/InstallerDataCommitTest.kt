@@ -74,7 +74,8 @@ class InstallerDataCommitTest {
         assertEquals(R.string.root_module_data_subscription_busy, RootModuleErrors.resource("subscription_cancel_timeout"))
         assertEquals(R.string.root_module_data_selection_error, RootModuleErrors.resource("install_data_selection_changed"))
         assertEquals(R.string.root_module_data_journal_corrupt, RootModuleErrors.resource("installer_journal_corrupt"))
-        assertEquals(R.string.root_module_action_failed, RootModuleErrors.resource("root_required"))
+        // phase2：root_required 改为明确提示需要 Root 授权，而不是笼统的操作失败
+        assertEquals(R.string.module_reason_root_required, RootModuleErrors.resource("root_required"))
     }
 
     @Test fun cancelledBatchGuardAndBothWorkerServicesHaveLifecycleOwners() {

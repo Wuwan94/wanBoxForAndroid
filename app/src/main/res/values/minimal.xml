@@ -55,8 +55,6 @@
     <string name="minimal_root">连接与核心</string>
     <string name="minimal_connection_toggle">代理服务开关</string>
     <string name="minimal_routing_mode">路由模式</string>
-    <string name="minimal_live_traffic">实时流量</string>
-    <string name="minimal_runtime_summary">运行概况</string>
     <string name="minimal_dns">DNS 设置</string>
     <string name="minimal_network">网络自动策略</string>
     <string name="minimal_appearance">主题与外观</string>

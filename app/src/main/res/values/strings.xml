@@ -26,8 +26,6 @@
     <string name="menu_traffic">Traffic</string>
     <string name="menu_dashboard">Sing-box Dashboard</string>
     <!-- externel -->
-    <string name="action_copy">Copy</string>
-    <string name="action_open">Open</string>
     <!-- group -->
     <string name="group_name">Group name</string>
     <string name="group_update">Update</string>
@@ -570,12 +568,6 @@
     <string name="tcp_connections">%d TCP connections</string>
     <string name="udp_connections">%d UDP connections</string>
 
-    <string name="copy_label">Copy Name</string>
-    <string name="copy_package_name">Copy Package Name</string>
-    <string name="open_app">Open App</string>
-    <string name="open_settings">Open Settings</string>
-    <string name="open_market">Open Market</string>
-    <string name="create_rule">Create Rule</string>
 
     <string name="copy_success">Copy success!</string>
     <string name="copy_toast_msg">Link copied to clipboard.</string>
@@ -689,12 +681,9 @@
     <string name="is_outbound_only">The JSON set is outbound</string>
     <string name="save">Save</string>
     <string name="set_panel_url">Set panel URL</string>
-    <string name="dashboard_preset_label">Select Dashboard Preset</string>
     <string name="dashboard_preset_zashboard">Zashboard (Modern &amp; Recommended)</string>
     <string name="dashboard_preset_yacd">Built-in Yacd (Offline &amp; Fast)</string>
     <string name="dashboard_preset_custom">Custom URL (Input or Paste)</string>
-    <string name="dashboard_url_hint">Dashboard URL (HTTP / HTTPS)</string>
-    <string name="dashboard_url_tips">Supports any Clash API compatible web dashboard. Mixed content is enabled for seamless local core connection.</string>
     <string name="dashboard_reset_default">Reset Default</string>
     <string name="dashboard_switched_toast">Dashboard updated and reloaded</string>
     <string name="log_level">Log Level</string>
@@ -1209,7 +1198,6 @@
     <!-- preview.18 UI 改造：仪表盘服务状态 -->
     <string name="service_state_connected">已连接</string>
     <string name="service_state_connecting">启动中</string>
-    <string name="service_state_stopping">停止中</string>
     <string name="service_state_idle">未连接</string>
     <string name="tcp_rtt_udp_unavailable">TCP RTT is unavailable for UDP-only nodes; use the proxy channel test.</string>
     <string name="tcp_rtt_network_unavailable">Physical network is not ready. Retry after connecting.</string>
