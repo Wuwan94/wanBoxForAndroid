@@ -16,7 +16,43 @@ object RootModuleErrors {
         "node_tag_not_found", "node_select_failed", "node_select_not_confirmed",
         "node_select_unsupported", "clash_api_disabled", "module_not_running" -> R.string.root_module_node_switch_failed
         "revision_conflict" -> R.string.root_module_revision_conflict
+        // phase2: core watchdog / health codes get plain-language messages
+        "core_exited", "plugin_exited", "core_killed_after_timeout", "core_retry" -> R.string.module_reason_core_exit
+        "retry_limit_reached" -> R.string.module_reason_retry_limit
+        "startup_timeout" -> R.string.module_reason_startup_timeout
+        "cleanup_required" -> R.string.module_reason_cleanup_required
+        "root_required" -> R.string.module_reason_root_required
+        "module_protocol_mismatch" -> R.string.module_reason_protocol_mismatch
+        "module_disabled_or_missing" -> R.string.module_reason_disabled
+        "node_failover_no_candidate" -> R.string.module_failover_no_candidate
         else -> R.string.root_module_action_failed
+    }
+
+    /** phase2: disconnect reason categories (module events disconnect_* / reconnect_*). */
+    fun reasonCategory(code: String): Int? = when (code.substringBefore(':').removePrefix("reconnect_").let { if (it.startsWith("disconnect_")) it else "disconnect_" + it }) {
+        "disconnect_core_exit" -> R.string.module_cat_core_exit
+        "disconnect_network_change" -> R.string.module_cat_network_change
+        "disconnect_node_fail" -> R.string.module_cat_node_fail
+        "disconnect_tun_fail" -> R.string.module_cat_tun_fail
+        "disconnect_unknown" -> R.string.module_cat_unknown
+        else -> null
+    }
+
+    /** Human text for a module event code (events.json); unknown codes are shown verbatim. */
+    fun eventLabel(context: Context, code: String): String {
+        val base = code.substringBefore(':')
+        reasonCategory(base)?.takeIf { base.startsWith("disconnect_") }?.let {
+            return context.getString(R.string.module_event_disconnect, context.getString(it))
+        }
+        return when {
+            base == "reconnect_ok" -> context.getString(R.string.module_event_reconnect)
+            base.startsWith("core_exit_") -> context.getString(R.string.module_event_core_exit, base.removePrefix("core_exit_"))
+            base == "node_unhealthy" -> context.getString(R.string.module_event_node_unhealthy)
+            base == "node_failover" || base == "node_failover_manual" -> context.getString(R.string.module_event_failover)
+            base == "tun_rebuilt" -> context.getString(R.string.module_event_tun_rebuilt)
+            base == "network_changed" -> context.getString(R.string.module_cat_network_change)
+            else -> code
+        }
     }
 
     fun message(context: Context, code: String): String {

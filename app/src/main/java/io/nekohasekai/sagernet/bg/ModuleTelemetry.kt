@@ -97,6 +97,9 @@ class TelemetrySession(
         private set
     var lastSpeedStats: SpeedDisplayData? = null
         private set
+    /** phase2: last module-health sample, kept across state changes (drives the home 异常 state). */
+    var lastHealth: SpeedDisplayData? = null
+        private set
 
     fun onStateChanged(newState: BaseService.State, elapsedRealtime: Long): Boolean {
         val wasConnected = serviceState == BaseService.State.Connected
@@ -114,6 +117,9 @@ class TelemetrySession(
     }
 
     fun onSpeedUpdate(stats: SpeedDisplayData): Boolean {
+        lastHealth = stats
+        // a failed-read health ping carries no traffic data; keep the last real sample
+        if (stats.commFailures > 0) return false
         if (serviceState == BaseService.State.Connected) {
             lastSpeedStats = stats
             return true

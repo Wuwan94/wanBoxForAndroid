@@ -26,6 +26,14 @@ data class SpeedDisplayData(
     var connectionCount: Int = -1,
     // 真实运行中的 profileName（已验证代次），不从未确认 selectedProxy 冒充
     var runningProfileName: String = "",
+    // phase2: module health as seen by the :bg observer (sent on every sample, also when not
+    // connected) so the home can show 异常 truthfully. Empty = unknown / older module.
+    var modulePhase: String = "",
+    var moduleHealth: String = "",
+    var moduleLastReason: String = "",
+    var moduleError: String = "",
+    /** consecutive failed status reads (su/timeout/protocol); 0 = last read succeeded */
+    var commFailures: Int = 0,
 ) : Parcelable {
     /** 是否有有效遥测 */
     fun hasTelemetry(): Boolean = vmRSSBytes >= 0 || uptimeSeconds >= 0

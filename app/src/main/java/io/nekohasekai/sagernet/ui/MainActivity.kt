@@ -94,6 +94,8 @@ class MainActivity : ThemedActivity(),
         get() = telemetrySession.connectedSince
     val lastSpeedStats: SpeedDisplayData?
         get() = telemetrySession.lastSpeedStats
+    val lastModuleHealth: SpeedDisplayData?
+        get() = telemetrySession.lastHealth
 
     fun navigateToNodes() {
         // 跳转到节点页（底部导航的节点 tab）

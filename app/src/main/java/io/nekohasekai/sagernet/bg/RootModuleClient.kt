@@ -30,7 +30,8 @@ object RootModuleClient {
     @android.annotation.SuppressLint("SdCardPath")
     const val CLI = "/data/adb/modules/wanbox/bin/wanboxctl"
     private val commands = setOf("status", "module", "logs", "dashboard", "start", "stop", "restart", "reload",
-        "config apply", "config validate", "autostart on", "autostart off", "data prepare", "data finish", "data rollback")
+        "config apply", "config validate", "autostart on", "autostart off", "data prepare", "data finish", "data rollback",
+        "node failover")
     private val changes = Mutex()
     // @author 雾晚: 2s TTL status cache. The home observer, service tiles and node
     // dialogs all poll status; without this each poll is a `su` round-trip.
@@ -47,7 +48,13 @@ object RootModuleClient {
     data class Status(val phase: String, val revision: String, val runningRevision: String,
         val profileId: Long, val profileName: String, val stats: RootNotificationSample?, val error: String = "",
         val installData: InstallSelection? = null,
-        val telemetry: ModuleTelemetry? = null) {
+        val telemetry: ModuleTelemetry? = null,
+        // phase2: optional module health fields (older modules omit them)
+        val health: String = "", val lastExit: String = "", val lastReason: String = "",
+        val retryCount: Int = 0, val events: List<ModuleEvent> = emptyList()) {
+        /** 异常: module failed / needs cleanup, or connected but the data plane is degraded. */
+        val abnormal get() = installData == null && (phase == "failed" || phase == "cleanup_required" ||
+            (phase == "connected" && health == "degraded"))
         val connected get() = phase == "connected" && installData == null
         val state get() = if (installData != null) BaseService.State.Stopped else when (phase) {
             "connected" -> BaseService.State.Connected
@@ -55,6 +62,10 @@ object RootModuleClient {
             else -> BaseService.State.Stopped
         }
     }
+    data class ModuleEvent(val time: Long, val code: String)
+    private val safeCode = Regex("[a-z_]{1,80}(:[0-9]{1,12})?")
+    private fun JsonObject.safeString(key: String): String =
+        this[key]?.takeIf { it.isJsonPrimitive }?.asString.orEmpty().takeIf { it.matches(safeCode) }.orEmpty()
     fun parseResponse(text: String): Status {
         val json = JsonParser.parseString(text).asJsonObject
         if (json["schemaVersion"]?.asInt != 1) throw IOException("module_protocol_mismatch")
@@ -93,7 +104,15 @@ object RootModuleClient {
         return Status(phase, state["revision"]?.asString.orEmpty(), state["runningRevision"]?.asString.orEmpty(),
             state["profileId"]?.asLong ?: 0, state["profileName"]?.asString.orEmpty(), stats,
             state["error"]?.asString.orEmpty().takeIf { it.matches(Regex("[a-z_]{1,80}")) }.orEmpty(), selection,
-            telemetry)
+            telemetry,
+            health = state.safeString("health"), lastExit = state.safeString("lastExit"),
+            lastReason = state.safeString("lastReason"),
+            retryCount = state["retryCount"]?.takeIf { it.isJsonPrimitive }?.asInt ?: 0,
+            events = state["events"]?.takeIf { it.isJsonArray }?.asJsonArray?.mapNotNull { item ->
+                val obj = item.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
+                val code = obj.safeString("code").takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                ModuleEvent(obj["time"]?.takeIf { it.isJsonPrimitive }?.asLong ?: 0L, code)
+            }.orEmpty())
     }
     suspend fun call(command: String, input: File? = null): Status = withContext(Dispatchers.IO) {
         require(command in commands || command.matches(Regex("data selection-finish [a-f0-9]{32}"))
@@ -149,7 +168,7 @@ object RootModuleClient {
                 val errors = launch(Dispatchers.IO) { process.errorStream.use { it.copyTo(object : java.io.OutputStream() { override fun write(value: Int) = Unit; override fun write(data: ByteArray, offset: Int, length: Int) = Unit }) } }
                 val writer = launch(Dispatchers.IO) { process.outputStream.use { pipe -> input?.inputStream()?.use { it.copyTo(pipe) } } }
                 try {
-                    withTimeout(if (command in setOf("status", "module", "logs") || command.startsWith("node select ")) 15_000L else 720_000L) { runInterruptible(Dispatchers.IO) { process.waitFor() } }
+                    withTimeout(if (command in setOf("status", "module", "logs") || command.startsWith("node select ")) 15_000L else if (command == "node failover") 60_000L else 720_000L) { runInterruptible(Dispatchers.IO) { process.waitFor() } }
                     writer.join(); errors.join()
                     try {
                         parseResponse(output.await())
@@ -324,6 +343,15 @@ internal class RootModuleSnapshot(private val instance: ProxyInstance, private v
                 }
                 if (profileTags.size() > 0) addBytes("files/profile_tags.json", profileTags.toString().toByteArray())
             }
+        }
+        // phase2: node health-check policy for the module (files/health_check.json).
+        // Default notify-only; "auto" lets the module switch to the fastest node of the same group.
+        runCatching {
+            val policy = JsonObject().apply {
+                addProperty("mode", DataStore.healthCheckMode.takeIf { it in setOf("off", "notify", "auto") } ?: "notify")
+                addProperty("url", DataStore.connectionTestURL)
+            }
+            addBytes("files/health_check.json", policy.toString().toByteArray())
         }
         val encoded = JsonObject(); files.forEach { (name, bytes) -> encoded.addProperty(name, Base64.getEncoder().encodeToString(bytes)) }
         return JsonObject().apply {

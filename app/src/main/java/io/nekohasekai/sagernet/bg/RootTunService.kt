@@ -16,6 +16,8 @@ class RootTunService : Service(), BaseService.Interface {
     override var upstreamInterfaceName: String? = null
     private var observer: Job? = null
     @Volatile private var snapshot: RootModuleClient.Status? = null
+    /** phase2: consecutive failed status reads; one failure no longer flips the UI to 未连接. */
+    @Volatile private var failures = 0
     override fun createNotification(profileName: String): ServiceNotification = error("Module observer does not own a foreground service")
     override fun acquireWakeLock() = Unit
     override fun currentProfileName() = snapshot?.profileName ?: ""
@@ -38,7 +40,9 @@ class RootTunService : Service(), BaseService.Interface {
                     // changeState/cbSelectorUpdate/telemetry/stats/runningName 全部从这个 status 取值
                     // 不先 status 再 dashboard，避免两代次混合
                     val status = RootModuleClient.call("dashboard")
-                    val changedError = snapshot?.error != status.error
+                    val recovered = failures > 0
+                    failures = 0
+                    val changedError = snapshot?.error != status.error || recovered
                     val changedProfile = status.connected && (snapshot?.connected != true || snapshot?.profileId != status.profileId)
                     snapshot = status; DataStore.currentProfile = if (status.connected) status.profileId else 0
                     DataStore.mixedInboundAuthed = status.connected && DataStore.mixedInboundNeedsAuth
@@ -67,15 +71,35 @@ class RootTunService : Service(), BaseService.Interface {
                             txTotalModule = telemetry?.txBytes ?: -1L,
                             rxTotalModule = telemetry?.rxBytes ?: -1L,
                             connectionCount = telemetry?.connectionCount ?: -1,
-                            runningProfileName = runningName
+                            runningProfileName = runningName,
+                            modulePhase = status.phase,
+                            moduleHealth = status.health,
+                            moduleLastReason = status.lastReason.ifBlank { status.lastExit },
+                            moduleError = status.error,
+                            commFailures = 0
                         ))
                     }
                 } catch (e: CancellationException) { throw e }
-                  catch (_: Exception) {
-                    snapshot = null; DataStore.currentProfile = 0; DataStore.mixedInboundAuthed = false
-                    data.changeState(BaseService.State.Stopped)
+                  catch (e: Exception) {
+                    // phase2: a single failed read (su hiccup, 15 s timeout, busy module) used to
+                    // flip the UI to 未连接 while the core kept running. Keep the last known state
+                    // for up to FAILURES_BEFORE_UNKNOWN-1 reads (with backoff), then report Stopped
+                    // plus commFailures so the home shows 异常 · 无法读取模块状态 instead of a
+                    // plain 未连接. The next successful read restores everything.
+                    failures++
+                    val code = RootModuleClient.safeError(e)
+                    if (failures >= FAILURES_BEFORE_UNKNOWN) {
+                        snapshot = null; DataStore.currentProfile = 0; DataStore.mixedInboundAuthed = false
+                        data.changeState(BaseService.State.Stopped)
+                    }
+                    data.binder.broadcast {
+                        it.cbSpeedUpdate(io.nekohasekai.sagernet.aidl.SpeedDisplayData(
+                            modulePhase = snapshot?.phase.orEmpty(), moduleHealth = snapshot?.health.orEmpty(),
+                            moduleError = code, commFailures = failures
+                        ))
+                    }
                 }
-            }, isInteractive = { SagerNet.power.isInteractive })
+            }, isInteractive = { SagerNet.power.isInteractive }, failures = { failures })
             // Bound UI/tile only, never an App background watchdog.
         }
         return super<BaseService.Interface>.onBind(intent)
@@ -83,6 +107,8 @@ class RootTunService : Service(), BaseService.Interface {
     // preview.17: 连接测试详细错误状态（负数返回码）
     // UI 层根据返回码显示具体错误信息，而非一律"网络不可用"
     companion object {
+        /** phase2: consecutive failed status reads before the UI stops trusting the last state. */
+        const val FAILURES_BEFORE_UNKNOWN = 3
         const val TEST_OK_MIN = 1 // >=1 表示成功，值为延迟 ms
         const val TEST_FAIL_GENERIC = 0
         const val TEST_ERR_NOT_CONNECTED = -1 // 模块未连接

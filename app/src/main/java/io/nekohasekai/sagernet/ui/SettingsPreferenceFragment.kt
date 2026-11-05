@@ -351,6 +351,53 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             }
             preferenceScreen.addPreference(colors)
         }
+        if (section == "root") addHealthCheckPreferences()
+    }
+
+    /** phase2: node health check policy (module side reads files/health_check.json) + one-tap failover. */
+    private fun addHealthCheckPreferences() {
+        val ctx = requireContext()
+        val modes = arrayOf("notify", "auto", "off")
+        val summaries = arrayOf(R.string.health_check_summary_notify, R.string.health_check_summary_auto, R.string.health_check_summary_off)
+        fun summaryOf(mode: String) = getString(summaries[modes.indexOf(mode).coerceAtLeast(0)]) + "\n" + getString(R.string.health_check_apply_hint)
+        val list = androidx.preference.ListPreference(ctx).apply {
+            key = "healthCheckMode"
+            setTitle(R.string.health_check_title)
+            setIcon(R.drawable.ic_line_heart)
+            entries = summaries.map { getString(it).substringBefore('：').substringBefore(':') }.toTypedArray()
+            entryValues = modes
+            setDefaultValue("notify")
+            value = DataStore.healthCheckMode.takeIf { it in modes } ?: "notify"
+            summary = summaryOf(value)
+            order = 100
+            setOnPreferenceChangeListener { pref, newValue ->
+                pref.summary = summaryOf(newValue as String)
+                needReload()
+                true
+            }
+        }
+        preferenceScreen.addPreference(list)
+        preferenceScreen.addPreference(Preference(ctx).apply {
+            key = "healthCheckFailoverNow"
+            setTitle(R.string.home_failover)
+            setIcon(R.drawable.ic_line_swap)
+            isPersistent = false
+            order = 101
+            setOnPreferenceClickListener {
+                val activity = requireActivity()
+                runOnDefaultDispatcher {
+                    val error = try {
+                        io.nekohasekai.sagernet.bg.RootModuleClient.call("node failover"); null
+                    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { e }
+                    onMainDispatcher {
+                        if (activity.isFinishing || activity.isDestroyed) return@onMainDispatcher
+                        android.widget.Toast.makeText(activity, if (error == null) activity.getString(R.string.home_failover_done)
+                            else io.nekohasekai.sagernet.bg.RootModuleErrors.message(activity, error), android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+                true
+            }
+        })
     }
 
     private fun collectLeaves(group: PreferenceGroup, out: MutableList<Preference>) {
