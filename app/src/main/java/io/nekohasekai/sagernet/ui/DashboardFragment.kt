@@ -19,6 +19,10 @@ import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.bg.RootTunService
+import io.nekohasekai.sagernet.GroupType
+import io.nekohasekai.sagernet.group.GroupUpdater
+import io.nekohasekai.sagernet.ktx.onMainDispatcher
+import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.utils.LandingIpInfo
@@ -74,6 +78,46 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         view.findViewById<View>(R.id.landingIpLayout).setOnClickListener {
             val cached = LandingIpManager.getCachedInfo() ?: return@setOnClickListener refreshLandingIp(view, force = true)
             LandingIpBottomSheet.show(requireActivity(), cached) { refreshLandingIp(view, force = true) }
+        }
+        // feat(home): 首页「更新订阅」——更新全部订阅（与订阅页「全部更新」同一逻辑，无二次确认）
+        view.findViewById<View>(R.id.btnUpdateSubscription).setOnClickListener { updateAllSubscriptions(it) }
+    }
+
+    private fun updateAllSubscriptions(button: View) {
+        val host = activity as? MainActivity ?: return
+        button.isEnabled = false
+        runOnDefaultDispatcher {
+            val groups = SagerDatabase.groupDao.allGroups().filter { it.type == GroupType.SUBSCRIPTION }
+            if (groups.isEmpty()) {
+                onMainDispatcher {
+                    button.isEnabled = true
+                    host.snackbar(host.getString(R.string.minimal_no_subscription)).show()
+                }
+                return@runOnDefaultDispatcher
+            }
+            val results = supervisorScope {
+                groups.map { group ->
+                    async {
+                        try {
+                            GroupUpdater.executeUpdate(group, false)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Throwable) {
+                            Logs.w("Home update failed for ${group.displayName()}: ${e.readableMessage}")
+                            false
+                        }
+                    }
+                }.awaitAll()
+            }
+            val ok = results.count { it }
+            val fail = results.size - ok
+            onMainDispatcher {
+                button.isEnabled = true
+                if (host.isFinishing || host.isDestroyed) return@onMainDispatcher
+                host.snackbar(
+                    if (fail == 0) "全部订阅更新完成（共 ${ok} 个）" else "订阅更新完成：${ok} 个成功，${fail} 个失败"
+                ).show()
+            }
         }
     }
 
