@@ -187,11 +187,6 @@ class MainActivity : ThemedActivity(),
             if (DataStore.hapticFeedback) it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (DataStore.serviceState.connected) binding.stats.testConnection()
         }
-        binding.stats.setOnLongClickListener {
-            if (DataStore.hapticFeedback) it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-            startActivity(Intent(this, TrafficChartActivity::class.java))
-            true
-        }
 
         setContentView(binding.root)
         handleTileIntent(intent)

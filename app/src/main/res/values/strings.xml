@@ -915,16 +915,11 @@
     <string name="advanced_settings">Advanced Settings</string>
     <string name="widget_toggle">Tap to toggle connection</string>
     <string name="switch_node">Switch Node</string>
-    <string name="traffic_chart_title">Real-time Traffic Chart</string>
-    <string name="traffic_chart_summary">View real-time speed chart and traffic throughput statistics</string>
-    <string name="traffic_current_up">Upload Speed</string>
-    <string name="traffic_current_down">Download Speed</string>
     <string name="traffic_peak">Peak</string>
     <string name="traffic_active_connections">Active Connections</string>
     <string name="traffic_close_all">Close All</string>
     <string name="traffic_close_all_confirm">Close all active connections?</string>
     <string name="traffic_no_connections">No active connections</string>
-    <string name="traffic_waiting_clash">Waiting for Clash API or VPN not started...</string>
     <string name="group_all">All</string>
     <string name="close">Close</string>
     <string name="landing_ip_details_title">Landing IP Details</string>
@@ -968,10 +963,6 @@
     <string name="ip_purity_device_other">🌐 Wired / Other Network</string>
     <string name="ip_purity_mobile_title">Exit Node is Mobile Cellular (Mobile IP)</string>
     <string name="ip_purity_mobile_tip">💡 Note: \"Exit is Mobile IP\" detects the proxy exit server line type, not your device\'s local network connection. Your local network status is displayed above.</string>
-    <string name="traffic_chart_monitor_active">● Live Monitor Active</string>
-    <string name="traffic_chart_not_connected_hint">Proxy service is disconnected. Please connect on main screen to monitor traffic and connections.</string>
-    <string name="traffic_chart_go_connect">Go Connect</string>
-    <string name="traffic_chart_refresh">Refresh</string>
     <string name="traffic_total_upload">Total Up</string>
     <string name="traffic_total_download">Total Down</string>
     <string name="show_landing_ip">Show Landing IP</string>

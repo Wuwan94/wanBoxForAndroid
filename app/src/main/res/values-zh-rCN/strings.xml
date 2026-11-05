@@ -815,16 +815,11 @@
     <string name="advanced_settings">进阶设置</string>
     <string name="widget_toggle">点击切换连接</string>
     <string name="switch_node">切换节点</string>
-    <string name="traffic_chart_title">实时流量图表</string>
-    <string name="traffic_chart_summary">查看实时上下行速率动态图表与流量吞吐统计</string>
-    <string name="traffic_current_up">实时上传</string>
-    <string name="traffic_current_down">实时下载</string>
     <string name="traffic_peak">峰值</string>
     <string name="traffic_active_connections">活跃连接数</string>
     <string name="traffic_close_all">断开全部</string>
     <string name="traffic_close_all_confirm">确定断开当前所有网络连接吗？</string>
     <string name="traffic_no_connections">暂无活跃连接</string>
-    <string name="traffic_waiting_clash">正在等待 Clash API 连接，请确保 VPN 已启动...</string>
     <string name="group_all">全部</string>
     <string name="close">关闭</string>
     <string name="landing_ip_details_title">落地 IP 详情</string>
@@ -868,10 +863,6 @@
     <string name="ip_purity_device_other">🌐 本地有线/其他网络</string>
     <string name="ip_purity_mobile_title">节点出口是否为蜂窝 IP (Mobile IP)</string>
     <string name="ip_purity_mobile_tip">💡 提示：“节点出口是否为蜂窝 IP”检测的是代理节点落地服务器的出口线路属性，并非您手机当前的物理连接方式。上方已为您同步展示手机本机的联网状态。</string>
-    <string name="traffic_chart_monitor_active">● 实时监控已就绪</string>
-    <string name="traffic_chart_not_connected_hint">代理服务未连接，请先在主界面开启代理连接以监控实时流量与活跃连接</string>
-    <string name="traffic_chart_go_connect">前往连接</string>
-    <string name="traffic_chart_refresh">刷新连接</string>
     <string name="traffic_total_upload">总上传</string>
     <string name="traffic_total_download">总下载</string>
     <string name="show_landing_ip">显示落地 IP</string>
