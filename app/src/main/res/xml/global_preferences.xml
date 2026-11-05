@@ -107,12 +107,6 @@
             app:title="@string/lan_sharing" />
 
         <SwitchPreference
-            app:icon="@drawable/ic_navigation_apps"
-            app:key="proxyApps"
-            app:summary="@string/proxied_apps_summary"
-            app:title="@string/proxied_apps" />
-
-        <SwitchPreference
             app:icon="@drawable/ic_baseline_legend_toggle_24"
             app:key="bypassLan"
             app:title="@string/route_opt_bypass_lan" />
@@ -157,13 +151,6 @@
             app:key="connectionTestURL"
             app:title="@string/connection_test_url"
             app:useSimpleSummaryProvider="true" />
-
-        <SwitchPreference
-            app:defaultValue="false"
-            app:icon="@drawable/ic_baseline_filter_list_24"
-            app:key="hideUnavailableProfiles"
-            app:summary="@string/hide_unavailable_profiles_sum"
-            app:title="@string/hide_unavailable_profiles" />
 
         <moe.matsuri.nb4a.ui.SimpleMenuPreference
             app:defaultValue="@string/default_speed_test_mode"

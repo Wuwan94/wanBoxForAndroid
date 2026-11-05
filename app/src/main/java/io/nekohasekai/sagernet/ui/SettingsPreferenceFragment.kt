@@ -35,7 +35,6 @@ import libcore.Libcore
 
 class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataStoreChangeListener {
 
-    private lateinit var isProxyApps: SwitchPreference
 
     private lateinit var globalCustomConfig: EditConfigPreference
 
@@ -191,12 +190,6 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             valid
         }
 
-        isProxyApps = findPreference(Key.PROXY_APPS)!!
-        isProxyApps.setOnPreferenceChangeListener { _, newValue ->
-            startActivity(Intent(activity, AppManagerActivity::class.java))
-            if (newValue as Boolean) DataStore.dirty = true
-            newValue
-        }
 
 
         // preview.17: TUN 实现固定为 Sing-Tun，不再提供选择入口
@@ -417,9 +410,6 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
     override fun onResume() {
         super.onResume()
 
-        if (::isProxyApps.isInitialized) {
-            isProxyApps.isChecked = DataStore.proxyApps
-        }
         if (::globalCustomConfig.isInitialized) {
             globalCustomConfig.notifyChanged()
         }
@@ -503,10 +493,10 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             "appearance" to listOf(
                 "nightTheme", "appLanguage", "profileCardStyle", "profileTrafficStatistics",
                 "showLandingIp", "alwaysShowAddress", "show_subscription_info_card",
-                "hideUnavailableProfiles", "confirmProfileDelete", "hapticFeedback",
+                "confirmProfileDelete", "hapticFeedback",
             ),
             "root" to listOf(
-                "proxyApps", "bypassLan", "bypassLanInCore", "strictRoute",
+                "bypassLan", "bypassLanInCore", "strictRoute",
                 "mtu", "performancePriorityMode",
                 "disableMixedInbound", "mixedPort", "mixedAuthConfig", "lanSharing",
             ),

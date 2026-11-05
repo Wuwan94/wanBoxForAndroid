@@ -287,7 +287,6 @@
     <string name="mux_brutal_down_mbps">Download (Mbps)</string>
     <string name="tcp_keep_alive_interval">TCP keep active packet delivery interval</string>
     <string name="proxied_apps">Apps VPN mode</string>
-    <string name="proxied_apps_summary">Configure VPN mode for selected apps</string>
     <string name="on">On</string>
     <string name="off">Off</string>
     <string name="search_apps">Search…</string>
@@ -676,7 +675,6 @@
         Please update!</string>
     <string name="connection_test_delete_unavailable">Clear unavailable</string>
     <string name="hide_unavailable_profiles">Hide unavailable profiles</string>
-    <string name="hide_unavailable_profiles_sum">Automatically soft-hide profiles that failed connection test; restore when re-tested reachable</string>
     <string name="move">Move</string>
     <string name="exe_prefer_provider">Plugin Preferred Provider</string>
     <string name="create_shortcut">Create Shortcut</string>
