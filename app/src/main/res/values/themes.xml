@@ -1,47 +1,58 @@
 <!-- @author 雾晚 -->
 <resources>
     <!-- Base application theme. -->
-    <style name="Theme.SagerNet" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <style name="Theme.SagerNet" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="actionBarStyle">@style/Widget.MaterialComponents.ActionBar.Solid</item>
         <item name="actionModeCloseDrawable">@drawable/ic_navigation_close</item>
         <item name="colorButtonNormal">?colorAccent</item>
         <item name="android:navigationBarColor">?colorPrimaryDark</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="colorPrimary">@color/wanbox_blue_primary</item>
-        <item name="colorPrimaryDark">@color/wanbox_blue_primary_dark</item>
-        <item name="colorAccent">@color/wanbox_blue_accent</item>
+        <item name="android:windowLightStatusBar">@bool/wb_light_bars</item>
+        <item name="colorPrimary">@color/milktea_primary</item>
+        <item name="colorPrimaryDark">@color/milktea_primary</item>
+        <item name="colorAccent">@color/milktea_primary</item>
+        <item name="colorPrimaryContainer">@color/milktea_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/milktea_on_primary_container</item>
+        <item name="colorSecondary">@color/milktea_secondary</item>
+        <item name="colorOnSecondary">@color/milktea_on_secondary</item>
+        <item name="colorSecondaryContainer">@color/milktea_secondary_container</item>
+        <item name="colorOnSecondaryContainer">@color/milktea_on_secondary_container</item>
+        <item name="colorTertiary">@color/milktea_tertiary</item>
+        <item name="colorOnTertiary">@color/milktea_on_tertiary</item>
+        <item name="colorTertiaryContainer">@color/milktea_tertiary_container</item>
+        <item name="colorOnTertiaryContainer">@color/milktea_on_tertiary_container</item>
+        <item name="colorError">@color/milktea_error</item>
+        <item name="colorOnError">@color/milktea_on_error</item>
+        <item name="colorErrorContainer">@color/milktea_error_container</item>
+        <item name="colorOnErrorContainer">@color/milktea_on_error_container</item>
+        <item name="colorOutlineVariant">@color/milktea_outline_variant</item>
+        <item name="colorSurfaceContainerLowest">@color/milktea_surface_container_lowest</item>
+        <item name="colorSurfaceContainerLow">@color/milktea_surface_container_low</item>
+        <item name="colorSurfaceContainer">@color/milktea_surface_container</item>
+        <item name="colorSurfaceContainerHigh">@color/milktea_surface_container_high</item>
+        <item name="colorSurfaceContainerHighest">@color/milktea_surface_container_highest</item>
+        <item name="colorSurfaceInverse">@color/milktea_inverse_surface</item>
+        <item name="colorOnSurfaceInverse">@color/milktea_inverse_on_surface</item>
+        <item name="colorPrimaryInverse">@color/milktea_inverse_primary</item>
 
         <item name="colorMaterial100">@color/material_pink_100</item>
         <item name="colorMaterial300">@color/material_pink_300</item>
 
-        <item name="android:colorBackground">@color/md3_background</item>
-        <item name="colorSurface">@color/md3_surface</item>
-        <item name="android:textColorPrimary">@color/md3_text_primary</item>
-        <item name="android:textColorSecondary">@color/md3_text_secondary</item>
+        <item name="android:colorBackground">@color/milktea_background</item>
+        <item name="android:windowBackground">@color/milktea_background</item>
+        <item name="colorSurface">@color/milktea_surface_container_lowest</item>
+        <item name="android:textColorPrimary">@color/milktea_on_surface</item>
+        <item name="android:textColorSecondary">@color/milktea_on_surface_variant</item>
         <item name="colorOnSurface">?android:attr/textColorPrimary</item>
         <item name="colorOnSurfaceVariant">?android:attr/textColorSecondary</item>
-        <item name="colorSurfaceVariant">@color/md3_background</item>
-        <item name="colorOutline">@color/card_stroke</item>
+        <item name="colorSurfaceVariant">@color/milktea_surface_variant</item>
+        <item name="colorOutline">@color/milktea_outline</item>
 
         <!-- Switch, RadioButton, CheckBox 激活色严格收敛至自定义主题主色 -->
         <item name="colorControlActivated">?colorPrimary</item>
 
-        <item name="textAppearanceHeadlineLarge">?attr/textAppearanceHeadline4</item>
-        <item name="textAppearanceHeadlineMedium">?attr/textAppearanceHeadline5</item>
-        <item name="textAppearanceHeadlineSmall">?attr/textAppearanceHeadline6</item>
-        <item name="textAppearanceTitleLarge">?attr/textAppearanceHeadline6</item>
-        <item name="textAppearanceTitleMedium">?attr/textAppearanceSubtitle1</item>
-        <item name="textAppearanceTitleSmall">?attr/textAppearanceSubtitle2</item>
-        <item name="textAppearanceBodyLarge">?attr/textAppearanceBody1</item>
-        <item name="textAppearanceBodyMedium">?attr/textAppearanceBody2</item>
-        <item name="textAppearanceBodySmall">?attr/textAppearanceCaption</item>
-        <item name="textAppearanceLabelLarge">?attr/textAppearanceButton</item>
-        <item name="textAppearanceLabelMedium">?attr/textAppearanceButton</item>
-        <item name="textAppearanceLabelSmall">?attr/textAppearanceCaption</item>
-
         <!-- 立体卡片提升表面色，默认遵循 MD3 规范使用标准表面色 -->
-        <item name="cardElevatedSurfaceColor">@color/md3_surface</item>
+        <item name="cardElevatedSurfaceColor">@color/milktea_surface_container_low</item>
 
         <item name="accentOrTextSecondary">?colorAccent</item>
         <item name="accentOrTextPrimary">?colorAccent</item>
@@ -95,41 +106,53 @@
 
     </style>
 
-    <style name="Theme.SagerNet.Dialog" parent="Theme.MaterialComponents.DayNight.Dialog.Alert">
+    <style name="Theme.SagerNet.Dialog" parent="Theme.Material3.DayNight.Dialog.Alert">
         <item name="actionBarStyle">@style/Widget.MaterialComponents.ActionBar.Solid</item>
         <item name="actionModeCloseDrawable">@drawable/ic_navigation_close</item>
         <item name="colorButtonNormal">?colorAccent</item>
         <item name="android:navigationBarColor">?colorPrimaryDark</item>
-        <item name="colorPrimary">@color/wanbox_blue_primary</item>
-        <item name="colorPrimaryDark">@color/wanbox_blue_primary_dark</item>
-        <item name="colorAccent">@color/wanbox_blue_accent</item>
+        <item name="colorPrimary">@color/milktea_primary</item>
+        <item name="colorPrimaryDark">@color/milktea_primary</item>
+        <item name="colorAccent">@color/milktea_primary</item>
+        <item name="colorPrimaryContainer">@color/milktea_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/milktea_on_primary_container</item>
+        <item name="colorSecondary">@color/milktea_secondary</item>
+        <item name="colorOnSecondary">@color/milktea_on_secondary</item>
+        <item name="colorSecondaryContainer">@color/milktea_secondary_container</item>
+        <item name="colorOnSecondaryContainer">@color/milktea_on_secondary_container</item>
+        <item name="colorTertiary">@color/milktea_tertiary</item>
+        <item name="colorOnTertiary">@color/milktea_on_tertiary</item>
+        <item name="colorTertiaryContainer">@color/milktea_tertiary_container</item>
+        <item name="colorOnTertiaryContainer">@color/milktea_on_tertiary_container</item>
+        <item name="colorError">@color/milktea_error</item>
+        <item name="colorOnError">@color/milktea_on_error</item>
+        <item name="colorErrorContainer">@color/milktea_error_container</item>
+        <item name="colorOnErrorContainer">@color/milktea_on_error_container</item>
+        <item name="colorOutlineVariant">@color/milktea_outline_variant</item>
+        <item name="colorSurfaceContainerLowest">@color/milktea_surface_container_lowest</item>
+        <item name="colorSurfaceContainerLow">@color/milktea_surface_container_low</item>
+        <item name="colorSurfaceContainer">@color/milktea_surface_container</item>
+        <item name="colorSurfaceContainerHigh">@color/milktea_surface_container_high</item>
+        <item name="colorSurfaceContainerHighest">@color/milktea_surface_container_highest</item>
+        <item name="colorSurfaceInverse">@color/milktea_inverse_surface</item>
+        <item name="colorOnSurfaceInverse">@color/milktea_inverse_on_surface</item>
+        <item name="colorPrimaryInverse">@color/milktea_inverse_primary</item>
 
         <item name="colorMaterial100">@color/material_pink_100</item>
         <item name="colorMaterial300">@color/material_pink_300</item>
 
-        <item name="android:colorBackground">@color/md3_background</item>
-        <item name="colorSurface">@color/md3_surface</item>
-        <item name="android:textColorPrimary">@color/md3_text_primary</item>
-        <item name="android:textColorSecondary">@color/md3_text_secondary</item>
+        <item name="android:colorBackground">@color/milktea_background</item>
+        <item name="android:windowBackground">@color/milktea_background</item>
+        <item name="colorSurface">@color/milktea_surface_container_lowest</item>
+        <item name="android:textColorPrimary">@color/milktea_on_surface</item>
+        <item name="android:textColorSecondary">@color/milktea_on_surface_variant</item>
         <item name="colorOnSurface">?android:attr/textColorPrimary</item>
         <item name="colorOnSurfaceVariant">?android:attr/textColorSecondary</item>
-        <item name="colorSurfaceVariant">@color/md3_background</item>
+        <item name="colorSurfaceVariant">@color/milktea_surface_variant</item>
         <item name="colorControlActivated">?colorPrimary</item>
-        <item name="textAppearanceHeadlineLarge">?attr/textAppearanceHeadline4</item>
-        <item name="textAppearanceHeadlineMedium">?attr/textAppearanceHeadline5</item>
-        <item name="textAppearanceHeadlineSmall">?attr/textAppearanceHeadline6</item>
-        <item name="textAppearanceTitleLarge">?attr/textAppearanceHeadline6</item>
-        <item name="textAppearanceTitleMedium">?attr/textAppearanceSubtitle1</item>
-        <item name="textAppearanceTitleSmall">?attr/textAppearanceSubtitle2</item>
-        <item name="textAppearanceBodyLarge">?attr/textAppearanceBody1</item>
-        <item name="textAppearanceBodyMedium">?attr/textAppearanceBody2</item>
-        <item name="textAppearanceBodySmall">?attr/textAppearanceCaption</item>
-        <item name="textAppearanceLabelLarge">?attr/textAppearanceButton</item>
-        <item name="textAppearanceLabelMedium">?attr/textAppearanceButton</item>
-        <item name="textAppearanceLabelSmall">?attr/textAppearanceCaption</item>
 
         <!-- 立体卡片提升表面色，默认遵循 MD3 规范使用标准表面色 -->
-        <item name="cardElevatedSurfaceColor">@color/md3_surface</item>
+        <item name="cardElevatedSurfaceColor">@color/milktea_surface_container_low</item>
 
         <item name="accentOrTextSecondary">?colorAccent</item>
         <item name="accentOrTextPrimary">?colorAccent</item>
@@ -185,7 +208,7 @@
         <item name="android:textStyle">bold</item>
     </style>
 
-    <style name="ThemeOverlay.MaterialComponents.MaterialAlertDialog.SagerNet">
+    <style name="ThemeOverlay.MaterialComponents.MaterialAlertDialog.SagerNet" parent="ThemeOverlay.Material3.MaterialAlertDialog">
         <item name="shapeAppearanceOverlay">@style/ShapeAppearanceOverlay.SagerNet.Dialog</item>
         <item name="buttonBarPositiveButtonStyle">
             @style/Widget.MaterialComponents.Button.TextButton.Dialog.Primary
@@ -215,10 +238,10 @@
         <item name="rippleColor">@color/chip_ripple_color</item>
     </style>
 
-    <style name="Widget.SagerNet.CardView" parent="Widget.MaterialComponents.CardView">
+    <style name="Widget.SagerNet.CardView" parent="Widget.Material3.CardView.Outlined">
         <item name="cardElevation">0dp</item>
         <item name="cardCornerRadius">@dimen/profile_card_corner_radius</item>
-        <item name="strokeColor">@color/card_stroke</item>
+        <item name="strokeColor">@color/minimal_line</item>
         <item name="strokeWidth">@dimen/card_stroke_width</item>
         <item name="cardBackgroundColor">?attr/colorSurface</item>
     </style>
@@ -256,11 +279,11 @@
     <style name="ThemeOverlay.SagerNet.Toolbar" parent="ThemeOverlay.MaterialComponents.Toolbar.Surface">
         <item name="colorControlNormal">?android:attr/textColorPrimary</item>
         <item name="actionMenuTextColor">?android:attr/textColorPrimary</item>
-        <item name="colorSurface">@color/md3_surface</item>
-        <item name="android:colorBackground">@color/md3_surface</item>
+        <item name="colorSurface">?attr/colorSurface</item>
+        <item name="android:colorBackground">?android:attr/colorBackground</item>
     </style>
 
-    <style name="Widget.SagerNet.TabLayout" parent="Widget.MaterialComponents.TabLayout">
+    <style name="Widget.SagerNet.TabLayout" parent="Widget.Material3.TabLayout">
         <item name="tabTextAppearance">@style/Widget.SagerNet.TabLayout.TextAppearance</item>
         <item name="tabTextColor">?attr/tabTextColor</item>
         <item name="tabSelectedTextColor">?attr/tabSelectedTextColor</item>
@@ -296,7 +319,7 @@
         <item name="cornerFamily">rounded</item>
         <item name="cornerSize">@dimen/input_corner_radius</item>
     </style>
-    <style name="Widget.SagerNet.TextInputLayout" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+    <style name="Widget.SagerNet.TextInputLayout" parent="Widget.Material3.TextInputLayout.OutlinedBox">
         <item name="shapeAppearanceOverlay">@style/ShapeAppearanceOverlay.SagerNet.Input</item>
     </style>
 
@@ -321,10 +344,10 @@
         <item name="cornerSizeBottomLeft">0dp</item>
         <item name="cornerSizeBottomRight">0dp</item>
     </style>
-    <style name="Widget.SagerNet.BottomSheet" parent="Widget.MaterialComponents.BottomSheet.Modal">
+    <style name="Widget.SagerNet.BottomSheet" parent="Widget.Material3.BottomSheet.Modal">
         <item name="shapeAppearanceOverlay">@style/ShapeAppearanceOverlay.SagerNet.BottomSheet</item>
     </style>
-    <style name="ThemeOverlay.SagerNet.BottomSheetDialog" parent="ThemeOverlay.MaterialComponents.BottomSheetDialog">
+    <style name="ThemeOverlay.SagerNet.BottomSheetDialog" parent="ThemeOverlay.Material3.BottomSheetDialog">
         <item name="bottomSheetStyle">@style/Widget.SagerNet.BottomSheet</item>
     </style>
 
@@ -332,7 +355,7 @@
         <item name="cornerFamily">rounded</item>
         <item name="cornerSize">@dimen/button_corner_radius</item>
     </style>
-    <style name="Widget.SagerNet.Button" parent="Widget.MaterialComponents.Button">
+    <style name="Widget.SagerNet.Button" parent="Widget.Material3.Button">
         <item name="shapeAppearanceOverlay">@style/ShapeAppearanceOverlay.SagerNet.Button</item>
     </style>
 
@@ -860,6 +883,11 @@
         <item name="selectedColorPrimary">@color/color_light_gray_primary</item>
     </style>
 
+    <!-- phase2 方向 A「奶糖猫」：基础主题即奶茶粉配色，这里给一个可选择的名字（默认主题）。 -->
+    <style name="Theme.SagerNet.MilkTea" parent="Theme.SagerNet" />
+
+    <style name="Theme.SagerNet.Dialog.MilkTea" parent="Theme.SagerNet.Dialog" />
+
     <style name="Theme.SagerNet.Monet" parent="Theme.SagerNet" />
 
     <style name="Theme.SagerNet.Dialog.Monet" parent="Theme.SagerNet.Dialog" />
@@ -900,7 +928,7 @@
     </style>
 
 
-    <style name="Theme.OwnBox.Dialog" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <style name="Theme.OwnBox.Dialog" parent="Theme.SagerNet">
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowNoTitle">true</item>

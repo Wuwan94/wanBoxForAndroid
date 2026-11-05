@@ -113,7 +113,7 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.8.1")
     implementation("androidx.work:work-multiprocess:2.8.1")
 
-    implementation("com.google.android.material:material:1.8.0")
+    implementation("com.google.android.material:material:1.12.0")
     implementation("com.google.code.gson:gson:2.9.0")
     // @author 雾晚 (B 路线): 瘦管理器没有内嵌核心，.xz 资源解压改由纯 Java 实现（约 120KB dex）。
     implementation("org.tukaani:xz:1.10")

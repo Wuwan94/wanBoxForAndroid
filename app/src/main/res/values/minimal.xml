@@ -1,27 +1,14 @@
 <?xml version="1.0" ?>
 <resources>
-    <color name="minimal_background">#FFFFFF</color>
-    <color name="minimal_card">#FAFAFB</color>
-    <color name="minimal_selected">#F1F2F3</color>
-    <color name="minimal_segment">#F7F7F8</color>
-    <color name="minimal_active">#E7E8EA</color>
-    <color name="minimal_text">#18191B</color>
-    <color name="minimal_secondary">#70757C</color>
-    <color name="minimal_line">#ECEDEF</color>
-    <color name="minimal_icon">#565B63</color>
-    <color name="minimal_data">#1D5FBF</color>
-    <color name="minimal_connected">#247B50</color>
-    <style name="Widget.WanBox.Minimal.Card" parent="Widget.MaterialComponents.CardView">
+    <style name="Widget.WanBox.Minimal.Card" parent="Widget.Material3.CardView.Outlined">
         <item name="cardBackgroundColor">@color/minimal_card</item>
         <item name="cardCornerRadius">@dimen/card_corner_radius</item>
         <item name="cardElevation">0dp</item>
         <item name="strokeColor">@color/minimal_line</item>
         <item name="strokeWidth">1dp</item>
     </style>
-    <style name="Widget.WanBox.Minimal.DashboardCard" parent="Widget.WanBox.Minimal.Card">
-        <item name="cardCornerRadius">8dp</item>
-    </style>
-    <style name="Widget.WanBox.Minimal.Segment" parent="Widget.MaterialComponents.Button.TextButton">
+    <style name="Widget.WanBox.Minimal.DashboardCard" parent="Widget.WanBox.Minimal.Card" />
+    <style name="Widget.WanBox.Minimal.Segment" parent="Widget.Material3.Button.TextButton">
         <item name="android:textColor">@color/minimal_text</item>
         <item name="android:textSize">14sp</item>
         <item name="android:minWidth">0dp</item>
@@ -29,17 +16,17 @@
         <item name="android:insetTop">0dp</item>
         <item name="android:insetBottom">0dp</item>
         <item name="android:textAllCaps">false</item>
-        <item name="cornerRadius">10dp</item>
+        <item name="cornerRadius">@dimen/corner_small</item>
     </style>
     <style name="Widget.WanBox.Minimal.DashboardSegment" parent="Widget.WanBox.Minimal.Segment">
-        <item name="cornerRadius">6dp</item>
+        <item name="cornerRadius">@dimen/corner_small</item>
     </style>
-    <style name="Widget.WanBox.Minimal.Action" parent="Widget.MaterialComponents.Button.OutlinedButton">
+    <style name="Widget.WanBox.Minimal.Action" parent="Widget.Material3.Button.OutlinedButton">
         <item name="android:textColor">@color/minimal_text</item>
         <item name="iconTint">@color/minimal_icon</item>
         <item name="strokeColor">@color/minimal_line</item>
         <item name="strokeWidth">1dp</item>
-        <item name="cornerRadius">8dp</item>
+        <item name="cornerRadius">@dimen/corner_small</item>
         <item name="android:textAllCaps">false</item>
         <item name="android:textSize">13sp</item>
         <item name="android:minHeight">48dp</item>

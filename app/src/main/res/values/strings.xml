@@ -1249,4 +1249,17 @@
     <string name="settings_group_runtime">Runtime</string>
     <string name="settings_group_maintenance">Maintenance &amp; Diagnostics</string>
     <string name="settings_group_advanced">Advanced</string>
+    <string name="theme_mode_milktea">Milk tea</string>
+    <!-- phase2: node-page more-menu titles (were hardcoded Chinese in ConfigurationFragment) -->
+    <string name="menu_export_search_results">Export search results</string>
+    <string name="menu_export_all">Export (all groups)</string>
+    <string name="menu_export_group">Export (this group)</string>
+    <string name="menu_url_test_all">URL test (all)</string>
+    <string name="menu_speed_test_all">Speed test (all)</string>
+    <string name="menu_clear_traffic_all">Clear all traffic statistics</string>
+    <string name="menu_remove_duplicate_all">Remove all duplicate servers</string>
+    <string name="menu_clear_results_all">Clear all test results</string>
+    <string name="menu_delete_unavailable_all">Remove all unavailable profiles</string>
+    <string name="about_check_update_hint">Tap to check for updates</string>
+    <string name="about_open_releases">Open releases page</string>
 </resources>

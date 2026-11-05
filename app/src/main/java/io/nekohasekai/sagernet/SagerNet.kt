@@ -78,11 +78,16 @@ class SagerNet : Application(),
         }
 
         if (isMainProcess) {
-            // 主题颜色选择器已移除，强制迁移到浅灰主题
+            // phase2：旧版每次启动都把主题强制改回「浅灰」，导致外观主题色选了也不生效。
+            // 现改为一次性迁移：仅把旧版强制写入的 LIGHT_GRAY 迁到新的默认「奶茶粉」，
+            // 之后尊重用户在 外观 › 主题色 的选择（包括再次选择浅灰）。
             try {
-                val theme = io.nekohasekai.sagernet.database.DataStore.appTheme
-                if (theme != io.nekohasekai.sagernet.utils.Theme.LIGHT_GRAY) {
-                    io.nekohasekai.sagernet.database.DataStore.appTheme = io.nekohasekai.sagernet.utils.Theme.LIGHT_GRAY
+                val store = io.nekohasekai.sagernet.database.DataStore
+                if (!store.themeMilkTeaMigrated) {
+                    if (store.appTheme == io.nekohasekai.sagernet.utils.Theme.LIGHT_GRAY) {
+                        store.appTheme = io.nekohasekai.sagernet.utils.Theme.MILK_TEA
+                    }
+                    store.themeMilkTeaMigrated = true
                 }
             } catch (_: Exception) { }
         }
@@ -138,7 +143,7 @@ class SagerNet : Application(),
 
         if (isMainProcess) {
             if (!Theme.isSupportedTheme(DataStore.appTheme)) {
-                DataStore.appTheme = Theme.LIGHT_GRAY
+                DataStore.appTheme = Theme.MILK_TEA
             }
             Theme.apply(this)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && DataStore.useSystemTheme) {

@@ -56,9 +56,11 @@ object Theme {
     const val VERDANT_MINT = 22
     const val WHITE = 23
     const val LIGHT_GRAY = 24
+    /** phase2 方向 A「奶糖猫」奶茶粉（默认主题）。 */
+    const val MILK_TEA = 25
     const val CUSTOM = 99
 
-    fun isSupportedTheme(theme: Int): Boolean = theme in MONET..LIGHT_GRAY || theme == CUSTOM
+    fun isSupportedTheme(theme: Int): Boolean = theme in MONET..MILK_TEA || theme == CUSTOM
 
     fun customPrimaryColor(): Int {
         val stored = DataStore.customThemeColor
@@ -247,8 +249,9 @@ object Theme {
             VERDANT_MINT -> R.style.Theme_SagerNet_VerdantMint
             WHITE -> R.style.Theme_SagerNet_White
             LIGHT_GRAY -> R.style.Theme_SagerNet_LightGray
+            MILK_TEA -> R.style.Theme_SagerNet_MilkTea
             CUSTOM -> R.style.Theme_SagerNet_Custom
-            else -> R.style.Theme_SagerNet_LightGray
+            else -> R.style.Theme_SagerNet_MilkTea
         }
     }
 
@@ -279,8 +282,9 @@ object Theme {
             VERDANT_MINT -> R.style.Theme_SagerNet_Dialog_VerdantMint
             WHITE -> R.style.Theme_SagerNet_Dialog_White
             LIGHT_GRAY -> R.style.Theme_SagerNet_Dialog_LightGray
+            MILK_TEA -> R.style.Theme_SagerNet_Dialog_MilkTea
             CUSTOM -> R.style.Theme_SagerNet_Dialog_Custom
-            else -> R.style.Theme_SagerNet_Dialog_LightGray
+            else -> R.style.Theme_SagerNet_Dialog_MilkTea
         }
     }
 

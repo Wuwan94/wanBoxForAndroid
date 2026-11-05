@@ -1,7 +1,7 @@
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_checked="true">
         <inset android:insetLeft="14dp" android:insetRight="14dp" android:insetTop="4dp" android:insetBottom="4dp">
-            <shape><solid android:color="@color/minimal_active"/><corners android:radius="10dp"/></shape>
+            <shape><solid android:color="@color/minimal_active"/><corners android:radius="@dimen/corner_small"/></shape>
         </inset>
     </item>
     <item><shape><solid android:color="@android:color/transparent"/></shape></item>

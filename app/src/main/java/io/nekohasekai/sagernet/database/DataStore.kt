@@ -109,7 +109,9 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var rootUidPolicy by configurationStore.stringToInt(Key.ROOT_UID_POLICY) { 0 }
     //
     var isExpert by configurationStore.boolean(Key.APP_EXPERT)
-    var appTheme by configurationStore.int(Key.APP_THEME) { Theme.LIGHT_GRAY }
+    var appTheme by configurationStore.int(Key.APP_THEME) { Theme.MILK_TEA }
+    /** phase2: one-shot flag for the LIGHT_GRAY → MILK_TEA migration (see SagerNet.onCreate). */
+    var themeMilkTeaMigrated by configurationStore.boolean("themeMilkTeaMigrated") { false }
     val useSystemTheme: Boolean get() = false
     var nightTheme by configurationStore.stringToInt(Key.NIGHT_THEME)
     var appLanguage by configurationStore.string(Key.APP_LANGUAGE) { "" }

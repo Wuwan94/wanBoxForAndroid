@@ -1134,4 +1134,17 @@
     <string name="settings_group_runtime">运行</string>
     <string name="settings_group_maintenance">维护与诊断</string>
     <string name="settings_group_advanced">高级设置</string>
+    <string name="theme_mode_milktea">奶茶粉</string>
+    <!-- phase2: node-page more-menu titles (were hardcoded Chinese in ConfigurationFragment) -->
+    <string name="menu_export_search_results">导出搜索结果</string>
+    <string name="menu_export_all">导出配置（全部）</string>
+    <string name="menu_export_group">导出配置（本组）</string>
+    <string name="menu_url_test_all">URL 测试（全部）</string>
+    <string name="menu_speed_test_all">速度测试（全部）</string>
+    <string name="menu_clear_traffic_all">清空全部流量统计数据</string>
+    <string name="menu_remove_duplicate_all">删除全部重复的服务器</string>
+    <string name="menu_clear_results_all">清理全部测试结果</string>
+    <string name="menu_delete_unavailable_all">清理全部不可用配置</string>
+    <string name="about_check_update_hint">点按检查更新</string>
+    <string name="about_open_releases">打开发布页</string>
 </resources>

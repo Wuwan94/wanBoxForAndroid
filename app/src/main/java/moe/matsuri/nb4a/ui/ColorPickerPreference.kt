@@ -65,6 +65,7 @@ class ColorPickerPreference @JvmOverloads constructor(
             Theme.BLACK -> Color.BLACK
             Theme.WHITE -> Color.WHITE
             Theme.LIGHT_GRAY -> context.getColor(R.color.color_light_gray_bg)
+            Theme.MILK_TEA -> context.getColor(R.color.milktea_primary)
             Theme.CUSTOM -> Theme.customPrimaryColor()
             else -> Theme.getPrimaryColor(context)
         }
@@ -268,6 +269,7 @@ class ColorPickerPreference @JvmOverloads constructor(
 
         root.addView(sectionTitle(context.getString(R.string.theme_background_modes)))
         val modes = mutableListOf(
+            Theme.MILK_TEA to R.string.theme_mode_milktea,
             Theme.WHITE to R.string.theme_mode_white,
             Theme.LIGHT_GRAY to R.string.theme_mode_light_gray,
             Theme.BLACK to R.string.theme_mode_black

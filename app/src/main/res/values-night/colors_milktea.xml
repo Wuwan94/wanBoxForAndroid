@@ -48,4 +48,20 @@
     <color name="mascot_blush">#E99AA2</color>
     <color name="mascot_accent">#F0A7AE</color>
     <color name="mascot_sweat">#8EC5E8</color>
+    <!-- phase2 语义色：已连接（薄荷）/ 异常（珊瑚红）。用于状态点、日志级别、节点延迟等 -->
+    <color name="wb_state_connected">#8FD1B7</color>
+    <color name="wb_state_warning">#E8C07A</color>
+    <color name="wb_state_error">@color/milktea_error</color>
+    <color name="wb_scrim">#66000000</color>
+    <!-- phase2 小组件：RemoteViews 不能用主题属性，用成对颜色资源。
+         ownbox 小组件底是浅/深玻璃 → 文字随模式反转；liquid 系列是透明底叠在壁纸上 → 两种模式都用白字+阴影（设计如此）。 -->
+    <color name="wb_widget_text">#F4F6FB</color>
+    <color name="wb_widget_text_secondary">#A2B0C7</color>
+    <color name="wb_widget_on_wallpaper">#FFFFFFFF</color>
+    <color name="wb_widget_on_wallpaper_secondary">#E2E8F0</color>
+    <color name="wb_widget_on_wallpaper_tertiary">#CBD5E1</color>
+    <color name="wb_widget_on_wallpaper_accent">#F0B6B7</color>
+    <color name="wb_widget_shadow">#80000000</color>
+    <color name="wb_widget_shadow_strong">#99000000</color>
+    <color name="wb_state_idle">#94A3B8</color>
 </resources>
