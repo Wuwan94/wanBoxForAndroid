@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- @author 雾晚 (phase 2): 统一圆润线性图标（1.6 描边、圆角端点），与 ic_minimal_* 同一风格。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M7,11 L17,11 A2,2 0,0 1,19,13 L19,19 A2,2 0,0 1,17,21 L7,21 A2,2 0,0 1,5,19 L5,13 A2,2 0,0 1,7,11 Z M8,11 L8,8 A4,4 0,0 1,16,8 L16,11 M12,15 L12,17" android:fillColor="@android:color/transparent" android:strokeColor="@color/minimal_icon" android:strokeWidth="1.6" android:strokeLineCap="round" android:strokeLineJoin="round"/>
+</vector>

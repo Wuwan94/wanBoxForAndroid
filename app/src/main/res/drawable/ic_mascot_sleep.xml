@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- @author 雾晚 (phase 2) 奶糖猫 mascot: 未连接 · 睡觉 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+    <!-- ears -->
+    <path android:fillColor="@color/mascot_face" android:strokeColor="@color/mascot_line" android:strokeWidth="3" android:strokeLineJoin="round"
+        android:pathData="M27,50 L33,15 L57,35 Z" />
+    <path android:fillColor="@color/mascot_face" android:strokeColor="@color/mascot_line" android:strokeWidth="3" android:strokeLineJoin="round"
+        android:pathData="M93,50 L87,15 L63,35 Z" />
+    <path android:fillColor="@color/mascot_blush" android:pathData="M34,38 L37,23 L48,33 Z" />
+    <path android:fillColor="@color/mascot_blush" android:pathData="M86,38 L83,23 L72,33 Z" />
+    <!-- head -->
+    <path android:fillColor="@color/mascot_face" android:strokeColor="@color/mascot_line" android:strokeWidth="3"
+        android:pathData="M20,66 C20,44 38,32 60,32 C82,32 100,44 100,66 C100,86 82,98 60,98 C38,98 20,86 20,66 Z" />
+    <!-- cheeks -->
+    <path android:fillColor="@color/mascot_blush" android:fillAlpha="0.75" android:pathData="M30,76 a6,4 0 1,0 12,0 a6,4 0 1,0 -12,0 Z" />
+    <path android:fillColor="@color/mascot_blush" android:fillAlpha="0.75" android:pathData="M78,76 a6,4 0 1,0 12,0 a6,4 0 1,0 -12,0 Z" />
+    <!-- nose -->
+    <path android:fillColor="@color/mascot_line" android:pathData="M56.5,70 L63.5,70 L60,74 Z" />
+    <path android:fillColor="#00000000" android:strokeColor="@color/mascot_line" android:strokeWidth="3" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M37,64 Q43,69 49,64" />
+    <path android:fillColor="#00000000" android:strokeColor="@color/mascot_line" android:strokeWidth="3" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M71,64 Q77,69 83,64" />
+    <path android:fillColor="#00000000" android:strokeColor="@color/mascot_line" android:strokeWidth="3" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M55,80 Q60,83 65,80" />
+    <path android:fillColor="#00000000" android:strokeColor="@color/mascot_accent" android:strokeWidth="2.5" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M96,16 L104,16 L96,24 L104,24 M106,6 L112,6 L106,12 L112,12" />
+</vector>

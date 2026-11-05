@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- @author 雾晚 (phase 2) 视觉方向 A「奶糖猫」深色：可可棕底 + 柔奶茶粉。 -->
+<resources>
+    <color name="milktea_primary">#F0B6B7</color>
+    <color name="milktea_on_primary">#55242A</color>
+    <color name="milktea_primary_container">#71393D</color>
+    <color name="milktea_on_primary_container">#FFDAD9</color>
+    <color name="milktea_secondary">#DCC1B2</color>
+    <color name="milktea_on_secondary">#3E2D22</color>
+    <color name="milktea_secondary_container">#574337</color>
+    <color name="milktea_on_secondary_container">#F8DDCD</color>
+    <color name="milktea_tertiary">#A2D0C1</color>
+    <color name="milktea_on_tertiary">#0B372C</color>
+    <color name="milktea_tertiary_container">#2B5045</color>
+    <color name="milktea_on_tertiary_container">#BEEDDD</color>
+    <color name="milktea_background">#1B1514</color>
+    <color name="milktea_on_background">#F1DFDC</color>
+    <color name="milktea_surface">#1B1514</color>
+    <color name="milktea_on_surface">#F1DFDC</color>
+    <color name="milktea_surface_variant">#3A2E2C</color>
+    <color name="milktea_on_surface_variant">#D7C1BE</color>
+    <color name="milktea_surface_container_lowest">#150F0E</color>
+    <color name="milktea_surface_container_low">#231C1B</color>
+    <color name="milktea_surface_container">#271F1E</color>
+    <color name="milktea_surface_container_high">#322928</color>
+    <color name="milktea_surface_container_highest">#3D3332</color>
+    <color name="milktea_outline">#A08C89</color>
+    <color name="milktea_outline_variant">#4A3C3A</color>
+    <color name="milktea_error">#FF8A7A</color>
+    <color name="milktea_on_error">#5F150F</color>
+    <color name="milktea_error_container">#8C1D18</color>
+    <color name="milktea_on_error_container">#FFDAD5</color>
+    <color name="milktea_inverse_surface">#F1DFDC</color>
+    <color name="milktea_inverse_on_surface">#382E2D</color>
+    <color name="milktea_inverse_primary">#B5676B</color>
+
+    <color name="connect_idle_fill">#352B2A</color>
+    <color name="connect_idle_on">#CDB8B4</color>
+    <color name="connect_busy_fill">#3F2C2D</color>
+    <color name="connect_busy_on">#F0B6B7</color>
+    <color name="connect_on_fill">#D78C90</color>
+    <color name="connect_on_on">#2A1214</color>
+    <color name="connect_error_fill">#E9786C</color>
+    <color name="connect_error_on">#2A0E0A</color>
+
+    <color name="mascot_face">#F6E2D5</color>
+    <color name="mascot_line">#5A3E33</color>
+    <color name="mascot_blush">#E99AA2</color>
+    <color name="mascot_accent">#F0A7AE</color>
+    <color name="mascot_sweat">#8EC5E8</color>
+</resources>

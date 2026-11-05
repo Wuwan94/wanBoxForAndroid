@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- @author 雾晚 (phase 2) 视觉方向 A「奶糖猫」：奶油底 + 标志色奶茶粉，柔和但不幼稚。浅色。 -->
+<resources>
+    <color name="milktea_primary">#B5676B</color>
+    <color name="milktea_on_primary">#FFFFFF</color>
+    <color name="milktea_primary_container">#FADADB</color>
+    <color name="milktea_on_primary_container">#3F1416</color>
+    <color name="milktea_secondary">#7F6556</color>
+    <color name="milktea_on_secondary">#FFFFFF</color>
+    <color name="milktea_secondary_container">#F3DFD2</color>
+    <color name="milktea_on_secondary_container">#2E1B10</color>
+    <color name="milktea_tertiary">#4F8475</color>
+    <color name="milktea_on_tertiary">#FFFFFF</color>
+    <color name="milktea_tertiary_container">#D1ECE2</color>
+    <color name="milktea_on_tertiary_container">#0B2A21</color>
+    <color name="milktea_background">#FFF8F5</color>
+    <color name="milktea_on_background">#2A2020</color>
+    <color name="milktea_surface">#FFF8F5</color>
+    <color name="milktea_on_surface">#2A2020</color>
+    <color name="milktea_surface_variant">#F4E5E1</color>
+    <color name="milktea_on_surface_variant">#6E5C5A</color>
+    <color name="milktea_surface_container_lowest">#FFFFFF</color>
+    <color name="milktea_surface_container_low">#FEF2EE</color>
+    <color name="milktea_surface_container">#FAEDE9</color>
+    <color name="milktea_surface_container_high">#F5E7E3</color>
+    <color name="milktea_surface_container_highest">#EFE1DD</color>
+    <color name="milktea_outline">#A6918E</color>
+    <color name="milktea_outline_variant">#EDDCD8</color>
+    <color name="milktea_error">#C94F45</color>
+    <color name="milktea_on_error">#FFFFFF</color>
+    <color name="milktea_error_container">#FFDAD5</color>
+    <color name="milktea_on_error_container">#410002</color>
+    <color name="milktea_inverse_surface">#3F3332</color>
+    <color name="milktea_inverse_on_surface">#FBEDEA</color>
+    <color name="milktea_inverse_primary">#F0B6B7</color>
+
+    <!-- 首页连接按钮四态（未连接/连接中/已连接/异常），颜色+文案双重区分 -->
+    <color name="connect_idle_fill">#F1E4E0</color>
+    <color name="connect_idle_on">#7A6865</color>
+    <color name="connect_busy_fill">#FBE3E3</color>
+    <color name="connect_busy_on">#B5676B</color>
+    <color name="connect_on_fill">#C9787C</color>
+    <color name="connect_on_on">#FFFFFF</color>
+    <color name="connect_error_fill">#E27064</color>
+    <color name="connect_error_on">#FFFFFF</color>
+
+    <!-- 吉祥物（猫耳）配色 -->
+    <color name="mascot_face">#FFF3EA</color>
+    <color name="mascot_line">#6B4A3E</color>
+    <color name="mascot_blush">#F4AEB4</color>
+    <color name="mascot_accent">#D9848B</color>
+    <color name="mascot_sweat">#8EC5E8</color>
+</resources>
