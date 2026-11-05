@@ -105,36 +105,36 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                 .addCard(
                     MaterialAboutCard.Builder()
                         .outline(true)
+                        // phase2: 「版本 / 检查正式版 / 检查预览版」三行合并为一行，点开再选（去重复入口）
                         .addItem(
                             MaterialAboutActionItem.Builder()
-                                .icon(R.drawable.ic_baseline_update_24)
+                                .icon(R.drawable.ic_minimal_refresh)
                                 .text(R.string.app_version)
-                                .subText(SagerNet.appVersionNameForDisplay)
+                                .subText(SagerNet.appVersionNameForDisplay + " · " + getString(R.string.about_check_update_hint))
                                 .setOnClickAction {
-                                    requireContext().launchCustomTab(
-                                        "https://github.com/Wuwan94/wanBoxForAndroid/releases"
-                                    )
-                                }
-                                .build())
-                        .addItem(
-                            MaterialAboutActionItem.Builder()
-                                .text(R.string.check_update_release)
-                                .setOnClickAction {
-                                    checkUpdate(isPreview = false)
-                                }
-                                .build())
-                        .addItem(
-                            MaterialAboutActionItem.Builder()
-                                .text(R.string.check_update_preview)
-                                .setOnClickAction {
-                                    checkUpdate(isPreview = true)
+                                    com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+                                        .setTitle(R.string.app_version)
+                                        .setItems(arrayOf(
+                                            getString(R.string.check_update_release),
+                                            getString(R.string.check_update_preview),
+                                            getString(R.string.about_open_releases)
+                                        )) { _, which ->
+                                            when (which) {
+                                                0 -> checkUpdate(isPreview = false)
+                                                1 -> checkUpdate(isPreview = true)
+                                                else -> requireContext().launchCustomTab(
+                                                    "https://github.com/Wuwan94/wanBoxForAndroid/releases"
+                                                )
+                                            }
+                                        }
+                                        .show()
                                 }
                                 .build())
                         .apply {
                             // @author 雾晚：瘦管理器不含内嵌核心，这一行只会重复显示应用版本，隐藏
                             if (CoreRuntime.available) addItem(
                                 MaterialAboutActionItem.Builder()
-                                    .icon(R.drawable.ic_baseline_layers_24)
+                                    .icon(R.drawable.ic_minimal_layers)
                                     .text(getString(R.string.version_x, "sing-box"))
                                     .subText(CoreRuntime.versionBox())
                                     .setOnClickAction { }
@@ -149,7 +149,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                                     if (pluginId.isNullOrBlank()) continue
                                     addItem(
                                         MaterialAboutActionItem.Builder()
-                                            .icon(R.drawable.ic_baseline_nfc_24)
+                                            .icon(R.drawable.ic_minimal_wifi)
                                             .text(
                                                 getString(
                                                     R.string.version_x,
@@ -178,7 +178,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                                 if (!pm.isIgnoringBatteryOptimizations(app.packageName)) {
                                     addItem(
                                         MaterialAboutActionItem.Builder()
-                                            .icon(R.drawable.ic_baseline_running_with_errors_24)
+                                            .icon(R.drawable.ic_line_gauge)
                                             .text(R.string.ignore_battery_optimizations)
                                             .subText(R.string.ignore_battery_optimizations_sum)
                                             .setOnClickAction {
@@ -200,7 +200,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                         .title(R.string.project)
                         .addItem(
                             MaterialAboutActionItem.Builder()
-                                .icon(R.drawable.ic_baseline_sanitizer_24)
+                                .icon(R.drawable.ic_line_heart)
                                 .text(R.string.github)
                                 .setOnClickAction {
                                     requireContext().launchCustomTab(
@@ -210,7 +210,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                                 .build())
                         .addItem(
                             MaterialAboutActionItem.Builder()
-                                .icon(R.drawable.ic_qu_shadowsocks_foreground)
+                                .icon(R.drawable.ic_line_share)
                                 .text(R.string.telegram)
                                 .setOnClickAction {
                                     requireContext().launchCustomTab(
