@@ -77,7 +77,6 @@
     <string name="minimal_backup">备份与恢复</string>
     <string name="minimal_about">关于 wanBox</string>
     <string name="minimal_advanced">高级设置与工具</string>
-    <string name="minimal_auto_update">自动更新</string>
     <string name="minimal_auto_update_hint">各订阅可分别设置更新周期</string>
     <string name="minimal_display_hint">名称过长时居中省略</string>
     <string name="minimal_selected">已选择</string>

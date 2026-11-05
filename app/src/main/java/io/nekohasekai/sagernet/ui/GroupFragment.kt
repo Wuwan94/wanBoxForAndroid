@@ -63,25 +63,12 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
 
     // preview.18 UI 改造：订阅批量选择
     val selectedGroupIds = mutableSetOf<Long>()
-    var selectionMode = false
-        private set
+    // remove(D10c)：勾选框常驻，长按多选已删除；selectionMode 恒为 true
+    val selectionMode = true
 
-    fun setSelectionMode(enabled: Boolean) {
-        selectionMode = enabled
-        if (!enabled) selectedGroupIds.clear()
+    fun clearSelection() {
+        selectedGroupIds.clear()
         groupAdapter.notifyDataSetChanged()
-        updateSelectionUI()
-    }
-
-    fun toggleGroupSelection(groupId: Long) {
-        if (selectedGroupIds.contains(groupId)) {
-            selectedGroupIds.remove(groupId)
-        } else {
-            selectedGroupIds.add(groupId)
-        }
-        // @author 雾晚：只刷新被点选的那一行，避免整表重绘
-        val index = groupAdapter.groupList.indexOfFirst { it.id == groupId }
-        if (index >= 0) groupAdapter.notifyItemChanged(index) else groupAdapter.notifyDataSetChanged()
         updateSelectionUI()
     }
 
@@ -98,22 +85,11 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
         super.onViewCreated(view, savedInstanceState)
         activity = requireActivity() as MainActivity
 
-        selectionMode = true
         toolbar.setTitle(R.string.minimal_subscriptions_title)
         toolbar.inflateMenu(R.menu.add_group_menu)
-        toolbar.menu.findItem(R.id.action_update_all).isVisible = false
-        toolbar.menu.findItem(R.id.action_update_selected).isVisible = false
         toolbar.setOnMenuItemClickListener(this)
-        view.findViewById<View>(R.id.subscriptions_update_all).setOnClickListener { onMenuItemClick(toolbar.menu.findItem(R.id.action_update_all)) }
-        view.findViewById<View>(R.id.subscriptions_update_selected).setOnClickListener { onMenuItemClick(toolbar.menu.findItem(R.id.action_update_selected)) }
-        view.findViewById<View>(R.id.subscriptions_auto_update).setOnClickListener {
-            val groups = groupAdapter.groupList.filter { it.type == GroupType.SUBSCRIPTION }
-            if (groups.isEmpty()) { safeSnackbar(R.string.minimal_settings_empty); return@setOnClickListener }
-            MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.minimal_auto_update)
-                .setItems(groups.map { it.displayName() }.toTypedArray()) { _, index ->
-                    startActivity(Intent(requireContext(), GroupSettingsActivity::class.java).putExtra(GroupSettingsActivity.EXTRA_GROUP_ID, groups[index].id))
-                }.setNegativeButton(android.R.string.cancel, null).show()
-        }
+        view.findViewById<View>(R.id.subscriptions_update_all).setOnClickListener { updateAllSubscriptions() }
+        view.findViewById<View>(R.id.subscriptions_update_selected).setOnClickListener { updateSelectedSubscriptions() }
         updateSelectionUI()
 
         groupListView = view.findViewById(R.id.group_list)
@@ -193,74 +169,75 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
                 startActivity(Intent(context, GroupSettingsActivity::class.java))
             }
 
-            R.id.action_update_all -> {
-                MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.confirm)
-                    .setMessage(R.string.update_all_subscription)
-                    .setPositiveButton(R.string.yes) { _, _ ->
-                        val subGroups = SagerDatabase.groupDao.allGroups().filter { it.type == GroupType.SUBSCRIPTION }
-                        if (subGroups.isEmpty()) return@setPositiveButton
-                        runOnDefaultDispatcher {
-                            supervisorScope {
-                                val tasks = subGroups.map { group ->
-                                    async {
-                                        updateGroup(group)
-                                    }
-                                }
-                                val results = tasks.awaitAll()
-                                val successCount = results.count { it }
-                                val failCount = results.count { !it }
-                                onMainDispatcher {
-                                    val msg = if (failCount == 0) {
-                                        "全部订阅更新完成（共 ${successCount} 个）"
-                                    } else {
-                                        "订阅更新完成：${successCount} 个成功，${failCount} 个失败"
-                                    }
-                                    safeSnackbar(msg)
-                                }
+        }
+        return true
+    }
+
+    // remove(D10c)：顶栏隐藏菜单项删除，按钮直接调用
+    private fun updateAllSubscriptions() {
+        MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.confirm)
+            .setMessage(R.string.update_all_subscription)
+            .setPositiveButton(R.string.yes) { _, _ ->
+                val subGroups = SagerDatabase.groupDao.allGroups().filter { it.type == GroupType.SUBSCRIPTION }
+                if (subGroups.isEmpty()) return@setPositiveButton
+                runOnDefaultDispatcher {
+                    supervisorScope {
+                        val tasks = subGroups.map { group ->
+                            async {
+                                updateGroup(group)
                             }
                         }
-                    }
-                    .setNegativeButton(R.string.no, null)
-                    .show()
-            }
-
-            // preview.18 UI 改造：更新选中订阅
-            R.id.action_update_selected -> {
-                if (selectedGroupIds.isEmpty()) {
-                    safeSnackbar("请先选择要更新的订阅")
-                } else {
-                    val groups = SagerDatabase.groupDao.allGroups()
-                        .filter { it.id in selectedGroupIds && it.type == GroupType.SUBSCRIPTION }
-                    if (groups.isEmpty()) {
-                        safeSnackbar("选中的订阅中没有可更新的项")
-                    } else {
-                        runOnDefaultDispatcher {
-                            supervisorScope {
-                                val tasks = groups.map { group ->
-                                    async {
-                                        updateGroup(group)
-                                    }
-                                }
-                                val results = tasks.awaitAll()
-                                val successCount = results.count { it }
-                                val failCount = results.count { !it }
-                                onMainDispatcher {
-                                    val msg = if (failCount == 0) {
-                                        "选中订阅更新完成（共 ${successCount} 个）"
-                                    } else {
-                                        "订阅更新完成：${successCount} 个成功，${failCount} 个失败"
-                                    }
-                                    safeSnackbar(msg)
-                                    setSelectionMode(false)
-                                }
+                        val results = tasks.awaitAll()
+                        val successCount = results.count { it }
+                        val failCount = results.count { !it }
+                        onMainDispatcher {
+                            val msg = if (failCount == 0) {
+                                "全部订阅更新完成（共 ${successCount} 个）"
+                            } else {
+                                "订阅更新完成：${successCount} 个成功，${failCount} 个失败"
                             }
+                            safeSnackbar(msg)
+                        }
+                    }
+                }
+            }
+            .setNegativeButton(R.string.no, null)
+            .show()
+    }
+
+    private fun updateSelectedSubscriptions() {
+        if (selectedGroupIds.isEmpty()) {
+            safeSnackbar("请先选择要更新的订阅")
+        } else {
+            val groups = SagerDatabase.groupDao.allGroups()
+                .filter { it.id in selectedGroupIds && it.type == GroupType.SUBSCRIPTION }
+            if (groups.isEmpty()) {
+                safeSnackbar("选中的订阅中没有可更新的项")
+            } else {
+                runOnDefaultDispatcher {
+                    supervisorScope {
+                        val tasks = groups.map { group ->
+                            async {
+                                updateGroup(group)
+                            }
+                        }
+                        val results = tasks.awaitAll()
+                        val successCount = results.count { it }
+                        val failCount = results.count { !it }
+                        onMainDispatcher {
+                            val msg = if (failCount == 0) {
+                                "选中订阅更新完成（共 ${successCount} 个）"
+                            } else {
+                                "订阅更新完成：${successCount} 个成功，${failCount} 个失败"
+                            }
+                            safeSnackbar(msg)
+                            clearSelection()
                         }
                     }
                 }
             }
         }
-        return true
-    }
+        }
 
     private fun refreshOverview() {
         if (!::groupAdapter.isInitialized || view == null) return
@@ -631,13 +608,6 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
                 }
                 fragment.updateSelectionUI()
                 (itemView as com.google.android.material.card.MaterialCardView).setCardBackgroundColor(requireContext().getColor(if (isChecked) R.color.minimal_selected else R.color.minimal_card))
-            }
-            itemView.setOnLongClickListener {
-                if (!fragment.selectionMode) {
-                    fragment.setSelectionMode(true)
-                    fragment.toggleGroupSelection(group.id)
-                    true
-                } else false
             }
 
             val isDisabled = DataStore.isGroupDisabled(proxyGroup.id)

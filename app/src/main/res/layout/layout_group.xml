@@ -10,9 +10,4 @@
         <com.simplecityapps.recyclerview_fastscroll.views.FastScrollRecyclerView android:id="@+id/group_list" android:layout_width="match_parent" android:layout_height="match_parent" android:paddingHorizontal="16dp" android:clipToPadding="false" android:scrollbarSize="0dp" app:fastScrollAutoHide="true" app:fastScrollThumbColor="@color/minimal_icon"/>
         <TextView android:id="@+id/subscriptions_empty" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_gravity="center" android:gravity="center" android:padding="20dp" android:text="@string/minimal_settings_empty" android:textSize="14sp" android:textColor="@color/minimal_secondary" android:visibility="gone"/>
     </FrameLayout>
-    <LinearLayout android:id="@+id/subscriptions_auto_update" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="56dp" android:paddingHorizontal="20dp" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
-        <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/minimal_auto_update" android:textSize="14sp" android:textColor="@color/minimal_text"/>
-        <TextView android:id="@+id/subscriptions_auto_update_summary" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/settings" android:textSize="13sp" android:textColor="@color/minimal_secondary"/>
-        <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_marginStart="8dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
-    </LinearLayout>
 </LinearLayout>
