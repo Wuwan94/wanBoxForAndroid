@@ -985,7 +985,6 @@ class ConfigurationFragment @JvmOverloads constructor(
     }
 
     override fun onPrepareOptionsMenu(menu: Menu) {
-        menu.findItem(R.id.action_global_mode)?.isChecked = DataStore.globalMode
         menu.findItem(R.id.action_hide_unavailable)?.isChecked = DataStore.hideUnavailableProfiles
         updateToolbarMenuTitles()
         super.onPrepareOptionsMenu(menu)
@@ -1658,38 +1657,6 @@ class ConfigurationFragment @JvmOverloads constructor(
                 return true
             }
 
-            R.id.action_global_mode -> {
-                item.isChecked = !item.isChecked
-                DataStore.globalMode = item.isChecked
-                if (DataStore.serviceState.canStop) {
-                    runOnDefaultDispatcher {
-                        try {
-                            // 等待一段时间确保配置已保存
-                            delay(500)
-                            snackbar(getString(R.string.need_reload)).setAction(R.string.apply) {
-                                runOnDefaultDispatcher {
-                                    try {
-                                        // 再次等待确保配置已保存
-                                        delay(100)
-                                        SagerNet.reloadService()
-                                    } catch (e: Exception) {
-                                        Logs.w(e)
-                                        onMainDispatcher {
-                                            snackbar(getString(R.string.service_failed)).show()
-                                        }
-                                    }
-                                }
-                            }.show()
-                        } catch (e: Exception) {
-                            Logs.w(e)
-                            onMainDispatcher {
-                                snackbar(getString(R.string.service_failed)).show()
-                            }
-                        }
-                    }
-                }
-                return true
-            }
         }
         return false
     }
@@ -2819,52 +2786,6 @@ class ConfigurationFragment @JvmOverloads constructor(
             byDelay.setOnMenuItemClickListener {
                 it.isChecked = true
                 updateTo(GroupOrder.BY_DELAY)
-                true
-            }
-            
-            val layoutSingle = menu.findItem(R.id.action_layout_single)
-            val layoutDouble = menu.findItem(R.id.action_layout_double)
-            when (DataStore.groupLayoutMode) {
-                0 -> layoutSingle.isChecked = true
-                1 -> layoutDouble.isChecked = true
-            }
-            layoutSingle.setOnMenuItemClickListener {
-                it.isChecked = true
-                if (DataStore.groupLayoutMode != 0) {
-                    DataStore.groupLayoutMode = 0
-                    (parentFragment as? ConfigurationFragment)?.switchAllGroupFragmentsLayout()
-                }
-                true
-            }
-            layoutDouble.setOnMenuItemClickListener {
-                it.isChecked = true
-                if (DataStore.groupLayoutMode != 1) {
-                    DataStore.groupLayoutMode = 1
-                    (parentFragment as? ConfigurationFragment)?.switchAllGroupFragmentsLayout()
-                }
-                true
-            }
-
-            val cardClassic = menu.findItem(R.id.action_card_style_classic)
-            val cardStroke = menu.findItem(R.id.action_card_style_stroke)
-            when (DataStore.profileCardStyle) {
-                1 -> cardStroke.isChecked = true
-                else -> cardClassic.isChecked = true
-            }
-            cardClassic.setOnMenuItemClickListener {
-                it.isChecked = true
-                if (DataStore.profileCardStyle != 0) {
-                    DataStore.profileCardStyle = 0
-                    (parentFragment as? ConfigurationFragment)?.refreshAllGroupFragmentsCardStyle()
-                }
-                true
-            }
-            cardStroke.setOnMenuItemClickListener {
-                it.isChecked = true
-                if (DataStore.profileCardStyle != 1) {
-                    DataStore.profileCardStyle = 1
-                    (parentFragment as? ConfigurationFragment)?.refreshAllGroupFragmentsCardStyle()
-                }
                 true
             }
 

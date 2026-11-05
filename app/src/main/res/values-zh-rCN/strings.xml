@@ -637,7 +637,6 @@
     <string name="webdav_server_error">服务器错误</string>
     <string name="webdav_connect_failed">连接失败，错误代码：%d</string>
     <string name="webdav_create_dir_failed">无法创建或访问备份目录</string>
-    <string name="global_mode">全局模式</string>
     <string name="global_mode_summary">绕过所有路由规则,所有流量都通过当前节点</string>
     <string name="network_change_reset_connections">当网络发生变化时重置出站连接</string>
     <string name="wake_reset_connections">当设备从睡眠状态唤醒时重置出站连接</string>
@@ -654,9 +653,6 @@
     <string name="clear_cache_failed">清理缓存失败: %s</string>
     <string name="dual_network_acceleration">双网络加速</string>
     <string name="dual_network_acceleration_summary">使用WiFi/移动数据并发连接。需要系统中保持WiFi与移动数据同时开启，且会增加耗电量。</string>
-    <string name="layout">布局</string>
-    <string name="layout_single_column">单列</string>
-    <string name="layout_double_column">双列</string>
     <string name="sort_and_layout">排序与外观</string>
     <string name="card_style">卡片</string>
     <string name="card_style_classic">经典</string>

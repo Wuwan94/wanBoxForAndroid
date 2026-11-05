@@ -40,9 +40,6 @@
     <string name="update_selected_subscription">更新选中</string>
     <string name="group_edit">Edit group</string>
     <string name="group_edit_subscription">Edit subscription</string>
-    <string name="layout">Layout</string>
-    <string name="layout_single_column">Single column</string>
-    <string name="layout_double_column">Double column</string>
     <string name="sort_and_layout">Sort and Appearance</string>
     <string name="card_style">Card</string>
     <string name="card_style_classic">Classic</string>
@@ -776,7 +773,6 @@
     <string name="webdav_server_error">Server error</string>
     <string name="webdav_connect_failed">Connection failed with code: %d</string>
     <string name="webdav_create_dir_failed">Failed to create or access backup directory</string>
-    <string name="global_mode">Global Mode</string>
     <string name="global_mode_summary">Bypass all routing rules and proxy all traffic through current node</string>
     <string name="mux_preference">Mulitplex</string>
     <string name="padding">Padding</string>
