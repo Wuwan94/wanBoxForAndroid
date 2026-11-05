@@ -698,7 +698,8 @@ class ConfigurationFragment @JvmOverloads constructor(
         super.onViewCreated(view, savedInstanceState)
 
         toolbar.inflateMenu(R.menu.add_profile_menu)
-        toolbar.menu.findItem(R.id.action_add)?.isVisible = false
+        // feat(nodes): 恢复统一「+」：手动添加 / 扫码 / 从剪贴板导入 / 从文件导入（节点选择模式下不显示）
+        toolbar.menu.findItem(R.id.action_add)?.isVisible = !select
         // @author 雾晚：顶栏只保留 搜索 / 重测 / 更多 三个入口；显示设置收进“更多”，
         // 更多按钮直接展开子菜单（不再出现一个空标题的溢出项）。
         toolbar.menu.findItem(R.id.action_misc)?.apply {
@@ -4200,7 +4201,7 @@ class ConfigurationFragment @JvmOverloads constructor(
             searchView.clearFocus()
             searchView.maxWidth = dp2px(48)
 
-            toolbar.menu.findItem(R.id.action_add)?.isVisible = false
+            toolbar.menu.findItem(R.id.action_add)?.isVisible = !select
             toolbar.title = getString(R.string.tab_nodes)
 
             val primaryColor = when {
