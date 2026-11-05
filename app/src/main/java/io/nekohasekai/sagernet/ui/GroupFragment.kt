@@ -68,7 +68,8 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
 
     fun clearSelection() {
         selectedGroupIds.clear()
-        groupAdapter.notifyDataSetChanged()
+        // phase2: rebind visible rows only (stable ids), no full-list invalidation
+        groupAdapter.notifyItemRangeChanged(0, groupAdapter.itemCount)
         updateSelectionUI()
     }
 

@@ -32,6 +32,7 @@ internal object NodeDisplaySettings {
         columns.setOnCheckedChangeListener { _, id ->
             DataStore.nodeColumnCount = when (id) { R.id.radioSingle -> 1; R.id.radioMulti -> 3; else -> 2 }
             DataStore.groupLayoutMode = if (DataStore.nodeColumnCount == 1) 0 else 1
+            ProfileListPrefs.refresh()
             changed()
         }
         density.setOnCheckedChangeListener { _, id ->

@@ -119,7 +119,10 @@ class SagerNet : Application(),
             // extractAssets() 不会执行。geoip/geosite 规则库必须由纯 Kotlin 补上——
             // 模块侧对 assets/geoip.db / assets/geosite.db 是硬校验，缺失会以
             // config_resource_missing 拒绝启动。（yacd 已整体移除，不再需要落地。）
-            CoreAssets.ensure(this)
+            // phase2: XZ-extracting geoip/geosite (several MB on first launch / after an update)
+            // no longer blocks Application.onCreate (cold start). ensure() is @Synchronized and
+            // idempotent; RootModuleClient snapshot build calls it again and waits if still running.
+            runOnDefaultDispatcher { CoreAssets.ensure(this@SagerNet) }
             if (CoreRuntime.available) Libcore.initCore(
                 process,
                 cacheDir.absolutePath + "/",

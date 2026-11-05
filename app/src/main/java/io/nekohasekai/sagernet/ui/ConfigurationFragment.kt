@@ -1059,6 +1059,7 @@ class ConfigurationFragment @JvmOverloads constructor(
     }
 
     override fun onResume() {
+        ProfileListPrefs.refresh()
         super.onResume()
         if (speedTestHidden && speedTestJob != null) {
             speedTestHidden = false
@@ -2786,6 +2787,7 @@ class ConfigurationFragment @JvmOverloads constructor(
         }
 
         private fun setupLayoutManager() {
+            ProfileListPrefs.refresh()
             layoutManager = if (DataStore.groupLayoutMode == 1) {
                 // @author 雾晚: Honor manual double-column selection at every width/font size.
                 FixedGridLayoutManager(configurationListView, DataStore.nodeColumnCount.coerceIn(2, 3)).apply {
@@ -3432,13 +3434,15 @@ class ConfigurationFragment @JvmOverloads constructor(
             }
 
             fun clearTrafficStatistics() {
+                // phase2: only rows whose counters changed are rebound (was notifyDataSetChanged)
                 for (profile in configurationList.values) {
                     if (profile.tx != 0L || profile.rx != 0L) {
                         profile.tx = 0
                         profile.rx = 0
+                        val index = configurationIdList.indexOf(profile.id)
+                        if (index >= 0) notifyItemChanged(index)
                     }
                 }
-                notifyDataSetChanged()
             }
 
             fun clearTestResults() {
@@ -3454,8 +3458,10 @@ class ConfigurationFragment @JvmOverloads constructor(
             }
 
             fun clearSpeedTestLive() {
+                // phase2: rebind only the rows that showed a live sample
+                val ids = liveSpeedTests.keys.toList()
                 liveSpeedTests.clear()
-                notifyDataSetChanged()
+                ids.forEach { id -> configurationIdList.indexOf(id).takeIf { it >= 0 }?.let(::notifyItemChanged) }
             }
 
             fun updateSpeedTestResult(profileId: Long, outcome: SpeedTestOutcome) {
@@ -3612,10 +3618,30 @@ class ConfigurationFragment @JvmOverloads constructor(
                 reloadProfiles()
             }
 
+            private val reloadGeneration = java.util.concurrent.atomic.AtomicInteger()
+
+            /**
+             * phase2: the DB read / sort / filter now runs off the main thread (it was called via
+             * onMainDispatcher from sort, hide-unavailable, test-result clearing …). Results are still
+             * applied in listView.post; a generation counter drops results of an older reload that
+             * finishes after a newer one.
+             */
             fun reloadProfiles() {
+                val generation = reloadGeneration.incrementAndGet()
+                if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+                    runOnDefaultDispatcher { reloadProfilesNow(generation) }
+                } else {
+                    reloadProfilesNow(generation)
+                }
+            }
+
+            private fun reloadProfilesNow(generation: Int) {
                 var newProfiles = if (isAllGroupsTab) {
-                    // All-groups tab: fetch every profile from non-disabled groups
-                    SagerDatabase.proxyDao.getAll().filter { !DataStore.isGroupDisabled(it.groupId) }
+                    // All-groups tab: fetch every profile from non-disabled groups.
+                    // phase2: one disabled-flag lookup per group instead of one per node (N SQLite reads).
+                    val all = SagerDatabase.proxyDao.getAll()
+                    val disabledGroups = all.mapTo(HashSet()) { it.groupId }.filterTo(HashSet()) { DataStore.isGroupDisabled(it) }
+                    if (disabledGroups.isEmpty()) all else all.filter { it.groupId !in disabledGroups }
                 } else {
                     if (!proxyGroup.ungrouped && DataStore.isGroupDisabled(proxyGroup.id)) {
                         emptyList()
@@ -3686,6 +3712,7 @@ class ConfigurationFragment @JvmOverloads constructor(
 
                 listView?.post {
                     if (adapter !== this || listView == null) return@post
+                    if (generation != reloadGeneration.get()) return@post
                     val oldIds = configurationIdList.toList()
                     val oldEntities = HashMap(configurationList)
                     configurationList.clear()
@@ -3770,7 +3797,7 @@ class ConfigurationFragment @JvmOverloads constructor(
 
             init {
                 view.setOnClickListener {
-                    if (DataStore.hapticFeedback) it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    if (ProfileListPrefs.haptic) it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                     val proxyEntity = entity
                     if (select) {
                         val pf = parentFragment as? ConfigurationFragment
@@ -3785,7 +3812,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                 }
                 profileStatus.setOnClickListener {
                     val proxyEntity = entity
-                    if (DataStore.groupLayoutMode == 1 && profileStatus.text.isNotBlank()) {
+                    if (ProfileListPrefs.gridLayout && profileStatus.text.isNotBlank()) {
                         MaterialAlertDialogBuilder(requireContext())
                             .setTitle(entity.displayName())
                             .setMessage(proxyEntity.error?.takeIf { proxyEntity.status == 2 || proxyEntity.status == 3 }
@@ -3797,7 +3824,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                 }
                 profileStatus.isFocusable = false
                 doubleColumnMenuButton.setOnClickListener {
-                    if (DataStore.hapticFeedback) it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    if (ProfileListPrefs.haptic) it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                     showNodeCascadingMenu(it, entity)
                 }
                 view.isLongClickable = false
@@ -3925,7 +3952,7 @@ class ConfigurationFragment @JvmOverloads constructor(
 
                 entity = proxyEntity
                 val bean = proxyEntity.requireBean()
-                cardStyle.apply(DataStore.groupLayoutMode == 1)
+                cardStyle.apply(ProfileListPrefs.gridLayout)
 
                 profileName.text = bean.displayName()
                 profileName.contentDescription = profileName.text

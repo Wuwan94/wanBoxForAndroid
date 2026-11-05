@@ -370,6 +370,8 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         if (hero == renderedHero) return
         val first = renderedHero == null
         renderedHero = hero
+        // phase2: mark the home as fully drawn once its state is known (Macrobenchmark / am_activity_launch_time)
+        if (first) runCatching { activity?.reportFullyDrawn() }
         val on = ContextCompat.getColor(ctx, hero.on)
         root.findViewById<MaterialCardView>(R.id.connectButton).setCardBackgroundColor(ContextCompat.getColor(ctx, hero.fill))
         root.findViewById<ImageView>(R.id.connectIcon).imageTintList = ColorStateList.valueOf(on)
