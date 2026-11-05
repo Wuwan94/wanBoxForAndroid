@@ -623,7 +623,7 @@ class BalancerSettingsActivity : ProfileSettingsActivity<BalancerBean>(R.layout.
             binding.trafficText.text = ""
             binding.trafficText.isGone = true
 
-            binding.edit.setImageResource(R.drawable.ic_image_edit)
+            binding.edit.setImageResource(R.drawable.ic_line_edit)
             binding.edit.setOnClickListener {
                 replacing = bindingAdapterPosition
                 selectProfileForAdd.launch(

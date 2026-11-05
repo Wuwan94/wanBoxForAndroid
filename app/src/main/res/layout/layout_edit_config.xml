@@ -70,7 +70,7 @@
             android:layout_height="36dp"
             android:background="?colorPrimary"
             android:padding="8dp"
-            android:src="@drawable/baseline_undo_24"
+            android:src="@drawable/ic_line_undo"
             app:tint="?colorOnSurface" />
 
         <ImageView
@@ -88,7 +88,7 @@
             android:layout_height="36dp"
             android:background="?colorPrimary"
             android:padding="8dp"
-            android:src="@drawable/ic_baseline_format_align_left_24"
+            android:src="@drawable/ic_line_text"
             app:tint="?colorOnSurface" />
 
         <ImageView

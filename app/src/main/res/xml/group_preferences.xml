@@ -1,7 +1,7 @@
 <PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <EditTextPreference
-        app:icon="@drawable/ic_social_emoji_symbols"
+        app:icon="@drawable/ic_line_text"
         app:key="groupName"
         app:title="@string/group_name"
         app:useSimpleSummaryProvider="true" />
@@ -10,7 +10,7 @@
         app:defaultValue="0"
         app:entries="@array/group_types"
         app:entryValues="@array/int_array_2"
-        app:icon="@drawable/ic_baseline_layers_24"
+        app:icon="@drawable/ic_minimal_layers"
         app:key="groupType"
         app:title="@string/group_type"
         app:useSimpleSummaryProvider="true" />
@@ -19,25 +19,25 @@
         app:defaultValue="0"
         app:entries="@array/group_orders"
         app:entryValues="@array/int_array_3"
-        app:icon="@drawable/ic_baseline_low_priority_24"
+        app:icon="@drawable/ic_line_list"
         app:key="groupOrder"
         app:title="@string/group_order"
         app:useSimpleSummaryProvider="true" />
 
     <SwitchPreference
-        app:icon="@drawable/ic_baseline_manage_search_24"
+        app:icon="@drawable/ic_minimal_search"
         app:key="groupIsSelector"
         app:title="@string/use_selector" />
 
 
     <io.nekohasekai.sagernet.widget.OutboundPreference
-        app:icon="@drawable/ic_hardware_router"
+        app:icon="@drawable/ic_line_server"
         app:key="groupFrontProxy"
         app:title="@string/front_proxy"
         app:useSimpleSummaryProvider="true" />
 
     <io.nekohasekai.sagernet.widget.OutboundPreference
-        app:icon="@drawable/baseline_public_24"
+        app:icon="@drawable/ic_minimal_globe"
         app:key="groupLandingProxy"
         app:title="@string/landing_proxy"
         app:useSimpleSummaryProvider="true" />
@@ -47,19 +47,19 @@
         app:title="@string/subscription_settings">
 
         <io.nekohasekai.sagernet.widget.LinkOrContentPreference
-            app:icon="@drawable/ic_baseline_link_24"
+            app:icon="@drawable/ic_line_share"
             app:key="subscriptionLink"
             app:title="@string/group_subscription_link"
             app:useSimpleSummaryProvider="true" />
 
         <SwitchPreference
-            app:icon="@drawable/ic_baseline_manage_search_24"
+            app:icon="@drawable/ic_minimal_search"
             app:key="subscriptionForceResolve"
             app:summary="@string/force_resolve_sum"
             app:title="@string/force_resolve" />
 
         <SwitchPreference
-            app:icon="@drawable/ic_baseline_import_contacts_24"
+            app:icon="@drawable/ic_line_file"
             app:key="subscriptionDeduplication"
             app:summary="@string/deduplication_sum"
             app:title="@string/deduplication" />
@@ -68,13 +68,13 @@
             app:defaultValue="0"
             app:entries="@array/filter_modes"
             app:entryValues="@array/int_array_3"
-            app:icon="@drawable/ic_baseline_filter_list_24"
+            app:icon="@drawable/ic_line_filter"
             app:key="subscriptionFilterMode"
             app:title="@string/filter"
             app:useSimpleSummaryProvider="true" />
 
         <EditTextPreference
-            app:icon="@drawable/ic_baseline_filter_list_24"
+            app:icon="@drawable/ic_line_filter"
             app:key="subscriptionFilterRegex"
             app:title="@string/filter_regex"
             app:useSimpleSummaryProvider="true" />
@@ -85,27 +85,27 @@
         app:key="subscriptionUpdate"
         app:title="@string/update_settings">
         <SwitchPreference
-            app:icon="@drawable/ic_baseline_security_24"
+            app:icon="@drawable/ic_line_shield"
             app:key="subscriptionUpdateWhenConnectedOnly"
             app:summary="@string/update_when_connected_only_sum"
             app:title="@string/update_when_connected_only" />
         <io.nekohasekai.sagernet.widget.UserAgentPreference
-            app:icon="@drawable/ic_baseline_grid_3x3_24"
+            app:icon="@drawable/ic_line_list"
             app:key="subscriptionUserAgent"
             app:title="@string/subscription_user_agent"
             app:useSimpleSummaryProvider="true" />
         <SwitchPreference
-            app:icon="@drawable/ic_baseline_security_24"
+            app:icon="@drawable/ic_line_shield"
             app:key="subscriptionLockUserAgent"
             app:summary="@string/lock_user_agent_sum"
             app:title="@string/lock_user_agent" />
         <SwitchPreference
-            app:icon="@drawable/ic_baseline_flip_camera_android_24"
+            app:icon="@drawable/ic_line_swap"
             app:key="subscriptionAutoUpdate"
             app:title="@string/auto_update" />
         <EditTextPreference
             app:defaultValue="1440"
-            app:icon="@drawable/ic_baseline_timelapse_24"
+            app:icon="@drawable/ic_line_gauge"
             app:key="subscriptionAutoUpdateDelay"
             app:title="@string/auto_update_delay"
             app:useSimpleSummaryProvider="true" />

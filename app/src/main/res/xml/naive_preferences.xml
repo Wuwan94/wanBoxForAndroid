@@ -2,7 +2,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <EditTextPreference
-        app:icon="@drawable/ic_social_emoji_symbols"
+        app:icon="@drawable/ic_line_text"
         app:key="profileName"
         app:title="@string/profile_name"
         app:useSimpleSummaryProvider="true" />
@@ -10,23 +10,23 @@
     <PreferenceCategory app:title="@string/proxy_cat">
 
         <EditTextPreference
-            app:icon="@drawable/ic_hardware_router"
+            app:icon="@drawable/ic_line_server"
             app:key="serverAddress"
             app:title="@string/server_address"
             app:useSimpleSummaryProvider="true" />
         <EditTextPreference
-            app:icon="@drawable/ic_maps_directions_boat"
+            app:icon="@drawable/ic_line_route"
             app:key="serverPort"
             app:title="@string/server_port"
             app:useSimpleSummaryProvider="true" />
         <EditTextPreference
-            app:icon="@drawable/ic_baseline_person_24"
+            app:icon="@drawable/ic_line_cat"
             app:key="serverUsername"
             app:title="@string/username_opt"
             app:useSimpleSummaryProvider="true" />
         <EditTextPreference
             app:dialogLayout="@layout/layout_password_dialog"
-            app:icon="@drawable/ic_settings_password"
+            app:icon="@drawable/ic_line_lock"
             app:key="serverPassword"
             app:title="@string/password_opt" />
         <moe.matsuri.nb4a.ui.SimpleMenuPreference
@@ -34,28 +34,28 @@
             app:defaultValue="https"
             app:entries="@array/naive_proto_entry"
             app:entryValues="@array/naive_proto_value"
-            app:icon="@drawable/ic_baseline_layers_24"
+            app:icon="@drawable/ic_minimal_layers"
             app:key="serverProtocol"
             app:title="@string/protocol"
             app:useSimpleSummaryProvider="true" />
         <EditTextPreference
-            app:icon="@drawable/ic_baseline_texture_24"
+            app:icon="@drawable/ic_minimal_layers"
             app:key="serverHeaders"
             app:title="@string/extra_headers"
             app:useSimpleSummaryProvider="true" />
         <EditTextPreference
-            app:icon="@drawable/ic_action_copyright"
+            app:icon="@drawable/ic_line_text"
             app:key="serverSNI"
             app:title="@string/sni"
             app:useSimpleSummaryProvider="true" />
         <EditTextPreference
-            app:icon="@drawable/ic_baseline_vpn_key_24"
+            app:icon="@drawable/ic_line_lock"
             app:key="serverCertificates"
             app:title="@string/certificates"
             app:useSimpleSummaryProvider="true" />
         <EditTextPreference
             app:dialogMessage="@string/naive_insecure_concurrency_summary"
-            app:icon="@drawable/ic_baseline_warning_24"
+            app:icon="@drawable/ic_minimal_info"
             app:key="serverInsecureConcurrency"
             app:title="@string/naive_insecure_concurrency"
             app:useSimpleSummaryProvider="true" />

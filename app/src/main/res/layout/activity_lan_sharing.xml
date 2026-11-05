@@ -61,7 +61,7 @@
                         android:layout_width="32dp"
                         android:layout_height="32dp"
                         android:layout_gravity="center"
-                        android:src="@drawable/ic_social_share"
+                        android:src="@drawable/ic_line_share"
                         app:tint="?attr/colorPrimary" />
 
                 </FrameLayout>
@@ -146,7 +146,7 @@
                         <ImageView
                             android:layout_width="24dp"
                             android:layout_height="24dp"
-                            android:src="@drawable/ic_social_share"
+                            android:src="@drawable/ic_line_share"
                             app:tint="?android:attr/textColorSecondary" />
 
                         <LinearLayout
@@ -205,7 +205,7 @@
                             <ImageView
                                 android:layout_width="24dp"
                                 android:layout_height="24dp"
-                                android:src="@drawable/ic_hardware_router"
+                                android:src="@drawable/ic_line_server"
                                 app:tint="?android:attr/textColorSecondary" />
 
                             <TextView
@@ -534,7 +534,7 @@
                         <ImageView
                             android:layout_width="24dp"
                             android:layout_height="24dp"
-                            android:src="@drawable/ic_baseline_security_24"
+                            android:src="@drawable/ic_line_shield"
                             app:tint="?android:attr/textColorSecondary" />
 
                         <LinearLayout
@@ -644,7 +644,7 @@
                             android:layout_width="36dp"
                             android:layout_height="36dp"
                             android:contentDescription="@string/lan_sharing_no_devices"
-                            android:src="@drawable/ic_baseline_multiple_stop_24"
+                            android:src="@drawable/ic_line_swap"
                             app:tint="?android:attr/textColorSecondary" />
 
                         <TextView

@@ -1,62 +1,62 @@
 <PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <EditTextPreference
-        app:icon="@drawable/ic_social_emoji_symbols"
+        app:icon="@drawable/ic_line_text"
         app:key="name"
         app:title="@string/profile_name"
         app:useSimpleSummaryProvider="true" />
 
     <PreferenceCategory app:title="@string/proxy_cat">
         <EditTextPreference
-            app:icon="@drawable/ic_hardware_router"
+            app:icon="@drawable/ic_line_server"
             app:key="serverAddress"
             app:title="@string/server_address"
             app:useSimpleSummaryProvider="true" />
         <EditTextPreference
-            app:icon="@drawable/ic_maps_directions_boat"
+            app:icon="@drawable/ic_line_route"
             app:key="serverPort"
             app:title="@string/server_port"
             app:useSimpleSummaryProvider="true" />
         <EditTextPreference
-            app:icon="@drawable/ic_baseline_domain_24"
+            app:icon="@drawable/ic_minimal_globe"
             app:key="localAddress"
             app:title="@string/wireguard_local_address"
             app:useSimpleSummaryProvider="true" />
         <EditTextPreference
-            app:icon="@drawable/ic_baseline_vpn_key_24"
+            app:icon="@drawable/ic_line_lock"
             app:key="privateKey"
             app:title="@string/ssh_private_key"
             app:useSimpleSummaryProvider="true" />
         <EditTextPreference
-            app:icon="@drawable/ic_action_copyright"
+            app:icon="@drawable/ic_line_text"
             app:key="peerPublicKey"
             app:title="@string/wireguard_public_key"
             app:useSimpleSummaryProvider="true" />
         <EditTextPreference
             app:dialogLayout="@layout/layout_password_dialog"
-            app:icon="@drawable/ic_settings_password"
+            app:icon="@drawable/ic_line_lock"
             app:key="peerPreSharedKey"
             app:title="@string/wireguard_psk" />
         <EditTextPreference
             app:defaultValue="1420"
-            app:icon="@drawable/baseline_public_24"
+            app:icon="@drawable/ic_minimal_globe"
             app:key="mtu"
             app:title="@string/mtu"
             app:useSimpleSummaryProvider="true" />
         <EditTextPreference
             app:defaultValue="0"
-            app:icon="@drawable/ic_maps_directions_boat"
+            app:icon="@drawable/ic_line_route"
             app:key="listenPort"
             app:title="@string/wireguard_listen_port"
             app:useSimpleSummaryProvider="true" />
         <EditTextPreference
             app:defaultValue="0"
-            app:icon="@drawable/ic_action_lock_open"
+            app:icon="@drawable/ic_line_unlock"
             app:key="persistentKeepaliveInterval"
             app:title="@string/wireguard_persistent_keepalive"
             app:useSimpleSummaryProvider="true" />
         <EditTextPreference
-            app:icon="@drawable/ic_baseline_fingerprint_24"
+            app:icon="@drawable/ic_line_shield"
             app:key="reserved"
             app:title="Reserved"
             app:useSimpleSummaryProvider="true" />

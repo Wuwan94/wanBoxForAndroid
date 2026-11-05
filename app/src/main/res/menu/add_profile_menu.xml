@@ -94,7 +94,7 @@
 
     <item
         android:id="@+id/action_misc"
-        android:icon="@drawable/ic_baseline_more_vert_24"
+        android:icon="@drawable/ic_line_more"
         android:title=""
         app:showAsAction="always">
         <menu>

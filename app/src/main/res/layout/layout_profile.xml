@@ -83,7 +83,7 @@
                     android:focusable="true"
                     android:padding="12dp"
                     android:visibility="gone"
-                    app:srcCompat="@drawable/ic_image_edit" />
+                    app:srcCompat="@drawable/ic_line_edit" />
 
                 <androidx.appcompat.widget.AppCompatImageView
                     android:id="@+id/double_column_menu"
@@ -95,7 +95,7 @@
                     android:focusable="true"
                     android:padding="12dp"
                     android:visibility="gone"
-                    app:srcCompat="@drawable/ic_baseline_more_vert_24" />
+                    app:srcCompat="@drawable/ic_line_more" />
 
                 <LinearLayout
                     android:id="@+id/share"
@@ -118,7 +118,7 @@
                             android:id="@+id/shareIcon"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            app:srcCompat="@drawable/ic_baseline_more_vert_24" />
+                            app:srcCompat="@drawable/ic_line_more" />
                     </LinearLayout>
 
                 </LinearLayout>
@@ -133,7 +133,7 @@
                     android:focusable="true"
                     android:padding="12dp"
                     android:visibility="gone"
-                    app:srcCompat="@drawable/ic_action_delete" />
+                    app:srcCompat="@drawable/ic_line_trash" />
 
             </LinearLayout>
 

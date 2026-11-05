@@ -36,7 +36,7 @@
             <ImageView
                 android:layout_width="20dp"
                 android:layout_height="20dp"
-                android:src="@drawable/ic_baseline_manage_search_24"
+                android:src="@drawable/ic_minimal_search"
                 android:tint="?android:textColorSecondary" />
 
             <EditText

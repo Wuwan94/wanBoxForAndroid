@@ -70,7 +70,7 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:contentDescription="@string/action_test_profile_speed"
-            android:src="@drawable/ic_baseline_speed_24"
+            android:src="@drawable/ic_line_gauge"
             app:tint="?android:attr/textColorPrimary" />
 
         <TextView
@@ -100,7 +100,7 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:contentDescription="@string/edit"
-            android:src="@drawable/ic_image_edit"
+            android:src="@drawable/ic_line_edit"
             app:tint="?android:attr/textColorPrimary" />
 
         <TextView
@@ -220,7 +220,7 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:contentDescription="@string/export_sn_link"
-            android:src="@drawable/ic_social_share"
+            android:src="@drawable/ic_line_share"
             app:tint="?android:attr/textColorPrimary" />
 
         <LinearLayout
@@ -265,7 +265,7 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:contentDescription="@string/export_to_file"
-            android:src="@drawable/ic_action_description"
+            android:src="@drawable/ic_line_file"
             app:tint="?android:attr/textColorPrimary" />
 
         <LinearLayout
@@ -319,7 +319,7 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:contentDescription="@string/delete"
-            android:src="@drawable/ic_action_delete"
+            android:src="@drawable/ic_line_trash"
             app:tint="@color/material_red_500" />
 
         <TextView

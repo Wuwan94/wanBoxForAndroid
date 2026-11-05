@@ -1,7 +1,7 @@
 <PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <EditTextPreference
-        app:icon="@drawable/ic_social_emoji_symbols"
+        app:icon="@drawable/ic_line_text"
         app:key="profileName"
         app:title="@string/profile_name"
         app:useSimpleSummaryProvider="true" />
@@ -9,17 +9,17 @@
     <PreferenceCategory app:title="@string/proxy_cat">
 
         <EditTextPreference
-            app:icon="@drawable/ic_hardware_router"
+            app:icon="@drawable/ic_line_server"
             app:key="serverAddress"
             app:title="@string/server_address"
             app:useSimpleSummaryProvider="true" />
         <EditTextPreference
-            app:icon="@drawable/ic_maps_directions_boat"
+            app:icon="@drawable/ic_line_route"
             app:key="serverPort"
             app:title="@string/server_port"
             app:useSimpleSummaryProvider="true" />
         <EditTextPreference
-            app:icon="@drawable/ic_baseline_person_24"
+            app:icon="@drawable/ic_line_cat"
             app:key="serverUsername"
             app:title="@string/username"
             app:useSimpleSummaryProvider="true" />
@@ -27,31 +27,31 @@
         <moe.matsuri.nb4a.ui.SimpleMenuPreference
             app:entries="@array/ssh_auth_type"
             app:entryValues="@array/int_array_3"
-            app:icon="@drawable/ic_baseline_compare_arrows_24"
+            app:icon="@drawable/ic_line_swap"
             app:key="serverAuthType"
             app:title="@string/hysteria_auth_type"
             app:useSimpleSummaryProvider="true" />
 
         <EditTextPreference
             app:dialogLayout="@layout/layout_password_dialog"
-            app:icon="@drawable/ic_settings_password"
+            app:icon="@drawable/ic_line_lock"
             app:key="serverPassword"
             app:title="@string/password" />
 
         <EditTextPreference
-            app:icon="@drawable/ic_baseline_vpn_key_24"
+            app:icon="@drawable/ic_line_lock"
             app:key="serverPrivateKey"
             app:title="@string/ssh_private_key"
             app:useSimpleSummaryProvider="true" />
 
         <EditTextPreference
             app:dialogLayout="@layout/layout_password_dialog"
-            app:icon="@drawable/ic_settings_password"
+            app:icon="@drawable/ic_line_lock"
             app:key="serverPassword1"
             app:title="@string/ssh_private_key_passphrase" />
 
         <EditTextPreference
-            app:icon="@drawable/ic_action_copyright"
+            app:icon="@drawable/ic_line_text"
             app:key="serverCertificates"
             app:title="@string/ssh_public_key"
             app:useSimpleSummaryProvider="true" />

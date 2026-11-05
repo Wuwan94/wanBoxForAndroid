@@ -2,7 +2,7 @@
 <PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <EditTextPreference
-        app:icon="@drawable/ic_social_emoji_symbols"
+        app:icon="@drawable/ic_line_text"
         app:key="name"
         app:title="@string/profile_name"
         app:useSimpleSummaryProvider="true" />
@@ -10,26 +10,26 @@
     <PreferenceCategory app:title="@string/proxy_cat">
 
         <EditTextPreference
-            app:icon="@drawable/ic_hardware_router"
+            app:icon="@drawable/ic_line_server"
             app:key="serverAddress"
             app:title="@string/server_address"
             app:useSimpleSummaryProvider="true" />
 
         <EditTextPreference
-            app:icon="@drawable/ic_maps_directions_boat"
+            app:icon="@drawable/ic_line_route"
             app:key="serverPort"
             app:title="@string/server_port"
             app:useSimpleSummaryProvider="true" />
 
         <EditTextPreference
             app:dialogLayout="@layout/layout_password_dialog"
-            app:icon="@drawable/ic_settings_password"
+            app:icon="@drawable/ic_line_lock"
             app:key="psk"
             app:title="@string/snell_psk" />
 
         <EditTextPreference
             app:dialogLayout="@layout/layout_password_dialog"
-            app:icon="@drawable/ic_settings_password"
+            app:icon="@drawable/ic_line_lock"
             app:key="userKey"
             app:title="@string/snell_userkey" />
 
@@ -37,7 +37,7 @@
             app:defaultValue="4"
             app:entries="@array/snell_versions_entry"
             app:entryValues="@array/snell_versions_value"
-            app:icon="@drawable/ic_baseline_legend_toggle_24"
+            app:icon="@drawable/ic_minimal_sliders"
             app:key="version"
             app:title="@string/snell_version"
             app:useSimpleSummaryProvider="true" />
@@ -46,7 +46,7 @@
             app:defaultValue=""
             app:entries="@array/snell_network_entry"
             app:entryValues="@array/snell_network_value"
-            app:icon="@drawable/ic_baseline_compare_arrows_24"
+            app:icon="@drawable/ic_line_swap"
             app:key="network"
             app:title="@string/snell_network"
             app:useSimpleSummaryProvider="true" />
@@ -55,13 +55,13 @@
             app:defaultValue=""
             app:entries="@array/snell_obfs_modes_entry"
             app:entryValues="@array/snell_obfs_modes_value"
-            app:icon="@drawable/ic_baseline_add_road_24"
+            app:icon="@drawable/ic_line_route"
             app:key="obfsMode"
             app:title="@string/snell_obfs_mode"
             app:useSimpleSummaryProvider="true" />
 
         <EditTextPreference
-            app:icon="@drawable/ic_hardware_router"
+            app:icon="@drawable/ic_line_server"
             app:key="obfsHost"
             app:title="@string/snell_obfs_host"
             app:useSimpleSummaryProvider="true" />
@@ -70,14 +70,14 @@
             app:defaultValue="default"
             app:entries="@array/snell_v6_modes_entry"
             app:entryValues="@array/snell_v6_modes_value"
-            app:icon="@drawable/ic_baseline_legend_toggle_24"
+            app:icon="@drawable/ic_minimal_sliders"
             app:key="mode"
             app:title="@string/snell_mode"
             app:useSimpleSummaryProvider="true" />
 
         <SwitchPreference
             app:defaultValue="false"
-            app:icon="@drawable/ic_baseline_refresh_24"
+            app:icon="@drawable/ic_minimal_refresh"
             app:key="reuse"
             app:summary="@string/snell_reuse_summary"
             app:title="@string/snell_reuse" />

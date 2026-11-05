@@ -139,7 +139,7 @@ abstract class StandardV2RaySettingsActivity : ProfileSettingsActivity<StandardV
             this as SimpleMenuPreference
             if (isVless) {
                 title = resources.getString(R.string.xtls_flow)
-                setIcon(R.drawable.ic_baseline_stream_24)
+                setIcon(R.drawable.ic_minimal_connections)
                 setEntries(R.array.xtls_flow_value)
                 setEntryValues(R.array.xtls_flow_value)
             } else {

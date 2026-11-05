@@ -52,7 +52,7 @@
                 android:focusable="true"
                 android:padding="12dp"
                 android:visibility="gone"
-                app:srcCompat="@drawable/ic_file_cloud_queue" />
+                app:srcCompat="@drawable/ic_line_cloud" />
 
             <androidx.appcompat.widget.AppCompatImageView
                 android:id="@+id/edit"
@@ -63,7 +63,7 @@
                 android:contentDescription="@string/edit"
                 android:focusable="true"
                 android:padding="12dp"
-                app:srcCompat="@drawable/ic_image_edit" />
+                app:srcCompat="@drawable/ic_line_edit" />
 
             <LinearLayout
                 android:id="@+id/share"
@@ -86,7 +86,7 @@
                         android:id="@+id/shareIcon"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        app:srcCompat="@drawable/ic_social_share" />
+                        app:srcCompat="@drawable/ic_line_share" />
                 </LinearLayout>
 
 
