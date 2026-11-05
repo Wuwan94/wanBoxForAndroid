@@ -3,6 +3,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('prune', Path(__file__).with_name('prune_prereleases.py'))
 prune = importlib.util.module_from_spec(spec)
@@ -14,12 +15,85 @@ def release(id, prerelease=True, draft=False, published='2026-10-22T00:00:00Z'):
 
 
 class PruneTests(unittest.TestCase):
-    def test_preserves_stable_drafts_current_and_tags(self):
+    def test_selects_only_old_published_prereleases(self):
         old, keep = release(1), release(2)
-        self.assertEqual(prune.prune_candidates([release(3, False), release(4, draft=True), old, keep], keep), [old])
+        alpha = release(5)
+        alpha['tag_name'] = 'v3.0.11-alpha.2'
+        self.assertEqual(prune.prune_candidates([release(3, False), release(4, draft=True), alpha, old, keep], keep), [old])
     def test_stale_run_and_missing_release_fail(self):
         with self.assertRaises(ValueError): prune.prune_candidates([release(1), release(2)], release(1))
         with self.assertRaises(ValueError): prune.prune_candidates([release(2)], release(1))
+
+    def test_old_preview_release_and_tag_deleted_only_after_live_checks(self):
+        old = release(1)
+        responses = [
+            '{"id": 1, "tag_name": "v3.0.10-preview.1", "prerelease": true, "draft": false}',
+            '{"ref": "refs/tags/v3.0.10-preview.1"}',
+        ]
+        calls = []
+        def fake_gh(*args):
+            calls.append(args)
+            if '--method' in args:
+                return ''
+            return responses.pop(0)
+        def fake_run(args, **kwargs):
+            calls.append(tuple(args))
+            return type('Result', (), {'returncode': 1, 'stdout': '', 'stderr': 'HTTP 404'})()
+        with patch.object(prune, 'gh', side_effect=fake_gh), patch.object(prune.subprocess, 'run', side_effect=fake_run):
+            prune.delete_old_preview(old, 'Wuwan94/wanBoxForAndroid')
+        self.assertIn(('api', '--method', 'DELETE', 'repos/Wuwan94/wanBoxForAndroid/releases/1'), calls)
+        self.assertIn(('api', '--method', 'DELETE', 'repos/Wuwan94/wanBoxForAndroid/git/refs/tags/v3.0.10-preview.1'), calls)
+        self.assertLess(calls.index(('api', '--method', 'DELETE', 'repos/Wuwan94/wanBoxForAndroid/releases/1')),
+                        calls.index(('api', '--method', 'DELETE', 'repos/Wuwan94/wanBoxForAndroid/git/refs/tags/v3.0.10-preview.1')))
+
+    def test_refuses_non_preview_tag_deletion(self):
+        stable = release(1)
+        stable['tag_name'] = 'v3.0.11'
+        with patch.object(prune, 'gh') as call:
+            with self.assertRaises(ValueError): prune.delete_old_preview(stable, 'Wuwan94/wanBoxForAndroid')
+            call.assert_not_called()
+    def test_orphan_candidates_remove_only_older_preview_tags(self):
+        draft = release(8, draft=True)
+        draft['tag_name'] = 'v3.0.11-preview.8'
+        tags = [
+            'v3.0.10-preview.24', 'v3.0.10-preview.29', 'v3.0.10-preview.31',
+            'v3.0.11-preview.2', 'v3.0.11-preview.8', 'v3.0.11-alpha.1',
+            'v3.0.11-beta.1', 'v3.0.11',
+        ]
+        self.assertEqual(
+            prune.orphan_preview_tags(tags, 'v3.0.11-preview.1', [draft]),
+            ['v3.0.10-preview.24', 'v3.0.10-preview.29', 'v3.0.10-preview.31'],
+        )
+
+    def test_orphan_tag_deletion_checks_release_and_reference(self):
+        calls = []
+        def fake_run(args, **kwargs):
+            calls.append(tuple(args))
+            return type('Result', (), {'returncode': 1, 'stdout': '', 'stderr': 'HTTP 404'})()
+        def fake_gh(*args):
+            calls.append(args)
+            if args[-1].endswith('/git/ref/tags/v3.0.10-preview.24'):
+                return '{"ref": "refs/tags/v3.0.10-preview.24"}'
+            return ''
+        with patch.object(prune.subprocess, 'run', side_effect=fake_run), patch.object(prune, 'gh', side_effect=fake_gh):
+            self.assertTrue(prune.delete_orphan_preview_tag(
+                'v3.0.10-preview.24', 'Wuwan94/wanBoxForAndroid', 'v3.0.11-preview.1'))
+        self.assertIn(('gh', 'api', 'repos/Wuwan94/wanBoxForAndroid/releases/tags/v3.0.10-preview.24'), calls)
+        self.assertIn(('api', '--method', 'DELETE', 'repos/Wuwan94/wanBoxForAndroid/git/refs/tags/v3.0.10-preview.24'), calls)
+
+    def test_orphan_tag_with_any_release_is_preserved(self):
+        with patch.object(prune, 'release_exists', return_value=True), patch.object(prune, 'gh') as call:
+            self.assertFalse(prune.delete_orphan_preview_tag(
+                'v3.0.10-preview.24', 'Wuwan94/wanBoxForAndroid', 'v3.0.11-preview.1'))
+            call.assert_not_called()
+
+    def test_refuses_newer_or_non_preview_orphan_tag(self):
+        with patch.object(prune, 'gh') as call:
+            for tag in ['v3.0.11-preview.2', 'v3.0.11-alpha.1', 'v3.0.11']:
+                with self.assertRaises(ValueError):
+                    prune.delete_orphan_preview_tag(tag, 'Wuwan94/wanBoxForAndroid', 'v3.0.11-preview.1')
+            call.assert_not_called()
+
     def test_assets_checksum_and_publication_gate(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -46,6 +120,8 @@ class WorkflowRetentionTests(unittest.TestCase):
             self.assertIn('group: wanbox-release-publication', text)
             self.assertIn('cancel-in-progress: false', text)
             self.assertLess(text.index('uses: softprops/action-gh-release@v2'), text.index('run: python3 tools/prune_prereleases.py'))
+        preview = (workflows / 'preview.yml').read_text()
+        self.assertIn('name: wanBox ${{ env.PREVIEW_TAG }} — 界面布局预览', preview)
         formal = (workflows / 'release.yml').read_text()
         after = formal.split('- name: Verify published preview and retain only newest prerelease')[1]
         self.assertIn('if: contains(', after)

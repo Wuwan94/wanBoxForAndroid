@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Prune only published prerelease records after verifying the new preview assets.
-Tags and all stable/draft releases are preserved. Uses the job's gh authentication.
+"""Prune older published preview releases and their tags after verifying the new preview.
+Stable releases and stable tags are preserved. Uses the job's gh authentication.
 """
 import argparse
 import hashlib
@@ -11,6 +11,17 @@ import subprocess
 import tempfile
 
 MODULES = {'wanbox-root-module-arm64-v8a.zip', 'wanbox-root-module-with-manager-arm64-v8a.zip'}
+PREVIEW_TAG = re.compile(r'v[0-9]+\.[0-9]+\.[0-9]+-preview\.[0-9]+')
+
+
+def preview_version(tag):
+    match = PREVIEW_TAG.fullmatch(tag)
+    if not match:
+        return None
+    major, minor, patch, preview = re.fullmatch(
+        r'v([0-9]+)\.([0-9]+)\.([0-9]+)-preview\.([0-9]+)', tag
+    ).groups()
+    return tuple(map(int, (major, minor, patch, preview)))
 
 
 def validate_assets(release, directory):
@@ -44,15 +55,90 @@ def prune_candidates(releases, keep):
     current = [r for r in releases if r['id'] == keep['id']]
     if len(current) != 1 or current[0]['tag_name'] != keep['tag_name']:
         raise ValueError('new release absent from complete listing')
-    previews = [r for r in releases if r.get('prerelease') and not r.get('draft') and r.get('published_at')]
-    newest = max(previews, key=lambda r: (r['published_at'], r['id']))
-    if newest['id'] != keep['id']:
+    keep_version = preview_version(keep['tag_name'])
+    previews = [r for r in releases if r.get('prerelease') and not r.get('draft')
+                and r.get('published_at') and preview_version(r.get('tag_name', '')) is not None]
+    if any(preview_version(r['tag_name']) > keep_version for r in previews):
         raise ValueError('newer preview exists; refusing stale cleanup')
-    return [r for r in previews if r['id'] != keep['id']]
+    return [r for r in previews if r['id'] != keep['id']
+            and preview_version(r['tag_name']) < keep_version]
 
 
 def gh(*args):
     return subprocess.check_output(['gh', *args], text=True)
+
+
+def require_deleted(endpoint):
+    result = subprocess.run(['gh', 'api', endpoint], text=True, capture_output=True)
+    if result.returncode == 0:
+        raise ValueError(f'resource still exists after deletion: {endpoint}')
+    if 'HTTP 404' not in result.stderr and 'HTTP 404' not in result.stdout:
+        raise ValueError(f'could not verify deletion: {endpoint}: {result.stderr.strip()}')
+
+
+def orphan_preview_tags(tags, keep_tag, releases):
+    keep_version = preview_version(keep_tag)
+    release_tags = {r.get('tag_name') for r in releases}
+    return sorted(tag for tag in set(tags)
+                  if preview_version(tag) is not None
+                  and preview_version(tag) < keep_version
+                  and tag not in release_tags)
+
+
+def release_exists(repo, tag):
+    endpoint = f'repos/{repo}/releases/tags/{tag}'
+    result = subprocess.run(['gh', 'api', endpoint], text=True, capture_output=True)
+    if result.returncode == 0:
+        return True
+    if 'HTTP 404' in result.stderr or 'HTTP 404' in result.stdout:
+        return False
+    raise ValueError(f'could not check release for {tag}: {result.stderr.strip()}')
+
+
+def list_tag_names(repo):
+    pages = json.loads(gh('api', '--paginate', '--slurp',
+                          f'repos/{repo}/git/matching-refs/tags/?per_page=100'))
+    names = []
+    for page in pages:
+        for item in page:
+            ref = item.get('ref', '')
+            if ref.startswith('refs/tags/'):
+                names.append(ref[len('refs/tags/'):])
+    return names
+
+
+def delete_orphan_preview_tag(tag, repo, keep_tag):
+    if preview_version(tag) is None or preview_version(tag) >= preview_version(keep_tag):
+        raise ValueError('refusing to delete a non-old preview tag')
+    if release_exists(repo, tag):
+        print(f'Preserved preview tag with an existing release: {tag}')
+        return False
+    base = f'repos/{repo}'
+    ref = json.loads(gh('api', f'{base}/git/ref/tags/{tag}'))
+    if ref.get('ref') != f'refs/tags/{tag}':
+        raise ValueError('tag reference mismatch; stopping')
+    gh('api', '--method', 'DELETE', f'{base}/git/refs/tags/{tag}')
+    require_deleted(f'{base}/git/ref/tags/{tag}')
+    print(f'Deleted orphaned older preview tag: {tag}')
+    return True
+
+
+def delete_old_preview(release, repo):
+    tag = release['tag_name']
+    if not PREVIEW_TAG.fullmatch(tag):
+        raise ValueError('refusing to delete a non-preview tag')
+    base = f'repos/{repo}'
+    live = json.loads(gh('api', f"{base}/releases/{release['id']}"))
+    if live.get('prerelease') is not True or live.get('draft') or live.get('tag_name') != tag:
+        raise ValueError('release changed before deletion; stopping')
+    ref = json.loads(gh('api', f'{base}/git/ref/tags/{tag}'))
+    if ref.get('ref') != f'refs/tags/{tag}':
+        raise ValueError('tag reference mismatch; stopping')
+    gh('api', '--method', 'DELETE', f"{base}/releases/{live['id']}")
+    require_deleted(f"{base}/releases/{live['id']}")
+    gh('api', '--method', 'DELETE', f'{base}/git/refs/tags/{tag}')
+    require_deleted(f'{base}/git/ref/tags/{tag}')
+    print(f"Deleted older prerelease and tag: {tag} ({live['id']})")
 
 
 def main():
@@ -62,7 +148,7 @@ def main():
     args = parser.parse_args()
     if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', args.repo):
         raise ValueError('invalid repository')
-    if not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+-(?:preview|alpha|beta)\.[0-9]+', args.keep_tag):
+    if not PREVIEW_TAG.fullmatch(args.keep_tag):
         raise ValueError('not an explicit preview tag')
     base = f'repos/{args.repo}/releases'
     keep = json.loads(gh('api', f'{base}/tags/{args.keep_tag}'))
@@ -77,9 +163,13 @@ def main():
         live = json.loads(gh('api', f"{base}/{release['id']}"))
         if live.get('prerelease') is not True or live.get('draft') or live['id'] == keep['id']:
             raise ValueError('release changed before deletion; stopping')
-        gh('api', '--method', 'DELETE', f"{base}/{live['id']}")
-        print(f"Deleted older prerelease record: {live['tag_name']} ({live['id']}); preserved its tag")
-    print(f"Verified and retained preview: {keep['html_url']}; stable releases and all tags untouched")
+        delete_old_preview(live, args.repo)
+    release_pages = json.loads(gh('api', '--paginate', '--slurp', f'{base}?per_page=100'))
+    all_releases = [release for page in release_pages for release in page]
+    orphans = orphan_preview_tags(list_tag_names(args.repo), args.keep_tag, all_releases)
+    for tag in orphans:
+        delete_orphan_preview_tag(tag, args.repo, args.keep_tag)
+    print(f"Verified and retained preview: {keep['html_url']}; stable releases and tags untouched")
 
 
 if __name__ == '__main__':

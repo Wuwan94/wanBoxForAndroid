@@ -1,22 +1,12 @@
-> **版本状态（2026-11-04）**：本文描述的是**已发布**的 `v3.0.10-preview.32`。
-> 仓库元数据中的 `PRE_VERSION_NAME=3.0.10-preview.33` / `PRE_VERSION_CODE=2012`
-> 只是为满足「预览码高于正式码」既有断言而预置的**下一预览候选**，
-> **从未构建、从未发布**，没有对应的 tag、Release 或下载资产。
-> 当前正式版为 `3.0.10` / APK `versionCode 10055`，见 `RELEASE_NOTES.md`。
+# wanBox v3.0.11-preview.1 — 界面布局预览
 
-
-# wanBox v3.0.10-preview.32 — 内核升级至 sing-box v1.15.0-alpha.13
-
-本版基于 preview.31，仅升级内置 Root 模块的 sing-box 内核：reF1nd/sing-box `v1.15.0-alpha.11-reF1nd` → `v1.15.0-alpha.13-reF1nd`（commit `17397d022647b73378705e1f91ff031dddaaec21`），并同步 libcore 的 fork 依赖版本。管理器界面、代理策略与配置格式均未改动。
-
-## 变更
-
-- 内核升级至 sing-box v1.15.0-alpha.13（reF1nd 分支），包含上游 connect-udp 的 UDP Fast Open 等更新；上游此版本未附更新日志。
+本预览基于 wanBox v3.0.11，主要验证首页、节点/订阅列表、日志和设置页的布局整理。延续现有奶茶粉主题、奶糖猫与 164dp 四态连接按钮；调整页面留白、区块标题、列表分组卡片和设置分组的统一间距。没有改动 Kotlin 业务逻辑、代理策略、核心或 Root 模块行为，也没有新增实时数据入口。
 
 ## 安装与兼容性
 
-适用环境为 **ARM64、Android 12+、Root**（Magisk / KernelSU / APatch）。管理器版本为 `3.0.10-preview.32`，Root 模块版本码为 **2010**，Android APK `versionCode` 为 **10050**；请使用同一发布页中的 APK 与模块。本版 APK 为瘦管理器，不含内嵌核心，必须配合本发布页的 Root 模块使用。它与 preview.31 使用相同包名和官方签名，不涉及数据库、备份格式或模块配置迁移，可直接覆盖升级并保留原有数据。
+- 适用环境：Android 12 及以上、arm64-v8a、Root（Magisk / KernelSU / APatch）。
+- 本版为瘦管理器 APK，须与同一发布页中的 Root 模块配套使用；不提供普通 VPN 模式。
+- 包名、签名与正式版保持一致；安装前建议先备份。
+- 预览版用于体验界面调整；本次已通过本地构建、XML 解析和差异检查，但没有完成模拟器/真机运行截图或运行时回归，部分布局效果仍待设备验证。
 
-## 已知限制
-
-瘦管理器不支持免 Root 单机代理、本地测速、STUN 探测和本地 URL 测试（TCP 重测与仪表盘的当前连接测试可用）。预览通道只保留最新一个预览版，需要旧包请自行留档。
+确认本版 Release 与全部下载资产发布成功后，将删除旧预览版及其 tag；正式版与正式版 tag 保留。

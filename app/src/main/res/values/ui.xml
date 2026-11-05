@@ -6,6 +6,21 @@
     <dimen name="ui_touch_target">48dp</dimen>
     <dimen name="ui_page_padding">12dp</dimen>
     <dimen name="ui_form_padding">16dp</dimen>
+    <!-- FlClash-inspired layout tokens: semantic scale, not page-specific magic values. -->
+    <dimen name="ui_page_horizontal">20dp</dimen>
+    <dimen name="ui_page_top">4dp</dimen>
+    <dimen name="ui_page_bottom">20dp</dimen>
+    <dimen name="ui_section_gap">24dp</dimen>
+    <dimen name="ui_space_large">16dp</dimen>
+    <dimen name="ui_card_spacing">8dp</dimen>
+    <dimen name="ui_list_card_gap">8dp</dimen>
+    <dimen name="ui_list_row_min_height">56dp</dimen>
+    <dimen name="ui_text_page_title">24sp</dimen>
+    <dimen name="ui_text_section_title">17sp</dimen>
+    <dimen name="ui_text_card_title">17sp</dimen>
+    <dimen name="ui_text_body_emphasis">15sp</dimen>
+    <dimen name="ui_text_supporting">13sp</dimen>
+    <dimen name="ui_text_micro">11sp</dimen>
     <dimen name="ui_space_small">4dp</dimen>
     <dimen name="ui_space_medium">8dp</dimen>
     <dimen name="ui_card_gap">4dp</dimen>

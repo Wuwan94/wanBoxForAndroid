@@ -19,9 +19,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingHorizontal="20dp"
-            android:paddingTop="4dp"
-            android:paddingBottom="20dp">
+            android:paddingHorizontal="@dimen/ui_page_horizontal"
+            android:paddingTop="@dimen/ui_page_top"
+            android:paddingBottom="@dimen/ui_page_bottom">
 
             <!-- phase2 首页视觉中心：吉祥物 + 大圆形连接按钮（未连接/连接中/已连接/异常 四态） -->
             <ImageView
@@ -128,7 +128,7 @@
                 style="@style/Widget.WanBox.Minimal.DashboardCard"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp">
+                android:layout_marginBottom="@dimen/ui_card_spacing">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -194,6 +194,7 @@
             </com.google.android.material.card.MaterialCardView>
 
             <TextView
+                android:textAppearance="@style/TextAppearance.WanBox.Minimal.SectionTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:fontFamily="sans-serif-medium"
@@ -206,7 +207,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:layout_marginBottom="16dp"
+                android:layout_marginBottom="@dimen/ui_card_spacing"
                 android:background="@drawable/bg_dashboard_segment"
                 android:padding="2dp">
 
@@ -237,6 +238,7 @@
 
             <!-- D3: 连接测试 / 落地 IP 从已删除的底部 StatsBar 迁到首页；首页「更新订阅」 -->
             <TextView
+                android:textAppearance="@style/TextAppearance.WanBox.Minimal.SectionTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="8dp"
@@ -249,7 +251,7 @@
                 style="@style/Widget.WanBox.Minimal.DashboardCard"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp">
+                android:layout_marginBottom="@dimen/ui_card_spacing">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -356,6 +358,7 @@
             </com.google.android.material.card.MaterialCardView>
 
             <TextView
+                android:textAppearance="@style/TextAppearance.WanBox.Minimal.SectionTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="8dp"
@@ -368,7 +371,7 @@
                 style="@style/Widget.WanBox.Minimal.DashboardCard"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp">
+                android:layout_marginBottom="@dimen/ui_card_spacing">
 
                 <LinearLayout
                     android:layout_width="match_parent"

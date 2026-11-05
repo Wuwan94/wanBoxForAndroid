@@ -273,7 +273,7 @@ jobs:
         with:
           tag_name: ${{ env.PREVIEW_TAG }}
           target_commitish: ${{ github.sha }}
-          name: wanBox ${{ env.PREVIEW_TAG }}
+          name: wanBox ${{ env.PREVIEW_TAG }} — 界面布局预览
           body_path: ${{ runner.temp }}/preview-notes.md
           files: apks/*
           draft: false
