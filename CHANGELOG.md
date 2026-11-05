@@ -8,7 +8,7 @@
 
 - 基于 v3.0.11 调整首页、节点与订阅列表、日志和设置页的留白、分组卡片及统一间距/文字样式。
 - 保留奶茶粉与奶糖猫品牌、164dp 四态连接按钮；只改布局/资源 XML，不改 Kotlin 业务逻辑、代理策略、核心或 Root 模块。
-- 本地 `assembleFdroidDebug`、预览单元测试、Android 测试 Kotlin 编译、34 项工具测试、安全检查、XML 解析和 `git diff --check` 均通过；未完成模拟器/真机运行截图与运行时回归。
+- 本地 `assembleFdroidDebug`、预览单元测试、Android 测试 Kotlin 编译、38 项工具测试、安全检查、XML 解析和 `git diff --check` 均通过；未完成模拟器/真机运行截图与运行时回归。
 - 预览包仍为 Android 12+ / arm64-v8a Root 瘦管理器，需配合同一发布页 Root 模块使用。
 
 ### 未发布：界面与精简优化（分支 `optimize/phase2`，基于 v3.0.10）
