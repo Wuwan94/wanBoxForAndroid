@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- @author 雾晚 -->
 <resources>
-    <string name="root_module_mode">Root module (Magisk / KernelSU)</string>
     <string name="root_module_action_failed">Module operation failed. Grant Root permission, install and enable the matching wanBox module, then retry. Invalid configurations keep the last working snapshot.</string>
     <string name="root_module_node_switch_failed">Node hot-switch failed; the saved selection is kept and a full apply was used instead. If this repeats, export the application log.</string>
     <string name="root_module_revision_conflict">The configuration was changed elsewhere and this apply was rejected to avoid overwriting it. The list has been refreshed; please retry your change.</string>

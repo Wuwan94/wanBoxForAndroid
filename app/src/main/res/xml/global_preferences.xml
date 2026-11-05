@@ -88,13 +88,6 @@
         app:title="@string/per_app_proxy"
         app:summary="@string/per_app_proxy_summary" />
 
-        <Preference
-            app:icon="@drawable/ic_device_developer_mode"
-            app:key="serviceMode"
-            app:persistent="false"
-            app:selectable="false"
-            app:title="@string/service_mode"
-            app:summary="@string/root_module_mode" />
 
         <SwitchPreference
             app:defaultValue="false"
@@ -142,11 +135,6 @@
             app:summary="@string/strict_route_sum"
             app:title="@string/strict_route" />
 
-        <Preference
-            app:key="tunImplementation"
-            app:title="@string/tun_implementation"
-            app:summary="Sing-Tun (官方原生, 固定)"
-            app:selectable="false" />
 
         <moe.matsuri.nb4a.ui.MTUPreference
             app:defaultValue="9000"
@@ -389,12 +377,6 @@
             app:title="@string/default_subscription_user_agent" />
 
         <!-- @author 雾晚：Root 必需内部接口，固定启用，不提供误导开关 -->
-        <Preference
-            app:key="clashApiFixed"
-            app:persistent="false"
-            app:selectable="false"
-            app:title="@string/enable_clash_api"
-            app:summary="Root 模式固定启用（内部控制需要）" />
 
         <SwitchPreference
             app:icon="@drawable/ic_action_lock_open"

@@ -114,8 +114,6 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
         }
         val mixedPort = findPreference<EditTextPreference>(Key.MIXED_PORT)!!
         val disableMixedInbound = findPreference<SwitchPreference>(Key.DISABLE_MIXED_INBOUND)!!
-        val serviceMode = findPreference<Preference>(Key.SERVICE_MODE)!!
-        serviceMode.summary = getString(R.string.root_module_mode)
         val mixedAuthConfig = findPreference<Preference>(Key.MIXED_AUTH_CONFIG)!!
         val dnsHosts = findPreference<EditTextPreference>(Key.DNS_HOSTS)!!
         val strictRoute = findPreference<SwitchPreference>(Key.STRICT_ROUTE)!!
@@ -387,23 +385,6 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             }
             preferenceScreen.addPreference(colors)
         }
-        if (section == "root") {
-            val status = Preference(requireContext()).apply {
-                key = "minimalModuleStatus"
-                title = getString(R.string.minimal_root)
-                summary = "—"
-                order = -1
-                isSelectable = false
-            }
-            preferenceScreen.addPreference(status)
-            lifecycleScope.launch {
-                status.summary = try {
-                    val module = io.nekohasekai.sagernet.bg.RootModuleClient.call("status")
-                    getString(if (module.connected) R.string.service_state_connected else R.string.service_state_idle)
-                } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-                  catch (e: Exception) { io.nekohasekai.sagernet.bg.RootModuleErrors.message(requireContext(), e) }
-            }
-        }
     }
 
     private fun collectLeaves(group: PreferenceGroup, out: MutableList<Preference>) {
@@ -534,8 +515,8 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
                 "hideUnavailableProfiles", "confirmProfileDelete", "hapticFeedback",
             ),
             "root" to listOf(
-                "serviceMode", "proxyApps", "bypassLan", "bypassLanInCore", "strictRoute",
-                "tunImplementation", "mtu", "performancePriorityMode",
+                "proxyApps", "bypassLan", "bypassLanInCore", "strictRoute",
+                "mtu", "performancePriorityMode",
                 "disableMixedInbound", "mixedPort", "mixedAuthConfig", "lanSharing",
             ),
             "dns" to listOf(

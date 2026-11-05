@@ -39,7 +39,6 @@
     <string name="group_deleted">删除:
         \n%s</string>
     <!-- misc -->
-    <string name="service_mode">运行模式</string>
     <string name="service_mode_proxy">仅代理</string>
     <string name="service_mode_root">Root TUN（不使用系统 VPN）</string>
     <string name="root_tun_failed_fallback">Root TUN 启动失败，已自动切换回 VPN 模式。</string>
@@ -493,7 +492,6 @@
     <string name="resolve_destination">解析目标地址</string>
     <string name="destination_override_summary">使用探测的域来覆盖目标地址, 而不是仅用于路由</string>
     <string name="destination_override">覆盖目标地址</string>
-    <string name="tun_implementation">TUN 实现</string>
     <string name="generating">正在生成…</string>
     <string name="warp_generate">生成配置</string>
     <string name="warp_license">CloudFlare Warp 是一个免费的 WireGuard VPN 提供源. 使用它, 代表您同意其服务条款。</string>
@@ -571,7 +569,6 @@
     <string name="dashboard_url_tips">支持输入任意兼容 Clash API 的 Web 仪表盘。已放行混合协议与跨域，打开即自动连接本地内核。</string>
     <string name="dashboard_reset_default">重置默认</string>
     <string name="dashboard_switched_toast">已切换仪表盘并重新加载</string>
-    <string name="enable_clash_api">启用 Clash API</string>
     <string name="enable_clash_api_summary">在 127.0.0.1:9090 提供 clash api 和 yacd 仪表板</string>
     <string name="xtls_flow">Flow（VLESS 子协议）</string>
     <string name="log_level">日志级别</string>

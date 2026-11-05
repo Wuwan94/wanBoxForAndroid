@@ -58,7 +58,6 @@
     <string name="group_deleted">Deleted: \n%s</string>
     <string name="group_duplicate">Duplicate: \n%s</string>
     <!-- misc -->
-    <string name="service_mode">Service Mode</string>
     <string name="service_mode_proxy">Proxy only</string>
     <string name="service_mode_vpn" translatable="false">VPN</string>
     <string name="service_mode_root">Root TUN (no system VPN)</string>
@@ -612,7 +611,6 @@
         agree to the TOS.</string>
     <string name="warp_generate">Generate Configuration</string>
     <string name="generating">Generating…</string>
-    <string name="tun_implementation">TUN Implementation</string>
     <string name="destination_override">Override Destination</string>
     <string name="destination_override_summary">Use the sniffed domain to overwrite the destination
         address, not just for routing</string>
@@ -703,7 +701,6 @@
     <string name="dashboard_url_tips">Supports any Clash API compatible web dashboard. Mixed content is enabled for seamless local core connection.</string>
     <string name="dashboard_reset_default">Reset Default</string>
     <string name="dashboard_switched_toast">Dashboard updated and reloaded</string>
-    <string name="enable_clash_api">Enable Clash API</string>
     <string name="log_level">Log Level</string>
     <string name="enable_clash_api_summary">Provide clash api and yacd dashboard at 127.0.0.1:9090</string>
     <string name="xtls_flow">Flow (VLESS Sub-protocol)</string>

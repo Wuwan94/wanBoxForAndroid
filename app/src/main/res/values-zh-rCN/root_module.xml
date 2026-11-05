@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- @author 雾晚 -->
 <resources>
-    <string name="root_module_mode">Root 模块（Magisk / KernelSU）</string>
     <string name="root_module_action_failed">模块操作失败。请授予 Root 权限，安装并启用配套 wanBox 模块后重试。无效配置会保留上一份有效快照。</string>
     <string name="root_module_node_switch_failed">节点热切换失败；已保留保存的选择并改用完整应用。若反复出现请导出应用日志。</string>
     <string name="root_module_revision_conflict">配置在别处被修改，本次应用已被拒绝以避免覆盖。列表已刷新，请重试你的修改。</string>
