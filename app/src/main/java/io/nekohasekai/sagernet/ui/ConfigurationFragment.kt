@@ -549,18 +549,14 @@ class ConfigurationFragment @JvmOverloads constructor(
             exportItem?.title = "导出配置（本组）"
         }
         if (isAll) {
-            toolbar.menu.findItem(R.id.action_update_subscription)?.setTitle("更新全部订阅")
             toolbar.menu.findItem(R.id.action_connection_url_test)?.setTitle("URL 测试（全部）")
-            toolbar.menu.findItem(R.id.action_connection_tcp_ping)?.setTitle(R.string.connection_test_tcp_all)
             toolbar.menu.findItem(R.id.action_speed_test_group)?.setTitle("速度测试（全部）")
             toolbar.menu.findItem(R.id.action_clear_traffic_statistics)?.setTitle("清空全部流量统计数据")
             toolbar.menu.findItem(R.id.action_remove_duplicate)?.setTitle("删除全部重复的服务器")
             toolbar.menu.findItem(R.id.action_connection_test_clear_results)?.setTitle("清理全部测试结果")
             toolbar.menu.findItem(R.id.action_connection_test_delete_unavailable)?.setTitle("清理全部不可用配置")
         } else {
-            toolbar.menu.findItem(R.id.action_update_subscription)?.setTitle(R.string.update_current_subscription)
             toolbar.menu.findItem(R.id.action_connection_url_test)?.setTitle(R.string.connection_test_url_test)
-            toolbar.menu.findItem(R.id.action_connection_tcp_ping)?.setTitle(R.string.connection_test_tcp_ping)
             toolbar.menu.findItem(R.id.action_speed_test_group)?.setTitle(R.string.speed_test_group)
             toolbar.menu.findItem(R.id.action_clear_traffic_statistics)?.setTitle(R.string.clear_traffic_statistics)
             toolbar.menu.findItem(R.id.action_remove_duplicate)?.setTitle(R.string.remove_duplicate)
@@ -721,7 +717,7 @@ class ConfigurationFragment @JvmOverloads constructor(
             setIcon(R.drawable.ic_minimal_refresh)
             setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
             setOnMenuItemClickListener {
-                onMenuItemClick(toolbar.menu.findItem(R.id.action_connection_tcp_ping))
+                tcpPingTest()
                 true
             }
         }
@@ -1328,31 +1324,6 @@ class ConfigurationFragment @JvmOverloads constructor(
                 startActivity(Intent(requireActivity(), BalancerSettingsActivity::class.java))
             }
 
-            R.id.action_update_subscription -> {
-                val isAll = isCurrentAllGroups()
-                if (isAll) {
-                    runOnLifecycleDispatcher {
-                        val subGroups = SagerDatabase.groupDao.allGroups().filter { it.type == GroupType.SUBSCRIPTION }
-                        if (subGroups.isEmpty()) {
-                            safeSnackbar("没有可更新的订阅分组")
-                        } else {
-                            subGroups.forEach { GroupUpdater.startUpdate(it, true) }
-                            safeSnackbar("正在更新全部 ${subGroups.size} 个订阅组...")
-                        }
-                    }
-                } else {
-                    val group = DataStore.currentGroup()
-                    if (group.type != GroupType.SUBSCRIPTION) {
-                        snackbar(R.string.group_not_subscription).show()
-                        Logs.e("onMenuItemClick: Group(${group.displayName()}) is not subscription")
-                    } else {
-                        runOnLifecycleDispatcher {
-                            GroupUpdater.startUpdate(group, true)
-                        }
-                    }
-                }
-            }
-
             R.id.action_clear_traffic_statistics -> {
                 val trafficService = (activity as? MainActivity)?.connection?.service
                 val isAll = isCurrentAllGroups()
@@ -1644,10 +1615,6 @@ class ConfigurationFragment @JvmOverloads constructor(
 
             R.id.action_connection_url_test -> {
                 urlTest()
-            }
-
-            R.id.action_connection_tcp_ping -> {
-                tcpPingTest()
             }
 
             R.id.action_hide_unavailable -> {

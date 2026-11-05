@@ -458,7 +458,6 @@
     <string name="connection_test">Connection test</string>
     <string name="connection_test_clear_results">Clear test results</string>
     <string name="connection_test_url_test">URL test this group</string>
-    <string name="connection_test_tcp_ping">TCP RTT this group</string>
     <string name="action_auto_lowest_latency">Auto-select lowest latency (URL-Test)</string>
     <string name="route_preset_title">Routing rule presets</string>
     <string name="preset_bypass_cn_apps">Preset: Bypass common domestic apps</string>
@@ -737,8 +736,6 @@
     <string name="ech_query_server_name">ECH Query Server Name</string>
     <string name="http_upgrade_host">HTTPUpgrade Host</string>
     <string name="http_upgrade_path">HTTPUpgrade Path</string>
-    <string name="update_current_subscription">Update current Group\'s subscription</string>
-    <string name="group_not_subscription">Group type is not subscription</string>
     <string name="allow_insecure_on_request_sum">Disable certificate checking when updating
         subscriptions</string>
     <string name="global_allow_insecure">Always allow insecure</string>
@@ -1221,7 +1218,6 @@
     <string name="tcp_rtt_network_unavailable">Physical network is not ready. Retry after connecting.</string>
     <string name="default_group_test_url" translatable="false">http://connectivitycheck.gstatic.com/generate_204</string>
     <string name="service_start_rejected">Android blocked starting the service. Open wanBox and connect again; check battery restrictions.</string>
-    <string name="connection_test_tcp_all">TCP RTT for all groups</string>
     <string name="preset_domestic_split">Preset: China domains/IPs direct, other traffic proxied</string>
     <string name="preset_domestic_split_message">Enable China domain and IP direct rules, switch to rule mode and enable DNS routing. Other unmatched traffic uses the selected proxy. Explicit app/domain/IP rules retain priority. Existing rules are preserved; equivalent direct rules are enabled without duplication. The app bypass list still excludes those apps from routing.</string>
     <string name="preset_domestic_domains">China domains direct</string>
