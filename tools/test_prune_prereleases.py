@@ -52,6 +52,48 @@ class PruneTests(unittest.TestCase):
         with patch.object(prune, 'gh') as call:
             with self.assertRaises(ValueError): prune.delete_old_preview(stable, 'Wuwan94/wanBoxForAndroid')
             call.assert_not_called()
+    def test_orphan_candidates_remove_only_older_preview_tags(self):
+        draft = release(8, draft=True)
+        draft['tag_name'] = 'v3.0.11-preview.8'
+        tags = [
+            'v3.0.10-preview.24', 'v3.0.10-preview.29', 'v3.0.10-preview.31',
+            'v3.0.11-preview.2', 'v3.0.11-preview.8', 'v3.0.11-alpha.1',
+            'v3.0.11-beta.1', 'v3.0.11',
+        ]
+        self.assertEqual(
+            prune.orphan_preview_tags(tags, 'v3.0.11-preview.1', [draft]),
+            ['v3.0.10-preview.24', 'v3.0.10-preview.29', 'v3.0.10-preview.31'],
+        )
+
+    def test_orphan_tag_deletion_checks_release_and_reference(self):
+        calls = []
+        def fake_run(args, **kwargs):
+            calls.append(tuple(args))
+            return type('Result', (), {'returncode': 1, 'stdout': '', 'stderr': 'HTTP 404'})()
+        def fake_gh(*args):
+            calls.append(args)
+            if args[-1].endswith('/git/ref/tags/v3.0.10-preview.24'):
+                return '{"ref": "refs/tags/v3.0.10-preview.24"}'
+            return ''
+        with patch.object(prune.subprocess, 'run', side_effect=fake_run), patch.object(prune, 'gh', side_effect=fake_gh):
+            self.assertTrue(prune.delete_orphan_preview_tag(
+                'v3.0.10-preview.24', 'Wuwan94/wanBoxForAndroid', 'v3.0.11-preview.1'))
+        self.assertIn(('gh', 'api', 'repos/Wuwan94/wanBoxForAndroid/releases/tags/v3.0.10-preview.24'), calls)
+        self.assertIn(('api', '--method', 'DELETE', 'repos/Wuwan94/wanBoxForAndroid/git/refs/tags/v3.0.10-preview.24'), calls)
+
+    def test_orphan_tag_with_any_release_is_preserved(self):
+        with patch.object(prune, 'release_exists', return_value=True), patch.object(prune, 'gh') as call:
+            self.assertFalse(prune.delete_orphan_preview_tag(
+                'v3.0.10-preview.24', 'Wuwan94/wanBoxForAndroid', 'v3.0.11-preview.1'))
+            call.assert_not_called()
+
+    def test_refuses_newer_or_non_preview_orphan_tag(self):
+        with patch.object(prune, 'gh') as call:
+            for tag in ['v3.0.11-preview.2', 'v3.0.11-alpha.1', 'v3.0.11']:
+                with self.assertRaises(ValueError):
+                    prune.delete_orphan_preview_tag(tag, 'Wuwan94/wanBoxForAndroid', 'v3.0.11-preview.1')
+            call.assert_not_called()
+
     def test_assets_checksum_and_publication_gate(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
