@@ -1710,7 +1710,6 @@ class ConfigurationFragment @JvmOverloads constructor(
                     val txBytes = sample.uploadBitsPerSecond / 8
                     runOnMainDispatcher {
                     if (speedTestRunner !== runner) return@runOnMainDispatcher
-                        (activity as? MainActivity)?.binding?.stats?.updateSpeed(txBytes, rxBytes)
                         try {
                             (activity as? MainActivity)?.connection?.service?.postNotificationSpeed(
                                 io.nekohasekai.sagernet.aidl.SpeedDisplayData(
@@ -1784,7 +1783,6 @@ class ConfigurationFragment @JvmOverloads constructor(
             } finally {
                 runOnMainDispatcher {
                     if (speedTestRunner !== runner) return@runOnMainDispatcher
-                    (activity as? MainActivity)?.binding?.stats?.updateSpeed(0, 0)
                     try {
                         (activity as? MainActivity)?.connection?.service?.postNotificationSpeed(
                             io.nekohasekai.sagernet.aidl.SpeedDisplayData(0, 0, 0, 0, 0, 0)
@@ -1861,7 +1859,6 @@ class ConfigurationFragment @JvmOverloads constructor(
                     val txBytes = sample.uploadBitsPerSecond / 8
                     runOnMainDispatcher {
                     if (speedTestRunner !== runner) return@runOnMainDispatcher
-                        (activity as? MainActivity)?.binding?.stats?.updateSpeed(txBytes, rxBytes)
                         try {
                             (activity as? MainActivity)?.connection?.service?.postNotificationSpeed(
                                 io.nekohasekai.sagernet.aidl.SpeedDisplayData(
@@ -1940,7 +1937,6 @@ class ConfigurationFragment @JvmOverloads constructor(
             } finally {
                 runOnMainDispatcher {
                     if (speedTestRunner !== runner) return@runOnMainDispatcher
-                    (activity as? MainActivity)?.binding?.stats?.updateSpeed(0, 0)
                     try {
                         (activity as? MainActivity)?.connection?.service?.postNotificationSpeed(
                             io.nekohasekai.sagernet.aidl.SpeedDisplayData(0, 0, 0, 0, 0, 0)
@@ -2857,7 +2853,6 @@ class ConfigurationFragment @JvmOverloads constructor(
             if (!select) {
                 undoManager = UndoSnackbarManager(activity as MainActivity, adapter!!)
                 setupItemTouchHelper()
-                setupBottomBarScrollDriver()
             }
             updateSubscriptionInfoCard(view)
         }
@@ -3025,8 +3020,6 @@ class ConfigurationFragment @JvmOverloads constructor(
         }
 
         // @author 雾晚: view-scoped listeners; no preference rewrite or service/test work.
-        private var bottomBarView: View? = null
-        private var bottomBarLayoutListener: View.OnLayoutChangeListener? = null
         private var bottomSystemInset = 0
         private var emptyListObserver: RecyclerView.AdapterDataObserver? = null
 
@@ -3051,53 +3044,15 @@ class ConfigurationFragment @JvmOverloads constructor(
                 updateListBottomPadding()
                 insets
             }
-            if (!select) {
-                bottomBarView = (activity as? MainActivity)?.binding?.stats
-                bottomBarLayoutListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-                    updateListBottomPadding()
-                }.also { bottomBarView?.addOnLayoutChangeListener(it) }
-            }
             updateListBottomPadding()
             ViewCompat.requestApplyInsets(configurationListView)
-        }
-
-        private fun setupBottomBarScrollDriver() {
-            val mainActivity = activity as? MainActivity ?: return
-            configurationListView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-                override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                    if (dy != 0) mainActivity.driveBottomBar(dy)
-                }
-            })
-
-            val touchSlop = ViewConfiguration.get(requireContext()).scaledTouchSlop
-            var lastRawY = 0f
-            configurationListView.setOnTouchListener { recyclerView, event ->
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> lastRawY = event.rawY
-                    MotionEvent.ACTION_MOVE -> {
-                        val cannotScroll = !recyclerView.canScrollVertically(-1) &&
-                                !recyclerView.canScrollVertically(1)
-                        if (cannotScroll) {
-                            val fingerDy = event.rawY - lastRawY
-                            if (abs(fingerDy) >= touchSlop) {
-                                mainActivity.driveBottomBar(-fingerDy.toInt())
-                                lastRawY = event.rawY
-                            }
-                        }
-                    }
-                }
-                false
-            }
         }
 
         private var activeNodePopupMenu: PopupMenu? = null
 
         override fun onDestroyView() {
-            bottomBarLayoutListener?.let { bottomBarView?.removeOnLayoutChangeListener(it) }
             emptyListObserver?.let { adapter?.unregisterAdapterDataObserver(it) }
             emptyListObserver = null
-            bottomBarLayoutListener = null
-            bottomBarView = null
             bottomSystemInset = 0
             listView?.let { ViewCompat.setOnApplyWindowInsetsListener(it, null) }
             if ((listView != null)) {

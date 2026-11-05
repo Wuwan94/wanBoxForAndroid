@@ -95,4 +95,9 @@
     <string name="minimal_node_section">%1$s · %2$d 个节点</string>
     <string name="minimal_select_subscription">选择订阅 %1$s</string>
     <string name="minimal_subscriptions_title">订阅管理</string>
+    <string name="minimal_quick_check">连接检查</string>
+    <string name="minimal_connection_test">连接测试</string>
+    <string name="minimal_landing_ip">落地 IP</string>
+    <string name="minimal_landing_ip_refresh">刷新落地 IP</string>
+    <string name="minimal_update_subscription">更新订阅</string>
 </resources>

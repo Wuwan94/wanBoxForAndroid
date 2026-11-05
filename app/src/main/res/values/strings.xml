@@ -953,7 +953,7 @@
     <string name="traffic_total_upload">Total Up</string>
     <string name="traffic_total_download">Total Down</string>
     <string name="show_landing_ip">Show Landing IP</string>
-    <string name="show_landing_ip_sum">Display the egress landing IP and country flag on the home status bar</string>
+    <string name="show_landing_ip_sum">Display the egress landing IP and country flag on the home page</string>
     <string name="balancer_type_list">List</string>
     <string name="balancer_type_group">Group</string>
     <string name="balancer_strategy_least_ping">Lowest Latency (leastPing)</string>

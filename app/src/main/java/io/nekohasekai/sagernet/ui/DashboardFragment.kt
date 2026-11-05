@@ -18,6 +18,13 @@ import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.SagerDatabase
+import io.nekohasekai.sagernet.bg.RootTunService
+import io.nekohasekai.sagernet.ktx.Logs
+import io.nekohasekai.sagernet.ktx.readableMessage
+import io.nekohasekai.sagernet.utils.LandingIpInfo
+import io.nekohasekai.sagernet.utils.LandingIpManager
+import io.nekohasekai.sagernet.widget.LandingIpBottomSheet
+import androidx.core.view.isVisible
 import kotlinx.coroutines.*
 import java.util.Locale
 
@@ -55,6 +62,115 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
             }
         }
         renderMode(view)
+        // remove(D3)：连接测试 / 落地 IP 从底部 StatsBar 迁到首页「连接检查」卡片
+        view.findViewById<View>(R.id.btnTestConnection).setOnClickListener {
+            if (DataStore.hapticFeedback) it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            testConnection(view)
+        }
+        view.findViewById<View>(R.id.btnLandingIp).setOnClickListener {
+            it.animate().rotationBy(360f).setDuration(400).start()
+            refreshLandingIp(view, force = true)
+        }
+        view.findViewById<View>(R.id.landingIpLayout).setOnClickListener {
+            val cached = LandingIpManager.getCachedInfo() ?: return@setOnClickListener refreshLandingIp(view, force = true)
+            LandingIpBottomSheet.show(requireActivity(), cached) { refreshLandingIp(view, force = true) }
+        }
+    }
+
+    private var testJob: Job? = null
+    private var landingJob: Job? = null
+    private var testResult: CharSequence = "—"
+    private var landingCheckedProfile = -1L
+
+    private fun testConnection(root: View) {
+        val host = activity as? MainActivity ?: return
+        val service = host.connection.service
+        if (!DataStore.serviceState.connected || service == null) {
+            testResult = getString(R.string.not_connected)
+            renderCheck(root)
+            return
+        }
+        if (testJob?.isActive == true) return
+        testResult = getString(R.string.connection_test_testing)
+        renderCheck(root)
+        val profileAtStart = DataStore.selectedProxy
+        testJob = viewLifecycleOwner.lifecycleScope.launch {
+            val elapsed = try {
+                withContext(Dispatchers.IO) { host.urlTest(service) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Logs.w("testConnection error: $e")
+                testResult = getString(R.string.connection_test_error, e.readableMessage)
+                renderCheck(root)
+                return@launch
+            }
+            if (DataStore.selectedProxy != profileAtStart) {
+                testResult = "—"
+            } else if (elapsed > 0) {
+                val type = if (DataStore.connectionTestURL.startsWith("https://", true)) "HTTPS" else "HTTP"
+                testResult = "$type ${elapsed}ms"
+            } else {
+                testResult = when (elapsed) {
+                    RootTunService.TEST_ERR_NOT_CONNECTED -> "模块未连接"
+                    RootTunService.TEST_ERR_SWITCHING -> "节点切换中"
+                    RootTunService.TEST_ERR_SWITCHED_DURING_TEST -> "正在确认当前代理出口"
+                    RootTunService.TEST_ERR_PROFILE_NOT_FOUND -> "节点配置不存在"
+                    RootTunService.TEST_ERR_PROXY_ENTRY -> "本地代理入口不可用"
+                    RootTunService.TEST_ERR_HANDSHAKE_TIMEOUT -> "代理握手超时"
+                    RootTunService.TEST_ERR_DNS_FAILED -> "DNS 解析失败"
+                    RootTunService.TEST_ERR_EGRESS_UNREACHABLE -> "网络出口不可达"
+                    else -> getString(R.string.connection_test_fail)
+                }
+            }
+            renderCheck(root)
+        }
+    }
+
+    private fun refreshLandingIp(root: View, force: Boolean) {
+        if (!DataStore.showLandingIp || !DataStore.serviceState.connected) { renderCheck(root); return }
+        if (!force && (landingJob?.isActive == true || LandingIpManager.getCachedInfo() != null)) { renderCheck(root); return }
+        landingJob?.cancel()
+        val profile = DataStore.currentProfile
+        root.findViewById<TextView>(R.id.landingIpText).text = getString(R.string.landing_ip_querying)
+        landingJob = viewLifecycleOwner.lifecycleScope.launch {
+            val result = LandingIpManager.queryLandingIp(profile, forceRefresh = force) { info ->
+                lifecycleScope.launch(Dispatchers.Main) {
+                    if (isActive && view != null) root.findViewById<TextView>(R.id.landingIpText).text = info.display()
+                }
+            }
+            result.onFailure { Logs.w(it) }
+            renderCheck(root)
+        }
+    }
+
+    private fun LandingIpInfo.display() = "$countryFlag $countryCode $ip".trim()
+
+    /** Renders the「连接检查」card; cheap enough for the 1 s render loop. */
+    private fun renderCheck(root: View) {
+        val connected = DataStore.serviceState.connected
+        if (!connected) {
+            testJob?.cancel(); landingJob?.cancel()
+            testResult = "—"; landingCheckedProfile = -1L
+        }
+        root.findViewById<TextView>(R.id.connectionTestResult).text = testResult
+        root.findViewById<View>(R.id.btnTestConnection).isEnabled = connected
+        val showIp = connected && DataStore.showLandingIp
+        root.findViewById<View>(R.id.landingIpLayout).isVisible = showIp
+        if (!showIp) return
+        val ipText = root.findViewById<TextView>(R.id.landingIpText)
+        val cached = LandingIpManager.getCachedInfo()
+        ipText.text = when {
+            cached != null && cached.ip.isNotBlank() -> cached.display()
+            landingJob?.isActive == true || LandingIpManager.isCurrentlyQuerying() -> getString(R.string.landing_ip_querying)
+            else -> LandingIpManager.getProfileFallbackDisplay(DataStore.selectedProxy)
+        }
+        // 节点切换或首次连接后自动查询一次（与旧 StatsBar 行为一致：仅在开启 showLandingIp 时）
+        val profile = DataStore.currentProfile
+        if (cached == null && landingCheckedProfile != profile && landingJob?.isActive != true) {
+            landingCheckedProfile = profile
+            refreshLandingIp(root, force = false)
+        }
     }
 
     override fun onResume() {
@@ -147,12 +263,16 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
             } else null
         } ?: "—"
         value(R.id.uptimeText, uptime, R.color.minimal_text)
+        renderCheck(root)
     }
 
     override fun onPause() { statsJob?.cancel(); statsJob = null; super.onPause() }
     override fun onDestroyView() {
         statsJob?.cancel(); statsJob = null
         nodeJob?.cancel(); nodeJob = null
+        testJob?.cancel(); testJob = null
+        landingJob?.cancel(); landingJob = null
+        testResult = "—"; landingCheckedProfile = -1L
         renderedProfile = -1L; renderedState = null; operationUntil = 0L
         super.onDestroyView()
     }

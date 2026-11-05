@@ -854,7 +854,7 @@
     <string name="traffic_total_upload">总上传</string>
     <string name="traffic_total_download">总下载</string>
     <string name="show_landing_ip">显示落地 IP</string>
-    <string name="show_landing_ip_sum">在主页状态栏显示连接节点的出网落地 IP 及归属地</string>
+    <string name="show_landing_ip_sum">在首页显示连接节点的出网落地 IP 及归属地</string>
     <string name="balancer_type_list">节点列表</string>
     <string name="balancer_type_group">分组筛选</string>
     <string name="balancer_strategy_least_ping">最低延迟 (leastPing)</string>

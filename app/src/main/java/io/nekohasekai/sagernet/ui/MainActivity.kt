@@ -168,19 +168,11 @@ class MainActivity : ThemedActivity(),
             else displayFragmentWithId(R.id.nav_settings)
         }
 
-        binding.stats.setOnClickListener {
-            if (DataStore.hapticFeedback) it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            if (DataStore.serviceState.connected) binding.stats.testConnection()
-        }
-
         setContentView(binding.root)
         handleTileIntent(intent)
         currentMainFragment =
             supportFragmentManager.findFragmentById(R.id.fragment_holder) as? ToolbarFragment
                 ?: currentMainFragment
-        if (!animateInitialControls) {
-            syncMainControls(showWhenConnected = false, animate = false)
-        }
         changeState(
             BaseService.State.Idle,
             animate = false,
@@ -226,7 +218,6 @@ class MainActivity : ThemedActivity(),
         }
 
         checkClipboardOnResume()
-        binding.stats.refreshDisplay()
     }
 
     private var lastPromptedClipboard: String = ""
@@ -305,11 +296,6 @@ class MainActivity : ThemedActivity(),
             supportFragmentManager.findFragmentById(R.id.fragment_holder) as? ToolbarFragment
         if (restoredFragment != null && restoredFragment !== currentMainFragment) {
             currentMainFragment = restoredFragment
-            syncMainControls(
-                fragment = restoredFragment,
-                showWhenConnected = DataStore.serviceState == BaseService.State.Connected,
-                animate = false,
-            )
         }
     }
 
@@ -555,34 +541,12 @@ class MainActivity : ThemedActivity(),
             .setReorderingAllowed(true)
             .replace(R.id.fragment_holder, fragment)
             .commitAllowingStateLoss()
-        syncMainControls(fragment, showWhenConnected = false, animate = true)
-    }
-
-    private fun syncMainControls(
-        fragment: Any? = currentMainFragment
-            ?: supportFragmentManager.findFragmentById(R.id.fragment_holder),
-        showWhenConnected: Boolean,
-        animate: Boolean,
-    ) {
-        val showControls = false // Four-page design owns its status and bottom navigation.
-        binding.stats.useExternalScrollDriver = fragment is ConfigurationFragment
-        binding.stats.syncMainControls(
-            showControls,
-            DataStore.serviceState,
-            showWhenConnected,
-            animate,
-        )
-        // preview.19: 悬浮按钮已移除
     }
 
     private fun refreshConfigurationProfileState() {
         val fragment = currentMainFragment
             ?: supportFragmentManager.findFragmentById(R.id.fragment_holder)
         (fragment as? ConfigurationFragment)?.refreshProfileState()
-    }
-
-    fun driveBottomBar(scrollDy: Int) {
-        binding.stats.onListScrolled(scrollDy)
     }
 
     fun displayFragmentWithId(@IdRes id: Int): Boolean {
@@ -628,12 +592,8 @@ class MainActivity : ThemedActivity(),
         refreshConfigurationProfileState()
         io.nekohasekai.sagernet.widget.OwnBoxWidgetProvider.updateWidgets(this)
 
-        // preview.19: 服务状态由仪表盘处理
-        binding.stats.changeState(state)
-        syncMainControls(
-            showWhenConnected = state == BaseService.State.Connected,
-            animate = animateControls,
-        )
+        // remove(D3): 服务状态 / 连接测试 / 落地 IP 均由首页（DashboardFragment）处理
+        if (state != BaseService.State.Connected) LandingIpManager.clearCache()
         if (msg != null) snackbar(getString(R.string.vpn_error, msg)).show()
     }
 
@@ -672,7 +632,6 @@ class MainActivity : ThemedActivity(),
     // ONLY do UI update here, write DB in bg process
     override fun cbSpeedUpdate(stats: SpeedDisplayData) {
         telemetrySession.onSpeedUpdate(stats)
-        binding.stats.updateSpeed(stats.txRateProxy, stats.rxRateProxy)
     }
 
     override suspend fun cbTrafficUpdate(data: TrafficDataBatch) {
@@ -690,7 +649,7 @@ class MainActivity : ThemedActivity(),
             ProfileManager.postUpdate(old, true)
             ProfileManager.postUpdate(id, true)
         }
-        if (id == DataStore.selectedProxy) binding.stats.refreshLandingIp(forceRefresh = true)
+        if (id == DataStore.selectedProxy) LandingIpManager.clearCache()
     }
 
     override fun onPreferenceDataStoreChanged(store: PreferenceDataStore, key: String) {
@@ -698,23 +657,13 @@ class MainActivity : ThemedActivity(),
             if (isDestroyed || isFinishing) return@runOnMainDispatcher
             when (key) {
                 Key.SERVICE_MODE -> {
-                    binding.stats.refreshDisplay()
                     connection.rebindIfServiceChanged(this@MainActivity)
                 }
-                Key.CONNECTION_TEST_URL, Key.CONNECTION_TEST_TIMEOUT -> binding.stats.refreshDisplay()
                 Key.PROFILE_ID -> {
                     refreshConfigurationProfileState()
-                    binding.stats.refreshDisplay()
                     LandingIpManager.clearCache()
-                    if (DataStore.serviceState.connected && DataStore.showLandingIp) {
-                        binding.stats.refreshLandingIp(forceRefresh = true)
-                    }
                 }
                 Key.SHOW_BOTTOM_BAR -> {
-                    syncMainControls(
-                        showWhenConnected = DataStore.showBottomBar,
-                        animate = true,
-                    )
                     when (val fragment = currentMainFragment
                         ?: supportFragmentManager.findFragmentById(R.id.fragment_holder)
                     ) {
@@ -753,7 +702,7 @@ class MainActivity : ThemedActivity(),
         installerDataDialog?.dismiss()
         installerDataDialog = null
         if (SagerNet.databaseFailure == null) {
-            binding.stats.onHostStopped()
+            LandingIpManager.clearCache()
             connection.updateConnectionId(SagerConnection.CONNECTION_ID_MAIN_ACTIVITY_BACKGROUND)
             connection.disconnect(this) // Module owns the core; no App polling while UI is hidden.
         }

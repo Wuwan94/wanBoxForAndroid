@@ -174,6 +174,115 @@
                     android:text="@string/minimal_direct" />
             </LinearLayout>
 
+            <!-- D3: 连接测试 / 落地 IP 从已删除的底部 StatsBar 迁到首页；首页「更新订阅」 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:fontFamily="sans-serif-medium"
+                android:text="@string/minimal_quick_check"
+                android:textColor="@color/minimal_text"
+                android:textSize="14sp" />
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.WanBox.Minimal.DashboardCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="16dp"
+                    android:paddingVertical="12dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:minHeight="40dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/minimal_connection_test"
+                            android:textColor="@color/minimal_secondary"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:id="@+id/connectionTestResult"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:layout_weight="1"
+                            android:fontFamily="@font/jetbrains_mono"
+                            android:gravity="end"
+                            android:text="—"
+                            android:textColor="@color/minimal_text"
+                            android:textSize="14sp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/landingIpLayout"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center_vertical"
+                        android:minHeight="40dp"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/minimal_landing_ip"
+                            android:textColor="@color/minimal_secondary"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:id="@+id/landingIpText"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:layout_weight="1"
+                            android:ellipsize="middle"
+                            android:gravity="end"
+                            android:singleLine="true"
+                            android:text="—"
+                            android:textColor="@color/minimal_text"
+                            android:textSize="14sp" />
+
+                        <ImageButton
+                            android:id="@+id/btnLandingIp"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:layout_marginStart="4dp"
+                            android:background="?attr/selectableItemBackgroundBorderless"
+                            android:contentDescription="@string/minimal_landing_ip_refresh"
+                            android:padding="10dp"
+                            android:src="@drawable/ic_minimal_refresh"
+                            app:tint="@color/minimal_icon" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnTestConnection"
+                            style="@style/Widget.WanBox.Minimal.Action"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/minimal_connection_test"
+                            app:icon="@drawable/ic_minimal_globe" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
