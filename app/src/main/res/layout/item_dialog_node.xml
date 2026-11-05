@@ -24,7 +24,7 @@
             android:layout_height="wrap_content"
             android:ellipsize="middle"
             android:maxLines="1"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/minimal_text"
             android:textSize="14sp"
             android:textStyle="bold"
             tools:text="🇸🇬 新加坡 01 极速专线 [IEPL]" />
@@ -40,7 +40,7 @@
                 android:id="@+id/node_type"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="#94A3B8"
+                android:textColor="@color/minimal_secondary"
                 android:textSize="11sp"
                 tools:text="VLESS" />
 
@@ -49,7 +49,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
-                android:textColor="#10B981"
+                android:textColor="@color/wb_state_connected"
                 android:textSize="11sp"
                 android:textStyle="bold"
                 tools:text="32ms 🟢" />

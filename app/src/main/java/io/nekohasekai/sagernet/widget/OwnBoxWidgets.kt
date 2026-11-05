@@ -95,9 +95,9 @@ object OwnBoxWidgetHelper {
         }
 
         val dotColor = when {
-            isConnected -> Color.parseColor("#10B981")
-            isConnecting -> Color.parseColor("#F59E0B")
-            else -> Color.parseColor("#94A3B8")
+            isConnected -> context.getColor(io.nekohasekai.sagernet.R.color.wb_state_connected)
+            isConnecting -> context.getColor(io.nekohasekai.sagernet.R.color.wb_state_warning)
+            else -> context.getColor(io.nekohasekai.sagernet.R.color.wb_state_idle)
         }
 
         val latencyText = when {

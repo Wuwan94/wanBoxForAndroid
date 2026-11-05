@@ -45,22 +45,16 @@ class LogcatFragment : ToolbarFragment(R.layout.layout_logcat),
         reloadSession()
     }
 
+    // phase2: theme colors; WARN is amber (was red, same as ERROR).
     private fun getColorForLine(line: String): ForegroundColorSpan {
-        var color = ForegroundColorSpan(Color.GRAY)
-        when {
-            line.contains("INFO[") || line.contains(" [Info]") -> {
-                color = ForegroundColorSpan((0xFF86C166).toInt())
-            }
-
-            line.contains("ERROR[") || line.contains(" [Error]") -> {
-                color = ForegroundColorSpan(Color.RED)
-            }
-
-            line.contains("WARN[") || line.contains(" [Warning]") -> {
-                color = ForegroundColorSpan(Color.RED)
-            }
+        val ctx = requireContext()
+        val res = when {
+            line.contains("ERROR[") || line.contains(" [Error]") -> R.color.wb_state_error
+            line.contains("WARN[") || line.contains(" [Warning]") -> R.color.wb_state_warning
+            line.contains("INFO[") || line.contains(" [Info]") -> R.color.wb_state_connected
+            else -> R.color.minimal_secondary
         }
-        return color
+        return ForegroundColorSpan(ctx.getColor(res))
     }
 
     private fun reloadSession() {

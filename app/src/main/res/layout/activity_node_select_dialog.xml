@@ -5,10 +5,10 @@
     android:id="@+id/dialog_backdrop"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#88000000"
+    android:background="@color/wb_scrim"
     android:padding="20dp">
 
-    <!-- Fluid Glass Floating Container -->
+    <!-- phase2: theme surface card (was hardcoded dark glass) -->
     <LinearLayout
         android:id="@+id/dialog_card"
         android:layout_width="match_parent"
@@ -33,7 +33,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="@string/switch_node"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/minimal_text"
                 android:textSize="17sp"
                 android:textStyle="bold" />
 
@@ -54,20 +54,20 @@
             android:layout_width="match_parent"
             android:layout_height="36dp"
             android:background="@android:color/transparent"
-            app:tabIndicatorColor="#10B981"
+            app:tabIndicatorColor="?attr/colorPrimary"
             app:tabIndicatorFullWidth="false"
             app:tabIndicatorHeight="3dp"
             app:tabMode="scrollable"
-            app:tabRippleColor="#20FFFFFF"
-            app:tabSelectedTextColor="#FFFFFF"
-            app:tabTextColor="#94A3B8"
+            app:tabRippleColor="@color/minimal_active"
+            app:tabSelectedTextColor="?attr/colorPrimary"
+            app:tabTextColor="@color/minimal_secondary"
             app:tabTextAppearance="@style/Widget.SagerNet.TabLayout.TextAppearance" />
 
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:layout_marginBottom="6dp"
-            android:background="#1AFFFFFF" />
+            android:background="@color/minimal_line" />
 
         <!-- Node List RecyclerView -->
         <androidx.recyclerview.widget.RecyclerView
@@ -88,7 +88,7 @@
             android:layout_gravity="center"
             android:gravity="center"
             android:text="@string/profile_empty"
-            android:textColor="#80FFFFFF"
+            android:textColor="@color/minimal_secondary"
             android:textSize="14sp"
             android:visibility="gone" />
 

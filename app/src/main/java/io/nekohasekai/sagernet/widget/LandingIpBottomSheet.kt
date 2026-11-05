@@ -44,26 +44,11 @@ object LandingIpBottomSheet {
         val isWhite = io.nekohasekai.sagernet.utils.Theme.isWhiteTheme()
         val isNight = io.nekohasekai.sagernet.utils.Theme.usingNightMode()
 
-        val cardBgColor = when {
-            isWhite -> android.graphics.Color.parseColor("#F5F6F8")
-            isNight -> android.graphics.Color.parseColor("#1E1E1E")
-            else -> null
-        }
-        val strokeColor = when {
-            isWhite -> android.graphics.Color.parseColor("#E0E0E0")
-            isNight -> android.graphics.Color.parseColor("#333333")
-            else -> null
-        }
-        val primaryTextColor = when {
-            isWhite -> android.graphics.Color.parseColor("#1A1A1A")
-            isNight -> android.graphics.Color.parseColor("#F5F5F5")
-            else -> null
-        }
-        val secondaryTextColor = when {
-            isWhite -> android.graphics.Color.parseColor("#5A5A5A")
-            isNight -> android.graphics.Color.parseColor("#B0B0B0")
-            else -> null
-        }
+        // phase2: colors follow the active theme (light/dark, 外观主题色) instead of fixed hex per mode.
+        val cardBgColor: Int? = activity.getColor(R.color.minimal_card)
+        val strokeColor: Int? = activity.getColor(R.color.minimal_line)
+        val primaryTextColor: Int? = activity.getColor(R.color.minimal_text)
+        val secondaryTextColor: Int? = activity.getColor(R.color.minimal_secondary)
 
         if (cardBgColor != null) {
             view.findViewById<com.google.android.material.card.MaterialCardView>(R.id.card_ip)?.setCardBackgroundColor(cardBgColor)

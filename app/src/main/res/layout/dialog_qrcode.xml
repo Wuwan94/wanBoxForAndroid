@@ -82,15 +82,15 @@
         app:tabTextAppearance="@style/Widget.SagerNet.TabLayout.TextAppearance"
         app:tabTextColor="?attr/tabTextColor" />
 
-    <!-- QR Code White Safe Container -->
+    <!-- QR Code White Safe Container: intentionally white in both modes (scanability) -->
     <com.google.android.material.card.MaterialCardView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="14dp"
-        app:cardBackgroundColor="#FFFFFF"
+        app:cardBackgroundColor="@color/white"
         app:cardCornerRadius="16dp"
         app:cardElevation="2dp"
-        app:strokeColor="#1F000000"
+        app:strokeColor="@color/minimal_line"
         app:strokeWidth="1dp">
 
         <ImageView

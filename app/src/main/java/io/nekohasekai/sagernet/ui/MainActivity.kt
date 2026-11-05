@@ -129,14 +129,13 @@ class MainActivity : ThemedActivity(),
         val isNight = Theme.usingNightMode()
         val fabBgColor = when {
             Theme.isBlackTheme() -> Color.BLACK
-            Theme.isWhiteTheme() -> Color.parseColor("#212121")
-            Theme.isLightGrayTheme() -> Color.parseColor("#1F2937")
+            Theme.isWhiteTheme() || Theme.isLightGrayTheme() -> getColorAttr(android.R.attr.textColorPrimary)
             else -> {
                 val bg = getColorAttr(R.attr.fabColorBackground)
                 if (isNight && ColorUtils.calculateLuminance(bg) > 0.75) {
                     val primary = getColorAttr(R.attr.colorPrimary)
                     if (ColorUtils.calculateLuminance(primary) > 0.75) {
-                        Color.parseColor("#2C2C2E")
+                        getColor(R.color.milktea_inverse_surface)
                     } else {
                         primary
                     }

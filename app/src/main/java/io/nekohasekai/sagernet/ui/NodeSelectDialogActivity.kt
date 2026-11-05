@@ -237,15 +237,15 @@ class NodeSelectDialogActivity : AppCompatActivity() {
 
             if (item.ping > 0) {
                 val color = when {
-                    item.ping < 150 -> "#10B981"
-                    item.ping < 350 -> "#F59E0B"
-                    else -> "#EF4444"
+                    item.ping < 150 -> R.color.wb_state_connected
+                    item.ping < 350 -> R.color.wb_state_warning
+                    else -> R.color.wb_state_error
                 }
                 holder.ping.text = "${item.ping}ms 🟢"
-                holder.ping.setTextColor(Color.parseColor(color))
+                holder.ping.setTextColor(holder.itemView.context.getColor(color))
             } else {
                 holder.ping.text = "— ⚪"
-                holder.ping.setTextColor(Color.parseColor("#94A3B8"))
+                holder.ping.setTextColor(holder.itemView.context.getColor(R.color.minimal_secondary))
             }
 
             holder.root.setOnClickListener {

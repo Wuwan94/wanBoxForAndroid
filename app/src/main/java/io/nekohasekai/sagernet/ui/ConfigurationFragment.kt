@@ -542,19 +542,19 @@ class ConfigurationFragment @JvmOverloads constructor(
         val isSearching = currentSearchQuery.isNotBlank()
         val exportItem = toolbar.menu.findItem(R.id.action_export)
         if (isSearching) {
-            exportItem?.title = "导出搜索结果"
+            exportItem?.setTitle(R.string.menu_export_search_results)
         } else if (isAll) {
-            exportItem?.title = "导出配置（全部）"
+            exportItem?.setTitle(R.string.menu_export_all)
         } else {
-            exportItem?.title = "导出配置（本组）"
+            exportItem?.setTitle(R.string.menu_export_group)
         }
         if (isAll) {
-            toolbar.menu.findItem(R.id.action_connection_url_test)?.setTitle("URL 测试（全部）")
-            toolbar.menu.findItem(R.id.action_speed_test_group)?.setTitle("速度测试（全部）")
-            toolbar.menu.findItem(R.id.action_clear_traffic_statistics)?.setTitle("清空全部流量统计数据")
-            toolbar.menu.findItem(R.id.action_remove_duplicate)?.setTitle("删除全部重复的服务器")
-            toolbar.menu.findItem(R.id.action_connection_test_clear_results)?.setTitle("清理全部测试结果")
-            toolbar.menu.findItem(R.id.action_connection_test_delete_unavailable)?.setTitle("清理全部不可用配置")
+            toolbar.menu.findItem(R.id.action_connection_url_test)?.setTitle(R.string.menu_url_test_all)
+            toolbar.menu.findItem(R.id.action_speed_test_group)?.setTitle(R.string.menu_speed_test_all)
+            toolbar.menu.findItem(R.id.action_clear_traffic_statistics)?.setTitle(R.string.menu_clear_traffic_all)
+            toolbar.menu.findItem(R.id.action_remove_duplicate)?.setTitle(R.string.menu_remove_duplicate_all)
+            toolbar.menu.findItem(R.id.action_connection_test_clear_results)?.setTitle(R.string.menu_clear_results_all)
+            toolbar.menu.findItem(R.id.action_connection_test_delete_unavailable)?.setTitle(R.string.menu_delete_unavailable_all)
         } else {
             toolbar.menu.findItem(R.id.action_connection_url_test)?.setTitle(R.string.connection_test_url_test)
             toolbar.menu.findItem(R.id.action_speed_test_group)?.setTitle(R.string.speed_test_group)
@@ -614,16 +614,16 @@ class ConfigurationFragment @JvmOverloads constructor(
         val hintColor: Int
         when {
             Theme.isWhiteTheme() -> {
-                textColor = Color.parseColor("#212121")
-                hintColor = Color.parseColor("#8A000000")
+                textColor = requireContext().getColorAttr(android.R.attr.textColorPrimary)
+                hintColor = requireContext().getColorAttr(android.R.attr.textColorSecondary)
             }
             Theme.isLightGrayTheme() -> {
-                textColor = Color.parseColor("#1F2937")
-                hintColor = Color.parseColor("#6B7280")
+                textColor = requireContext().getColorAttr(android.R.attr.textColorPrimary)
+                hintColor = requireContext().getColorAttr(android.R.attr.textColorSecondary)
             }
             Theme.isBlackTheme() -> {
                 textColor = Color.WHITE
-                hintColor = Color.parseColor("#CAC4D0")
+                hintColor = requireContext().getColorAttr(android.R.attr.textColorSecondary)
             }
             else -> {
                 textColor = ctx.getColorAttr(android.R.attr.textColorPrimary)
@@ -758,26 +758,26 @@ class ConfigurationFragment @JvmOverloads constructor(
             Theme.isWhiteTheme() -> {
                 view.findViewById<View>(R.id.appbar)?.setBackgroundColor(Color.WHITE)
                 toolbar.setBackgroundColor(Color.WHITE)
-                toolbar.setTitleTextColor(Color.parseColor("#212121"))
+                toolbar.setTitleTextColor(requireContext().getColorAttr(android.R.attr.textColorPrimary))
                 tabLayout.setBackgroundColor(Color.WHITE)
-                tabLayout.setSelectedTabIndicatorColor(Color.parseColor("#212121"))
-                tabLayout.setTabTextColors(Color.parseColor("#8A000000"), Color.parseColor("#212121"))
+                tabLayout.setSelectedTabIndicatorColor(requireContext().getColorAttr(android.R.attr.textColorPrimary))
+                tabLayout.setTabTextColors(requireContext().getColorAttr(android.R.attr.textColorSecondary), requireContext().getColorAttr(android.R.attr.textColorPrimary))
                 toolbar.navigationIcon?.let {
                     val tinted = it.mutate()
-                    DrawableCompat.setTint(tinted, Color.parseColor("#212121"))
+                    DrawableCompat.setTint(tinted, requireContext().getColorAttr(android.R.attr.textColorPrimary))
                     toolbar.navigationIcon = tinted
                 }
                 toolbar.overflowIcon?.let {
                     val tinted = it.mutate()
-                    DrawableCompat.setTint(tinted, Color.parseColor("#212121"))
+                    DrawableCompat.setTint(tinted, requireContext().getColorAttr(android.R.attr.textColorPrimary))
                     toolbar.overflowIcon = tinted
                 }
-                tintMenuIcons(toolbar.menu, Color.parseColor("#212121"))
+                tintMenuIcons(toolbar.menu, requireContext().getColorAttr(android.R.attr.textColorPrimary))
             }
             Theme.isLightGrayTheme() -> {
                 val bg = requireContext().getColor(R.color.minimal_background)
-                val textPrimary = Color.parseColor("#1F2937")
-                val textSecondary = Color.parseColor("#6B7280")
+                val textPrimary = requireContext().getColorAttr(android.R.attr.textColorPrimary)
+                val textSecondary = requireContext().getColorAttr(android.R.attr.textColorSecondary)
                 view.findViewById<View>(R.id.appbar)?.setBackgroundColor(bg)
                 toolbar.setBackgroundColor(bg)
                 toolbar.setTitleTextColor(textPrimary)
@@ -803,7 +803,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                 toolbar.setTitleTextColor(Color.WHITE)
                 tabLayout.setBackgroundColor(bg)
                 tabLayout.setSelectedTabIndicatorColor(Color.WHITE)
-                tabLayout.setTabTextColors(Color.parseColor("#CAC4D0"), Color.WHITE)
+                tabLayout.setTabTextColors(requireContext().getColorAttr(android.R.attr.textColorSecondary), Color.WHITE)
                 toolbar.navigationIcon?.let {
                     val tinted = it.mutate()
                     DrawableCompat.setTint(tinted, Color.WHITE)
@@ -847,8 +847,8 @@ class ConfigurationFragment @JvmOverloads constructor(
                 if (!select) {
                     toolbar.setNavigationIcon(R.drawable.baseline_arrow_back_24)
                     val primaryColor = when {
-                        Theme.isWhiteTheme() -> Color.parseColor("#212121")
-                        Theme.isLightGrayTheme() -> Color.parseColor("#1F2937")
+                        Theme.isWhiteTheme() -> requireContext().getColorAttr(android.R.attr.textColorPrimary)
+                        Theme.isLightGrayTheme() -> requireContext().getColorAttr(android.R.attr.textColorPrimary)
                         Theme.isBlackTheme() -> Color.WHITE
                         else -> requireContext().getColorAttr(android.R.attr.textColorPrimary)
                     }
@@ -4205,8 +4205,8 @@ class ConfigurationFragment @JvmOverloads constructor(
             toolbar.title = getString(R.string.tab_nodes)
 
             val primaryColor = when {
-                Theme.isWhiteTheme() -> Color.parseColor("#212121")
-                Theme.isLightGrayTheme() -> Color.parseColor("#1F2937")
+                Theme.isWhiteTheme() -> requireContext().getColorAttr(android.R.attr.textColorPrimary)
+                Theme.isLightGrayTheme() -> requireContext().getColorAttr(android.R.attr.textColorPrimary)
                 Theme.isBlackTheme() -> Color.WHITE
                 else -> requireContext().getColorAttr(android.R.attr.textColorPrimary)
             }
