@@ -12,7 +12,10 @@ import android.widget.Button
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
-import com.google.android.material.switchmaterial.SwitchMaterial
+import android.view.animation.OvershootInterpolator
+import android.widget.ImageView
+import com.google.android.material.card.MaterialCardView
+import com.google.android.material.progressindicator.CircularProgressIndicator
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.bg.BaseService
@@ -36,21 +39,42 @@ import java.util.Locale
 class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     private var statsJob: Job? = null
     private var nodeJob: Job? = null
-    private var suppressSwitch = false
     private var operationUntil = 0L
+    private var renderedHero: Hero? = null
+    private var renderedDetail: CharSequence? = null
+
+    /** phase2: the four home states (未连接/连接中/已连接/异常), each with its own colour, text and mascot. */
+    private enum class Hero(val fill: Int, val on: Int, val mascot: Int, val title: Int) {
+        IDLE(R.color.connect_idle_fill, R.color.connect_idle_on, R.drawable.ic_mascot_sleep, R.string.service_state_idle),
+        CONNECTING(R.color.connect_busy_fill, R.color.connect_busy_on, R.drawable.ic_mascot_curious, R.string.service_state_connecting),
+        CONNECTED(R.color.connect_on_fill, R.color.connect_on_on, R.drawable.ic_mascot_happy, R.string.service_state_connected),
+        ERROR(R.color.connect_error_fill, R.color.connect_error_on, R.drawable.ic_mascot_worried, R.string.home_state_error),
+    }
+
+    /** Only touch a TextView when its content actually changed (the render loop runs every second). */
+    private fun TextView.setTextIfChanged(value: CharSequence) {
+        if (text?.toString() != value.toString()) text = value
+    }
     private var renderedProfile = -1L
     private var renderedState: BaseService.State? = null
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         toolbar.title = "wanBox"
-        val switch = view.findViewById<SwitchMaterial>(R.id.serviceSwitch)
-        switch.setOnCheckedChangeListener { _, checked ->
-            if (suppressSwitch) return@setOnCheckedChangeListener
+        view.findViewById<View>(R.id.connectButton).setOnClickListener { button ->
+            if (SystemClock.elapsedRealtime() < operationUntil) return@setOnClickListener
+            val host = activity as? MainActivity ?: return@setOnClickListener
+            if (DataStore.hapticFeedback) button.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            val state = host.serviceState
+            when {
+                state == BaseService.State.Connecting || state == BaseService.State.Stopping -> return@setOnClickListener
+                state.canStop -> SagerNet.stopService()
+                else -> SagerNet.startService() // 未连接 → 连接；异常(未运行) → 重试
+            }
             operationUntil = SystemClock.elapsedRealtime() + 5000L
-            switch.isEnabled = false
-            if (checked) SagerNet.startService() else SagerNet.stopService()
+            bounce(button, 0.92f)
         }
+        view.findViewById<View>(R.id.btnFailover).setOnClickListener { failover(it) }
         view.findViewById<View>(R.id.currentNodeLayout).setOnClickListener {
             (activity as? MainActivity)?.navigateToNodes()
         }
@@ -242,22 +266,9 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     private fun render(root: View) {
         val host = activity as? MainActivity ?: return
         val state = host.serviceState
-        val statusDot = root.findViewById<View>(R.id.statusDot)
-        val statusColor = if (state == BaseService.State.Connected) R.color.minimal_connected else R.color.minimal_icon
-        statusDot.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), statusColor))
-        val switch = root.findViewById<SwitchMaterial>(R.id.serviceSwitch)
         if (renderedState != state) operationUntil = 0L
         renderedState = state
-        suppressSwitch = true
-        switch.isChecked = state == BaseService.State.Connected || state == BaseService.State.Connecting
-        suppressSwitch = false
-        switch.isEnabled = state != BaseService.State.Connecting && state != BaseService.State.Stopping && SystemClock.elapsedRealtime() >= operationUntil
-        root.findViewById<TextView>(R.id.statusText).setText(when (state) {
-            BaseService.State.Connected -> R.string.service_state_connected
-            BaseService.State.Connecting -> R.string.service_state_connecting
-            BaseService.State.Stopping -> R.string.service_state_stopping
-            else -> R.string.service_state_idle
-        })
+        renderHero(root, host, state)
         val profileId = if (state.connected && DataStore.currentProfile > 0) DataStore.currentProfile else DataStore.selectedProxy
         if (profileId != renderedProfile) {
             renderedProfile = profileId
@@ -269,6 +280,9 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
                     profile to group
                 }
                 val profile = result.first
+                // phase2: light spring when the node changes (not on first bind)
+                if (nodeBound) bounce(root.findViewById(R.id.currentNodeLayout), 0.97f)
+                nodeBound = true
                 root.findViewById<TextView>(R.id.nodeName).text = profile?.displayName() ?: getString(R.string.minimal_select)
                 root.findViewById<TextView>(R.id.nodeInfo).text = profile?.let {
                     listOfNotNull(result.second?.displayName(), if (it.status == 1) "${it.ping} ms" else it.displayType()).joinToString(" · ")
@@ -276,12 +290,16 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
             }
         }
         val stats = host.lastSpeedStats.takeIf { state.connected }
-        fun text(id: Int, value: CharSequence) { root.findViewById<TextView>(id).text = value }
+        fun text(id: Int, value: CharSequence) { root.findViewById<TextView>(id).setTextIfChanged(value) }
         fun value(id: Int, value: CharSequence, activeColor: Int) {
             root.findViewById<TextView>(id).apply {
-                text = value
-                val color = if (value.toString() == "—") R.color.minimal_secondary else activeColor
-                setTextColor(ContextCompat.getColor(requireContext(), color))
+                val wasDash = text?.toString() == "—"
+                setTextIfChanged(value)
+                val isDash = value.toString() == "—"
+                if (wasDash != isDash || tag == null) {
+                    tag = activeColor
+                    setTextColor(ContextCompat.getColor(requireContext(), if (isDash) R.color.minimal_secondary else activeColor))
+                }
             }
         }
         fun rate(value: Long): CharSequence {
@@ -310,6 +328,86 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         renderCheck(root)
     }
 
+    private var nodeBound = false
+
+    private fun bounce(view: View, scale: Float) {
+        view.animate().cancel()
+        view.scaleX = scale; view.scaleY = scale
+        view.animate().scaleX(1f).scaleY(1f).setDuration(420)
+            .setInterpolator(OvershootInterpolator(2.2f)).start()
+    }
+
+    private fun renderHero(root: View, host: MainActivity, state: BaseService.State) {
+        val health = host.lastModuleHealth
+        val comm = health?.commFailures ?: 0
+        val unreachable = comm >= RootTunService.FAILURES_BEFORE_UNKNOWN
+        val failed = health?.modulePhase in setOf("failed", "cleanup_required") && !state.started
+        val degraded = state == BaseService.State.Connected && health?.moduleHealth == "degraded"
+        val hero = when {
+            unreachable || failed || degraded -> Hero.ERROR
+            state == BaseService.State.Connected -> Hero.CONNECTED
+            state == BaseService.State.Connecting || state == BaseService.State.Stopping -> Hero.CONNECTING
+            else -> Hero.IDLE
+        }
+        val ctx = requireContext()
+        val detail: CharSequence = when {
+            unreachable -> getString(R.string.home_hint_unreachable, comm)
+            degraded -> getString(R.string.home_hint_degraded)
+            failed -> io.nekohasekai.sagernet.bg.RootModuleErrors.message(ctx,
+                health?.moduleError?.ifBlank { null } ?: health?.moduleLastReason?.ifBlank { null } ?: health?.modulePhase.orEmpty())
+            state == BaseService.State.Stopping -> getString(R.string.home_hint_stopping)
+            hero == Hero.CONNECTING -> getString(R.string.home_hint_connecting)
+            hero == Hero.CONNECTED -> host.lastSpeedStats?.uptimeSeconds?.takeIf { it >= 0 }?.let {
+                getString(R.string.home_hint_connected, String.format(Locale.ROOT, "%02d:%02d:%02d", it / 3600, it % 3600 / 60, it % 60))
+            } ?: getString(R.string.home_hint_connected_plain)
+            else -> getString(R.string.home_hint_idle)
+        }
+        if (detail.toString() != renderedDetail?.toString()) {
+            renderedDetail = detail
+            root.findViewById<TextView>(R.id.statusDetail).text = detail
+        }
+        root.findViewById<View>(R.id.btnFailover).isVisible = degraded
+        if (hero == renderedHero) return
+        val first = renderedHero == null
+        renderedHero = hero
+        val on = ContextCompat.getColor(ctx, hero.on)
+        root.findViewById<MaterialCardView>(R.id.connectButton).setCardBackgroundColor(ContextCompat.getColor(ctx, hero.fill))
+        root.findViewById<ImageView>(R.id.connectIcon).imageTintList = ColorStateList.valueOf(on)
+        root.findViewById<TextView>(R.id.connectLabel).apply {
+            setTextColor(on)
+            setText(when {
+                hero == Hero.CONNECTING -> R.string.home_action_connecting
+                state.canStop -> R.string.home_action_disconnect
+                hero == Hero.ERROR -> R.string.home_action_retry
+                else -> R.string.home_action_connect
+            })
+        }
+        root.findViewById<CircularProgressIndicator>(R.id.connectProgress).visibility =
+            if (hero == Hero.CONNECTING) View.VISIBLE else View.INVISIBLE
+        root.findViewById<ImageView>(R.id.mascot).setImageResource(hero.mascot)
+        root.findViewById<TextView>(R.id.statusText).setText(hero.title)
+        if (!first) {
+            bounce(root.findViewById(R.id.mascot), 0.85f)
+            if (hero == Hero.CONNECTED) bounce(root.findViewById(R.id.connectButton), 0.9f)
+        }
+    }
+
+    private fun failover(button: View) {
+        val host = activity as? MainActivity ?: return
+        button.isEnabled = false
+        runOnDefaultDispatcher {
+            val error = try {
+                io.nekohasekai.sagernet.bg.RootModuleClient.call("node failover"); null
+            } catch (e: CancellationException) { throw e } catch (e: Exception) { e }
+            onMainDispatcher {
+                button.isEnabled = true
+                if (host.isFinishing || host.isDestroyed) return@onMainDispatcher
+                host.snackbar(if (error == null) getString(R.string.home_failover_done)
+                    else io.nekohasekai.sagernet.bg.RootModuleErrors.message(host, error)).show()
+            }
+        }
+    }
+
     override fun onPause() { statsJob?.cancel(); statsJob = null; super.onPause() }
     override fun onDestroyView() {
         statsJob?.cancel(); statsJob = null
@@ -318,6 +416,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         landingJob?.cancel(); landingJob = null
         testResult = "—"; landingCheckedProfile = -1L
         renderedProfile = -1L; renderedState = null; operationUntil = 0L
+        renderedHero = null; renderedDetail = null; nodeBound = false
         super.onDestroyView()
     }
     companion object {
