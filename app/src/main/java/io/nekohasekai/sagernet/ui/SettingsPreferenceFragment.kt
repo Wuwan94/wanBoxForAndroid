@@ -92,12 +92,6 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
         DataStore.initGlobal()
         addPreferencesFromResource(R.xml.global_preferences)
 
-        // preview.18 UI 改造：分应用代理入口
-        findPreference<Preference>("perAppProxyEntry")?.setOnPreferenceClickListener {
-            startActivity(Intent(activity, AppManagerActivity::class.java))
-            true
-        }
-
         val iconColor = Theme.getPrimaryColor(requireContext())
         tintPreferenceIcons(preferenceScreen, iconColor)
 
@@ -396,10 +390,7 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
 
     /** @author 雾晚：按入口平铺设置项；未归入任何入口的项进入“高级”。 */
     private fun applySection(section: String?) {
-        val hidden = mutableSetOf(
-            "perAppProxyEntry", // 设置首页已有“分应用代理”入口
-            "aboutVersion", "aboutCoreVersion", "aboutGithub", // 与“关于”页重复
-        )
+        val hidden = mutableSetOf<String>()
         if (!CoreRuntime.available) {
             // 测速依赖内嵌核心，瘦管理器无法使用
             hidden += setOf(Key.SPEED_TEST_MODE, Key.SPEED_TEST_TIMEOUT_MS, Key.SIMPLE_DOWNLOAD_URL)

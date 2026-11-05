@@ -80,13 +80,6 @@
     <moe.matsuri.nb4a.ui.ExpandablePreferenceCategory
         app:key="categoryRuntime"
         app:title="@string/settings_group_runtime">
-    <!-- preview.18 UI 改造：分应用代理明显入口 -->
-    <Preference
-        app:icon="@drawable/ic_navigation_apps"
-        app:key="perAppProxyEntry"
-        app:persistent="false"
-        app:title="@string/per_app_proxy"
-        app:summary="@string/per_app_proxy_summary" />
 
 
         <SwitchPreference
@@ -191,31 +184,6 @@
             app:key="simpleDownloadURL"
             app:title="@string/simple_download_url"
             app:useSimpleSummaryProvider="true" />
-
-    </moe.matsuri.nb4a.ui.ExpandablePreferenceCategory>
-
-    <!-- 4. 关于：版本、GitHub -->
-    <moe.matsuri.nb4a.ui.ExpandablePreferenceCategory
-        app:key="categoryAbout"
-        app:title="@string/settings_group_about">
-
-        <Preference
-            app:key="aboutVersion"
-            app:persistent="false"
-            app:title="@string/app_version"
-            app:summary="@string/app_version_summary" />
-
-        <Preference
-            app:key="aboutCoreVersion"
-            app:persistent="false"
-            app:title="@string/core_version"
-            app:summary="@string/core_version_summary" />
-
-        <Preference
-            app:key="aboutGithub"
-            app:persistent="false"
-            app:title="@string/github"
-            app:summary="@string/github_summary" />
 
     </moe.matsuri.nb4a.ui.ExpandablePreferenceCategory>
 
