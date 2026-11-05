@@ -22,7 +22,6 @@ import com.google.android.material.color.DynamicColors
 import com.google.android.material.color.DynamicColorsOptions
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.floatingactionbutton.FloatingActionButton
-import com.google.android.material.navigation.NavigationView
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.textfield.TextInputLayout
 import io.nekohasekai.sagernet.R
@@ -110,13 +109,6 @@ object Theme {
                 root.setSelectedTabIndicatorColor(primary)
                 root.setTabTextColors(root.context.getColorAttr(android.R.attr.textColorSecondary), primary)
                 root.tabRippleColor = ColorStateList.valueOf(ColorUtils.setAlphaComponent(primary, 0x33))
-            }
-            is NavigationView -> {
-                val defaultColor = root.context.getColorAttr(android.R.attr.textColorPrimary)
-                val states = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf())
-                val colors = intArrayOf(primary, defaultColor)
-                root.itemIconTintList = ColorStateList(states, colors)
-                root.itemTextColor = ColorStateList(states, colors)
             }
             is Toolbar -> {
                 root.setTitleTextColor(primary)

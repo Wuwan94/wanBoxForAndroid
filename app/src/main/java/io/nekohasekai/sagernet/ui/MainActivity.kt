@@ -27,7 +27,6 @@ import androidx.annotation.IdRes
 import androidx.core.graphics.ColorUtils
 import androidx.preference.PreferenceDataStore
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.navigation.NavigationView
 import com.google.android.material.snackbar.Snackbar
 import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.Action
@@ -80,11 +79,9 @@ import moe.matsuri.nb4a.utils.Util
 
 class MainActivity : ThemedActivity(),
     SagerConnection.Callback,
-    OnPreferenceDataStoreChangeListener,
-    NavigationView.OnNavigationItemSelectedListener {
+    OnPreferenceDataStoreChangeListener {
 
     lateinit var binding: LayoutMainBinding
-    lateinit var navigation: NavigationView
     private var currentMainFragment: ToolbarFragment? = null
     private var installerDataJob: Job? = null
     private var installerDataDialog: android.app.Dialog? = null
@@ -120,7 +117,6 @@ class MainActivity : ThemedActivity(),
         val animateInitialControls = savedInstanceState == null
 
         binding = LayoutMainBinding.inflate(layoutInflater)
-        binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
         binding.bottomNav.addOnLayoutChangeListener { _, _, top, _, bottom, _, _, _, _ ->
             val height = bottom - top
             val params = binding.fragmentHolder.layoutParams as ViewGroup.MarginLayoutParams
@@ -149,17 +145,6 @@ class MainActivity : ThemedActivity(),
                 }
             }
         }
-        if (themeResId !in intArrayOf(
-                R.style.Theme_SagerNet_Black
-            )
-        ) {
-            navigation = binding.navView
-            binding.drawerLayout.removeView(binding.navViewBlack)
-        } else {
-            navigation = binding.navViewBlack
-            binding.drawerLayout.removeView(binding.navView)
-        }
-        navigation.setNavigationItemSelectedListener(this)
 
         // preview.18 UI 改造：底部导航
         binding.bottomNav.setOnItemSelectedListener { item ->
@@ -551,18 +536,6 @@ class MainActivity : ThemedActivity(),
     }
 
     fun setCheckedItem(@IdRes id: Int) {
-        val menu = navigation.menu
-        fun uncheckAll(m: Menu) {
-            for (i in 0 until m.size()) {
-                val item = m.getItem(i)
-                if (item.hasSubMenu()) {
-                    item.subMenu?.let { uncheckAll(it) }
-                }
-                item.isChecked = false
-            }
-        }
-        uncheckAll(menu)
-        menu.findItem(id)?.isChecked = true
         val tabId = when (id) {
             R.id.nav_configuration -> R.id.nav_nodes
             R.id.nav_group -> R.id.nav_subscriptions
@@ -570,14 +543,6 @@ class MainActivity : ThemedActivity(),
             else -> R.id.nav_settings
         }
         binding.bottomNav.menu.findItem(tabId)?.isChecked = true
-    }
-
-    override fun onNavigationItemSelected(item: MenuItem): Boolean {
-        if (isCurrentFragment(item.itemId)) {
-            binding.drawerLayout.closeDrawers()
-            return true
-        }
-        return displayFragmentWithId(item.itemId)
     }
 
 
@@ -590,7 +555,6 @@ class MainActivity : ThemedActivity(),
             .setReorderingAllowed(true)
             .replace(R.id.fragment_holder, fragment)
             .commitAllowingStateLoss()
-        binding.drawerLayout.closeDrawers()
         syncMainControls(fragment, showWhenConnected = false, animate = true)
     }
 
@@ -807,23 +771,7 @@ class MainActivity : ThemedActivity(),
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (SagerNet.databaseFailure != null) return super.onKeyDown(keyCode, event)
-        when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_LEFT -> {
-                if (super.onKeyDown(keyCode, event)) return true
-                binding.drawerLayout.open()
-                navigation.requestFocus()
-            }
-
-            KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                if (binding.drawerLayout.isOpen) {
-                    binding.drawerLayout.close()
-                    return true
-                }
-            }
-        }
-
         if (super.onKeyDown(keyCode, event)) return true
-        if (binding.drawerLayout.isOpen) return false
 
         val fragment =
             supportFragmentManager.findFragmentById(R.id.fragment_holder) as? ToolbarFragment

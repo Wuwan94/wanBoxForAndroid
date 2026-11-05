@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- @author 雾晚 (phase 2): page destination ids formerly declared by the removed drawer menu. -->
+<resources>
+    <item name="nav_configuration" type="id" />
+    <item name="nav_group" type="id" />
+    <item name="nav_route" type="id" />
+    <item name="nav_logcat" type="id" />
+    <item name="nav_tools" type="id" />
+    <item name="nav_docs" type="id" />
+    <item name="nav_about" type="id" />
+</resources>

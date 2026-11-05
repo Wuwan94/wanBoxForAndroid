@@ -42,7 +42,6 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.core.view.size
-import androidx.core.view.GravityCompat
 import androidx.core.widget.addTextChangedListener
 import io.nekohasekai.sagernet.utils.Theme
 import kotlinx.coroutines.delay
@@ -4422,17 +4421,9 @@ class ConfigurationFragment @JvmOverloads constructor(
                 else -> requireContext().getColorAttr(android.R.attr.textColorPrimary)
             }
 
-            if (!select) {
-                toolbar.setNavigationIcon(R.drawable.ic_navigation_menu)
-                toolbar.navigationIcon?.let {
-                    val tinted = it.mutate()
-                    DrawableCompat.setTint(tinted, primaryColor)
-                    toolbar.navigationIcon = tinted
-                }
-                toolbar.setNavigationOnClickListener {
-                    (activity as? MainActivity)?.binding?.drawerLayout?.openDrawer(GravityCompat.START)
-                }
-            }
+            // @author 雾晚 (phase 2): the legacy drawer is gone; cancelling search
+            // restores the plain title bar instead of a hamburger icon.
+            if (!select) toolbar.navigationIcon = null
 
             tintMenuIcons(toolbar.menu, primaryColor)
 
