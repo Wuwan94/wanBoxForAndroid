@@ -23,19 +23,16 @@ class SettingsFragment : ToolbarFragment() {
         val page = section
         if (page == null) {
             toolbar.setTitle(R.string.settings)
-            toolbar.menu.add(Menu.NONE, R.id.settings_advanced, Menu.NONE, R.string.minimal_advanced)
             toolbar.menu.add(Menu.NONE, R.id.nav_tools, Menu.NONE, R.string.menu_tools)
             toolbar.menu.add(Menu.NONE, R.id.nav_docs, Menu.NONE, R.string.menu_documentation)
             toolbar.setOnMenuItemClickListener {
-                when (it.itemId) {
-                    R.id.settings_advanced -> host.displayFragment(forSection("advanced"))
-                    else -> host.displayFragmentWithId(it.itemId)
-                }
+                host.displayFragmentWithId(it.itemId)
                 true
             }
             view.findViewById<TextView>(R.id.settings_version).text = BuildConfig.VERSION_NAME
             view.findViewById<View>(R.id.settings_apps).setOnClickListener { startActivity(Intent(requireContext(), AppManagerActivity::class.java)) }
-            mapOf(R.id.settings_root to "root", R.id.settings_dns to "dns", R.id.settings_network to "network", R.id.settings_appearance to "appearance", R.id.settings_backup to "backup").forEach { (id, destination) ->
+            // 「高级设置」：DNS / 网络 / 入站 / 安全等下沉项集中在一个分组页
+            mapOf(R.id.settings_root to "root", R.id.settings_advanced_row to "advanced", R.id.settings_appearance to "appearance", R.id.settings_backup to "backup").forEach { (id, destination) ->
                 view.findViewById<View>(id).setOnClickListener { host.displayFragment(forSection(destination)) }
             }
             view.findViewById<View>(R.id.settings_route).setOnClickListener { host.displayFragment(RouteFragment()) }

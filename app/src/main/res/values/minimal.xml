@@ -65,7 +65,7 @@
     <string name="minimal_hours_ago">%1$d 小时前</string>
     <string name="minimal_days_ago">%1$d 天前</string>
     <string name="minimal_group_summary">%1$d 个节点 · %2$s</string>
-    <string name="minimal_root">Root 模块管理</string>
+    <string name="minimal_root">连接与核心</string>
     <string name="minimal_connection_toggle">代理服务开关</string>
     <string name="minimal_routing_mode">路由模式</string>
     <string name="minimal_live_traffic">实时流量</string>
@@ -76,7 +76,7 @@
     <string name="minimal_logs">日志与诊断</string>
     <string name="minimal_backup">备份与恢复</string>
     <string name="minimal_about">关于 wanBox</string>
-    <string name="minimal_advanced">高级设置与工具</string>
+    <string name="minimal_advanced">高级设置</string>
     <string name="minimal_auto_update_hint">各订阅可分别设置更新周期</string>
     <string name="minimal_display_hint">名称过长时居中省略</string>
     <string name="minimal_selected">已选择</string>
@@ -100,5 +100,10 @@
     <string name="minimal_landing_ip">落地 IP</string>
     <string name="minimal_landing_ip_refresh">刷新落地 IP</string>
     <string name="minimal_update_subscription">更新订阅</string>
+    <string name="minimal_advanced_summary">DNS · 网络 · 入站 · 安全 · 规则库与维护</string>
+    <string name="minimal_advanced_inbound">连接与入站</string>
+    <string name="minimal_advanced_security">安全与订阅</string>
+    <string name="minimal_advanced_ui">界面</string>
+    <string name="minimal_advanced_others">其他</string>
     <string name="minimal_no_subscription">还没有订阅，请先在「订阅」页添加</string>
 </resources>

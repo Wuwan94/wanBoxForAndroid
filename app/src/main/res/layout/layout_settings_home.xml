@@ -21,26 +21,10 @@
                 <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
             </LinearLayout>
             <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/minimal_line"/>
-            <LinearLayout android:id="@+id/settings_dns" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="56dp" android:paddingVertical="10dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_marginEnd="20dp" android:src="@drawable/ic_minimal_globe" android:contentDescription="@null"/>
-                <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/minimal_dns" android:textColor="@color/minimal_text" android:textSize="16sp"/>
-                </LinearLayout>
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
-            </LinearLayout>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/minimal_line"/>
             <LinearLayout android:id="@+id/settings_route" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="56dp" android:paddingVertical="10dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
                 <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_marginEnd="20dp" android:src="@drawable/ic_minimal_connections" android:contentDescription="@null"/>
                 <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
                     <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/menu_route" android:textColor="@color/minimal_text" android:textSize="16sp"/>
-                </LinearLayout>
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
-            </LinearLayout>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/minimal_line"/>
-            <LinearLayout android:id="@+id/settings_network" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="56dp" android:paddingVertical="10dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_marginEnd="20dp" android:src="@drawable/ic_minimal_wifi" android:contentDescription="@null"/>
-                <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/minimal_network" android:textColor="@color/minimal_text" android:textSize="16sp"/>
                 </LinearLayout>
                 <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
             </LinearLayout>
@@ -74,6 +58,16 @@
                 <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_marginEnd="20dp" android:src="@drawable/ic_minimal_info" android:contentDescription="@null"/>
                 <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
                     <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/minimal_about" android:textColor="@color/minimal_text" android:textSize="16sp"/>
+                </LinearLayout>
+                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
+            </LinearLayout>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/minimal_line"/>
+            <Space android:layout_width="match_parent" android:layout_height="20dp"/>
+            <LinearLayout android:id="@+id/settings_advanced_row" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="56dp" android:paddingVertical="10dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
+                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_marginEnd="20dp" android:src="@drawable/ic_minimal_sliders" android:contentDescription="@null"/>
+                <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/minimal_advanced" android:textColor="@color/minimal_text" android:textSize="16sp"/>
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="@string/minimal_advanced_summary" android:textColor="@color/minimal_secondary" android:textSize="12sp"/>
                 </LinearLayout>
                 <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
             </LinearLayout>

@@ -367,22 +367,37 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             // 测速依赖内嵌核心，瘦管理器无法使用
             hidden += setOf(Key.SPEED_TEST_MODE, Key.SPEED_TEST_TIMEOUT_MS, Key.SIMPLE_DOWNLOAD_URL)
         }
-        val keys = section?.let { sectionKeys[it] } ?: run {
-            val assigned = sectionKeys.values.flatten().toSet()
-            val all = mutableListOf<Preference>().also { collectLeaves(preferenceScreen, it) }
-            all.mapNotNull { it.key }.filter { it !in assigned }
-        }
         val leaves = mutableListOf<Preference>().also { collectLeaves(preferenceScreen, it) }
         val byKey = leaves.filter { it.key != null }.associateBy { it.key }
         leaves.forEach { it.parent?.removePreference(it) }
         preferenceScreen.removeAll()
         var order = 0
-        for (key in keys) {
-            if (key in hidden) continue
-            val preference = byKey[key] ?: continue
-            preference.order = order++
-            preference.isVisible = true
-            preferenceScreen.addPreference(preference)
+        fun place(group: PreferenceGroup, keys: List<String>) {
+            for (key in keys) {
+                if (key in hidden) continue
+                val preference = byKey[key] ?: continue
+                preference.order = order++
+                preference.isVisible = true
+                group.addPreference(preference)
+            }
+        }
+        val flat = section?.let { sectionKeys[it] }
+        if (flat != null) {
+            place(preferenceScreen, flat)
+            return
+        }
+        // 「高级设置」：下沉项按分组展示；未归入任何入口的项进入「其他」，保证不丢设置。默认值均不变。
+        val assigned = (sectionKeys.values.flatten() + advancedGroups.flatMap { it.second }).toSet()
+        val others = leaves.mapNotNull { it.key }.filter { it !in assigned }
+        for ((title, keys) in advancedGroups + (R.string.minimal_advanced_others to others)) {
+            if (keys.none { it in byKey && it !in hidden }) continue
+            val category = PreferenceCategory(requireContext()).apply {
+                setTitle(title)
+                this.order = order++
+                isIconSpaceReserved = false
+            }
+            preferenceScreen.addPreference(category)
+            place(category, keys)
         }
     }
 
@@ -472,24 +487,33 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             "appearance" to listOf(
                 "nightTheme", "appLanguage", "profileCardStyle", "profileTrafficStatistics",
                 "showLandingIp", "alwaysShowAddress", "show_subscription_info_card",
-                "confirmProfileDelete", "hapticFeedback",
+                "hapticFeedback",
             ),
-            "root" to listOf(
+            // 设置首页「连接与核心」：只留首屏需要的两项，其余下沉到「高级设置」
+            "root" to listOf("connectionTestURL", "ipv6Mode"),
+        )
+
+        /** 「高级设置」分组（标题 to 键）。仅重新分组，键与默认值均不变。 */
+        private val advancedGroups: List<Pair<Int, List<String>>> = listOf(
+            R.string.minimal_advanced_inbound to listOf(
                 "bypassLan", "bypassLanInCore", "strictRoute",
                 "mtu", "performancePriorityMode",
                 "disableMixedInbound", "mixedPort", "mixedAuthConfig", "lanSharing",
             ),
-            "dns" to listOf(
+            R.string.minimal_dns to listOf(
                 "remoteDns", "domain_strategy_for_remote", "directDns", "domain_strategy_for_direct",
                 "domain_strategy_for_server", "enableDnsRouting", "enableFakeDns", "dnsHosts",
             ),
-            "network" to listOf(
-                "trafficSniffing", "resolveDestination", "ipv6Mode", "dualNetworkAcceleration",
+            R.string.minimal_network to listOf(
+                "trafficSniffing", "resolveDestination", "dualNetworkAcceleration",
                 "concurrentDial", "enableTLSFragment", "fragmentLength", "fragmentInterval",
-                "connectionTestURL", "speedTestMode", "speedTestTimeoutMs", "simpleDownloadURL",
+                "speedTestMode", "speedTestTimeoutMs", "simpleDownloadURL",
+            ),
+            R.string.minimal_advanced_security to listOf(
                 "defaultSubscriptionUserAgent", "appTLSVersion", "globalAllowInsecure",
                 "allowInsecureOnRequest",
             ),
+            R.string.minimal_advanced_ui to listOf("confirmProfileDelete"),
         )
     }
 
