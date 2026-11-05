@@ -92,7 +92,13 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 			}
 		}
 	}()
-	for attempt := 0; attempt <= 3; attempt++ {
+	// @author 雾晚 (phase 2): bounded watchdog. At most maxCoreAttempts starts per
+	// crash window with capped exponential backoff (1s,2s,4s,8s,16s ≤30s); every
+	// exit reason is persisted (state.lastExit/lastReason + events) so the manager
+	// can explain the drop. A generation that stayed connected ≥5 min resets the
+	// budget; a validated-network rebuild never consumes it. No infinite restarts.
+	recovering := false
+	for attempt := 0; attempt < maxCoreAttempts; attempt++ {
 		if ctx.Err() != nil {
 			return nil
 		}
@@ -103,10 +109,17 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 		mu.Lock()
 		s.Phase = "starting"
 		s.Error = ""
+		s.Health = ""
+		s.RetryCount = attempt
 		persist()
 		mu.Unlock()
 		generationStart := time.Now()
-		err := r.runGeneration(ctx, rev, snapshot, &s, &mu, persist)
+		err := r.runGeneration(ctx, rev, snapshot, &s, &mu, persist, func() {
+			if recovering {
+				recovering = false
+				r.recordEvent("reconnect_ok")
+			}
+		})
 		mu.Lock()
 		// @author 雾晚: a core that stayed connected for a while is a fresh failure,
 		// not part of the startup crash loop; never let rare crashes over days
@@ -122,6 +135,18 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 		if err == nil {
 			return nil
 		}
+		reason := classifyExit(err)
+		mu.Lock()
+		s.LastExit = exitCode(err)
+		s.LastReason = reason
+		s.LastExitAt = time.Now().Unix()
+		mu.Unlock()
+		r.recordEvent("core_exit_" + exitCode(err))
+		if reason != ReasonNetworkChange {
+			// network_change was already recorded by the monitor with its context.
+			r.recordEvent(reason)
+		}
+		recovering = true
 		if err.Error() == "cleanup_timeout_no_restart" {
 			mu.Lock()
 			s.Phase = "failed"
@@ -136,10 +161,10 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 		s.Stats = nil
 		persist()
 		mu.Unlock()
-		if stableRun {
+		if stableRun || errors.Is(err, errNetworkRebuild) {
 			attempt = -1
 		}
-		if attempt == 3 {
+		if attempt == maxCoreAttempts-1 {
 			mu.Lock()
 			s.Phase = "failed"
 			s.Error = "retry_limit_reached"
@@ -165,10 +190,17 @@ func retryBackoff(attempt int) time.Duration {
 	if attempt < 0 {
 		return time.Second
 	}
-	return time.Duration(1<<attempt) * time.Second
+	if attempt > 5 {
+		return maxRetryBackoff
+	}
+	d := time.Duration(1<<attempt) * time.Second
+	if d > maxRetryBackoff {
+		return maxRetryBackoff
+	}
+	return d
 }
 
-func (r *Runtime) runGeneration(ctx context.Context, rev string, snapshot Snapshot, s *State, mu *sync.Mutex, persist func()) error {
+func (r *Runtime) runGeneration(ctx context.Context, rev string, snapshot Snapshot, s *State, mu *sync.Mutex, persist func(), onConnected func()) error {
 	dir := r.path("generations", rev)
 	childCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -310,8 +342,16 @@ func (r *Runtime) runGeneration(ctx context.Context, rev string, snapshot Snapsh
 	probe := newStartupProbe(100*time.Millisecond, 60*time.Second)
 	defer probe.stop()
 	startupFailed := false
+	monitorDone := make(chan error, 1)
+	monitorStarted := false
+	networkRebuild := false
 	for {
 		select {
+		case me := <-monitorDone:
+			if errors.Is(me, errNetworkRebuild) {
+				networkRebuild = true
+				cancel()
+			}
 		case err := <-wait:
 			<-readerDone
 			if err == nil {
@@ -328,6 +368,9 @@ func (r *Runtime) runGeneration(ctx context.Context, rev string, snapshot Snapsh
 				}
 				if startupFailed {
 					return errors.New("startup_timeout")
+				}
+				if networkRebuild {
+					return errNetworkRebuild
 				}
 				return errors.New("plugin_exited")
 			case <-time.After(20 * time.Second):
@@ -366,6 +409,13 @@ func (r *Runtime) runGeneration(ctx context.Context, rev string, snapshot Snapsh
 					probe.stop()
 				}
 				mu.Unlock()
+				if !monitorStarted && !startupFailed {
+					monitorStarted = true
+					if onConnected != nil {
+						onConnected()
+					}
+					go func() { monitorDone <- r.monitorGeneration(childCtx, rev, s, mu, persist) }()
+				}
 			}
 		}
 	}

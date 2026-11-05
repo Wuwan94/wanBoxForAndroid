@@ -178,6 +178,8 @@ func (r *Runtime) SelectNode(ctx context.Context, profileID int64) error {
 			_ = jsonWrite(r.path("state.json"), s)
 		}
 		r.recordEvent("node_hot_switched")
+		// @author 雾晚 (phase 2): "code:<number>" is now an accepted event format
+		// (it was silently dropped by the old ^[a-z_]+$ check).
 		r.recordEvent("node_hot_switch_ms:" + strconv.FormatInt(time.Since(started).Milliseconds(), 10))
 		return nil
 	})

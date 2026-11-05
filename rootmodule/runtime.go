@@ -67,6 +67,13 @@ type State struct {
 	Telemetry       *Telemetry            `json:"telemetry,omitempty"`
 	Events          []Event               `json:"events,omitempty"`
 	InstallData     *InstallDataSelection `json:"installData,omitempty"`
+	// @author 雾晚 (phase 2): data-plane health ("ok" / "degraded"), last core exit
+	// reason and its class. Optional fields: older managers ignore them.
+	Health     string `json:"health,omitempty"`
+	LastExit   string `json:"lastExit,omitempty"`
+	LastReason string `json:"lastReason,omitempty"`
+	LastExitAt int64  `json:"lastExitAt,omitempty"`
+	RetryCount int    `json:"retryCount,omitempty"`
 }
 type Event struct {
 	Time int64  `json:"time"`
@@ -93,8 +100,13 @@ func (r *Runtime) Events() []Event {
 	_ = readJSON(r.path("events.json"), &events, 64<<10)
 	return events
 }
+
+// eventCode accepts a fixed lowercase code with an optional numeric suffix
+// (e.g. node_hot_switch_ms:420). Anything else (user data, secrets) is dropped.
+var eventCode = regexp.MustCompile(`^[a-z_]{1,80}(:[0-9]{1,12})?$`)
+
 func (r *Runtime) recordEvent(code string) {
-	if !regexp.MustCompile(`^[a-z_]{1,80}$`).MatchString(code) {
+	if !eventCode.MatchString(code) {
 		return
 	}
 	events := r.Events()
@@ -436,6 +448,7 @@ func (r *Runtime) Stage(ctx context.Context, s Snapshot) (string, error) {
 	}
 	return rev, nil
 }
+
 // @author 雾晚：从 /proc/<pid>/status 安全读取 VmRSS（字节）。
 // PID 身份已由 SameProcess 校验，读取前后核对代次。
 // 使用可注入的解析器，便于测试溢出与非法值。
@@ -535,10 +548,10 @@ func (r *Runtime) clashAPISecret(revision string) string {
 // 禁用环境代理，禁重定向。调用方负责 ctx 超时。
 var loopbackClient = &http.Client{
 	Transport: &http.Transport{
-		Proxy:               nil, // 禁用环境代理，仅 loopback
-		MaxIdleConns:        2,
-		IdleConnTimeout:     10 * time.Second,
-		DisableCompression:  true,
+		Proxy:              nil, // 禁用环境代理，仅 loopback
+		MaxIdleConns:       2,
+		IdleConnTimeout:    10 * time.Second,
+		DisableCompression: true,
 	},
 	CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		return errors.New("redirect_forbidden")
@@ -735,6 +748,7 @@ func (r *Runtime) Status() State {
 	if s.Phase != "connected" {
 		s.Stats = nil
 		s.Telemetry = nil
+		s.Health = ""
 	} else {
 		// @author 雾晚：已连接时填充遥测，进程身份已校验
 		r.fillTelemetry(&s)

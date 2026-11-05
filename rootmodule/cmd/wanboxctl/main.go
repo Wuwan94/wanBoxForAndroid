@@ -125,6 +125,9 @@ func run(ctx context.Context, r *module.Runtime, args []string) error {
 		}
 		return r.SelectNode(ctx, id)
 	}
+	if len(args) == 2 && args[0] == "node" && args[1] == "failover" {
+		return r.Failover(ctx)
+	}
 	if len(args) == 1 {
 		switch args[0] {
 		case "status", "module", "logs", "dashboard":
