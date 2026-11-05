@@ -710,8 +710,9 @@ class ConfigurationFragment @JvmOverloads constructor(
         }
         // @author 雾晚：瘦管理器不含内嵌核心，本地 URL 测试 / 测速不可用，直接从菜单移除入口。
         if (!CoreRuntime.available) {
-            toolbar.menu.findItem(R.id.action_connection_url_test)?.isVisible = false
-            toolbar.menu.findItem(R.id.action_speed_test_group)?.isVisible = false
+            // remove(D1): 瘦构建直接移除菜单项（而非仅隐藏），完整构建保持不变
+            toolbar.menu.findItem(R.id.action_connection_url_test)?.let { toolbar.menu.removeItem(it.itemId) }
+            toolbar.menu.findItem(R.id.action_speed_test_group)?.let { toolbar.menu.removeItem(it.itemId) }
         }
         toolbar.menu.add(Menu.NONE, R.id.action_minimal_refresh, 1, R.string.retest).apply {
             setIcon(R.drawable.ic_minimal_refresh)
