@@ -1,78 +1,410 @@
-<?xml version="1.0" ?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@color/minimal_background">
-    <include layout="@layout/layout_appbar"/>
-    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true">
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingHorizontal="20dp" android:paddingBottom="16dp">
-            <LinearLayout android:id="@+id/settings_apps" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="56dp" android:paddingVertical="10dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_marginEnd="20dp" android:src="@drawable/ic_minimal_apps" android:contentDescription="@null"/>
-                <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/per_app_proxy" android:textColor="@color/minimal_text" android:textSize="16sp" android:textStyle="bold"/>
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="@string/per_app_proxy_summary" android:textColor="@color/minimal_secondary" android:textSize="12sp"/>
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/minimal_background">
+    <include layout="@layout/layout_appbar" />
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:fillViewport="true">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="@dimen/ui_page_horizontal"
+            android:paddingTop="@dimen/ui_page_top"
+            android:paddingBottom="@dimen/ui_page_bottom">
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.WanBox.Minimal.GroupedCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/ui_card_spacing">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+                    <LinearLayout
+                        android:id="@+id/settings_apps"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="@dimen/ui_list_row_min_height"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="@dimen/ui_form_padding"
+                        android:paddingVertical="@dimen/ui_space_medium"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true">
+                        <ImageView
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_marginEnd="@dimen/ui_form_padding"
+                            android:src="@drawable/ic_minimal_apps"
+                            android:contentDescription="@null" />
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/per_app_proxy"
+                                android:textColor="@color/minimal_text"
+                                android:textSize="16sp" android:textStyle="bold" />
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="@dimen/ui_space_small"
+                                android:text="@string/per_app_proxy_summary"
+                                android:textColor="@color/minimal_secondary"
+                                android:textSize="@dimen/ui_text_caption" />
+                        </LinearLayout>
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_marginStart="@dimen/ui_space_medium"
+                            android:src="@drawable/ic_minimal_chevron"
+                            android:contentDescription="@null" />
+                    </LinearLayout>
                 </LinearLayout>
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
-            </LinearLayout>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/minimal_line"/>
-            <Space android:layout_width="match_parent" android:layout_height="20dp"/>
-            <LinearLayout android:id="@+id/settings_root" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="56dp" android:paddingVertical="10dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_marginEnd="20dp" android:src="@drawable/ic_minimal_root" android:contentDescription="@null"/>
-                <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/minimal_root" android:textColor="@color/minimal_text" android:textSize="16sp"/>
+            </com.google.android.material.card.MaterialCardView>
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.WanBox.Minimal.GroupedCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/ui_card_spacing">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+                    <LinearLayout
+                        android:id="@+id/settings_root"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="@dimen/ui_list_row_min_height"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="@dimen/ui_form_padding"
+                        android:paddingVertical="@dimen/ui_space_medium"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true">
+                        <ImageView
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_marginEnd="@dimen/ui_form_padding"
+                            android:src="@drawable/ic_minimal_root"
+                            android:contentDescription="@null" />
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/minimal_root"
+                                android:textColor="@color/minimal_text"
+                                android:textSize="16sp" />
+                        </LinearLayout>
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_marginStart="@dimen/ui_space_medium"
+                            android:src="@drawable/ic_minimal_chevron"
+                            android:contentDescription="@null" />
+                    </LinearLayout>
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginStart="56dp"
+                        android:layout_marginEnd="@dimen/ui_form_padding"
+                        android:background="@color/minimal_line" />
+                    <LinearLayout
+                        android:id="@+id/settings_route"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="@dimen/ui_list_row_min_height"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="@dimen/ui_form_padding"
+                        android:paddingVertical="@dimen/ui_space_medium"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true">
+                        <ImageView
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_marginEnd="@dimen/ui_form_padding"
+                            android:src="@drawable/ic_minimal_connections"
+                            android:contentDescription="@null" />
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/menu_route"
+                                android:textColor="@color/minimal_text"
+                                android:textSize="16sp" />
+                        </LinearLayout>
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_marginStart="@dimen/ui_space_medium"
+                            android:src="@drawable/ic_minimal_chevron"
+                            android:contentDescription="@null" />
+                    </LinearLayout>
                 </LinearLayout>
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
-            </LinearLayout>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/minimal_line"/>
-            <LinearLayout android:id="@+id/settings_route" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="56dp" android:paddingVertical="10dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_marginEnd="20dp" android:src="@drawable/ic_minimal_connections" android:contentDescription="@null"/>
-                <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/menu_route" android:textColor="@color/minimal_text" android:textSize="16sp"/>
+            </com.google.android.material.card.MaterialCardView>
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.WanBox.Minimal.GroupedCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/ui_card_spacing">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+                    <LinearLayout
+                        android:id="@+id/settings_appearance"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="@dimen/ui_list_row_min_height"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="@dimen/ui_form_padding"
+                        android:paddingVertical="@dimen/ui_space_medium"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true">
+                        <ImageView
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_marginEnd="@dimen/ui_form_padding"
+                            android:src="@drawable/ic_minimal_brush"
+                            android:contentDescription="@null" />
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/minimal_appearance"
+                                android:textColor="@color/minimal_text"
+                                android:textSize="16sp" />
+                        </LinearLayout>
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_marginStart="@dimen/ui_space_medium"
+                            android:src="@drawable/ic_minimal_chevron"
+                            android:contentDescription="@null" />
+                    </LinearLayout>
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginStart="56dp"
+                        android:layout_marginEnd="@dimen/ui_form_padding"
+                        android:background="@color/minimal_line" />
+                    <LinearLayout
+                        android:id="@+id/settings_logs"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="@dimen/ui_list_row_min_height"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="@dimen/ui_form_padding"
+                        android:paddingVertical="@dimen/ui_space_medium"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true">
+                        <ImageView
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_marginEnd="@dimen/ui_form_padding"
+                            android:src="@drawable/ic_minimal_info"
+                            android:contentDescription="@null" />
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/minimal_logs"
+                                android:textColor="@color/minimal_text"
+                                android:textSize="16sp" />
+                        </LinearLayout>
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_marginStart="@dimen/ui_space_medium"
+                            android:src="@drawable/ic_minimal_chevron"
+                            android:contentDescription="@null" />
+                    </LinearLayout>
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginStart="56dp"
+                        android:layout_marginEnd="@dimen/ui_form_padding"
+                        android:background="@color/minimal_line" />
+                    <LinearLayout
+                        android:id="@+id/settings_backup"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="@dimen/ui_list_row_min_height"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="@dimen/ui_form_padding"
+                        android:paddingVertical="@dimen/ui_space_medium"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true">
+                        <ImageView
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_marginEnd="@dimen/ui_form_padding"
+                            android:src="@drawable/ic_minimal_database"
+                            android:contentDescription="@null" />
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/minimal_backup"
+                                android:textColor="@color/minimal_text"
+                                android:textSize="16sp" />
+                        </LinearLayout>
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_marginStart="@dimen/ui_space_medium"
+                            android:src="@drawable/ic_minimal_chevron"
+                            android:contentDescription="@null" />
+                    </LinearLayout>
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginStart="56dp"
+                        android:layout_marginEnd="@dimen/ui_form_padding"
+                        android:background="@color/minimal_line" />
+                    <LinearLayout
+                        android:id="@+id/settings_about"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="@dimen/ui_list_row_min_height"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="@dimen/ui_form_padding"
+                        android:paddingVertical="@dimen/ui_space_medium"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true">
+                        <ImageView
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_marginEnd="@dimen/ui_form_padding"
+                            android:src="@drawable/ic_minimal_info"
+                            android:contentDescription="@null" />
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/minimal_about"
+                                android:textColor="@color/minimal_text"
+                                android:textSize="16sp" />
+                        </LinearLayout>
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_marginStart="@dimen/ui_space_medium"
+                            android:src="@drawable/ic_minimal_chevron"
+                            android:contentDescription="@null" />
+                    </LinearLayout>
                 </LinearLayout>
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
-            </LinearLayout>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/minimal_line"/>
-            <Space android:layout_width="match_parent" android:layout_height="20dp"/>
-            <LinearLayout android:id="@+id/settings_appearance" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="56dp" android:paddingVertical="10dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_marginEnd="20dp" android:src="@drawable/ic_minimal_brush" android:contentDescription="@null"/>
-                <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/minimal_appearance" android:textColor="@color/minimal_text" android:textSize="16sp"/>
+            </com.google.android.material.card.MaterialCardView>
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.WanBox.Minimal.GroupedCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/ui_card_spacing">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+                    <LinearLayout
+                        android:id="@+id/settings_advanced_row"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="@dimen/ui_list_row_min_height"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="@dimen/ui_form_padding"
+                        android:paddingVertical="@dimen/ui_space_medium"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true">
+                        <ImageView
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_marginEnd="@dimen/ui_form_padding"
+                            android:src="@drawable/ic_minimal_sliders"
+                            android:contentDescription="@null" />
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/minimal_advanced"
+                                android:textColor="@color/minimal_text"
+                                android:textSize="16sp" android:textStyle="bold" />
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="@dimen/ui_space_small"
+                                android:text="@string/minimal_advanced_summary"
+                                android:textColor="@color/minimal_secondary"
+                                android:textSize="@dimen/ui_text_caption" />
+                        </LinearLayout>
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_marginStart="@dimen/ui_space_medium"
+                            android:src="@drawable/ic_minimal_chevron"
+                            android:contentDescription="@null" />
+                    </LinearLayout>
                 </LinearLayout>
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
-            </LinearLayout>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/minimal_line"/>
-            <LinearLayout android:id="@+id/settings_logs" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="56dp" android:paddingVertical="10dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_marginEnd="20dp" android:src="@drawable/ic_minimal_subscription" android:contentDescription="@null"/>
-                <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/minimal_logs" android:textColor="@color/minimal_text" android:textSize="16sp"/>
-                </LinearLayout>
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
-            </LinearLayout>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/minimal_line"/>
-            <LinearLayout android:id="@+id/settings_backup" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="56dp" android:paddingVertical="10dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_marginEnd="20dp" android:src="@drawable/ic_minimal_database" android:contentDescription="@null"/>
-                <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/minimal_backup" android:textColor="@color/minimal_text" android:textSize="16sp"/>
-                </LinearLayout>
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
-            </LinearLayout>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/minimal_line"/>
-            <LinearLayout android:id="@+id/settings_about" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="56dp" android:paddingVertical="10dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_marginEnd="20dp" android:src="@drawable/ic_minimal_info" android:contentDescription="@null"/>
-                <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/minimal_about" android:textColor="@color/minimal_text" android:textSize="16sp"/>
-                </LinearLayout>
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
-            </LinearLayout>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/minimal_line"/>
-            <Space android:layout_width="match_parent" android:layout_height="20dp"/>
-            <LinearLayout android:id="@+id/settings_advanced_row" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="56dp" android:paddingVertical="10dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_marginEnd="20dp" android:src="@drawable/ic_minimal_sliders" android:contentDescription="@null"/>
-                <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/minimal_advanced" android:textColor="@color/minimal_text" android:textSize="16sp"/>
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="@string/minimal_advanced_summary" android:textColor="@color/minimal_secondary" android:textSize="12sp"/>
-                </LinearLayout>
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_minimal_chevron" android:contentDescription="@null"/>
-            </LinearLayout>
-            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/minimal_line"/>
-            <TextView android:id="@+id/settings_version" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:paddingTop="20dp" android:paddingBottom="8dp" android:textColor="@color/minimal_secondary" android:textSize="12sp"/>
+            </com.google.android.material.card.MaterialCardView>
+            <TextView
+                android:id="@+id/settings_version"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:paddingTop="@dimen/ui_space_large"
+                android:paddingBottom="@dimen/ui_space_medium"
+                android:textColor="@color/minimal_secondary"
+                android:textSize="@dimen/ui_text_caption" />
         </LinearLayout>
     </ScrollView>
 </LinearLayout>

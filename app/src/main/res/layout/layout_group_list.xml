@@ -13,12 +13,12 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content" />
 
-    <TextView android:id="@+id/nodes_summary" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingHorizontal="20dp" android:paddingBottom="8dp" android:textColor="@color/minimal_secondary" android:textSize="13sp"/>
+    <TextView android:id="@+id/nodes_summary" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingHorizontal="@dimen/ui_page_horizontal" android:paddingBottom="@dimen/ui_space_medium" android:textColor="@color/minimal_secondary" android:textSize="@dimen/ui_text_supporting"/>
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/group_tab"
         android:layout_width="match_parent"
         android:layout_height="48dp"
-        android:layout_marginHorizontal="20dp"
+        android:layout_marginHorizontal="@dimen/ui_page_horizontal"
         android:background="@drawable/bg_minimal_segment"
         android:elevation="0dp"
         android:visibility="gone"
@@ -26,9 +26,9 @@
         app:tabIndicatorHeight="0dp"
         app:tabIndicatorFullWidth="false"
         app:tabMode="scrollable"
-        app:tabPaddingStart="16dp"
+        app:tabPaddingStart="@dimen/ui_form_padding"
         app:tabBackground="@drawable/bg_minimal_tab"
-        app:tabPaddingEnd="16dp"
+        app:tabPaddingEnd="@dimen/ui_form_padding"
         app:tabRippleColor="?tabRippleColor"
         app:tabSelectedTextColor="?attr/tabSelectedTextColor"
         app:tabTextColor="?attr/tabTextColor"

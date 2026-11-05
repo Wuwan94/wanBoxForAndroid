@@ -12,10 +12,10 @@
         android:id="@+id/card_subscription_info"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:layout_marginEnd="8dp"
-        android:layout_marginTop="6dp"
-        android:layout_marginBottom="4dp"
+        android:layout_marginStart="@dimen/ui_space_medium"
+        android:layout_marginEnd="@dimen/ui_space_medium"
+        android:layout_marginTop="@dimen/ui_space_medium"
+        android:layout_marginBottom="@dimen/ui_space_small"
         android:visibility="gone"
         tools:visibility="visible"
         app:cardCornerRadius="@dimen/card_corner_radius"
@@ -29,7 +29,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="10dp">
+            android:padding="@dimen/ui_space_large">
 
             <!-- Top Header: Cloud Icon, Title, Expire Date -->
             <LinearLayout
@@ -49,7 +49,7 @@
                     android:id="@+id/tv_subscription_title"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
+                    android:layout_marginStart="@dimen/ui_space_medium"
                     android:layout_weight="1"
                     android:text="@string/subscription_info"
                     android:textColor="?android:attr/textColorPrimary"
@@ -142,10 +142,10 @@
         android:layout_height="match_parent"
         android:clipChildren="false"
         android:clipToPadding="false"
-        android:paddingLeft="16dp"
-        android:paddingTop="4dp"
-        android:paddingRight="16dp"
-        android:paddingBottom="12dp"
+        android:paddingLeft="@dimen/ui_form_padding"
+        android:paddingTop="@dimen/ui_space_small"
+        android:paddingRight="@dimen/ui_form_padding"
+        android:paddingBottom="@dimen/ui_page_padding"
         android:scrollbarSize="0dp"
         app:fastScrollAutoHide="true"
         app:fastScrollThumbColor="?colorPrimary"
