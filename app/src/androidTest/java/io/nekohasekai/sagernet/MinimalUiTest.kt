@@ -233,37 +233,33 @@ class MinimalUiTest {
                 host.binding.bottomNav.selectedItemId = R.id.nav_subscriptions
             }
             awaitReady("subscriptions") { host.findViewById<TextView>(R.id.subscriptions_summary)?.text?.contains("12") == true }
+            // D10c 已移除长按多选：「更新选中」在未选择时保持禁用
             instrumentation.runOnMainSync {
-                val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as GroupFragment
-                fragment.toggleGroupSelection(ids[0]); fragment.toggleGroupSelection(ids[1])
-            }
-            idle()
-            instrumentation.runOnMainSync {
-                assertTrue(host.findViewById<View>(R.id.subscriptions_update_selected).isEnabled)
-                assertEquals("更新选中 (2)", host.findViewById<TextView>(R.id.subscriptions_update_selected).text.toString())
+                assertFalse(host.findViewById<View>(R.id.subscriptions_update_selected).isEnabled)
+                assertEquals("更新选中 (0)", host.findViewById<TextView>(R.id.subscriptions_update_selected).text.toString())
             }
             captureScreen("03-subscriptions")
 
             instrumentation.runOnMainSync { host.binding.bottomNav.selectedItemId = R.id.nav_settings }
             awaitReady("settings") {
                 val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as? SettingsFragment
-                val dnsView = host.findViewById<View>(R.id.settings_dns)
+                val advancedView = host.findViewById<View>(R.id.settings_advanced_row)
                 fragment?.toolbar?.title?.toString() == context.getString(R.string.settings) &&
-                    dnsView?.isShown == true
+                    advancedView?.isShown == true
             }
             captureScreen("04-settings")
 
-            instrumentation.runOnMainSync { host.findViewById<View>(R.id.settings_dns).performClick() }
-            awaitReady("dns-open") {
+            instrumentation.runOnMainSync { host.findViewById<View>(R.id.settings_advanced_row).performClick() }
+            awaitReady("advanced-open") {
                 val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as? SettingsFragment
                 fragment?.childFragmentManager?.findFragmentById(R.id.settings) is SettingsPreferenceFragment
             }
             instrumentation.runOnMainSync {
                 val fragment = host.supportFragmentManager.findFragmentById(R.id.fragment_holder) as SettingsFragment
-                assertEquals(context.getString(R.string.minimal_dns), fragment.toolbar.title.toString())
+                assertEquals(context.getString(R.string.minimal_advanced), fragment.toolbar.title.toString())
                 assertTrue(fragment.onBackPressed())
             }
-            awaitReady("dns-close") { host.findViewById<View>(R.id.settings_dns) != null }
+            awaitReady("advanced-close") { host.findViewById<View>(R.id.settings_advanced_row) != null }
             instrumentation.runOnMainSync {
                 assertTrue(host.binding.bottomNav.menu.findItem(R.id.nav_settings).isChecked)
                 assertTrue(host.binding.fragmentHolder.bottom <= host.binding.bottomNav.top)
