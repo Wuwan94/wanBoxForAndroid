@@ -39,6 +39,17 @@ android {
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
     }
+    // phase2: opt-in "benchmark" build type for :benchmark (Macrobenchmark / Baseline Profile).
+    // Same as release but debug-signed; only created with -PwanboxBenchmark=true, so release
+    // signing, package name and the default variants are unchanged.
+    if (providers.gradleProperty("wanboxBenchmark").orNull == "true") {
+        buildTypes.create("benchmark") {
+            initWith(buildTypes.getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+            isDebuggable = false
+        }
+    }
     ksp {
         arg("room.incremental", "true")
         arg("room.schemaLocation", "$projectDir/schemas")
@@ -114,6 +125,8 @@ dependencies {
     implementation("androidx.work:work-multiprocess:2.8.1")
 
     implementation("com.google.android.material:material:1.12.0")
+    // phase2: lets sideloaded APKs install the baseline profile (app/src/main/baseline-prof.txt)
+    implementation("androidx.profileinstaller:profileinstaller:1.3.1")
     implementation("com.google.code.gson:gson:2.9.0")
     // @author 雾晚 (B 路线): 瘦管理器没有内嵌核心，.xz 资源解压改由纯 Java 实现（约 120KB dex）。
     implementation("org.tukaani:xz:1.10")
