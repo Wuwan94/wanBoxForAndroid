@@ -503,7 +503,6 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
         val groupStatus = binding.groupStatus
         val groupTraffic = binding.groupTraffic
         val groupUser = binding.groupUser
-        val editButton = binding.edit
         val optionsButton = binding.options
         val updateButton = binding.groupUpdate
         val subscriptionUpdateProgress = binding.subscriptionUpdateProgress
@@ -642,16 +641,9 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
             }
 
             val isDisabled = DataStore.isGroupDisabled(proxyGroup.id)
-            editButton.isGone = true
             updateButton.isInvisible = proxyGroup.type != GroupType.SUBSCRIPTION
             groupName.text = if (isDisabled) "${proxyGroup.displayName()} ${getString(R.string.group_disabled_status)}" else proxyGroup.displayName()
             itemView.alpha = if (isDisabled) 0.6f else 1.0f
-
-            editButton.setOnClickListener {
-                startActivity(Intent(it.context, GroupSettingsActivity::class.java).apply {
-                    putExtra(GroupSettingsActivity.EXTRA_GROUP_ID, group.id)
-                })
-            }
 
             updateButton.setOnClickListener {
                 GroupUpdater.startUpdate(proxyGroup, true)
@@ -692,16 +684,14 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
                 }
 
                 updateButton.isInvisible = true
-                editButton.isGone = true
-            } else {
+                } else {
                 (groupName.parent as LinearLayout).apply {
                     setPadding(paddingLeft, dp2px(15), paddingRight, paddingBottom)
                 }
 
                 subscriptionUpdateProgress.isVisible = false
                 updateButton.isInvisible = proxyGroup.type != GroupType.SUBSCRIPTION
-                editButton.isGone = true
-            }
+                }
 
             val subscription = proxyGroup.subscription
             if (subscription != null && subscription.bytesUsed > 0L) { // SIP008 & Open Online Config

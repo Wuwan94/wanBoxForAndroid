@@ -342,7 +342,6 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
                         .filter { it.type == GroupType.BASIC && it.id != ent.groupId }
                         .forEach { group ->
                             LayoutGroupItemBinding.inflate(layoutInflater, this, true).apply {
-                                edit.isVisible = false
                                 options.isVisible = false
                                 groupName.text = group.displayName()
                                 groupUpdate.text = getString(R.string.move)

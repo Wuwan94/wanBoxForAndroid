@@ -3842,12 +3842,7 @@ class ConfigurationFragment @JvmOverloads constructor(
             private val card = view as MaterialCardView
             private val cardStyle = ProfileCardStyle(view)
             private val selectedIndicator: View = view.findViewById(R.id.selected_indicator)
-            val editButton: ImageView = view.findViewById(R.id.edit)
             val doubleColumnMenuButton: ImageView = view.findViewById(R.id.double_column_menu)
-            val shareLayout: LinearLayout = view.findViewById(R.id.share)
-            val shareLayer: LinearLayout = view.findViewById(R.id.share_layer)
-            val shareButton: ImageView = view.findViewById(R.id.shareIcon)
-            val removeButton: ImageView = view.findViewById(R.id.remove)
 
             init {
                 view.setOnClickListener {
@@ -3877,24 +3872,9 @@ class ConfigurationFragment @JvmOverloads constructor(
                     }
                 }
                 profileStatus.isFocusable = false
-                editButton.setOnClickListener {
-                    if (DataStore.hapticFeedback) it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                    showNodeCascadingMenu(it, entity)
-                }
-                removeButton.setOnClickListener {
-                    if (DataStore.hapticFeedback) it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                    removeProfile(entity)
-                }
                 doubleColumnMenuButton.setOnClickListener {
                     if (DataStore.hapticFeedback) it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                     showNodeCascadingMenu(it, entity)
-                }
-                shareLayout.setOnClickListener {
-                    if (DataStore.hapticFeedback) it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                    val proxyEntity = entity
-                    if (!select && proxyEntity.type != ProxyEntity.TYPE_CHAIN && proxyEntity.type != ProxyEntity.TYPE_BALANCER) {
-                        showNodeCascadingMenu(it, proxyEntity)
-                    }
                 }
                 view.isLongClickable = false
                 view.setOnLongClickListener(null)
@@ -3940,34 +3920,6 @@ class ConfigurationFragment @JvmOverloads constructor(
                 } else {
                     removeAction()
                 }
-            }
-
-            private fun showDoubleColumnMenu(anchor: View, proxyEntity: ProxyEntity) {
-                val popup = PopupMenu(requireContext(), anchor)
-                popup.menuInflater.inflate(R.menu.double_column_item_menu, popup.menu)
-                if (select) popup.menu.removeItem(R.id.action_delete)
-                popup.setOnMenuItemClickListener { menuItem ->
-                    when (menuItem.itemId) {
-                        R.id.action_edit -> {
-                            anchor.context.startActivity(
-                                proxyEntity.settingIntent(
-                                    anchor.context, proxyGroup.type == GroupType.SUBSCRIPTION
-                                )
-                            )
-                            true
-                        }
-                        R.id.action_share -> {
-                            showNodeCascadingMenu(anchor, proxyEntity)
-                            true
-                        }
-                        R.id.action_delete -> {
-                            removeProfile(proxyEntity)
-                            true
-                        }
-                        else -> false
-                    }
-                }
-                popup.show()
             }
 
             private fun applySelected(selected: Boolean, connected: Boolean) {
@@ -4096,16 +4048,11 @@ class ConfigurationFragment @JvmOverloads constructor(
 
                 bindTestResult(proxyEntity, showTraffic, speedTestText)
 
-                editButton.isGone = true
-                shareLayout.isGone = true
-                removeButton.isGone = true
                 doubleColumnMenuButton.isVisible = !select
 
                 val selected = pf.isSelectedProfile(proxyEntity.id)
                 val started =
                     selected && DataStore.serviceState.started && pf.isCurrentProfile(proxyEntity.id)
-                editButton.isEnabled = !started
-                removeButton.isEnabled = !started
                 applySelected(selected, started && DataStore.serviceState.connected)
 
                 lastBoundTx = tx
@@ -4122,8 +4069,6 @@ class ConfigurationFragment @JvmOverloads constructor(
                 val selected = pf.isSelectedProfile(proxyEntity.id)
                 val started = selected && DataStore.serviceState.started &&
                         pf.isCurrentProfile(proxyEntity.id)
-                editButton.isEnabled = !started
-                removeButton.isEnabled = !started
                 applySelected(selected, started && DataStore.serviceState.connected)
             }
 
