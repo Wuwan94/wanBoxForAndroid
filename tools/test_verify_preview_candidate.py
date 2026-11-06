@@ -99,6 +99,14 @@ class CandidateAssetsTest(unittest.TestCase):
         self.assertEqual(self.evidence_data["certificate_sha256"], report["apk"]["certificate_sha256"])
         self.assertEqual(2, self.sdk.call_count)
 
+    def test_modern_v2_signer_output_format_is_accepted(self):
+        self.signature = (
+            "Verifies\nNumber of signers: 1\nV2 Signer: certificate SHA-256 digest: "
+            + self.evidence_data["certificate_sha256"] + "\n"
+        )
+        report = self.validate()
+        self.assertEqual(self.evidence_data["certificate_sha256"], report["apk"]["certificate_sha256"])
+
     def test_old_apk_code_or_name_is_rejected(self):
         original = self.badging
         for old, new in (
