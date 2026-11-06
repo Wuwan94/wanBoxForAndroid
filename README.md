@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11"><img src="https://img.shields.io/badge/Stable-3.0.11-green.svg?style=flat-square" alt="Stable 3.0.11"></a>
-  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11-preview.2"><img src="https://img.shields.io/badge/Preview-v3.0.11--preview.2-orange.svg?style=flat-square" alt="Published preview.2; preview.3 is a candidate only"></a>
+  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11-preview.3"><img src="https://img.shields.io/badge/Preview-v3.0.11--preview.3-orange.svg?style=flat-square" alt="wanBox preview v3.0.11-preview.3"></a>
   <a href="https://android-arsenal.com/api?level=31"><img src="https://img.shields.io/badge/Android-12%2B%20(API%2031%2B)-brightgreen.svg?style=flat-square" alt="Minimum Android version"></a>
   <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases"><img src="https://img.shields.io/badge/ABI-arm64--v8a-informational.svg?style=flat-square" alt="Supported ABI"></a>
   <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPL--3.0-orange.svg?style=flat-square" alt="License"></a>
@@ -29,15 +29,15 @@
 ---
 ## 当前版本核对 / Release and source snapshot
 
-截至 **2026-11-06**，已发布正式版为 [v3.0.11](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11)，最新公开预览为 [v3.0.11-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11-preview.2)。真实 APK / 模块资产实测分别为 **10065 / 2013** 与 **10077 / 2015**，不是从源码或发布说明推断，证据见 [版本对照](docs/current-version.zh-CN.md)。
+当前正式版为 [v3.0.11](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11)，预览版为 [v3.0.11-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11-preview.3)。已发布的正式版与 preview.2 资产对照、版本码及签名证据见 [版本对照](docs/current-version.zh-CN.md)。
 
-本分支准备 **v3.0.11-preview.3 稳定性候选**，不是已发布版本。基线纳入 preview.2 的 `2fbe17f662`，保留开工时主分支 `ff26111` 的已有界面；重点是后台查询、损坏导入失败保护、启动诊断和状态读取超时。没有增加新的代理模式或重做全局 UI。候选元数据双码 `2016`，规则输出正式线 `10080`、预览线 `10083`；最终产物仍须逐项核验，参见 [候选验证记录](docs/preview3-validation.zh-CN.md)。
+v3.0.11-preview.3 基于 preview.2，保留当前界面与交互，重点改善后台配置查询、损坏备份导入保护、服务启动诊断及模块状态读取；未增加代理模式或重做全局 UI。详细范围见 [preview.3 验收记录](docs/preview3-validation.zh-CN.md)。
 
-**安装要求：Android 12+、arm64-v8a、Root（Magisk / KernelSU / APatch）**。瘦管理器不包含核心，必须搭配同一套候选或同一发布页的模块，不能混用；安装前先备份并检查 `SHA256SUMS`。版本码和同签名只证明覆盖安装的静态前提，**未完成真机运行时回归**，不承诺无损升级。
+**安装要求：Android 12+、arm64-v8a、Root（Magisk / KernelSU / APatch）**。瘦管理器不包含核心，必须搭配同一发布页中的 Root 模块，不能混用其他版本；安装前先备份并检查 `SHA256SUMS`。
 
-本轮仅独立分支和 PR，不合并 main、不创建 tag/Release、不上传发布资产、不清理旧版。仍保留「成功发布并核验新预览后才只留一版预览」的策略，正式版不受预览清理影响。[v3.0.11 正式版历史说明](RELEASE_NOTES.md)保持原文。
+预览渠道仅保留最新一个版本；清理旧预览前先核验新版本的完整发布资产，正式版始终保留。[v3.0.11 正式版历史说明](RELEASE_NOTES.md)保持原文。
 
-Published: stable v3.0.11 and preview.2. This branch prepares an **unpublished preview.3 candidate** only. Requires Android 12+, ARM64 and Root. Real-device runtime regression is not complete; no Baseline Profile or performance improvement is claimed.
+Current releases: stable v3.0.11 and preview v3.0.11-preview.3. Requires Android 12+, ARM64 and Root. The thin manager APK must be paired with the Root module from the same release page.
 ---
 
 ## 📥 发行版下载 / Downloads

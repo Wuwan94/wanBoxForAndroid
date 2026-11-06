@@ -11,6 +11,10 @@ on:
         description: '发布预览版；取消勾选仅构建验证并保留下载产物'
         type: boolean
         default: false
+      approved_sha:
+        description: '仅发布 main 上经审查的精确 40 位提交 SHA'
+        type: string
+        required: false
 
 concurrency:
   group: wanbox-release-publication
@@ -220,6 +224,16 @@ jobs:
           AAPT=$(find "${ANDROID_HOME}/build-tools" -name aapt | sort -V | tail -n 1)
           APKSIGNER=$(find "${ANDROID_HOME}/build-tools" -name apksigner | sort -V | tail -n 1)
           python3 tools/verify_preview_candidate.py --directory candidate --report candidate-validation.json --aapt "$AAPT" --apksigner "$APKSIGNER"
+          PREVIEW_TAG="v$(grep '^PRE_VERSION_NAME=' nb4a.properties | cut -d= -f2 | tr -d '\r')" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path("candidate-validation.json")
+          report = json.loads(path.read_text(encoding="utf-8"))
+          report["source_sha"] = os.environ["GITHUB_SHA"]
+          report["run_id"] = int(os.environ["GITHUB_RUN_ID"])
+          report["candidate_tag"] = os.environ["PREVIEW_TAG"]
+          path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+          Path("candidate/candidate-validation.json").write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
           (cd candidate && sha256sum --check SHA256SUMS)
       - uses: actions/upload-artifact@v4
         with:
@@ -303,14 +317,26 @@ jobs:
   publish:
     name: Publish Preview Release
     # @author 雾晚: validation-only runs must never replace an existing Release.
-    if: github.event_name != 'workflow_dispatch' || inputs.publish_release
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_release == true
     runs-on: ubuntu-24.04
-    needs: build
+    needs:
+      - build
+      - benchmark
     permissions:
+      actions: read
       contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Verify exact reviewed main SHA
+        env:
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$APPROVED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$GITHUB_REF" = refs/heads/main
+          test "$GITHUB_SHA" = "$APPROVED_SHA"
       - name: Get Version
         run: |
           VERSION=$(grep '^PRE_VERSION_NAME=' nb4a.properties | cut -d'=' -f2 | tr -d '\r\n')
@@ -322,40 +348,20 @@ jobs:
             test "$?" -eq 2
           fi
           echo "PREVIEW_TAG=v$VERSION" >> "$GITHUB_ENV"
-      - name: Download Artifacts
+      - name: Download the validated candidate from this exact run
         uses: actions/download-artifact@v4
         with:
-          name: APKs
-          path: artifacts
-      - name: Prepare APKs
+          name: preview-candidate
+          path: candidate
+          run-id: ${{ github.run_id }}
+          github-token: ${{ github.token }}
+      - name: Verify candidate provenance and unchanged manifest
+        env:
+          APPROVED_SHA: ${{ inputs.approved_sha }}
         run: |
-          mkdir -p apks
-          find artifacts -name "*.apk" -exec cp {} apks/ \;
-          ls -la apks/
-          test "$(find apks -maxdepth 1 -name '*.apk' | wc -l)" -eq 1
-          (cd apks && sha256sum *.apk > SHA256SUMS && sha256sum --check SHA256SUMS)
+          python3 tools/verify_preview_candidate_artifact.py --directory candidate --source-sha "$APPROVED_SHA" --run-id "$GITHUB_RUN_ID" --tag "$PREVIEW_TAG"
+          (cd candidate && sha256sum --check SHA256SUMS)
           cp PREVIEW_NOTES.md "$RUNNER_TEMP/preview-notes.md"
-      - name: Download Root module
-        uses: actions/download-artifact@v4
-        with:
-          name: root-module
-          path: apks
-      - name: Verify module and combined checksums
-        run: |
-          test -s apks/wanbox-root-module-arm64-v8a.zip
-          python3 -m zipfile -t apks/wanbox-root-module-arm64-v8a.zip
-          (cd apks && sha256sum *.apk *.zip > SHA256SUMS && sha256sum --check SHA256SUMS)
-      - name: Download module with manager
-        uses: actions/download-artifact@v4
-        with:
-          name: root-module-with-manager
-          path: apks
-      - name: Verify both module variants
-        run: |
-          test "$(find apks -maxdepth 1 -name '*.zip' | wc -l)" -eq 2
-          python3 rootmodule/verify_version.py apks/*.zip
-          python3 -m zipfile -t apks/wanbox-root-module-with-manager-arm64-v8a.zip
-          (cd apks && sha256sum *.apk *.zip > SHA256SUMS && sha256sum --check SHA256SUMS)
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
@@ -363,11 +369,32 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: wanBox ${{ env.PREVIEW_TAG }} — 稳定性预览
           body_path: ${{ runner.temp }}/preview-notes.md
-          files: apks/*
+          files: |
+            candidate/*.apk
+            candidate/*.zip
+            candidate/SHA256SUMS
           draft: false
           prerelease: true
           make_latest: false
+      - name: Verify published tag and release before cleanup
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+        run: |
+          set -euo pipefail
+          release_json=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$PREVIEW_TAG")
+          jq -e --arg tag "$PREVIEW_TAG" --arg title "wanBox $PREVIEW_TAG — 稳定性预览" '.tag_name == $tag and .name == $title and .draft == false and .prerelease == true' <<<"$release_json" >/dev/null
+          tag_ref=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$PREVIEW_TAG")
+          object_type=$(jq -r '.object.type' <<<"$tag_ref")
+          object_sha=$(jq -r '.object.sha' <<<"$tag_ref")
+          if [ "$object_type" = tag ]; then
+            tag_object=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$object_sha")
+            object_type=$(jq -r '.object.type' <<<"$tag_object")
+            object_sha=$(jq -r '.object.sha' <<<"$tag_object")
+          fi
+          test "$object_type" = commit
+          test "$object_sha" = "$APPROVED_SHA"
       - name: Verify published preview and retain only newest prerelease
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 tools/prune_prereleases.py --repo "$GITHUB_REPOSITORY" --keep-tag "$PREVIEW_TAG"
+        run: python3 tools/prune_prereleases.py --repo "$GITHUB_REPOSITORY" --keep-tag "$PREVIEW_TAG" --only-tag v3.0.11-preview.2

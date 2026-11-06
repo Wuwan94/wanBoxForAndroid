@@ -24,6 +24,20 @@ class PruneTests(unittest.TestCase):
         with self.assertRaises(ValueError): prune.prune_candidates([release(1), release(2)], release(1))
         with self.assertRaises(ValueError): prune.prune_candidates([release(2)], release(1))
 
+    def test_exact_cleanup_target_preserves_other_old_previews(self):
+        old_one, old_two, keep = release(1), release(2), release(3)
+        old_one['tag_name'] = 'v3.0.11-preview.1'
+        old_two['tag_name'] = 'v3.0.11-preview.2'
+        keep['tag_name'] = 'v3.0.11-preview.3'
+        releases = [old_one, old_two, keep]
+        self.assertEqual(prune.prune_candidates(releases, keep, 'v3.0.11-preview.2'), [old_two])
+        self.assertEqual(
+            prune.orphan_preview_tags(
+                ['v3.0.11-preview.1', 'v3.0.11-preview.2'],
+                'v3.0.11-preview.3', [keep], 'v3.0.11-preview.2'),
+            ['v3.0.11-preview.2'],
+        )
+
     def test_old_preview_release_and_tag_deleted_only_after_live_checks(self):
         old = release(1)
         responses = [
@@ -122,8 +136,16 @@ class WorkflowRetentionTests(unittest.TestCase):
             self.assertLess(text.index('uses: softprops/action-gh-release@v2'), text.index('run: python3 tools/prune_prereleases.py'))
         preview = (workflows / 'preview.yml').read_text()
         self.assertIn('name: wanBox ${{ env.PREVIEW_TAG }} — 稳定性预览', preview)
-        self.assertIn("if: github.event_name != 'workflow_dispatch' || inputs.publish_release", preview)
+        self.assertIn("if: github.event_name == 'workflow_dispatch' && inputs.publish_release == true", preview)
         self.assertIn('default: false', preview)
+        self.assertIn('approved_sha:', preview)
+        self.assertIn('test "$GITHUB_REF" = refs/heads/main', preview)
+        self.assertIn('test "$GITHUB_SHA" = "$APPROVED_SHA"', preview)
+        self.assertIn('name: preview-candidate', preview)
+        self.assertIn('tools/verify_preview_candidate_artifact.py', preview)
+        self.assertIn('candidate/SHA256SUMS', preview)
+        self.assertIn('--only-tag v3.0.11-preview.2', preview)
+        self.assertNotIn('sha256sum *.apk *.zip > SHA256SUMS', preview)
         self.assertLess(preview.index('name: Validate unpublished candidate assets'), preview.index('\n  publish:'))
         formal = (workflows / 'release.yml').read_text()
         after = formal.split('- name: Verify published preview and retain only newest prerelease')[1]
