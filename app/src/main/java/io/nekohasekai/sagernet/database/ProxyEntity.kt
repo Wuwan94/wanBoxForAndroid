@@ -118,6 +118,31 @@ data class ProxyEntity(
         val chainName by lazy { app.getString(R.string.proxy_chain) }
         val balancerName by lazy { app.getString(R.string.balancer) }
 
+        fun typeName(type: Int): String = when (type) {
+            TYPE_SOCKS -> "SOCKS"
+            TYPE_HTTP -> "HTTP"
+            TYPE_SS -> "Shadowsocks"
+            TYPE_SSR -> "ShadowsocksR"
+            TYPE_VMESS -> "VMess"
+            TYPE_TROJAN -> "Trojan"
+            TYPE_TROJAN_GO -> "Trojan-Go"
+            TYPE_MIERU -> "Mieru"
+            TYPE_NAIVE -> "Naïve"
+            TYPE_HYSTERIA -> "Hysteria"
+            TYPE_SSH -> "SSH"
+            TYPE_WG -> "WireGuard"
+            TYPE_TUIC -> "TUIC"
+            TYPE_JUICITY -> "Juicity"
+            TYPE_SHADOWTLS -> "ShadowTLS"
+            TYPE_ANYTLS -> "AnyTLS"
+            TYPE_CHAIN -> "Chain"
+            TYPE_BALANCER -> "Balancer"
+            TYPE_NEKO -> "Neko"
+            TYPE_CONFIG -> "Config"
+            TYPE_SNELL -> "Snell"
+            else -> "Undefined type $type"
+        }
+
         @JvmField
         val CREATOR = object : CREATOR<ProxyEntity>() {
 
@@ -213,28 +238,28 @@ data class ProxyEntity(
     }
 
     fun displayType(): String = when (type) {
-        TYPE_SOCKS -> socksBean!!.protocolName()
-        TYPE_HTTP -> if (httpBean!!.isTLS()) "HTTPS" else "HTTP"
-        TYPE_SS -> "Shadowsocks"
-        TYPE_SSR -> "ShadowsocksR"
-        TYPE_VMESS -> if (vmessBean!!.isVLESS) "VLESS" else "VMess"
-        TYPE_TROJAN -> "Trojan"
-        TYPE_TROJAN_GO -> "Trojan-Go"
-        TYPE_MIERU -> "Mieru"
-        TYPE_NAIVE -> "Naïve"
-        TYPE_HYSTERIA -> "Hysteria" + hysteriaBean!!.protocolVersion
-        TYPE_SSH -> "SSH"
-        TYPE_WG -> "WireGuard"
-        TYPE_TUIC -> "TUIC"
-        TYPE_JUICITY -> "Juicity"
-        TYPE_SHADOWTLS -> "ShadowTLS"
-        TYPE_ANYTLS -> "AnyTLS"
+        TYPE_SOCKS -> socksBean?.protocolName() ?: typeName(type)
+        TYPE_HTTP -> httpBean?.let { if (it.isTLS()) "HTTPS" else "HTTP" } ?: typeName(type)
+        TYPE_SS -> typeName(type)
+        TYPE_SSR -> typeName(type)
+        TYPE_VMESS -> vmessBean?.let { if (it.isVLESS) "VLESS" else "VMess" } ?: typeName(type)
+        TYPE_TROJAN -> typeName(type)
+        TYPE_TROJAN_GO -> typeName(type)
+        TYPE_MIERU -> typeName(type)
+        TYPE_NAIVE -> typeName(type)
+        TYPE_HYSTERIA -> hysteriaBean?.let { "Hysteria${it.protocolVersion}" } ?: typeName(type)
+        TYPE_SSH -> typeName(type)
+        TYPE_WG -> typeName(type)
+        TYPE_TUIC -> typeName(type)
+        TYPE_JUICITY -> typeName(type)
+        TYPE_SHADOWTLS -> typeName(type)
+        TYPE_ANYTLS -> typeName(type)
         TYPE_CHAIN -> chainName
         TYPE_BALANCER -> balancerName
-        TYPE_NEKO -> nekoBean!!.displayType()
-        TYPE_CONFIG -> configBean!!.displayType()
-        TYPE_SNELL -> "Snell"
-        else -> "Undefined type $type"
+        TYPE_NEKO -> nekoBean?.displayType() ?: typeName(type)
+        TYPE_CONFIG -> configBean?.displayType() ?: typeName(type)
+        TYPE_SNELL -> typeName(type)
+        else -> typeName(type)
     }
 
     fun displayName() = requireBean().displayName()
@@ -264,7 +289,7 @@ data class ProxyEntity(
             TYPE_CONFIG -> configBean
             TYPE_SNELL -> snellBean
             else -> error("Undefined type $type")
-        } ?: error("Null ${displayType()} profile")
+        } ?: error("Null profile id=$id type=$type (${typeName(type)})")
     }
 
     fun haveLink(): Boolean {

@@ -106,6 +106,7 @@ public class KryoConverters {
             bean.deserializeFromBuffer(buffer);
         } catch (KryoException e) {
             Logs.INSTANCE.w(e);
+            return null;
         }
         bean.initializeDefaultValues();
         return bean;

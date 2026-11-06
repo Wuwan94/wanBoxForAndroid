@@ -26,7 +26,10 @@ android {
         resourceConfigurations += listOf("en-rUS", "zh-rCN", "zh-rHK", "zh-rTW")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         versionName = requireMetadata().getProperty("VERSION_NAME")
-        versionCode = requireMetadata().getProperty("VERSION_CODE").toInt() * 5
+        versionCode = apkVersionCode(
+            requireMetadata().getProperty("VERSION_CODE").toInt(),
+            requireMetadata().getProperty("VERSION_NAME")
+        )
         // @author 雾晚 (B 路线): 运行时能力闸门（见 io.nekohasekai.sagernet.core.CoreRuntime）。
         buildConfigField("boolean", "WITH_CORE", (!wanboxThin).toString())
     }
