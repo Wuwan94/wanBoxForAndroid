@@ -600,6 +600,7 @@ class BaseService {
             data.changeState(State.Connecting)
             // @author 雾晚: retain the startup job so stop/reload can cancel and join it.
             val connectingJob = data.serviceScope.launch(start = CoroutineStart.LAZY) {
+                val context = this@Interface as Context
                 try {
                     val profile = withContext(Dispatchers.IO) {
                         SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
@@ -607,7 +608,6 @@ class BaseService {
                                 DataStore.selectedProxy = it.id
                             }
                     }
-                    val context = this@Interface as Context
                     if (profile == null) { // gracefully shutdown: https://stackoverflow.com/q/47337857/2245107
                         try { data.notification = createNotification("") }
                         catch (e: RuntimeException) { Logs.w("Foreground promotion failed for empty profile", e) }
@@ -690,9 +690,9 @@ class BaseService {
                         stopRunner(restart = true)
                         return@launch
                     }
-                    stopRunner(false, getString(R.string.invalid_server))
+                    stopRunner(false, context.getString(R.string.invalid_server))
                 } catch (e: PluginManager.PluginNotFoundException) {
-                    Toast.makeText(this@Interface, e.readableMessage, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, e.readableMessage, Toast.LENGTH_SHORT).show()
                     Logs.w(e)
                     data.binder.missingPlugin(e.plugin)
                     stopRunner(false, null)
@@ -735,7 +735,7 @@ class BaseService {
                         Logs.w(exc)
                     }
                     stopRunner(
-                        false, "${getString(R.string.service_failed)}: ${exc.readableMessage}"
+                        false, "${context.getString(R.string.service_failed)}: ${exc.readableMessage}"
                     )
                 } finally {
                     if (data.connectingJob === currentCoroutineContext()[Job]) {
