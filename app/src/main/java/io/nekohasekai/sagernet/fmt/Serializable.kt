@@ -1,5 +1,6 @@
 package io.nekohasekai.sagernet.fmt
 
+import android.os.BadParcelableException
 import android.os.Parcel
 import android.os.Parcelable
 import com.esotericsoftware.kryo.io.ByteBufferInput
@@ -20,7 +21,11 @@ abstract class Serializable : Parcelable {
         abstract fun newInstance(): T
 
         override fun createFromParcel(source: Parcel): T {
-            return KryoConverters.deserialize(newInstance(), source.createByteArray())
+            val instance = newInstance()
+            val payload = source.createByteArray()
+                ?: throw BadParcelableException("Missing ${instance.javaClass.simpleName} parcel payload")
+            return KryoConverters.deserialize(instance, payload)
+                ?: throw BadParcelableException("Unable to deserialize ${instance.javaClass.simpleName} from parcel")
         }
     }
 

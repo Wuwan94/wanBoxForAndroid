@@ -26,6 +26,7 @@ import androidx.preference.EditTextPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceDataStore
 import androidx.preference.PreferenceFragmentCompat
+import androidx.lifecycle.lifecycleScope
 import com.github.shadowsocks.plugin.Empty
 import com.github.shadowsocks.plugin.fragment.AlertDialogFragment
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -41,6 +42,9 @@ import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.ui.ThemedActivity
 import io.nekohasekai.sagernet.widget.ListListener
 import kotlinx.parcelize.Parcelize
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.properties.Delegates
 
 @Suppress("UNCHECKED_CAST")
@@ -155,11 +159,16 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.profile_config_menu, menu)
         menu.findItem(R.id.action_move)?.apply {
-            if (DataStore.editingId != 0L // not new profile
-                && SagerDatabase.groupDao.getById(DataStore.editingGroup)?.type == GroupType.BASIC // not in subscription group
-                && SagerDatabase.groupDao.allGroups()
-                    .filter { it.type == GroupType.BASIC }.size > 1 // have other basic group
-            ) isVisible = true
+            isVisible = false
+            if (DataStore.editingId != 0L) {
+                lifecycleScope.launch {
+                    val canMove = withContext(Dispatchers.IO) {
+                        SagerDatabase.groupDao.getById(DataStore.editingGroup)?.type == GroupType.BASIC &&
+                            SagerDatabase.groupDao.allGroups().count { it.type == GroupType.BASIC } > 1
+                    }
+                    isVisible = canMove
+                }
+            }
         }
         menu.findItem(R.id.action_create_shortcut)?.apply {
             if (Build.VERSION.SDK_INT >= 26 && DataStore.editingId != 0L) {

@@ -134,7 +134,11 @@ class BaseService {
             state = s
             DataStore.serviceState = s
             binder.stateChanged(s, msg)
-            runCatching { io.nekohasekai.sagernet.widget.OwnBoxWidgetProvider.updateWidgets(SagerNet.application) }
+            val application = SagerNet.application
+            // Widgets outlive the bound observer and still need its final state.
+            application.applicationScope.launch(Dispatchers.IO) {
+                runCatching { io.nekohasekai.sagernet.widget.OwnBoxWidgetProvider.updateWidgets(application) }
+            }
         }
     }
 
@@ -596,82 +600,95 @@ class BaseService {
                 data.changeState(State.Stopped)
             }
             if (data.state != State.Stopped) return Service.START_STICKY
-            var profile = SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
-            if (profile == null) {
-                profile = SagerDatabase.proxyDao.getAll().firstOrNull()?.also {
-                    DataStore.selectedProxy = it.id
-                }
-            }
-            this as Context
-            if (profile == null) { // gracefully shutdown: https://stackoverflow.com/q/47337857/2245107
-                try { data.notification = createNotification("") }
-                catch (e: RuntimeException) { Logs.w("Foreground promotion failed for empty profile", e) }
-                stopRunner(false, getString(R.string.profile_empty))
-                return Service.START_NOT_STICKY
-            }
-
-            // @author 雾晚 (B 路线): 瘦管理器没有内嵌核心。本构建的正式通路是
-            // RootTunService（纯观察者 + wanboxctl），不受影响；只有历史遗留的
-            // ProxyService（VpnService 单机代理）需要进程内核心，这里明确拒绝而不是崩溃。
-            if (!CoreRuntime.available && this is ProxyService) {
-                stopRunner(false, getString(R.string.core_requires_full_apk))
-                return Service.START_NOT_STICKY
-            }
-            val proxy = ProxyInstance(profile, this)
-            data.proxy = proxy
-            BootReceiver.enabled = DataStore.persistAcrossReboot
-            if (!data.closeReceiverRegistered) {
-                val filter = IntentFilter().apply {
-                    addAction(Action.RELOAD)
-                    addAction(Action.RESTART)
-                    addAction(Intent.ACTION_SHUTDOWN)
-                    addAction(Action.CLOSE)
-                    // addAction(Action.SWITCH_WAKE_LOCK)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        addAction(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED)
-                    }
-                    addAction(Action.REFRESH_NOTIFICATION)
-                    addAction(Action.RESET_UPSTREAM_CONNECTIONS)
-                    addAction(Action.SWITCH_PERFORMANCE_MODE)
-                    addAction(Intent.ACTION_SCREEN_ON)
-                    addAction(Intent.ACTION_SCREEN_OFF)
-                    addAction(Intent.ACTION_USER_PRESENT)
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    registerReceiver(
-                        data.receiver,
-                        filter,
-                        "$packageName.SERVICE",
-                        null,
-                        Context.RECEIVER_EXPORTED
-                    )
-                } else {
-                    registerReceiver(
-                        data.receiver,
-                        filter,
-                        "$packageName.SERVICE",
-                        null
-                    )
-                }
-                data.closeReceiverRegistered = true
-            }
 
             data.changeState(State.Connecting)
             // @author 雾晚: retain the startup job so stop/reload can cancel and join it.
             val connectingJob = data.serviceScope.launch(start = CoroutineStart.LAZY) {
+                val context = this@Interface as Context
+                var startupStage = "profile-load"
+                fun logStartupFailure(error: Throwable) {
+                    Logs.w("ServiceStartTrace stage=$startupStage type=${error.javaClass.name}")
+                }
                 try {
-                    data.notification = createNotification(ServiceNotification.genTitle(profile))
+                    val profile = withContext(Dispatchers.IO) {
+                        SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
+                            ?: SagerDatabase.proxyDao.getAll().firstOrNull()?.also {
+                                DataStore.selectedProxy = it.id
+                            }
+                    }
+                    if (profile == null) { // gracefully shutdown: https://stackoverflow.com/q/47337857/2245107
+                        try { data.notification = createNotification("") }
+                        catch (e: RuntimeException) { Logs.w("Foreground promotion failed for empty profile", e) }
+                        stopRunner(false, context.getString(R.string.profile_empty))
+                        return@launch
+                    }
 
-                    Executable.killAll()    // clean up old processes
+                    // @author 雾晚 (B 路线): 瘦管理器没有内嵌核心。本构建的正式通路是
+                    // RootTunService（纯观察者 + wanboxctl），不受影响；只有历史遗留的
+                    // ProxyService（VpnService 单机代理）需要进程内核心，这里明确拒绝而不是崩溃。
+                    if (!CoreRuntime.available && this@Interface is ProxyService) {
+                        stopRunner(false, context.getString(R.string.core_requires_full_apk))
+                        return@launch
+                    }
+                    startupStage = "profile-create"
+                    val proxy = withContext(Dispatchers.IO) { ProxyInstance(profile, this@Interface) }
+                    data.proxy = proxy
+                    val persistAcrossReboot = withContext(Dispatchers.IO) { DataStore.persistAcrossReboot }
+                    BootReceiver.enabled = persistAcrossReboot
+                    startupStage = "receiver-register"
+                    if (!data.closeReceiverRegistered) {
+                        val filter = IntentFilter().apply {
+                            addAction(Action.RELOAD)
+                            addAction(Action.RESTART)
+                            addAction(Intent.ACTION_SHUTDOWN)
+                            addAction(Action.CLOSE)
+                            // addAction(Action.SWITCH_WAKE_LOCK)
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                addAction(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED)
+                            }
+                            addAction(Action.REFRESH_NOTIFICATION)
+                            addAction(Action.RESET_UPSTREAM_CONNECTIONS)
+                            addAction(Action.SWITCH_PERFORMANCE_MODE)
+                            addAction(Intent.ACTION_SCREEN_ON)
+                            addAction(Intent.ACTION_SCREEN_OFF)
+                            addAction(Intent.ACTION_USER_PRESENT)
+                        }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            registerReceiver(
+                                data.receiver,
+                                filter,
+                                "$packageName.SERVICE",
+                                null,
+                                Context.RECEIVER_EXPORTED
+                            )
+                        } else {
+                            registerReceiver(
+                                data.receiver,
+                                filter,
+                                "$packageName.SERVICE",
+                                null
+                            )
+                        }
+                        data.closeReceiverRegistered = true
+                    }
+
+                    startupStage = "notification-create"
+                    data.notification = createNotification(proxy.displayProfileName)
+
+                    startupStage = "process-cleanup"
+                    withContext(Dispatchers.IO) { Executable.killAll() }
+                    startupStage = "network-listener-start"
                     preInit()
-                    proxy.init()
-                    DataStore.currentProfile = profile.id
+                    startupStage = "proxy-init"
+                    withContext(Dispatchers.IO) { proxy.init() }
+                    withContext(Dispatchers.IO) { DataStore.currentProfile = profile.id }
 
                     proxy.processes = GuardedProcessPool {
                         Logs.w(it)
                         stopRunner(false, it.readableMessage)
                     }
 
+                    startupStage = "process-start"
                     startProcesses()
                     currentCoroutineContext().ensureActive()
                     if (data.state != State.Connecting) return@launch
@@ -679,9 +696,11 @@ class BaseService {
                     data.cacheRecoveryAttempts = 0
                     data.networkSwitchRetryAttempts = 0
 
+                    startupStage = "late-init"
                     lateInit()
                 } catch (_: CancellationException) { // if the job was cancelled, it is canceller's responsibility to call stopRunner
-                } catch (_: UnknownHostException) {
+                } catch (e: UnknownHostException) {
+                    logStartupFailure(e)
                     if (data.networkSwitchRetryAttempts < 3) {
                         data.networkSwitchRetryAttempts++
                         Logs.w("Network switch / transient DNS failure in startRunner: retrying in 600ms (attempt ${data.networkSwitchRetryAttempts}/3)...")
@@ -689,13 +708,15 @@ class BaseService {
                         stopRunner(restart = true)
                         return@launch
                     }
-                    stopRunner(false, getString(R.string.invalid_server))
+                    stopRunner(false, context.getString(R.string.invalid_server))
                 } catch (e: PluginManager.PluginNotFoundException) {
-                    Toast.makeText(this@Interface, e.readableMessage, Toast.LENGTH_SHORT).show()
+                    logStartupFailure(e)
+                    Toast.makeText(context, e.readableMessage, Toast.LENGTH_SHORT).show()
                     Logs.w(e)
                     data.binder.missingPlugin(e.plugin)
                     stopRunner(false, null)
                 } catch (exc: Throwable) {
+                    logStartupFailure(exc)
                     val msg = exc.readableMessage
                     val isCacheCorrupt = msg.contains("invalid freelist page", ignoreCase = true) ||
                             msg.contains("initialize cache-file: timeout", ignoreCase = true) ||
@@ -706,7 +727,7 @@ class BaseService {
                     if (isCacheCorrupt && data.cacheRecoveryAttempts < 1) {
                         data.cacheRecoveryAttempts++
                         Logs.w("Auto-recovery: detected corrupted cache database ($msg). Purging cache.db and retrying once...")
-                        deleteCorruptedCacheDb()
+                        withContext(Dispatchers.IO) { deleteCorruptedCacheDb() }
                         stopRunner(restart = true)
                         return@launch
                     }
@@ -734,7 +755,7 @@ class BaseService {
                         Logs.w(exc)
                     }
                     stopRunner(
-                        false, "${getString(R.string.service_failed)}: ${exc.readableMessage}"
+                        false, "${context.getString(R.string.service_failed)}: ${exc.readableMessage}"
                     )
                 } finally {
                     if (data.connectingJob === currentCoroutineContext()[Job]) {

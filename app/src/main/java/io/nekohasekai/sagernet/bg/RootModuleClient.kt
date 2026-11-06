@@ -168,11 +168,15 @@ object RootModuleClient {
                 val errors = launch(Dispatchers.IO) { process.errorStream.use { it.copyTo(object : java.io.OutputStream() { override fun write(value: Int) = Unit; override fun write(data: ByteArray, offset: Int, length: Int) = Unit }) } }
                 val writer = launch(Dispatchers.IO) { process.outputStream.use { pipe -> input?.inputStream()?.use { it.copyTo(pipe) } } }
                 try {
-                    withTimeout(if (command in setOf("status", "module", "logs") || command.startsWith("node select ")) 15_000L else if (command == "node failover") 60_000L else 720_000L) { runInterruptible(Dispatchers.IO) { process.waitFor() } }
-                    writer.join(); errors.join()
-                    try {
-                        parseResponse(output.await())
+                    val response = withCallTimeout(command) {
+                        runInterruptible(Dispatchers.IO) { process.waitFor() }
+                        writer.join(); errors.join()
+                        output.await()
                     }
+                    try {
+                        parseResponse(response)
+                    }
+                    catch (e: CancellationException) { throw e }
                     catch (e: IOException) { throw e }
                     catch (_: Exception) { throw IOException("root_or_module_unavailable") }
                 } finally {
@@ -183,8 +187,22 @@ object RootModuleClient {
             }
         } finally { process.destroy() }
     }
+    internal suspend fun <T> withCallTimeout(command: String, block: suspend () -> T): T {
+        val timeoutMs = when {
+            command in setOf("status", "dashboard", "module", "logs") || command.startsWith("node select ") -> 15_000L
+            command == "node failover" -> 60_000L
+            else -> 720_000L
+        }
+        return try {
+            withTimeout(timeoutMs) { block() }
+        } catch (error: TimeoutCancellationException) {
+            // Only this operation's deadline becomes a read failure; caller cancellation stays cancellation.
+            currentCoroutineContext().ensureActive()
+            throw IOException("module_timeout", error)
+        }
+    }
     fun safeError(error: Exception): String = error.message?.takeIf { it.matches(Regex("[a-z_]{1,80}")) } ?: "module_operation_failed"
-    suspend fun startOrReload(startIfStopped: Boolean = true) {
+    suspend fun startOrReload(startIfStopped: Boolean = true): Unit = withContext(Dispatchers.IO) {
         RootModuleDataUpdate.applyInstallerSelection()
         if (!startIfStopped) changes.lock()
         else if (!changes.tryLock()) throw IOException("module_busy")
@@ -194,7 +212,7 @@ object RootModuleClient {
             if (RootModuleDataUpdate.pending()) throw IOException("data_update_pending")
             if (before.phase == "disabled") throw IOException("module_disabled_or_missing")
             val profile = SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
-                ?: if (!startIfStopped && !before.state.canStop) return else throw IOException("profile_missing")
+                ?: if (!startIfStopped && !before.state.canStop) return@withContext else throw IOException("profile_missing")
             // @author 雾晚: refresh cross-user UIDs (TTL-cached) so per-app rules
             // cover secondary users / cloned apps.
             runCatching { io.nekohasekai.sagernet.utils.PackageCache.refreshMultiUserUids() }

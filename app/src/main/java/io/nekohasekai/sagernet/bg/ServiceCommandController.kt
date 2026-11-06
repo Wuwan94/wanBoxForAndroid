@@ -138,21 +138,27 @@ class ServiceCommandController(
         override suspend fun queryStatus(): RootModuleClient.Status {
             return RootModuleClient.call("status")
         }
-        private suspend fun waitFor(
+        internal suspend fun waitFor(
             predicate: (RootModuleClient.Status) -> Boolean,
             timeoutMs: Long,
+            readStatus: suspend () -> RootModuleClient.Status = { RootModuleClient.call("status") },
         ): RootModuleClient.Status {
             val deadline = System.currentTimeMillis() + timeoutMs
             while (System.currentTimeMillis() < deadline) {
                 delay(500)
                 val s = try {
-                    RootModuleClient.call("status")
+                    readStatus()
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Exception) {
                     null
                 } ?: continue
                 if (predicate(s)) return s
+                if (s.phase in setOf("failed", "cleanup_required", "disabled")) {
+                    throw IllegalStateException(s.error.ifBlank {
+                        if (s.phase == "disabled") "module_disabled_or_missing" else s.phase
+                    })
+                }
             }
             // @author 雾晚：超时直接 throw，不返回未确认的 last
             throw IllegalStateException("status_timeout")
@@ -203,10 +209,14 @@ class ServiceCommandController(
     }
 
     /** UI 请求启动（不捕获 Fragment/views） */
-    fun requestStart(): Boolean = trySubmit(CommandKind.START) { backend.start() }
+    fun requestStart(): Boolean = trySubmit(CommandKind.START) {
+        backend.start().also { if (!it.connected) throw IllegalStateException(it.error.ifBlank { "start_not_confirmed" }) }
+    }
 
     /** UI 请求停止 */
-    fun requestStop(): Boolean = trySubmit(CommandKind.STOP) { backend.stop() }
+    fun requestStop(): Boolean = trySubmit(CommandKind.STOP) {
+        backend.stop().also { if (it.phase != "stopped") throw IllegalStateException(it.error.ifBlank { "stop_not_confirmed" }) }
+    }
 
     /** UI 请求切换模式：经 RealBackend.setMode 做 PATCH+GET 确认 */
     fun requestMode(mode: String): Boolean =

@@ -3,6 +3,7 @@ package io.nekohasekai.sagernet.database
 import android.content.Context
 import android.content.Intent
 import androidx.room.*
+import com.esotericsoftware.kryo.KryoException
 import com.esotericsoftware.kryo.io.ByteBufferInput
 import com.esotericsoftware.kryo.io.ByteBufferOutput
 import io.nekohasekai.sagernet.R
@@ -118,6 +119,31 @@ data class ProxyEntity(
         val chainName by lazy { app.getString(R.string.proxy_chain) }
         val balancerName by lazy { app.getString(R.string.balancer) }
 
+        fun typeName(type: Int): String = when (type) {
+            TYPE_SOCKS -> "SOCKS"
+            TYPE_HTTP -> "HTTP"
+            TYPE_SS -> "Shadowsocks"
+            TYPE_SSR -> "ShadowsocksR"
+            TYPE_VMESS -> "VMess"
+            TYPE_TROJAN -> "Trojan"
+            TYPE_TROJAN_GO -> "Trojan-Go"
+            TYPE_MIERU -> "Mieru"
+            TYPE_NAIVE -> "Naïve"
+            TYPE_HYSTERIA -> "Hysteria"
+            TYPE_SSH -> "SSH"
+            TYPE_WG -> "WireGuard"
+            TYPE_TUIC -> "TUIC"
+            TYPE_JUICITY -> "Juicity"
+            TYPE_SHADOWTLS -> "ShadowTLS"
+            TYPE_ANYTLS -> "AnyTLS"
+            TYPE_CHAIN -> "Chain"
+            TYPE_BALANCER -> "Balancer"
+            TYPE_NEKO -> "Neko"
+            TYPE_CONFIG -> "Config"
+            TYPE_SNELL -> "Snell"
+            else -> "Undefined type $type"
+        }
+
         @JvmField
         val CREATOR = object : CREATOR<ProxyEntity>() {
 
@@ -164,6 +190,7 @@ data class ProxyEntity(
 
     override fun deserializeFromBuffer(input: ByteBufferInput) {
         val version = input.readInt()
+        if (version !in 0..1) throw KryoException("Unsupported profile record version $version")
 
         id = input.readLong()
         groupId = input.readLong()
@@ -187,54 +214,56 @@ data class ProxyEntity(
 
 
     fun putByteArray(byteArray: ByteArray) {
-        when (type) {
-            TYPE_SOCKS -> socksBean = KryoConverters.socksDeserialize(byteArray)
-            TYPE_HTTP -> httpBean = KryoConverters.httpDeserialize(byteArray)
-            TYPE_SS -> ssBean = KryoConverters.shadowsocksDeserialize(byteArray)
-            TYPE_SSR -> ssrBean = KryoConverters.shadowsocksrDeserialize(byteArray)
-            TYPE_VMESS -> vmessBean = KryoConverters.vmessDeserialize(byteArray)
-            TYPE_TROJAN -> trojanBean = KryoConverters.trojanDeserialize(byteArray)
-            TYPE_TROJAN_GO -> trojanGoBean = KryoConverters.trojanGoDeserialize(byteArray)
-            TYPE_MIERU -> mieruBean = KryoConverters.mieruDeserialize(byteArray)
-            TYPE_NAIVE -> naiveBean = KryoConverters.naiveDeserialize(byteArray)
-            TYPE_HYSTERIA -> hysteriaBean = KryoConverters.hysteriaDeserialize(byteArray)
-            TYPE_SSH -> sshBean = KryoConverters.sshDeserialize(byteArray)
-            TYPE_WG -> wgBean = KryoConverters.wireguardDeserialize(byteArray)
-            TYPE_TUIC -> tuicBean = KryoConverters.tuicDeserialize(byteArray)
-            TYPE_JUICITY -> juicityBean = KryoConverters.juicityDeserialize(byteArray)
-            TYPE_SHADOWTLS -> shadowTLSBean = KryoConverters.shadowTLSDeserialize(byteArray)
-            TYPE_ANYTLS -> anyTLSBean = KryoConverters.anyTLSDeserialize(byteArray)
-            TYPE_CHAIN -> chainBean = KryoConverters.chainDeserialize(byteArray)
-            TYPE_NEKO -> nekoBean = KryoConverters.nekoDeserialize(byteArray)
-            TYPE_CONFIG -> configBean = KryoConverters.configDeserialize(byteArray)
-            TYPE_SNELL -> snellBean = KryoConverters.snellDeserialize(byteArray)
-            TYPE_BALANCER -> balancerBean = KryoConverters.balancerDeserialize(byteArray)
+        val bean = when (type) {
+            TYPE_SOCKS -> SOCKSBean()
+            TYPE_HTTP -> HttpBean()
+            TYPE_SS -> ShadowsocksBean()
+            TYPE_SSR -> ShadowsocksRBean()
+            TYPE_VMESS -> VMessBean()
+            TYPE_TROJAN -> TrojanBean()
+            TYPE_TROJAN_GO -> TrojanGoBean()
+            TYPE_MIERU -> MieruBean()
+            TYPE_NAIVE -> NaiveBean()
+            TYPE_HYSTERIA -> HysteriaBean()
+            TYPE_SSH -> SSHBean()
+            TYPE_WG -> WireGuardBean()
+            TYPE_TUIC -> TuicBean()
+            TYPE_JUICITY -> JuicityBean()
+            TYPE_SHADOWTLS -> ShadowTLSBean()
+            TYPE_ANYTLS -> AnyTLSBean()
+            TYPE_CHAIN -> ChainBean()
+            TYPE_NEKO -> NekoBean()
+            TYPE_CONFIG -> ConfigBean()
+            TYPE_SNELL -> SnellBean()
+            TYPE_BALANCER -> BalancerBean()
+            else -> throw KryoException("Unsupported profile type $type")
         }
+        putBean(KryoConverters.deserializeStrict(bean, byteArray))
     }
 
     fun displayType(): String = when (type) {
-        TYPE_SOCKS -> socksBean!!.protocolName()
-        TYPE_HTTP -> if (httpBean!!.isTLS()) "HTTPS" else "HTTP"
-        TYPE_SS -> "Shadowsocks"
-        TYPE_SSR -> "ShadowsocksR"
-        TYPE_VMESS -> if (vmessBean!!.isVLESS) "VLESS" else "VMess"
-        TYPE_TROJAN -> "Trojan"
-        TYPE_TROJAN_GO -> "Trojan-Go"
-        TYPE_MIERU -> "Mieru"
-        TYPE_NAIVE -> "Naïve"
-        TYPE_HYSTERIA -> "Hysteria" + hysteriaBean!!.protocolVersion
-        TYPE_SSH -> "SSH"
-        TYPE_WG -> "WireGuard"
-        TYPE_TUIC -> "TUIC"
-        TYPE_JUICITY -> "Juicity"
-        TYPE_SHADOWTLS -> "ShadowTLS"
-        TYPE_ANYTLS -> "AnyTLS"
+        TYPE_SOCKS -> socksBean?.protocolName() ?: typeName(type)
+        TYPE_HTTP -> httpBean?.let { if (it.isTLS()) "HTTPS" else "HTTP" } ?: typeName(type)
+        TYPE_SS -> typeName(type)
+        TYPE_SSR -> typeName(type)
+        TYPE_VMESS -> vmessBean?.let { if (it.isVLESS) "VLESS" else "VMess" } ?: typeName(type)
+        TYPE_TROJAN -> typeName(type)
+        TYPE_TROJAN_GO -> typeName(type)
+        TYPE_MIERU -> typeName(type)
+        TYPE_NAIVE -> typeName(type)
+        TYPE_HYSTERIA -> hysteriaBean?.let { "Hysteria${it.protocolVersion}" } ?: typeName(type)
+        TYPE_SSH -> typeName(type)
+        TYPE_WG -> typeName(type)
+        TYPE_TUIC -> typeName(type)
+        TYPE_JUICITY -> typeName(type)
+        TYPE_SHADOWTLS -> typeName(type)
+        TYPE_ANYTLS -> typeName(type)
         TYPE_CHAIN -> chainName
         TYPE_BALANCER -> balancerName
-        TYPE_NEKO -> nekoBean!!.displayType()
-        TYPE_CONFIG -> configBean!!.displayType()
-        TYPE_SNELL -> "Snell"
-        else -> "Undefined type $type"
+        TYPE_NEKO -> nekoBean?.displayType() ?: typeName(type)
+        TYPE_CONFIG -> configBean?.displayType() ?: typeName(type)
+        TYPE_SNELL -> typeName(type)
+        else -> typeName(type)
     }
 
     fun displayName() = requireBean().displayName()
@@ -264,7 +293,7 @@ data class ProxyEntity(
             TYPE_CONFIG -> configBean
             TYPE_SNELL -> snellBean
             else -> error("Undefined type $type")
-        } ?: error("Null ${displayType()} profile")
+        } ?: error("Null profile id=$id type=$type (${typeName(type)})")
     }
 
     fun haveLink(): Boolean {

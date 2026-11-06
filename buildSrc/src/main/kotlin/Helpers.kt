@@ -17,6 +17,16 @@ private val Project.android get() = extensions.getByName<ApplicationExtension>("
 private lateinit var metadata: Properties
 private lateinit var localProperties: Properties
 
+private val PREVIEW_VERSION_SUFFIX = Regex("-preview\\.([1-4])$")
+
+fun apkVersionCode(code: Int, versionName: String): Int {
+    val preview = PREVIEW_VERSION_SUFFIX.find(versionName)
+    require(!versionName.contains("-preview") || preview != null) {
+        "Preview version must end in -preview.1 through -preview.4: $versionName"
+    }
+    return code * 5 + (preview?.groupValues?.get(1)?.toInt() ?: 0)
+}
+
 fun Project.requireMetadata(): Properties {
     if (!::metadata.isInitialized) {
         metadata = Properties().apply {
@@ -151,7 +161,7 @@ fun Project.setupApp() {
         "wanBoxForAndroid releases must use the stable applicationId: $pkgName"
     }
     val verName = requireMetadata().getProperty("VERSION_NAME")
-    val verCode = (requireMetadata().getProperty("VERSION_CODE").toInt()) * 5
+    val verCode = apkVersionCode(requireMetadata().getProperty("VERSION_CODE").toInt(), verName)
     android.apply {
         defaultConfig {
             applicationId = pkgName
@@ -187,8 +197,11 @@ fun Project.setupApp() {
             create("fdroid")
             create("play")
             create("preview") {
-                versionCode = requireMetadata().getProperty("PRE_VERSION_CODE").toInt() * 5
-                versionName = requireMetadata().getProperty("PRE_VERSION_NAME")
+                val previewName = requireMetadata().getProperty("PRE_VERSION_NAME")
+                versionName = previewName
+                versionCode = apkVersionCode(
+                    requireMetadata().getProperty("PRE_VERSION_CODE").toInt(), previewName
+                )
                 buildConfigField(
                     "String",
                     "PRE_VERSION_NAME",

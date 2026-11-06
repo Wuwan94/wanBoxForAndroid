@@ -96,4 +96,68 @@ class PortableBackupCompatibilityTest {
             assertEquals(before.rules,SagerDatabase.rulesDao.allRules())
         } finally { BackupRestore.apply(original,true,true,true) }
     }
+    @Test fun damagedOrUnsupportedImportsKeepAllDatabasesIntact() {
+        val original = snapshot()
+        try {
+            BackupRestore.apply(sample(), true, true, true)
+            val before = PortableBackup.encode(snapshot())
+            val valid = PortableBackup.encode(sample())
+            val unsupported = JSONObject(valid.toString(Charsets.UTF_8)).put("schemaVersion", 999).toString().toByteArray()
+            val unsupportedType = JSONObject(valid.toString(Charsets.UTF_8)).apply {
+                getJSONArray("profiles").getJSONObject(0).put("type", -1)
+            }.toString().toByteArray()
+            for (bytes in listOf("{broken}".toByteArray(), valid.copyOf(valid.size - 1), unsupported, unsupportedType, valid + "{}".toByteArray())) {
+                try {
+                    BackupRestore.apply(BackupRestore.parse(BackupFiles.read(bytes.inputStream(), "fixture.json")), true, true, true)
+                    fail("invalid backup committed")
+                } catch (_: Exception) {}
+                assertArrayEquals(before, PortableBackup.encode(snapshot()))
+            }
+            val profile = sample().profiles!!.single()
+            val payload = io.nekohasekai.sagernet.fmt.KryoConverters.serialize(profile)
+            fun changedInt(offset: Int, value: Int) = payload.copyOf().apply {
+                // @author 雾晚: 手工按 Kryo 的小端序写 4 字节，不再 new ByteBufferOutput。
+                // app 与 androidTest 各自经 R8，测试直接构造 app 未使用的三方构造函数会在
+                // release 变体抛 NoSuchMethodError（run 42214710424 / job 127882502678）。
+                // 字节序已用 kryo-5.2.1.jar 在本地 JVM 实证：writeInt(0x01020304) -> [4,3,2,1]。
+                this[offset] = value.toByte()
+                this[offset + 1] = (value ushr 8).toByte()
+                this[offset + 2] = (value ushr 16).toByte()
+                this[offset + 3] = (value ushr 24).toByte()
+            }
+            for (damagedPayload in listOf(payload.copyOf(payload.size - 1), payload + byteArrayOf(0), changedInt(0, 2), changedInt(20, -1))) {
+                val payloadParcel = Parcel.obtain()
+                val damaged = try {
+                    payloadParcel.writeByteArray(damagedPayload)
+                    android.util.Base64.encodeToString(payloadParcel.marshall(), android.util.Base64.NO_WRAP)
+                } finally { payloadParcel.recycle() }
+                val legacy = JSONObject().put("version", 1).put("profiles", JSONArray().put(damaged))
+                    .put("groups", JSONArray().put(parcel(sample().groups!!.single())))
+                try {
+                    BackupRestore.apply(BackupRestore.parse(legacy), true, true, true)
+                    fail("invalid profile committed")
+                } catch (_: Exception) {}
+                assertArrayEquals(before, PortableBackup.encode(snapshot()))
+            }
+
+            // @author 雾晚: 缺失 payload 的记录按真实导入路径拒绝，数据库保持不变。
+            // 不要跨 APK 直接调 ProxyEntity.CREATOR.createFromParcel：release 变体下 R8 改写
+            // CREATOR 匿名类的方法签名，独立 instrumentation APK 的调用会抛
+            // NoSuchMethodError（run 42220586400 / job 127901997604）。
+            // 生产 BackupRestore.parse 的 profile 解码走 KryoConverters.deserializeStrict，
+            // 并不经过 CREATOR；后者对 null payload 抛 KryoException("Missing backup record payload")。
+            val missingPayloadParcel = Parcel.obtain()
+            val missingPayload = try {
+                missingPayloadParcel.writeByteArray(null)
+                android.util.Base64.encodeToString(missingPayloadParcel.marshall(), android.util.Base64.NO_WRAP)
+            } finally { missingPayloadParcel.recycle() }
+            val missing = JSONObject().put("version", 1).put("profiles", JSONArray().put(missingPayload))
+                .put("groups", JSONArray().put(parcel(sample().groups!!.single())))
+            try {
+                BackupRestore.apply(BackupRestore.parse(missing), true, true, true)
+                fail("profile with missing parcel payload committed")
+            } catch (_: Exception) {}
+            assertArrayEquals(before, PortableBackup.encode(snapshot()))
+        } finally { BackupRestore.apply(original, true, true, true) }
+    }
 }

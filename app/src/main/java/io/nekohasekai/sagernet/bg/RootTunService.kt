@@ -44,8 +44,12 @@ class RootTunService : Service(), BaseService.Interface {
                     failures = 0
                     val changedError = snapshot?.error != status.error || recovered
                     val changedProfile = status.connected && (snapshot?.connected != true || snapshot?.profileId != status.profileId)
-                    snapshot = status; DataStore.currentProfile = if (status.connected) status.profileId else 0
-                    DataStore.mixedInboundAuthed = status.connected && DataStore.mixedInboundNeedsAuth
+                    snapshot = status
+                    val mixedInboundAuthed = withContext(Dispatchers.IO) {
+                        DataStore.currentProfile = if (status.connected) status.profileId else 0
+                        status.connected && DataStore.mixedInboundNeedsAuth
+                    }
+                    DataStore.mixedInboundAuthed = mixedInboundAuthed
                     data.changeState(status.state, if (changedError && status.error.isNotBlank())
                         RootModuleErrors.message(this@RootTunService, status.error) else null)
                     if (changedProfile) data.binder.broadcast { it.cbSelectorUpdate(status.profileId) }
@@ -89,7 +93,9 @@ class RootTunService : Service(), BaseService.Interface {
                     failures++
                     val code = RootModuleClient.safeError(e)
                     if (failures >= FAILURES_BEFORE_UNKNOWN) {
-                        snapshot = null; DataStore.currentProfile = 0; DataStore.mixedInboundAuthed = false
+                        snapshot = null
+                        withContext(Dispatchers.IO) { DataStore.currentProfile = 0 }
+                        DataStore.mixedInboundAuthed = false
                         data.changeState(BaseService.State.Stopped)
                     }
                     data.binder.broadcast {

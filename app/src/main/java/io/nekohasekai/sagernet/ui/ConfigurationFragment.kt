@@ -3614,7 +3614,9 @@ class ConfigurationFragment @JvmOverloads constructor(
 
             override suspend fun groupUpdated(groupId: Long) {
                 if (groupId != proxyGroup.id) return
-                proxyGroup = SagerDatabase.groupDao.getById(groupId)!!
+                proxyGroup = withContext(Dispatchers.IO) {
+                    SagerDatabase.groupDao.getById(groupId)
+                } ?: return
                 reloadProfiles()
             }
 
