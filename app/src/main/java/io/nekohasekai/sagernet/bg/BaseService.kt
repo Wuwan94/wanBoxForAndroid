@@ -134,7 +134,11 @@ class BaseService {
             state = s
             DataStore.serviceState = s
             binder.stateChanged(s, msg)
-            runCatching { io.nekohasekai.sagernet.widget.OwnBoxWidgetProvider.updateWidgets(SagerNet.application) }
+            val application = SagerNet.application
+            // Widgets outlive the bound observer and still need its final state.
+            application.applicationScope.launch(Dispatchers.IO) {
+                runCatching { io.nekohasekai.sagernet.widget.OwnBoxWidgetProvider.updateWidgets(application) }
+            }
         }
     }
 
@@ -629,7 +633,8 @@ class BaseService {
                     startupStage = "profile-create"
                     val proxy = withContext(Dispatchers.IO) { ProxyInstance(profile, this@Interface) }
                     data.proxy = proxy
-                    BootReceiver.enabled = DataStore.persistAcrossReboot
+                    val persistAcrossReboot = withContext(Dispatchers.IO) { DataStore.persistAcrossReboot }
+                    BootReceiver.enabled = persistAcrossReboot
                     startupStage = "receiver-register"
                     if (!data.closeReceiverRegistered) {
                         val filter = IntentFilter().apply {
@@ -676,7 +681,7 @@ class BaseService {
                     preInit()
                     startupStage = "proxy-init"
                     withContext(Dispatchers.IO) { proxy.init() }
-                    DataStore.currentProfile = profile.id
+                    withContext(Dispatchers.IO) { DataStore.currentProfile = profile.id }
 
                     proxy.processes = GuardedProcessPool {
                         Logs.w(it)

@@ -75,6 +75,12 @@ class RootModuleContractTest {
         assertFalse(observer.contains("myPid()")); assertFalse(observer.contains("rootProcess"))
         assertTrue(observer.contains("RootModuleClient.call(\"status\")"))
         assertTrue(observer.contains("after.runningRevision != targetRevision"))
+        assertTrue(observer.contains("val mixedInboundAuthed = withContext(Dispatchers.IO)"))
+        val preferences = observer.substringAfter("val mixedInboundAuthed = withContext(Dispatchers.IO)")
+            .substringBefore("DataStore.mixedInboundAuthed = mixedInboundAuthed")
+        assertTrue(preferences.contains("DataStore.currentProfile = if (status.connected) status.profileId else 0"))
+        assertTrue(preferences.contains("status.connected && DataStore.mixedInboundNeedsAuth"))
+        assertTrue(observer.contains("withContext(Dispatchers.IO) { DataStore.currentProfile = 0 }"))
     }
     @Test fun moduleErrorsAreSafeAndHiddenUiDoesNotPoll() {
         val parsed = RootModuleClient.parseResponse("""{"schemaVersion":1,"ok":true,"state":{"phase":"failed","error":"cgroup_move_failed"}}""")

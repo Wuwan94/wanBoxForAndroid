@@ -8,11 +8,26 @@ import java.io.File
 class ServiceFailureCleanupContractTest {
 
     @Test
+    fun widgetRefreshRunsOffMainAndOutlivesTheBoundObserver() {
+        val source = source("main/java/io/nekohasekai/sagernet/bg/BaseService.kt")
+            .substringAfter("fun changeState(s: State, msg: String? = null)")
+            .substringBefore("class Binder(")
+        assertTrue(source.contains("val application = SagerNet.application"))
+        assertTrue(source.contains("application.applicationScope.launch(Dispatchers.IO)"))
+        assertTrue(source.contains("runCatching { io.nekohasekai.sagernet.widget.OwnBoxWidgetProvider.updateWidgets(application) }"))
+        assertFalse(source.contains("serviceScope.launch"))
+    }
+
+    @Test
     fun startupKeepsDatabasePreparationOffMainAndLogsItsFailureStage() {
         val source = source("main/java/io/nekohasekai/sagernet/bg/BaseService.kt")
             .substringAfter("fun onStartCommand(intent: Intent?, flags: Int, startId: Int)")
         assertTrue(source.contains("withContext(Dispatchers.IO) { ProxyInstance(profile, this@Interface) }"))
         assertTrue(source.contains("withContext(Dispatchers.IO) { proxy.init() }"))
+        assertTrue(source.contains("val persistAcrossReboot = withContext(Dispatchers.IO) { DataStore.persistAcrossReboot }"))
+        assertTrue(source.contains("BootReceiver.enabled = persistAcrossReboot"))
+        assertFalse(source.contains("BootReceiver.enabled = DataStore.persistAcrossReboot"))
+        assertTrue(source.contains("withContext(Dispatchers.IO) { DataStore.currentProfile = profile.id }"))
         assertTrue(source.contains("createNotification(proxy.displayProfileName)"))
         assertFalse(source.contains("ServiceNotification.genTitle(profile)"))
         assertTrue(source.contains("ServiceStartTrace stage=\$startupStage type="))

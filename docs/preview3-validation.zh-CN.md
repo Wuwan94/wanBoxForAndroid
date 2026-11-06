@@ -11,10 +11,10 @@
 | 项目 | 当前结果 |
 |---|---|
 | 两套已发布资产 | aapt/apksigner/模块与8资产SHA256复核完成，见版本证据JSON |
-| Python工具测试 | 本地45项通过（UTF-8及Bash环境修正后）；新增版本用例另待统一复核 |
+| Python工具测试 | 本地58项通过（UTF-8及Bash环境修正后），含17项候选身份/载荷校验测试 |
 | Android安全检查 | 本地 tools/check_android_security.py 通过 |
 | Root Go全量测试 | 已运行Windows测试，cgroup、进程身份及VmRSS平台用例失败；须以Linux CI补验，不修改测试规避 |
-| Root Go静态检查 | 本地执行，最终结果待汇总 |
+| Root Go静态检查 | Windows本地 go -C rootmodule vet ./... 通过；Linux部分另待CI |
 | Android/JVM单测、测试编译 | 待候选CI实际执行 |
 | 签名候选、双渠道APK码、ABI、模块ZIP、SHA256 | 待候选CI实际执行；不能以源码值替代产物结果 |
 | Macrobenchmark冷启动 | 已复用现有coldStartNoProfile接入API35 x86_64模拟器候选任务；结果待实跑 |
@@ -34,7 +34,7 @@ python3 -m unittest discover -s rootmodule -p 'test_*.py'
 ./gradlew app:testPreviewDebugUnitTest app:compilePreviewDebugAndroidTestKotlin
 ./gradlew app:assemblePreviewRelease -PwanboxThin=true
 ./gradlew app:assembleOssRelease -PwanboxThin=true
-python3 tools/verify_preview_candidate.py --directory candidate --report candidate-validation.json
+python3 tools/verify_preview_candidate.py --directory candidate --report candidate-validation.json --aapt "$AAPT" --apksigner "$APKSIGNER"
 (cd candidate && sha256sum --check SHA256SUMS)
 git diff --check
 ```

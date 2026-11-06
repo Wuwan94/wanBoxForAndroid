@@ -217,7 +217,9 @@ jobs:
         run: |
           mkdir candidate
           cp public-apks/*.apk module-artifacts/*.zip candidate/
-          python3 tools/verify_preview_candidate.py --directory candidate --report candidate-validation.json
+          AAPT=$(find "${ANDROID_HOME}/build-tools" -name aapt | sort -V | tail -n 1)
+          APKSIGNER=$(find "${ANDROID_HOME}/build-tools" -name apksigner | sort -V | tail -n 1)
+          python3 tools/verify_preview_candidate.py --directory candidate --report candidate-validation.json --aapt "$AAPT" --apksigner "$APKSIGNER"
           (cd candidate && sha256sum --check SHA256SUMS)
       - uses: actions/upload-artifact@v4
         with:
