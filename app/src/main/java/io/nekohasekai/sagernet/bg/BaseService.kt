@@ -596,70 +596,71 @@ class BaseService {
                 data.changeState(State.Stopped)
             }
             if (data.state != State.Stopped) return Service.START_STICKY
-            var profile = SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
-            if (profile == null) {
-                profile = SagerDatabase.proxyDao.getAll().firstOrNull()?.also {
-                    DataStore.selectedProxy = it.id
-                }
-            }
-            this as Context
-            if (profile == null) { // gracefully shutdown: https://stackoverflow.com/q/47337857/2245107
-                try { data.notification = createNotification("") }
-                catch (e: RuntimeException) { Logs.w("Foreground promotion failed for empty profile", e) }
-                stopRunner(false, getString(R.string.profile_empty))
-                return Service.START_NOT_STICKY
-            }
-
-            // @author 雾晚 (B 路线): 瘦管理器没有内嵌核心。本构建的正式通路是
-            // RootTunService（纯观察者 + wanboxctl），不受影响；只有历史遗留的
-            // ProxyService（VpnService 单机代理）需要进程内核心，这里明确拒绝而不是崩溃。
-            if (!CoreRuntime.available && this is ProxyService) {
-                stopRunner(false, getString(R.string.core_requires_full_apk))
-                return Service.START_NOT_STICKY
-            }
-            val proxy = ProxyInstance(profile, this)
-            data.proxy = proxy
-            BootReceiver.enabled = DataStore.persistAcrossReboot
-            if (!data.closeReceiverRegistered) {
-                val filter = IntentFilter().apply {
-                    addAction(Action.RELOAD)
-                    addAction(Action.RESTART)
-                    addAction(Intent.ACTION_SHUTDOWN)
-                    addAction(Action.CLOSE)
-                    // addAction(Action.SWITCH_WAKE_LOCK)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        addAction(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED)
-                    }
-                    addAction(Action.REFRESH_NOTIFICATION)
-                    addAction(Action.RESET_UPSTREAM_CONNECTIONS)
-                    addAction(Action.SWITCH_PERFORMANCE_MODE)
-                    addAction(Intent.ACTION_SCREEN_ON)
-                    addAction(Intent.ACTION_SCREEN_OFF)
-                    addAction(Intent.ACTION_USER_PRESENT)
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    registerReceiver(
-                        data.receiver,
-                        filter,
-                        "$packageName.SERVICE",
-                        null,
-                        Context.RECEIVER_EXPORTED
-                    )
-                } else {
-                    registerReceiver(
-                        data.receiver,
-                        filter,
-                        "$packageName.SERVICE",
-                        null
-                    )
-                }
-                data.closeReceiverRegistered = true
-            }
 
             data.changeState(State.Connecting)
             // @author 雾晚: retain the startup job so stop/reload can cancel and join it.
             val connectingJob = data.serviceScope.launch(start = CoroutineStart.LAZY) {
+                val context = this@Interface as Context
                 try {
+                    val profile = withContext(Dispatchers.IO) {
+                        SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
+                            ?: SagerDatabase.proxyDao.getAll().firstOrNull()?.also {
+                                DataStore.selectedProxy = it.id
+                            }
+                    }
+                    if (profile == null) { // gracefully shutdown: https://stackoverflow.com/q/47337857/2245107
+                        try { data.notification = createNotification("") }
+                        catch (e: RuntimeException) { Logs.w("Foreground promotion failed for empty profile", e) }
+                        stopRunner(false, context.getString(R.string.profile_empty))
+                        return@launch
+                    }
+
+                    // @author 雾晚 (B 路线): 瘦管理器没有内嵌核心。本构建的正式通路是
+                    // RootTunService（纯观察者 + wanboxctl），不受影响；只有历史遗留的
+                    // ProxyService（VpnService 单机代理）需要进程内核心，这里明确拒绝而不是崩溃。
+                    if (!CoreRuntime.available && this@Interface is ProxyService) {
+                        stopRunner(false, context.getString(R.string.core_requires_full_apk))
+                        return@launch
+                    }
+                    val proxy = ProxyInstance(profile, this@Interface)
+                    data.proxy = proxy
+                    BootReceiver.enabled = DataStore.persistAcrossReboot
+                    if (!data.closeReceiverRegistered) {
+                        val filter = IntentFilter().apply {
+                            addAction(Action.RELOAD)
+                            addAction(Action.RESTART)
+                            addAction(Intent.ACTION_SHUTDOWN)
+                            addAction(Action.CLOSE)
+                            // addAction(Action.SWITCH_WAKE_LOCK)
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                addAction(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED)
+                            }
+                            addAction(Action.REFRESH_NOTIFICATION)
+                            addAction(Action.RESET_UPSTREAM_CONNECTIONS)
+                            addAction(Action.SWITCH_PERFORMANCE_MODE)
+                            addAction(Intent.ACTION_SCREEN_ON)
+                            addAction(Intent.ACTION_SCREEN_OFF)
+                            addAction(Intent.ACTION_USER_PRESENT)
+                        }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            registerReceiver(
+                                data.receiver,
+                                filter,
+                                "$packageName.SERVICE",
+                                null,
+                                Context.RECEIVER_EXPORTED
+                            )
+                        } else {
+                            registerReceiver(
+                                data.receiver,
+                                filter,
+                                "$packageName.SERVICE",
+                                null
+                            )
+                        }
+                        data.closeReceiverRegistered = true
+                    }
+
                     data.notification = createNotification(ServiceNotification.genTitle(profile))
 
                     Executable.killAll()    // clean up old processes
@@ -689,9 +690,9 @@ class BaseService {
                         stopRunner(restart = true)
                         return@launch
                     }
-                    stopRunner(false, getString(R.string.invalid_server))
+                    stopRunner(false, context.getString(R.string.invalid_server))
                 } catch (e: PluginManager.PluginNotFoundException) {
-                    Toast.makeText(this@Interface, e.readableMessage, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, e.readableMessage, Toast.LENGTH_SHORT).show()
                     Logs.w(e)
                     data.binder.missingPlugin(e.plugin)
                     stopRunner(false, null)
@@ -734,7 +735,7 @@ class BaseService {
                         Logs.w(exc)
                     }
                     stopRunner(
-                        false, "${getString(R.string.service_failed)}: ${exc.readableMessage}"
+                        false, "${context.getString(R.string.service_failed)}: ${exc.readableMessage}"
                     )
                 } finally {
                     if (data.connectingJob === currentCoroutineContext()[Job]) {

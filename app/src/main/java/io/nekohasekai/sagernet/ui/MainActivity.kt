@@ -364,9 +364,10 @@ class MainActivity : ThemedActivity(),
         } else {
             val data = uri.encodedQuery.takeIf { !it.isNullOrBlank() } ?: return
             try {
-                group = KryoConverters.deserialize(
+                val imported = KryoConverters.deserialize(
                     ProxyGroup().apply { export = true }, Util.zlibDecompress(Util.b64Decode(data))
-                ).apply {
+                ) ?: throw IllegalArgumentException("无法解析导入的订阅数据")
+                group = imported.apply {
                     export = false
                 }
             } catch (e: Exception) {

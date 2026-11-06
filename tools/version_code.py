@@ -2,9 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """wanBox 版本码的唯一判定规则。
 
-正式线与预览线共用 `APK versionCode = 元数据版本码 × 5`（见
-buildSrc/src/main/kotlin/Helpers.kt:154 与 :190）。把这条规则做成纯函数，
-让 release.yml / preview.yml 不再各自用 shell 算术推断，避免两条渠道漂移。
+正式线与预览线共用 `APK versionCode = 元数据版本码 × 5 + 预览序号`；正式版加 0，
+预览版从 `-preview.N` 读取 N（1 到 4）。把规则做成纯函数，避免渠道漂移。
 
 CLI:
     python3 tools/version_code.py --properties nb4a.properties --channel formal
@@ -22,6 +21,7 @@ from typing import Mapping
 
 APK_MULTIPLIER = 5
 MAX_ANDROID_VERSION_CODE = 2147483647
+PREVIEW_SUFFIX = re.compile(r"-preview\.([1-4])$")
 VALID_CODE = re.compile(r"^[1-9][0-9]{0,9}$")
 VALID_CHANNELS = ("formal", "preview")
 
@@ -55,14 +55,21 @@ def parse_code(raw: str | int, field: str = "code") -> int:
     if not VALID_CODE.fullmatch(text):
         raise VersionError(f"{field} 必须是正整数且不以 0 开头: {text!r}")
     code = int(text)
-    if code * APK_MULTIPLIER > MAX_ANDROID_VERSION_CODE:
-        raise VersionError(f"{field} × {APK_MULTIPLIER} 超出 Android versionCode 上限")
+    if code * APK_MULTIPLIER + 4 > MAX_ANDROID_VERSION_CODE:
+        raise VersionError(f"{field} × {APK_MULTIPLIER} + 4 超出 Android versionCode 上限")
     return code
 
 
-def apk_version_code(metadata_code: int) -> int:
-    """元数据版本码 → APK versionCode。"""
-    return parse_code(metadata_code) * APK_MULTIPLIER
+def apk_version_code(metadata_code: int, version_name: str = "") -> int:
+    """元数据版本码和预览序号 → APK versionCode。"""
+    code = parse_code(metadata_code)
+    preview = PREVIEW_SUFFIX.search(version_name)
+    if "-preview" in version_name and preview is None:
+        raise VersionError("预览版本名必须以 -preview.1 到 -preview.4 结尾")
+    result = code * APK_MULTIPLIER + (int(preview.group(1)) if preview else 0)
+    if result > MAX_ANDROID_VERSION_CODE:
+        raise VersionError("APK versionCode 超出 Android 上限")
+    return result
 
 
 def resolve(properties: Mapping[str, str], channel: str) -> dict[str, object]:
@@ -81,7 +88,7 @@ def resolve(properties: Mapping[str, str], channel: str) -> dict[str, object]:
         "channel": channel,
         "version_name": name,
         "metadata_code": code,
-        "apk_version_code": code * APK_MULTIPLIER,
+        "apk_version_code": apk_version_code(code, name),
         "module_version_code": code,
     }
 

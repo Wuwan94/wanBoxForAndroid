@@ -121,7 +121,7 @@ class WorkflowRetentionTests(unittest.TestCase):
             self.assertIn('cancel-in-progress: false', text)
             self.assertLess(text.index('uses: softprops/action-gh-release@v2'), text.index('run: python3 tools/prune_prereleases.py'))
         preview = (workflows / 'preview.yml').read_text()
-        self.assertIn('name: wanBox ${{ env.PREVIEW_TAG }} — 界面布局预览', preview)
+        self.assertIn('name: wanBox ${{ env.PREVIEW_TAG }} — 第一批修复预览', preview)
         formal = (workflows / 'release.yml').read_text()
         after = formal.split('- name: Verify published preview and retain only newest prerelease')[1]
         self.assertIn('if: contains(', after)

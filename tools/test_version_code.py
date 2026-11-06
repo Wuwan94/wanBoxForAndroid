@@ -23,7 +23,7 @@ BASE = """
 PACKAGE_NAME=com.lit008834.pixel.wanboxforandroid
 VERSION_NAME=3.0.10
 VERSION_CODE=2011
-PRE_VERSION_NAME=3.0.10-preview.33
+PRE_VERSION_NAME=3.0.10-preview.3
 PRE_VERSION_CODE=2012
 """
 
@@ -38,9 +38,9 @@ class VersionCodeRuleTest(unittest.TestCase):
 
     def test_2_preview_channel_conversion(self):
         r = resolve(parse_properties(BASE), "preview")
-        self.assertEqual("3.0.10-preview.33", r["version_name"])
+        self.assertEqual("3.0.10-preview.3", r["version_name"])
         self.assertEqual(2012, r["metadata_code"])
-        self.assertEqual(10060, r["apk_version_code"])
+        self.assertEqual(10063, r["apk_version_code"])
         self.assertEqual(2012, r["module_version_code"])
 
     def test_3_upgrade_from_preview32_is_feasible(self):
@@ -77,16 +77,30 @@ class VersionCodeRuleTest(unittest.TestCase):
 
     def test_multiplier_is_the_single_rule(self):
         self.assertEqual(5, APK_MULTIPLIER)
-        self.assertEqual(10055, apk_version_code(2011))
-        self.assertEqual(10060, apk_version_code(2012))
+        self.assertEqual(10055, apk_version_code(2011, "3.0.10"))
+        self.assertEqual(10063, apk_version_code(2012, "3.0.10-preview.3"))
         self.assertEqual(1810, apk_version_code(362))
 
-    def test_preview_line_stays_above_formal_line(self):
-        props = parse_properties(BASE)
+    def test_formal_upgrade_stays_above_published_preview(self):
+        props = parse_properties("""
+VERSION_NAME=3.0.11
+VERSION_CODE=2015
+PRE_VERSION_NAME=3.0.11-preview.1
+PRE_VERSION_CODE=2015
+""")
         formal = resolve(props, "formal")
         preview = resolve(props, "preview")
-        # preview.yml:154 的既有断言，改动 VERSION_CODE 后必须继续成立
-        self.assertGreater(preview["metadata_code"], formal["metadata_code"])
+        self.assertEqual(10075, formal["apk_version_code"])
+        self.assertEqual(10076, preview["apk_version_code"])
+        self.assertGreater(formal["apk_version_code"], 10070)
+        self.assertGreater(preview["apk_version_code"], 10070)
+        props["PRE_VERSION_NAME"] = "3.0.11-preview.2"
+        preview_two = resolve(props, "preview")
+        self.assertEqual(10077, preview_two["apk_version_code"])
+
+    def test_invalid_preview_suffix_is_rejected(self):
+        with self.assertRaises(VersionError):
+            apk_version_code(2015, "3.0.11-preview.5")
 
 
 if __name__ == "__main__":

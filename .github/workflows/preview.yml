@@ -149,16 +149,16 @@ jobs:
           test -n "$APKSIGNER"
           test -n "$AAPT"
           PREVIEW_VERSION=$(grep '^PRE_VERSION_NAME=' nb4a.properties | cut -d= -f2 | tr -d '\r')
-          PREVIEW_CODE=$(grep '^PRE_VERSION_CODE=' nb4a.properties | cut -d= -f2 | tr -d '\r')
-          FORMAL_CODE=$(grep '^VERSION_CODE=' nb4a.properties | cut -d= -f2 | tr -d '\r')
-          test "$PREVIEW_CODE" -gt "$FORMAL_CODE"
-          PREVIEW_CODE=$((PREVIEW_CODE * 5))
+          FORMAL_APK_CODE=$(python3 tools/version_code.py --properties nb4a.properties --channel formal --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["apk_version_code"])')
+          PREVIEW_APK_CODE=$(python3 tools/version_code.py --properties nb4a.properties --channel preview --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["apk_version_code"])')
+          test "$FORMAL_APK_CODE" -gt 10070
+          test "$PREVIEW_APK_CODE" -gt "$FORMAL_APK_CODE"
           test "$(find "$APK_DIR" -maxdepth 1 -name '*.apk' | wc -l)" -eq 1
           test "$(grep -c 'android:targetPackage="com.lit008834.pixel.wanboxforandroid"' app/src/main/res/xml/shortcuts.xml)" -eq 4
           for apk in "$APK_DIR"/*.apk; do
             case "$(basename "$apk")" in wanBoxForAndroid-"$PREVIEW_VERSION"-*.apk) ;; *) exit 1 ;; esac
             python3 tools/verify_apk_abi.py --thin "$apk"
-            "$AAPT" dump badging "$apk" | grep -q "^package: name='com.lit008834.pixel.wanboxforandroid' versionCode='$PREVIEW_CODE' versionName='$PREVIEW_VERSION' "
+            "$AAPT" dump badging "$apk" | grep -q "^package: name='com.lit008834.pixel.wanboxforandroid' versionCode='$PREVIEW_APK_CODE' versionName='$PREVIEW_VERSION' "
             manifest=$($AAPT dump xmltree "$apk" AndroidManifest.xml)
             printf '%s\n' "$manifest" | grep -q 'com.lit008834.pixel.wanboxforandroid.cache'
             printf '%s\n' "$manifest" | grep -q 'io.nekohasekai.sagernet.widget.WidgetControlReceiver'
@@ -244,8 +244,6 @@ jobs:
           ls -la apks/
           test "$(find apks -maxdepth 1 -name '*.apk' | wc -l)" -eq 1
           (cd apks && sha256sum *.apk > SHA256SUMS && sha256sum --check SHA256SUMS)
-          CODE=$(grep '^PRE_VERSION_CODE=' nb4a.properties | cut -d= -f2 | tr -d '\r')
-          CODE=$((CODE * 5))
           cp PREVIEW_NOTES.md "$RUNNER_TEMP/preview-notes.md"
       - name: Download Root module
         uses: actions/download-artifact@v4
@@ -273,7 +271,7 @@ jobs:
         with:
           tag_name: ${{ env.PREVIEW_TAG }}
           target_commitish: ${{ github.sha }}
-          name: wanBox ${{ env.PREVIEW_TAG }} — 界面布局预览
+          name: wanBox ${{ env.PREVIEW_TAG }} — 第一批修复预览
           body_path: ${{ runner.temp }}/preview-notes.md
           files: apks/*
           draft: false
