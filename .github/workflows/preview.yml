@@ -234,6 +234,7 @@ jobs:
           report["candidate_tag"] = os.environ["PREVIEW_TAG"]
           path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
           Path("candidate/candidate-validation.json").write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+          PY
           (cd candidate && sha256sum --check SHA256SUMS)
       - uses: actions/upload-artifact@v4
         with:

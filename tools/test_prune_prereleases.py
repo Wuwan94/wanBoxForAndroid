@@ -145,6 +145,10 @@ class WorkflowRetentionTests(unittest.TestCase):
         self.assertIn('tools/verify_preview_candidate_artifact.py', preview)
         self.assertIn('candidate/SHA256SUMS', preview)
         self.assertIn('--only-tag v3.0.11-preview.2', preview)
+        candidate_step = preview.split('name: Validate unpublished candidate assets', 1)[1].split(
+            '- uses: actions/upload-artifact@v4', 1)[0]
+        self.assertIn("python3 - <<'PY'", candidate_step)
+        self.assertRegex(candidate_step, r"(?m)^[ \t]+PY\s*$")
         self.assertNotIn('sha256sum *.apk *.zip > SHA256SUMS', preview)
         self.assertLess(preview.index('name: Validate unpublished candidate assets'), preview.index('\n  publish:'))
         formal = (workflows / 'release.yml').read_text()
