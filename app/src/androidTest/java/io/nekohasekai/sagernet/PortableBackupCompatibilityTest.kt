@@ -116,7 +116,14 @@ class PortableBackupCompatibilityTest {
             val profile = sample().profiles!!.single()
             val payload = io.nekohasekai.sagernet.fmt.KryoConverters.serialize(profile)
             fun changedInt(offset: Int, value: Int) = payload.copyOf().apply {
-                com.esotericsoftware.kryo.io.ByteBufferOutput(4).apply { writeInt(value) }.toBytes().copyInto(this, offset)
+                // @author 雾晚: 手工按 Kryo 的小端序写 4 字节，不再 new ByteBufferOutput。
+                // app 与 androidTest 各自经 R8，测试直接构造 app 未使用的三方构造函数会在
+                // release 变体抛 NoSuchMethodError（run 42214710424 / job 127882502678）。
+                // 字节序已用 kryo-5.2.1.jar 在本地 JVM 实证：writeInt(0x01020304) -> [4,3,2,1]。
+                this[offset] = value.toByte()
+                this[offset + 1] = (value ushr 8).toByte()
+                this[offset + 2] = (value ushr 16).toByte()
+                this[offset + 3] = (value ushr 24).toByte()
             }
             for (damagedPayload in listOf(payload.copyOf(payload.size - 1), payload + byteArrayOf(0), changedInt(0, 2), changedInt(20, -1))) {
                 val payloadParcel = Parcel.obtain()
