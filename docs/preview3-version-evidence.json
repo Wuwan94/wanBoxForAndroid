@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "repository": "Wuwan94/wanBoxForAndroid",
+  "observed_at_utc": "2026-11-06T11:44:17Z",
+  "package_name": "com.lit008834.pixel.wanboxforandroid",
+  "certificate_sha256": "80ecee1c42d861d59cdc460447335fc4bfdf80103d6225a17c1bdf83a33521f6",
+  "baselines": {
+    "formal": {
+      "tag": "v3.0.11",
+      "commit": "03c6eb70854c797ee1e4069e378145be5ca56b0d",
+      "release_url": "https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11",
+      "published_at": "2026-11-05T10:38:42Z",
+      "version_name": "3.0.11",
+      "apk_version_code": 10065,
+      "module_version_code": 2013,
+      "assets": [
+        {
+          "name": "SHA256SUMS",
+          "sha256": "059e3c125f1bb34d57ff53f4e882c44d04c71069b7aab6bb6f53881a14bf0711",
+          "size": 315
+        },
+        {
+          "name": "wanbox-root-module-arm64-v8a.zip",
+          "sha256": "0c4185e4713054d8f1ff38145f502593b644267c1962d6a41cd429c704abb49f",
+          "size": 17739667
+        },
+        {
+          "name": "wanbox-root-module-with-manager-arm64-v8a.zip",
+          "sha256": "8db72c134ab0ea9b3ce52211cfb8b3b5e71841ad0876e98ad4b4784b42eba70e",
+          "size": 23178316
+        },
+        {
+          "name": "wanBoxForAndroid-3.0.11-arm64-v8a.apk",
+          "sha256": "e95e7331b099f9a0cc7e4e9dbf22ac3fab203656d1722d4b2041658c8d758233",
+          "size": 6124002
+        }
+      ]
+    },
+    "preview": {
+      "tag": "v3.0.11-preview.2",
+      "commit": "2fbe17f662897f44bf903c957fd9723e4a4977f9",
+      "release_url": "https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11-preview.2",
+      "published_at": "2026-11-06T04:38:55Z",
+      "version_name": "3.0.11-preview.2",
+      "apk_version_code": 10077,
+      "module_version_code": 2015,
+      "assets": [
+        {
+          "name": "SHA256SUMS",
+          "sha256": "00b3acdc256d65bea7b9de9f78bfa01e2fcce57bb9d889676b9fe48f1e1f6f57",
+          "size": 333
+        },
+        {
+          "name": "wanbox-root-module-arm64-v8a.zip",
+          "sha256": "042edff0f39cf3b23b722b0d035693e0ee00ffde0105dfeab56dcbb8e6b64c60",
+          "size": 17739668
+        },
+        {
+          "name": "wanbox-root-module-with-manager-arm64-v8a.zip",
+          "sha256": "e3a5634a89a4a01b88a29864ad16983ed3452847d3cefc7d8964499ed0e6c7d8",
+          "size": 23178833
+        },
+        {
+          "name": "wanBoxForAndroid-3.0.11-preview.2-arm64-v8a-release.apk",
+          "sha256": "398301c444211766337ba44b180fecbece13940a341efca35dc1ac6230801bae",
+          "size": 6126070
+        }
+      ]
+    }
+  }
+}

@@ -6,6 +6,8 @@ import io.nekohasekai.sagernet.database.preference.KeyValuePair
 import io.nekohasekai.sagernet.utils.BackupFiles
 import io.nekohasekai.sagernet.utils.BoundedInput
 import io.nekohasekai.sagernet.fmt.socks.SOCKSBean
+import io.nekohasekai.sagernet.fmt.KryoConverters
+import com.esotericsoftware.kryo.io.ByteBufferOutput
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
@@ -48,6 +50,28 @@ class PortableBackupTest {
         reject { PortableBackup.strictBase64("not base64!") }
         val conflicting=JSONObject().put("version",1).put("profiles",org.json.JSONArray()).put("proxies",org.json.JSONArray())
         reject { BackupRestore.parse(conflicting) }
+    }
+    @Test fun binaryProfileImportsRejectDamageWithoutReplacingExistingBean() {
+        val profile = sample().profiles!!.single()
+        val bean = profile.requireBean()
+        val payload = KryoConverters.serialize(bean)
+        for (damaged in listOf(byteArrayOf(), payload.copyOf(1), payload.copyOf(payload.size - 1), payload + byteArrayOf(0))) {
+            reject { profile.putByteArray(damaged) }
+            assertSame(bean, profile.requireBean())
+        }
+        profile.putByteArray(payload)
+        assertEquals("fictional", profile.socksBean!!.password)
+        reject { ProxyEntity(type = -1).putByteArray(payload) }
+
+        val record = KryoConverters.serialize(profile)
+        for (version in listOf(-1, 2)) {
+            val versionBytes = ByteBufferOutput(4).apply { writeInt(version) }.toBytes()
+            val unsupported = record.copyOf().apply { versionBytes.copyInto(this) }
+            reject { KryoConverters.deserializeStrict(ProxyEntity(), unsupported) }
+        }
+        val restored = KryoConverters.deserializeStrict(ProxyEntity(), record)
+        assertEquals(profile.id, restored.id)
+        assertEquals("fictional", restored.socksBean!!.password)
     }
     @Test fun logsAndDisguisedZipCannotBypassFormatChecks() {
         val bytes=PortableBackup.encode(sample())

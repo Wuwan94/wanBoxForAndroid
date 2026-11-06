@@ -601,6 +601,10 @@ class BaseService {
             // @author 雾晚: retain the startup job so stop/reload can cancel and join it.
             val connectingJob = data.serviceScope.launch(start = CoroutineStart.LAZY) {
                 val context = this@Interface as Context
+                var startupStage = "profile-load"
+                fun logStartupFailure(error: Throwable) {
+                    Logs.w("ServiceStartTrace stage=$startupStage type=${error.javaClass.name}")
+                }
                 try {
                     val profile = withContext(Dispatchers.IO) {
                         SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
@@ -622,9 +626,11 @@ class BaseService {
                         stopRunner(false, context.getString(R.string.core_requires_full_apk))
                         return@launch
                     }
-                    val proxy = ProxyInstance(profile, this@Interface)
+                    startupStage = "profile-create"
+                    val proxy = withContext(Dispatchers.IO) { ProxyInstance(profile, this@Interface) }
                     data.proxy = proxy
                     BootReceiver.enabled = DataStore.persistAcrossReboot
+                    startupStage = "receiver-register"
                     if (!data.closeReceiverRegistered) {
                         val filter = IntentFilter().apply {
                             addAction(Action.RELOAD)
@@ -661,11 +667,15 @@ class BaseService {
                         data.closeReceiverRegistered = true
                     }
 
-                    data.notification = createNotification(ServiceNotification.genTitle(profile))
+                    startupStage = "notification-create"
+                    data.notification = createNotification(proxy.displayProfileName)
 
-                    Executable.killAll()    // clean up old processes
+                    startupStage = "process-cleanup"
+                    withContext(Dispatchers.IO) { Executable.killAll() }
+                    startupStage = "network-listener-start"
                     preInit()
-                    proxy.init()
+                    startupStage = "proxy-init"
+                    withContext(Dispatchers.IO) { proxy.init() }
                     DataStore.currentProfile = profile.id
 
                     proxy.processes = GuardedProcessPool {
@@ -673,6 +683,7 @@ class BaseService {
                         stopRunner(false, it.readableMessage)
                     }
 
+                    startupStage = "process-start"
                     startProcesses()
                     currentCoroutineContext().ensureActive()
                     if (data.state != State.Connecting) return@launch
@@ -680,9 +691,11 @@ class BaseService {
                     data.cacheRecoveryAttempts = 0
                     data.networkSwitchRetryAttempts = 0
 
+                    startupStage = "late-init"
                     lateInit()
                 } catch (_: CancellationException) { // if the job was cancelled, it is canceller's responsibility to call stopRunner
-                } catch (_: UnknownHostException) {
+                } catch (e: UnknownHostException) {
+                    logStartupFailure(e)
                     if (data.networkSwitchRetryAttempts < 3) {
                         data.networkSwitchRetryAttempts++
                         Logs.w("Network switch / transient DNS failure in startRunner: retrying in 600ms (attempt ${data.networkSwitchRetryAttempts}/3)...")
@@ -692,11 +705,13 @@ class BaseService {
                     }
                     stopRunner(false, context.getString(R.string.invalid_server))
                 } catch (e: PluginManager.PluginNotFoundException) {
+                    logStartupFailure(e)
                     Toast.makeText(context, e.readableMessage, Toast.LENGTH_SHORT).show()
                     Logs.w(e)
                     data.binder.missingPlugin(e.plugin)
                     stopRunner(false, null)
                 } catch (exc: Throwable) {
+                    logStartupFailure(exc)
                     val msg = exc.readableMessage
                     val isCacheCorrupt = msg.contains("invalid freelist page", ignoreCase = true) ||
                             msg.contains("initialize cache-file: timeout", ignoreCase = true) ||
@@ -707,7 +722,7 @@ class BaseService {
                     if (isCacheCorrupt && data.cacheRecoveryAttempts < 1) {
                         data.cacheRecoveryAttempts++
                         Logs.w("Auto-recovery: detected corrupted cache database ($msg). Purging cache.db and retrying once...")
-                        deleteCorruptedCacheDb()
+                        withContext(Dispatchers.IO) { deleteCorruptedCacheDb() }
                         stopRunner(restart = true)
                         return@launch
                     }

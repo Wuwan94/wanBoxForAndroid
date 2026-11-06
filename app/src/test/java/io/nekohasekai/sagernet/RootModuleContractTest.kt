@@ -6,9 +6,33 @@ import org.junit.Assert.*
 import org.junit.Test
 import java.io.File
 import java.io.IOException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 
 /** Protocol + Android integration regression checks; not Magisk device tests. @author 雾晚 */
 class RootModuleContractTest {
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test fun dashboardDeadlineIsAReadFailureAndCallerDeadlineRemainsCancellation() = runTest {
+        try {
+            RootModuleClient.withCallTimeout("dashboard") { delay(15_001L) }
+            fail("dashboard read exceeded its deadline")
+        } catch (error: IOException) {
+            assertEquals("module_timeout", error.message)
+        }
+        assertEquals(15_000L, testScheduler.currentTime)
+        try {
+            withTimeout(1L) {
+                RootModuleClient.withCallTimeout("status") { delay(100L) }
+            }
+            fail("caller deadline was swallowed")
+        } catch (_: TimeoutCancellationException) {
+            // An owning observer's cancellation must not become a module failure.
+        }
+    }
+
     @Test fun managerDoesNotShipUnusedStandaloneCoreAndModuleStillPackagesIt() {
         val build = File("build.gradle.kts").readText()
         assertTrue(build.contains("excludes += \"**/librootbox.so\""))

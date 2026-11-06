@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases"><img src="https://img.shields.io/badge/Stable-3.0.10%20candidate-yellow.svg?style=flat-square" alt="Stable 3.0.10 candidate, not yet published"></a>
-  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases"><img src="https://img.shields.io/badge/Preview-v3.0.10--preview.32-orange.svg?style=flat-square" alt="Preview 3.0.10-preview.32"></a>
+  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11"><img src="https://img.shields.io/badge/Stable-3.0.11-green.svg?style=flat-square" alt="Stable 3.0.11"></a>
+  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11-preview.2"><img src="https://img.shields.io/badge/Preview-v3.0.11--preview.2-orange.svg?style=flat-square" alt="Published preview.2; preview.3 is a candidate only"></a>
   <a href="https://android-arsenal.com/api?level=31"><img src="https://img.shields.io/badge/Android-12%2B%20(API%2031%2B)-brightgreen.svg?style=flat-square" alt="Minimum Android version"></a>
   <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases"><img src="https://img.shields.io/badge/ABI-arm64--v8a-informational.svg?style=flat-square" alt="Supported ABI"></a>
   <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPL--3.0-orange.svg?style=flat-square" alt="License"></a>
@@ -29,15 +29,15 @@
 ---
 ## 当前版本核对 / Release and source snapshot
 
-截至 **2026-11-04（正式版 3.0.10 准备阶段）**，GitHub Releases 中**唯一已发布的版本**是 [v3.0.10-preview.32](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.10-preview.32)（`prerelease=true`），**尚无任何已发布的稳定版 Release**。`main` 的 S0 复核基线为 `2aa9239`，内核 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd`。
+截至 **2026-11-06**，已发布正式版为 [v3.0.11](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11)，最新公开预览为 [v3.0.11-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11-preview.2)。真实 APK / 模块资产实测分别为 **10065 / 2013** 与 **10077 / 2015**，不是从源码或发布说明推断，证据见 [版本对照](docs/current-version.zh-CN.md)。
 
-**正式版 `3.0.10` 是待发布候选**：`versionName=3.0.10`、APK `versionCode=10055`（元数据 `2011 × 5`）、Root 模块码 `2011`，包名与签名证书和 `.32` 相同。它必须经 PR 获批合并 → 构建与资产核验 → 明确的正式 Release 批准后才发布；源码元数据本身不证明 Release 已公开。`PRE_VERSION_NAME=3.0.10-preview.33` / `2012` 只是为满足「预览码 > 正式码」断言而预置的**未发布候选**，没有 tag 或下载资产。详细依据见 [发布与源码版本对照](docs/current-version.zh-CN.md)。
+本分支准备 **v3.0.11-preview.3 稳定性候选**，不是已发布版本。基线纳入 preview.2 的 `2fbe17f662`，保留开工时主分支 `ff26111` 的已有界面；重点是后台查询、损坏导入失败保护、启动诊断和状态读取超时。没有增加新的代理模式或重做全局 UI。候选元数据双码 `2016`，规则输出正式线 `10080`、预览线 `10083`；最终产物仍须逐项核验，参见 [候选验证记录](docs/preview3-validation.zh-CN.md)。
 
-**安装要求：Android 12+（API 31+）、arm64-v8a、已 Root（Magisk / KernelSU / APatch）**，不提供普通 VPN 模式。正式版与 `.32` **同为瘦管理器**：APK 不含内嵌核心，必须从**同一个 Release 页面**安装配套的 Root 模块 ZIP，并用该页 `SHA256SUMS` 校验；不要把不同版本的 APK 与模块混用。
+**安装要求：Android 12+、arm64-v8a、Root（Magisk / KernelSU / APatch）**。瘦管理器不包含核心，必须搭配同一套候选或同一发布页的模块，不能混用；安装前先备份并检查 `SHA256SUMS`。版本码和同签名只证明覆盖安装的静态前提，**未完成真机运行时回归**，不承诺无损升级。
 
-**升级口径**：包名、签名与版本码满足覆盖安装的静态前提，但覆盖升级后的数据保留、Root 模块状态与 TUN 重启**尚未在真机验证**。当前推荐「备份 → 卸载 → 安装 → 导入」路径，不承诺无损覆盖升级；完整步骤、数据保留边界与回滚见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。下文架构及历史说明保留其原有范围。
+本轮仅独立分支和 PR，不合并 main、不创建 tag/Release、不上传发布资产、不清理旧版。仍保留「成功发布并核验新预览后才只留一版预览」的策略，正式版不受预览清理影响。[v3.0.11 正式版历史说明](RELEASE_NOTES.md)保持原文。
 
-As of **2026-11-04**, the only published release is **v3.0.10-preview.32**; no stable Release exists yet. **3.0.10** is a candidate (`versionCode 10055`, module code `2011`) and is not public until the approved PR is merged, the build/assets are verified and the formal Release is explicitly approved. Both preview.32 and the candidate are thin managers: the APK contains no embedded core and must be paired with the Root module ZIP from the **same** Release page. Requires Android 12+ (API 31+), arm64-v8a and a rooted device; no ordinary VPN mode. Data-preserving in-place upgrade from preview.32 is **not verified on a real device** - follow the backup / uninstall / install / import path in RELEASE_NOTES.md instead. 
+Published: stable v3.0.11 and preview.2. This branch prepares an **unpublished preview.3 candidate** only. Requires Android 12+, ARM64 and Root. Real-device runtime regression is not complete; no Baseline Profile or performance improvement is claimed.
 ---
 
 ## 📥 发行版下载 / Downloads

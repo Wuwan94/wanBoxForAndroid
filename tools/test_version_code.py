@@ -5,7 +5,9 @@
 覆盖《02-版本与升级方案》第 2 节的 7 类用例：两条渠道换算、覆盖升级
 可行性、同版本拒绝、降级拒绝、模块版本方向、非法值。
 """
+import json
 import unittest
+from pathlib import Path
 
 from version_code import (
     APK_MULTIPLIER,
@@ -101,6 +103,40 @@ PRE_VERSION_CODE=2015
     def test_invalid_preview_suffix_is_rejected(self):
         with self.assertRaises(VersionError):
             apk_version_code(2015, "3.0.11-preview.5")
+
+    def test_current_channels_advance_verified_release_baselines(self):
+        root = Path(__file__).resolve().parents[1]
+        properties = parse_properties((root / "nb4a.properties").read_text(encoding="utf-8"))
+        evidence = json.loads(
+            (root / "docs/preview3-version-evidence.json").read_text(encoding="utf-8")
+        )
+        for channel in ("formal", "preview"):
+            with self.subTest(channel=channel):
+                candidate = resolve(properties, channel)
+                baseline = evidence["baselines"][channel]
+                verdict = check_upgrade(
+                    candidate["apk_version_code"],
+                    candidate["module_version_code"],
+                    baseline["apk_version_code"],
+                    baseline["module_version_code"],
+                )
+                self.assertTrue(verdict["ok"], verdict["reasons"])
+
+    def test_formal_channel_also_advances_verified_preview(self):
+        root = Path(__file__).resolve().parents[1]
+        formal = resolve(
+            parse_properties((root / "nb4a.properties").read_text(encoding="utf-8")), "formal"
+        )
+        baseline = json.loads(
+            (root / "docs/preview3-version-evidence.json").read_text(encoding="utf-8")
+        )["baselines"]["preview"]
+        verdict = check_upgrade(
+            formal["apk_version_code"],
+            formal["module_version_code"],
+            baseline["apk_version_code"],
+            baseline["module_version_code"],
+        )
+        self.assertTrue(verdict["ok"], verdict["reasons"])
 
 
 if __name__ == "__main__":

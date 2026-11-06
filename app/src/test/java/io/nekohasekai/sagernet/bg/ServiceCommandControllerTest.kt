@@ -131,19 +131,8 @@ class ServiceCommandControllerTest {
     fun `non-terminal starting returns error not confirmed`() = runTest {
         val scope = this
         val backend = object : ServiceCommandController.Backend {
-            // @author 雾晚：fake 真实返回 starting（非终态）
-            // requestStart 必须自行校验 connected，不通过则 Error
-            override suspend fun start(): RootModuleClient.Status {
-                val s = fakeStatus(connected = false, phase = "starting")
-                // 模拟 RealBackend 的校验逻辑
-                if (!s.connected) throw IllegalStateException("start_not_confirmed")
-                return s
-            }
-            override suspend fun stop(): RootModuleClient.Status {
-                val s = fakeStatus(false, "starting")
-                if (s.phase != "stopped") throw IllegalStateException("stop_not_confirmed")
-                return s
-            }
+            override suspend fun start() = fakeStatus(connected = false, phase = "starting")
+            override suspend fun stop() = fakeStatus(false, "starting")
             override suspend fun setMode(mode: String) = fakeStatus()
             override suspend fun selectNode(id: Long) = fakeStatus(profileId = id)
             override suspend fun queryStatus() = fakeStatus()
@@ -157,6 +146,46 @@ class ServiceCommandControllerTest {
         val state = controller.state.value
         assertTrue("expected Error for non-terminal starting, got $state",
             state is ServiceCommandController.CommandState.Error)
+
+        controller.acknowledge()
+        assertTrue(controller.requestStop())
+        scope.testScheduler.advanceUntilIdle()
+        assertTrue(controller.state.value is ServiceCommandController.CommandState.Error)
+        assertEquals("stop_not_confirmed", (controller.state.value as ServiceCommandController.CommandState.Error).message)
+    }
+
+    @Test
+    fun `module terminal failure keeps its diagnostic code`() = runTest {
+        val backend = ServiceCommandController.RealBackend()
+        for (phase in listOf("failed", "cleanup_required", "disabled")) {
+            try {
+                backend.waitFor({ it.connected }, 10_000L) {
+                    fakeStatus(false, phase).copy(error = "core_start_failed")
+                }
+                fail("terminal failure was accepted")
+            } catch (error: IllegalStateException) {
+                assertEquals("core_start_failed", error.message)
+            }
+        }
+    }
+
+    @Test
+    fun `status read failure can recover and cancellation still propagates`() = runTest {
+        val backend = ServiceCommandController.RealBackend()
+        var reads = 0
+        val expected = fakeStatus()
+        val actual = backend.waitFor({ it.connected }, 10_000L) {
+            if (++reads == 1) throw java.io.IOException("module_timeout")
+            expected
+        }
+        assertSame(expected, actual)
+        assertEquals(2, reads)
+        try {
+            backend.waitFor({ it.connected }, 10_000L) { throw CancellationException("caller_cancelled") }
+            fail("cancellation was swallowed")
+        } catch (error: CancellationException) {
+            assertEquals("caller_cancelled", error.message)
+        }
     }
 
     @Test

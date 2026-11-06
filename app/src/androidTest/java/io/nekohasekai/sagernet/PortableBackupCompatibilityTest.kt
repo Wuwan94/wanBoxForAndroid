@@ -96,4 +96,52 @@ class PortableBackupCompatibilityTest {
             assertEquals(before.rules,SagerDatabase.rulesDao.allRules())
         } finally { BackupRestore.apply(original,true,true,true) }
     }
+    @Test fun damagedOrUnsupportedImportsKeepAllDatabasesIntact() {
+        val original = snapshot()
+        try {
+            BackupRestore.apply(sample(), true, true, true)
+            val before = PortableBackup.encode(snapshot())
+            val valid = PortableBackup.encode(sample())
+            val unsupported = JSONObject(valid.toString(Charsets.UTF_8)).put("schemaVersion", 999).toString().toByteArray()
+            val unsupportedType = JSONObject(valid.toString(Charsets.UTF_8)).apply {
+                getJSONArray("profiles").getJSONObject(0).put("type", -1)
+            }.toString().toByteArray()
+            for (bytes in listOf("{broken}".toByteArray(), valid.copyOf(valid.size - 1), unsupported, unsupportedType, valid + "{}".toByteArray())) {
+                try {
+                    BackupRestore.apply(BackupRestore.parse(BackupFiles.read(bytes.inputStream(), "fixture.json")), true, true, true)
+                    fail("invalid backup committed")
+                } catch (_: Exception) {}
+                assertArrayEquals(before, PortableBackup.encode(snapshot()))
+            }
+            val profile = sample().profiles!!.single()
+            val payload = io.nekohasekai.sagernet.fmt.KryoConverters.serialize(profile)
+            fun changedInt(offset: Int, value: Int) = payload.copyOf().apply {
+                com.esotericsoftware.kryo.io.ByteBufferOutput(4).apply { writeInt(value) }.toBytes().copyInto(this, offset)
+            }
+            for (damagedPayload in listOf(payload.copyOf(payload.size - 1), payload + byteArrayOf(0), changedInt(0, 2), changedInt(20, -1))) {
+                val payloadParcel = Parcel.obtain()
+                val damaged = try {
+                    payloadParcel.writeByteArray(damagedPayload)
+                    android.util.Base64.encodeToString(payloadParcel.marshall(), android.util.Base64.NO_WRAP)
+                } finally { payloadParcel.recycle() }
+                val legacy = JSONObject().put("version", 1).put("profiles", JSONArray().put(damaged))
+                    .put("groups", JSONArray().put(parcel(sample().groups!!.single())))
+                try {
+                    BackupRestore.apply(BackupRestore.parse(legacy), true, true, true)
+                    fail("invalid profile committed")
+                } catch (_: Exception) {}
+                assertArrayEquals(before, PortableBackup.encode(snapshot()))
+            }
+
+            val emptyParcel = Parcel.obtain()
+            try {
+                emptyParcel.writeByteArray(null)
+                emptyParcel.setDataPosition(0)
+                try {
+                    ProxyEntity.CREATOR.createFromParcel(emptyParcel)
+                    fail("missing parcel payload accepted")
+                } catch (_: android.os.BadParcelableException) {}
+            } finally { emptyParcel.recycle() }
+        } finally { BackupRestore.apply(original, true, true, true) }
+    }
 }

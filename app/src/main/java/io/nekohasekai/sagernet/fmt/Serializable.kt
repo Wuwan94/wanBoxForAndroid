@@ -22,7 +22,9 @@ abstract class Serializable : Parcelable {
 
         override fun createFromParcel(source: Parcel): T {
             val instance = newInstance()
-            return KryoConverters.deserialize(instance, source.createByteArray())
+            val payload = source.createByteArray()
+                ?: throw BadParcelableException("Missing ${instance.javaClass.simpleName} parcel payload")
+            return KryoConverters.deserialize(instance, payload)
                 ?: throw BadParcelableException("Unable to deserialize ${instance.javaClass.simpleName} from parcel")
         }
     }

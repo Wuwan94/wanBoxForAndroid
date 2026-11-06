@@ -121,7 +121,10 @@ class WorkflowRetentionTests(unittest.TestCase):
             self.assertIn('cancel-in-progress: false', text)
             self.assertLess(text.index('uses: softprops/action-gh-release@v2'), text.index('run: python3 tools/prune_prereleases.py'))
         preview = (workflows / 'preview.yml').read_text()
-        self.assertIn('name: wanBox ${{ env.PREVIEW_TAG }} — 第一批修复预览', preview)
+        self.assertIn('name: wanBox ${{ env.PREVIEW_TAG }} — 稳定性预览', preview)
+        self.assertIn("if: github.event_name != 'workflow_dispatch' || inputs.publish_release", preview)
+        self.assertIn('default: false', preview)
+        self.assertLess(preview.index('name: Validate unpublished candidate assets'), preview.index('\n  publish:'))
         formal = (workflows / 'release.yml').read_text()
         after = formal.split('- name: Verify published preview and retain only newest prerelease')[1]
         self.assertIn('if: contains(', after)

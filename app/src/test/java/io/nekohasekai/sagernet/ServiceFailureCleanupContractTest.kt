@@ -8,6 +8,18 @@ import java.io.File
 class ServiceFailureCleanupContractTest {
 
     @Test
+    fun startupKeepsDatabasePreparationOffMainAndLogsItsFailureStage() {
+        val source = source("main/java/io/nekohasekai/sagernet/bg/BaseService.kt")
+            .substringAfter("fun onStartCommand(intent: Intent?, flags: Int, startId: Int)")
+        assertTrue(source.contains("withContext(Dispatchers.IO) { ProxyInstance(profile, this@Interface) }"))
+        assertTrue(source.contains("withContext(Dispatchers.IO) { proxy.init() }"))
+        assertTrue(source.contains("createNotification(proxy.displayProfileName)"))
+        assertFalse(source.contains("ServiceNotification.genTitle(profile)"))
+        assertTrue(source.contains("ServiceStartTrace stage=\$startupStage type="))
+        assertTrue(source.contains("logStartupFailure(exc)"))
+    }
+
+    @Test
     fun serviceStopPreservesOriginalFailureAndContainsCleanupErrors() {
         val source = source("main/java/io/nekohasekai/sagernet/bg/BaseService.kt")
         val stopRunner = source
