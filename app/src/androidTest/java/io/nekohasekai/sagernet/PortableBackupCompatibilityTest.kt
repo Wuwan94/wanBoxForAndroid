@@ -140,15 +140,24 @@ class PortableBackupCompatibilityTest {
                 assertArrayEquals(before, PortableBackup.encode(snapshot()))
             }
 
-            val emptyParcel = Parcel.obtain()
+            // @author 雾晚: 缺失 payload 的记录按真实导入路径拒绝，数据库保持不变。
+            // 不要跨 APK 直接调 ProxyEntity.CREATOR.createFromParcel：release 变体下 R8 改写
+            // CREATOR 匿名类的方法签名，独立 instrumentation APK 的调用会抛
+            // NoSuchMethodError（run 42220586400 / job 127901997604）。
+            // 生产 BackupRestore.parse 的 profile 解码走 KryoConverters.deserializeStrict，
+            // 并不经过 CREATOR；后者对 null payload 抛 KryoException("Missing backup record payload")。
+            val missingPayloadParcel = Parcel.obtain()
+            val missingPayload = try {
+                missingPayloadParcel.writeByteArray(null)
+                android.util.Base64.encodeToString(missingPayloadParcel.marshall(), android.util.Base64.NO_WRAP)
+            } finally { missingPayloadParcel.recycle() }
+            val missing = JSONObject().put("version", 1).put("profiles", JSONArray().put(missingPayload))
+                .put("groups", JSONArray().put(parcel(sample().groups!!.single())))
             try {
-                emptyParcel.writeByteArray(null)
-                emptyParcel.setDataPosition(0)
-                try {
-                    ProxyEntity.CREATOR.createFromParcel(emptyParcel)
-                    fail("missing parcel payload accepted")
-                } catch (_: android.os.BadParcelableException) {}
-            } finally { emptyParcel.recycle() }
+                BackupRestore.apply(BackupRestore.parse(missing), true, true, true)
+                fail("profile with missing parcel payload committed")
+            } catch (_: Exception) {}
+            assertArrayEquals(before, PortableBackup.encode(snapshot()))
         } finally { BackupRestore.apply(original, true, true, true) }
     }
 }
