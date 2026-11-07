@@ -1186,4 +1186,8 @@
     <string name="update_storage_failed">更新文件写入失败，请检查剩余存储空间后重试；本次下载文件已清理。</string>
     <string name="update_transfer_failed">更新下载失败，请检查网络后重试；本次下载文件已清理。</string>
     <string name="update_install_unavailable">无法打开系统安装器，请前往发布页手动下载。</string>
+
+    <string name="tools_section_network">网络检查</string>
+    <string name="tools_section_support">故障排查</string>
+    <string name="tools_crash_log_summary">导出已有崩溃记录以便排查；不会自动上传日志。</string>
 </resources>

@@ -14,6 +14,15 @@
         android:paddingHorizontal="16dp"
         android:paddingTop="12dp">
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:accessibilityHeading="true"
+            android:text="@string/tools_section_network"
+            android:textColor="@color/minimal_secondary"
+            android:textSize="13sp" />
+
         <!-- DNS 解析地址 / trace 连通性 / Fake-IP 检查（非完整泄漏测试） -->
         <com.google.android.material.card.MaterialCardView
             style="@style/Widget.WanBox.Minimal.Card"
@@ -65,46 +74,6 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- 导出诊断日志 -->
-        <com.google.android.material.card.MaterialCardView
-            style="@style/Widget.WanBox.Minimal.Card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/export_crash_log"
-                    android:textColor="@color/minimal_text"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:text="@string/crash_log_empty"
-                    android:textColor="@color/minimal_secondary"
-                    android:textSize="13sp" />
-
-                <Button
-                    android:id="@+id/exportCrashLog"
-                    style="@style/Widget.WanBox.Minimal.Action"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="end"
-                    android:layout_marginTop="12dp"
-                    android:text="@string/export_crash_log" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
         <!-- STUN（依赖内嵌核心：瘦管理器中隐藏） -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/stun_card"
@@ -143,6 +112,55 @@
                     android:layout_gravity="end"
                     android:layout_marginTop="12dp"
                     android:text="@string/start" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:accessibilityHeading="true"
+            android:text="@string/tools_section_support"
+            android:textColor="@color/minimal_secondary"
+            android:textSize="13sp" />
+
+        <!-- 导出诊断日志 -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.WanBox.Minimal.Card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/export_crash_log"
+                    android:textColor="@color/minimal_text"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="@string/tools_crash_log_summary"
+                    android:textColor="@color/minimal_secondary"
+                    android:textSize="13sp" />
+
+                <Button
+                    android:id="@+id/exportCrashLog"
+                    style="@style/Widget.WanBox.Minimal.Action"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="end"
+                    android:layout_marginTop="12dp"
+                    android:text="@string/export_crash_log" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

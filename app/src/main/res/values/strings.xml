@@ -1300,4 +1300,8 @@
     <string name="update_storage_failed">Unable to save this update. Check free storage and try again; files from this attempt were removed.</string>
     <string name="update_transfer_failed">Update download failed. Check your network and try again; files from this attempt were removed.</string>
     <string name="update_install_unavailable">Unable to open the system installer. Open the release page to download manually.</string>
+
+    <string name="tools_section_network">Network checks</string>
+    <string name="tools_section_support">Troubleshooting</string>
+    <string name="tools_crash_log_summary">Export available crash records for troubleshooting. No logs are uploaded automatically.</string>
 </resources>
