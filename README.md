@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11"><img src="https://img.shields.io/badge/Stable-3.0.11-green.svg?style=flat-square" alt="Stable 3.0.11"></a>
-  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11-preview.3"><img src="https://img.shields.io/badge/Preview-v3.0.11--preview.3-orange.svg?style=flat-square" alt="wanBox preview v3.0.11-preview.3"></a>
+  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.12-preview.1"><img src="https://img.shields.io/badge/Preview-v3.0.12--preview.1-orange.svg?style=flat-square" alt="wanBox preview v3.0.12-preview.1"></a>
   <a href="https://android-arsenal.com/api?level=31"><img src="https://img.shields.io/badge/Android-12%2B%20(API%2031%2B)-brightgreen.svg?style=flat-square" alt="Minimum Android version"></a>
   <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases"><img src="https://img.shields.io/badge/ABI-arm64--v8a-informational.svg?style=flat-square" alt="Supported ABI"></a>
   <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPL--3.0-orange.svg?style=flat-square" alt="License"></a>
@@ -29,15 +29,15 @@
 ---
 ## 当前版本核对 / Release and source snapshot
 
-当前正式版为 [v3.0.11](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11)，预览版为 [v3.0.11-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11-preview.3)。已发布的正式版与 preview.2 资产对照、版本码及签名证据见 [版本对照](docs/current-version.zh-CN.md)。
+当前正式版为 [v3.0.11](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11)，预览版为 [v3.0.12-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.12-preview.1)。已发布的正式版与 preview.2 资产对照、版本码及签名证据见 [版本对照](docs/current-version.zh-CN.md)。
 
-v3.0.11-preview.3 基于 preview.2，保留当前界面与交互，重点改善后台配置查询、损坏备份导入保护、服务启动诊断及模块状态读取；未增加代理模式或重做全局 UI。详细范围见 [preview.3 验收记录](docs/preview3-validation.zh-CN.md)。
+v3.0.12-preview.1 保留当前界面与交互，内核核对为 `v1.15.0-alpha.13-reF1nd`（当前最新 1.15 预览），新增自动选择启动先测速、统一延迟测试超时、应用内检查更新（下载后按 SHA256SUMS 校验，不静默安装）；工具链保持 Gradle 8.10.2 / AGP 8.8.1 / Kotlin 2.0.21 / SDK 35。详细范围见 [发行说明](docs/release-notes-next.zh-CN.md)。
 
 **安装要求：Android 12+、arm64-v8a、Root（Magisk / KernelSU / APatch）**。瘦管理器不包含核心，必须搭配同一发布页中的 Root 模块，不能混用其他版本；安装前先备份并检查 `SHA256SUMS`。
 
 预览渠道仅保留最新一个版本；清理旧预览前先核验新版本的完整发布资产，正式版始终保留。[v3.0.11 正式版历史说明](RELEASE_NOTES.md)保持原文。
 
-Current releases: stable v3.0.11 and preview v3.0.11-preview.3. Requires Android 12+, ARM64 and Root. The thin manager APK must be paired with the Root module from the same release page.
+Current releases: stable v3.0.11 and preview v3.0.12-preview.1. Requires Android 12+, ARM64 and Root. The thin manager APK must be paired with the Root module from the same release page.
 ---
 
 ## 📥 发行版下载 / Downloads

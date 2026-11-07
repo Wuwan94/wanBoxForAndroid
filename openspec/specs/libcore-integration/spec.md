@@ -8,7 +8,7 @@
 
 ### Requirement: libcore 使用固定且可验证的 NetProxy sing-box 基线
 
-libcore MUST 使用 NetProxy v8.6.1 实际依赖的 `reF1nd/sing-box` tag `v1.15.0-alpha.11-reF1nd`，并验证其 commit 为 `78ea0ce9257bd3bedd4d1185d6cc4723f04096b4`。`nb4a.properties` 的 `SINGBOX_VERSION` MUST 是唯一版本来源；源码获取脚本 MUST 固定到该仓库并校验 remote 与 tag commit。依赖 MUST NOT 混用官方 alpha 标签和 fork API。
+libcore MUST 使用 NetProxy 所用的 `reF1nd/sing-box` tag `v1.15.0-alpha.13-reF1nd`，并验证其 commit 为 `17397d022647b73378705e1f91ff031dddaaec21`。`nb4a.properties` 的 `SINGBOX_VERSION` MUST 是唯一版本来源；源码获取脚本 MUST 固定到该仓库并校验 remote 与 tag commit。依赖 MUST NOT 混用官方 alpha 标签和 fork API。
 
 #### Scenario: 获取内核源码
 

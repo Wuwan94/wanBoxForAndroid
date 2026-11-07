@@ -28,6 +28,9 @@ import (
 	"github.com/sagernet/sing/service/pause"
 )
 
+// @author 雾晚: 启动首轮测速的硬上限；成员多或全部超时也不阻塞核心启动。
+const startupProbeBudget = 5 * time.Second
+
 type URLTestOptions struct {
 	Outbounds                 []string           `json:"outbounds" reference:"outbound"`
 	URL                       string             `json:"url,omitempty"`
@@ -375,9 +378,16 @@ func NewURLTestGroup(ctx context.Context, outboundManager adapter.OutboundManage
 
 func (g *URLTestGroup) PostStart() {
 	g.access.Lock()
-	defer g.access.Unlock()
 	g.started = true
 	g.lastActive.Store(time.Now())
+	g.access.Unlock()
+
+	// @author 雾晚: 启动时先完成一轮强制测速，Select 才有历史可依据，
+	// 避免首个连接落到列表第一个不可用节点（参考 FlClash v0.9.3 的启动选路）。
+	// 即使全部超时也只等 startupProbeBudget，随后由后台周期测速继续补齐。
+	startCtx, cancel := context.WithTimeout(g.ctx, startupProbeBudget)
+	g.CheckOutbounds(startCtx, true)
+	cancel()
 	go g.CheckOutbounds(g.ctx, false)
 }
 

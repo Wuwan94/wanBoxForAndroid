@@ -778,7 +778,12 @@
     <string name="check_update_release">Check for release version updates</string>
     <string name="release_not_available">Throne has not published a stable release yet</string>
     <string name="update_dialog_title">New version available</string>
-    <string name="update_dialog_message">Current version: %1$s\nAvailable version: %2$s\nDo you want to download it?</string>
+    <string name="update_dialog_message">Current version: %1$s\nAvailable version: %2$s\nThe manager APK and the Root module must be downloaded from the same release and kept on the same version.\nDownload and verify?</string>
+    <string name="update_download_verify">Download and verify</string>
+    <string name="update_open_release">Open release page</string>
+    <string name="update_checksum_failed">SHA256 verification failed; downloaded files were removed. Download manually from the release page.</string>
+    <string name="update_module_hint">Root module verified:\n%1$s\nInstall this ZIP in Magisk / KernelSU / APatch.</string>
+    <string name="update_assets_missing">This release is missing the APK, Root module or SHA256SUMS. Open the release page instead.</string>
     <string name="check_update_no">Check successful, but no updates.</string>
     <string name="reset_settings">Restore default settings</string>
     <string name="reset_settings_message">Restore default settings, but data such as nodes and groups will be retained. To completely clear data, clear application data directly in the system settings.</string>
