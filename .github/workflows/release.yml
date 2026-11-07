@@ -34,7 +34,7 @@ permissions:
   contents: read
 
 # @author 雾晚: 正式发布的所有环境常量集中在此，不依赖 ubuntu-latest 的漂移。
-# ubuntu-latest 已切到 26.04 / Java 25，Gradle 8.10.2 无法运行（见 de59193）。
+# ubuntu-latest 已切到 26.04 / Java 25，本仓库固定的 Gradle 8.x 不支持 Java 25（见 de59193）。
 env:
   WANBOX_GO_VERSION: '1.26.10'
   WANBOX_JAVA_VERSION: '17'

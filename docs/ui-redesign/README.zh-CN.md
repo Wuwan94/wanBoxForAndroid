@@ -16,7 +16,7 @@ v3.0.8 的 Root 状态协议没有提供核心内存和连接数，因此这两�
 
 ## 本地构建
 
-需要完整 JDK 17 或以上、Android SDK 35、Build Tools 35.0.1、NDK 25.0.8775105 和 Go 工具链（由仓库 go.mod 指定）。
+需要完整 JDK 17 或以上、Android SDK 36、Build Tools 35.0.1、NDK 25.0.8775105 和 Go 工具链（由仓库 go.mod 指定）。
 
 ```bash
 # 按原仓库流程生成 app/libs/libcore.aar。

@@ -5,9 +5,10 @@ import com.android.build.gradle.internal.api.BaseVariantOutputImpl
 import org.gradle.api.JavaVersion
 import org.gradle.api.GradleException
 import org.gradle.api.Project
-import org.gradle.api.plugins.ExtensionAware
 import org.gradle.kotlin.dsl.getByName
-import org.jetbrains.kotlin.gradle.dsl.KotlinJvmOptions
+import org.gradle.kotlin.dsl.withType
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.util.Base64
 import java.util.Properties
 import kotlin.system.exitProcess
@@ -52,9 +53,12 @@ fun Project.requireLocalProperties(): Properties {
 }
 
 fun Project.setupCommon() {
+    tasks.withType<KotlinCompile>().configureEach {
+        compilerOptions.jvmTarget.set(JvmTarget.JVM_1_8)
+    }
     android.apply {
         buildToolsVersion = "35.0.1"
-        compileSdk = 35
+        compileSdk = 36
         defaultConfig {
             // @author 雾晚: product support remains Android 12+, independently of visual effects.
             minSdk = 31
@@ -68,9 +72,6 @@ fun Project.setupCommon() {
         compileOptions {
             sourceCompatibility = JavaVersion.VERSION_1_8
             targetCompatibility = JavaVersion.VERSION_1_8
-        }
-        (android as ExtensionAware).extensions.getByName<KotlinJvmOptions>("kotlinOptions").apply {
-            jvmTarget = JavaVersion.VERSION_1_8.toString()
         }
         lint {
             showAll = true

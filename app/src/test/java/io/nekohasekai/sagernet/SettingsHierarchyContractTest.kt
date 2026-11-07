@@ -32,7 +32,7 @@ class SettingsHierarchyContractTest {
         }
         // @author 雾晚: input-method routing is an ordinary rule, not a separate preference.
         // @author 雾晚：四组重组，分组 key（category*）是 UI 容器，不参与契约对比；允许新增 key（如 About 项）
-        val oldPrefs = old.keySet() - moduleInapplicable - authorizedUiRemovals - old.keySet().filter { it.startsWith("category") }.toSet()
+        val oldPrefs = old.keys().asSequence().toSet() - moduleInapplicable - authorizedUiRemovals - old.keys().asSequence().toSet().filter { it.startsWith("category") }.toSet()
         val actualPrefs = actual.keys - actual.keys.filter { it.startsWith("category") }.toSet()
         assertTrue("Missing keys: ${oldPrefs - actualPrefs}", actualPrefs.containsAll(oldPrefs))
         assertFalse(actual.containsKey("rootModuleUpdateData"))

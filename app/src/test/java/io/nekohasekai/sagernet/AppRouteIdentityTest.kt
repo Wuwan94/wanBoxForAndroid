@@ -4,6 +4,7 @@ package io.nekohasekai.sagernet
 import io.nekohasekai.sagernet.route.AppRouteIdentity
 import io.nekohasekai.sagernet.utils.AppUidPackages
 import moe.matsuri.nb4a.SingBoxOptions
+import com.google.gson.JsonParser
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
@@ -18,7 +19,7 @@ class AppRouteIdentityTest {
         assertEquals("logical", json.getString("type")); assertEquals("or", json.getString("mode"))
         assertEquals("fixture-node", json.getString("outbound"))
         val fixture = javaClass.getResource("/app-route-identity.json")!!.readText()
-        assertTrue(json.similar(JSONObject(fixture)))
+        assertEquals(JsonParser.parseString(fixture), JsonParser.parseString(json.toString()))
         val branches = json.getJSONArray("rules")
         assertTrue(branches.getJSONObject(0).has("package_name")); assertFalse(branches.getJSONObject(0).has("user_id"))
         assertTrue(branches.getJSONObject(1).has("user_id")); assertFalse(branches.getJSONObject(1).has("package_name"))

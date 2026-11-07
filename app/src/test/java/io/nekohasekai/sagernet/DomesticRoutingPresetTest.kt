@@ -5,6 +5,7 @@ import io.nekohasekai.sagernet.database.RuleEntity
 import io.nekohasekai.sagernet.route.DomesticRoutingPreset
 import moe.matsuri.nb4a.SingBoxOptions
 import moe.matsuri.nb4a.makeSingBoxRule
+import com.google.gson.JsonParser
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -36,8 +37,10 @@ class DomesticRoutingPresetTest {
             makeSingBoxRule(listOf("192.0.2.0/24", "2001:db8:1::/48"), true); outbound = "bypass"
         }
         val fixture = JSONArray(File("src/test/resources/domestic-rule-match.json").readText())
-        assertTrue(fixture.getJSONObject(0).similar(JSONObject(suffix.asMap())))
-        assertTrue(fixture.getJSONObject(1).similar(JSONObject(cidr.asMap())))
+        assertEquals(JsonParser.parseString(fixture.getJSONObject(0).toString()),
+            JsonParser.parseString(JSONObject(suffix.asMap()).toString()))
+        assertEquals(JsonParser.parseString(fixture.getJSONObject(1).toString()),
+            JsonParser.parseString(JSONObject(cidr.asMap()).toString()))
     }
 
 }
