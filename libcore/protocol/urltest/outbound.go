@@ -553,6 +553,19 @@ func (g *URLTestGroup) URLTest(ctx context.Context) (map[string]uint16, error) {
 }
 
 func (g *URLTestGroup) urlTest(ctx context.Context, force bool) (map[string]uint16, error) {
+	// Every probe entry point belongs to the group lifecycle, including explicit
+	// checks whose caller supplied an independent context. Closed groups cannot
+	// restart probes, and closing a group also cancels an in-flight manual check.
+	if err := g.ctx.Err(); err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	stop := context.AfterFunc(g.ctx, cancel)
+	defer stop()
+	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	g.checkAccess.Lock()
 	if done := g.checkDone; done != nil {
 		g.checkAccess.Unlock()
@@ -577,6 +590,9 @@ func (g *URLTestGroup) urlTest(ctx context.Context, force bool) (map[string]uint
 		g.checkAccess.Unlock()
 	}()
 	result := URLTestOutbounds(ctx, g.outbound, g.history, g.logger, g.outbounds, g.link, g.interval, force)
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
 	g.performUpdateCheck()
 	return result, nil
 }
@@ -651,6 +667,9 @@ func (b *urlTestBatch) test(outbounds []adapter.Outbound, link string, interval 
 			}
 			b.checked[tag] = true
 			b.batch.Go(tag, func() (any, error) {
+				if b.ctx.Err() != nil {
+					return nil, nil
+				}
 				testCtx, cancel := context.WithTimeout(b.ctx, 3*time.Second)
 				defer cancel()
 				testChan := make(chan urlTestResult, 1)
@@ -663,6 +682,13 @@ func (b *urlTestBatch) test(outbounds []adapter.Outbound, link string, interval 
 				case testResult = <-testChan:
 				case <-testCtx.Done():
 					testResult.err = testCtx.Err()
+				}
+				// Cancellation of the batch (startup budget, caller cancellation or
+				// group shutdown) is not evidence of member failure. Preserve both
+				// fresh and expired history instead of penalizing/deleting it.
+				// A member's own timeout still uses the normal failure policy.
+				if b.ctx.Err() != nil {
+					return nil, nil
 				}
 				if testResult.err != nil {
 					b.logger.Debug("outbound ", tag, " unavailable: ", testResult.err)

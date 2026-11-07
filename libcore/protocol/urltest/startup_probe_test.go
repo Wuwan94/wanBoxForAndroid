@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -41,16 +42,21 @@ func startupGroup(t *testing.T, link string) (*URLTestGroup, *startupOutbound) {
 	t.Helper()
 	dead := &startupOutbound{Adapter: outbound.NewAdapter("loopback", "dead", []string{"tcp", "udp"}, nil), dead: true}
 	live := &startupOutbound{Adapter: outbound.NewAdapter("loopback", "live", []string{"tcp", "udp"}, nil)}
-	ctx := service.ContextWithDefaultRegistry(context.Background())
+	return startupGroupWithMembers(t, context.Background(), link, dead, live), live
+}
+
+func startupGroupWithMembers(t *testing.T, parent context.Context, link string, members ...adapter.Outbound) *URLTestGroup {
+	t.Helper()
+	ctx := service.ContextWithDefaultRegistry(parent)
 	ctx = service.ContextWithPtr(ctx, history.NewHistoryStorage())
 	ctx = pause.WithDefaultManager(ctx)
 	group, err := NewURLTestGroup(ctx, nil, log.NewNOPFactory().Logger(),
-		[]adapter.Outbound{dead, live}, link, time.Minute, 50, time.Minute, false)
+		members, link, time.Minute, 50, time.Minute, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = group.Close() })
-	return group, live
+	return group
 }
 
 // Core startup returns while probes are blocked, but the first user connection
@@ -200,5 +206,229 @@ func TestStartupSelectionCanBeObservedConcurrently(t *testing.T) {
 	readers.Wait()
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// More members than the six-slot batch force a second wave: the per-member
+// three-second timeout alone must not extend startup past its five-second budget.
+func TestStartupBudgetExhaustionKeepsFallback(t *testing.T) {
+	if startupProbeBudget != 5*time.Second {
+		t.Fatalf("startup budget=%v, want five seconds", startupProbeBudget)
+	}
+	entered, stopped := make(chan struct{}, 7), make(chan struct{}, 7)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		entered <- struct{}{}
+		<-r.Context().Done()
+		stopped <- struct{}{}
+	}))
+	defer server.Close()
+	members := make([]adapter.Outbound, 7)
+	for i := range members {
+		members[i] = &startupOutbound{Adapter: outbound.NewAdapter("loopback", string(rune('a'+i)), []string{"tcp", "udp"}, nil)}
+	}
+	group := startupGroupWithMembers(t, context.Background(), server.URL, members...)
+	started := time.Now()
+	group.PostStart()
+	select {
+	case <-group.startupDone:
+	case <-time.After(startupProbeBudget + time.Second):
+		t.Fatal("startup exceeded its total budget")
+	}
+	elapsed := time.Since(started)
+	if elapsed < startupProbeBudget-500*time.Millisecond {
+		t.Fatalf("probe finished before the budget was exhausted: %v", elapsed)
+	}
+	for range members {
+		awaitStartupEvent(t, entered, "member probe start")
+		awaitStartupEvent(t, stopped, "member probe cancellation")
+	}
+	if err := group.waitForStartupProbe(context.Background()); err != nil {
+		t.Fatalf("budget expiry disabled the group: %v", err)
+	}
+	assertStartupFallback(t, group, members[0])
+	// The waiting application connection can still use that fallback, even
+	// though no health result was produced before the total deadline.
+	s := &URLTest{group: group, logger: log.NewNOPFactory().Logger()}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	conn, err := s.DialContext(ctx, "tcp", M.ParseSocksaddr(server.Listener.Addr().String()))
+	if err != nil {
+		t.Fatalf("fallback dial after budget expiry: %v", err)
+	}
+	_ = conn.Close()
+}
+
+func TestStartupAllMembersUnavailableKeepsFallback(t *testing.T) {
+	group, live := startupGroup(t, "http://127.0.0.1:1")
+	live.dead = true
+	group.PostStart()
+	if err := group.waitForStartupProbe(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	assertStartupFallback(t, group, group.outbounds[0])
+	// A missing health result must not turn into "missing supported outbound":
+	// the existing TCP fallback still attempts both configured members.
+	s := &URLTest{group: group, logger: log.NewNOPFactory().Logger()}
+	_, err := s.DialContext(context.Background(), "tcp", M.ParseSocksaddr("127.0.0.1:1"))
+	if err == nil || !strings.Contains(err.Error(), "fixture unreachable") {
+		t.Fatalf("want member dial error, got %v", err)
+	}
+	for _, member := range group.outbounds {
+		if calls := member.(*startupOutbound).calls.Load(); calls != 2 {
+			t.Fatalf("%s calls=%d, want probe plus fallback dial", member.Tag(), calls)
+		}
+	}
+}
+
+func TestStartupCancellationPreservesHistory(t *testing.T) {
+	for _, closeGroup := range []bool{false, true} {
+		name := "parent cancellation"
+		if closeGroup {
+			name = "group closure"
+		}
+		t.Run(name, func(t *testing.T) {
+			entered, stopped := make(chan struct{}, 2), make(chan struct{}, 2)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				entered <- struct{}{}
+				<-r.Context().Done()
+				stopped <- struct{}{}
+			}))
+			defer server.Close()
+			parent, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			members := []adapter.Outbound{
+				&startupOutbound{Adapter: outbound.NewAdapter("loopback", "recent", []string{"tcp", "udp"}, nil)},
+				&startupOutbound{Adapter: outbound.NewAdapter("loopback", "expired", []string{"tcp", "udp"}, nil)},
+			}
+			group := startupGroupWithMembers(t, parent, server.URL, members...)
+			before := map[string]adapter.URLTestHistory{
+				"recent":  {Time: time.Now(), Delay: 42},
+				"expired": {Time: time.Now().Add(-time.Hour), Delay: 123},
+			}
+			for tag, value := range before {
+				group.history.StoreURLTestHistory(tag, &value)
+			}
+			group.PostStart()
+			for range members {
+				awaitStartupEvent(t, entered, "probe start")
+			}
+			if closeGroup {
+				_ = group.Close()
+			} else {
+				cancel()
+			}
+			awaitStartupEvent(t, group.startupDone, "startup completion")
+			for range members {
+				awaitStartupEvent(t, stopped, "probe cancellation")
+			}
+			for tag, value := range before {
+				got := group.history.LoadURLTestHistory(tag)
+				if got == nil || *got != value {
+					t.Errorf("cancellation changed %s history: got %+v, want %+v", tag, got, value)
+				}
+			}
+		})
+	}
+}
+
+func TestClosedGroupDoesNotRestartProbes(t *testing.T) {
+	entered, stopped := make(chan struct{}, 1), make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		entered <- struct{}{}
+		<-r.Context().Done()
+		stopped <- struct{}{}
+	}))
+	defer server.Close()
+	member := &startupOutbound{Adapter: outbound.NewAdapter("loopback", "member", []string{"tcp", "udp"}, nil)}
+	group := startupGroupWithMembers(t, context.Background(), server.URL, member)
+	group.PostStart()
+	awaitStartupEvent(t, entered, "probe start")
+	_ = group.Close()
+	awaitStartupEvent(t, group.startupDone, "startup completion")
+	awaitStartupEvent(t, stopped, "probe cancellation")
+	group.PostStart()
+	group.Touch()
+	group.CheckOutbounds(context.Background(), true)
+	if calls := member.calls.Load(); calls != 1 {
+		t.Fatalf("closed group restarted probes: calls=%d", calls)
+	}
+	if group.ticker != nil {
+		t.Fatal("closed group recreated ticker")
+	}
+}
+
+func awaitStartupEvent(t *testing.T, event <-chan struct{}, label string) {
+	t.Helper()
+	select {
+	case <-event:
+	case <-time.After(time.Second):
+		t.Fatalf("timed out waiting for %s", label)
+	}
+}
+
+func assertStartupFallback(t *testing.T, group *URLTestGroup, want adapter.Outbound) {
+	t.Helper()
+	for _, network := range []string{"tcp", "udp"} {
+		got, healthy := group.Select(network)
+		if got != want || healthy {
+			t.Fatalf("%s selection=%v healthy=%v, want fallback %s", network, got, healthy, want.Tag())
+		}
+	}
+}
+
+// A member-specific timeout is still a real failed observation; only the
+// enclosing batch's cancellation must be ignored when publishing history.
+func TestMemberTimeoutStillPenalizesRecentHistory(t *testing.T) {
+	stopped := make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+		stopped <- struct{}{}
+	}))
+	defer server.Close()
+	member := &startupOutbound{Adapter: outbound.NewAdapter("loopback", "member", []string{"tcp", "udp"}, nil)}
+	group := startupGroupWithMembers(t, context.Background(), server.URL, member)
+	before := adapter.URLTestHistory{Time: time.Now(), Delay: 42}
+	group.history.StoreURLTestHistory(member.Tag(), &before)
+	group.PostStart()
+	select {
+	case <-group.startupDone:
+	case <-time.After(startupProbeBudget + time.Second):
+		t.Fatal("member timeout did not complete startup")
+	}
+	awaitStartupEvent(t, stopped, "member timeout")
+	got := group.history.LoadURLTestHistory(member.Tag())
+	if got == nil || got.Delay != before.Delay+300 || !got.Time.After(before.Time) {
+		t.Fatalf("member timeout did not retain existing failure policy: %+v", got)
+	}
+}
+
+func TestCloseCancelsIndependentManualProbe(t *testing.T) {
+	entered, stopped := make(chan struct{}, 1), make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		entered <- struct{}{}
+		<-r.Context().Done()
+		stopped <- struct{}{}
+	}))
+	defer server.Close()
+	member := &startupOutbound{Adapter: outbound.NewAdapter("loopback", "member", []string{"tcp", "udp"}, nil)}
+	group := startupGroupWithMembers(t, context.Background(), server.URL, member)
+	before := adapter.URLTestHistory{Time: time.Now(), Delay: 42}
+	group.history.StoreURLTestHistory(member.Tag(), &before)
+	result := make(chan error, 1)
+	go func() { _, err := group.URLTest(context.Background()); result <- err }()
+	awaitStartupEvent(t, entered, "manual probe start")
+	_ = group.Close()
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("manual probe returned %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("group close left independent manual probe running")
+	}
+	awaitStartupEvent(t, stopped, "manual probe cancellation")
+	got := group.history.LoadURLTestHistory(member.Tag())
+	if got == nil || *got != before {
+		t.Fatalf("manual probe cancellation changed history: %+v", got)
 	}
 }
