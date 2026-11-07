@@ -4,6 +4,17 @@
 
 ## wanBox 3.0.x 发布记录
 
+### v3.0.12-preview.1（预览版）
+
+- 内核核对：`SINGBOX_VERSION` 使用 `v1.15.0-alpha.13-reF1nd`（commit `17397d022647b73378705e1f91ff031dddaaec21`），为当前最新 1.15 预览；`libcore/go.mod` 的 sing / sing-tun / sing-quic / sing-vmess / quic-go 与该 tag 逐项一致，Go 1.25.5 未变。未引入稳定版内核或 1.14.x 回退。
+- 自动选择启动先测速：URLTest 组启动时先完成一轮受限测速（上限 5s），首次选路依据真实延迟跳过不可用成员，不再先连列表第一个节点。
+- 延迟测试超时统一：移除节点测速硬编码 5000ms，单节点与批量延迟测试共用高级设置里的 `speedTestTimeoutMs`（默认 8000，钳制 1–60s）。
+- 应用内检查更新：只读本仓库 GitHub Releases，仅接受同一 Release 内的管理器 APK、Root 模块与 `SHA256SUMS`；提示两者必须同页同版更新，下载后逐文件校验 SHA256，校验通过才打开系统安装器，模块 ZIP 交由用户在 Root 管理器中安装，不静默安装。
+- 出口 IP 探测沿用既有 `showLandingIp` 能力与首页卡片，默认开启，可在设置关闭。
+- 工具链：Gradle 8.10.2 / AGP 8.8.1 / Kotlin 2.0.21 / compileSdk 与 targetSdk 35 保持不变。Gradle 9 + AGP 9 + Kotlin 2.2 + SDK 36 的升级因旧 `applicationVariants` 与内置 Kotlin 迁移未完成而整体回退，未混入本版。
+- 版本元数据：`PRE_VERSION_NAME=3.0.12-preview.1`、`PRE_VERSION_CODE=2017`；预览 APK `10086`、Root 模块 `2017`，均高于 preview.3 的 `10083/2016`。
+- 本版未经真机验证，不承诺覆盖升级后的数据保留、TUN 重启或模块状态读取；升级前请导出备份。
+
 ### v3.0.11-preview.3（稳定性预览）
 
 - 基线包含 preview.2 tag `2fbe17f662`；保留当前主分支已有 UI，不重做全局布局。
