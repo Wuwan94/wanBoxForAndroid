@@ -18,7 +18,9 @@
 
 ## 自动化验证与边界
 
-- 已完成阶段检查：URLTest Go回归/race/重复测试、更新器15项JVM与25项候选资产测试、5项列表DiffUtil测试；这些不代表最终候选完整验收。
-- 最终本地构建、单元测试、签名、debug/release迁移、双向备份互导及候选四件套：待验证，未完成前不发布。详见本轮最终验收记录，不借用旧版CI结果。
-- 未做真机回归。baseline-prof.txt与冷启动对比尚缺实际运行采集环境，未手写profile或虚构提速；这项P1仍未完成。
-- Root真机矩阵未签核，不能宣称正式版可用，也不发布v3.0.12正式版。模拟器、JVM故障注入和静态源码检查不等同于Magisk/KernelSU/APatch实测。
+- 本地构建与验证：arm64 原生核心构建成功；PreviewDebug Kotlin/AndroidTest 编译与 APK 构建通过，338 项 JVM 测试、67 项 Python 测试通过；Android 安全检查、版本码检查、APK ABI 校验及 `git diff --check` 通过。
+- 本地没有发行签名密钥，故未声称本机签名 Release 构建通过。CI run `42398036152` 使用仓库正式签名完成 Release 变体构建与签名验证，并通过数据库迁移验证及原生全 ABI 检查。
+- 同一 CI run 在 API 35 x86_64 模拟器真实采集 `baseline-prof.txt` 并运行冷启动基准；旧版→新版及新版→旧版的 `BackupCrossVersionTest` 均通过。该模拟器不具备 Root 设备环境。
+- 未做 Magisk、KernelSU、APatch 真机矩阵或实体设备回归；模拟器与自动化结果不等同于这些 Root 环境的实测。本次为预览版，不替换 v3.0.11 正式版。
+
+---
