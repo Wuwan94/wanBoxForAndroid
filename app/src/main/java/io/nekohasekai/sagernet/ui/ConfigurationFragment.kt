@@ -48,7 +48,6 @@ import kotlinx.coroutines.delay
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceDataStore
-import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -405,7 +404,17 @@ class ConfigurationFragment @JvmOverloads constructor(
 
     // preview.18 UI 改造：显示设置变更后刷新
     fun onDisplaySettingsChanged() {
-        switchAllGroupFragmentsLayout()
+        refreshListPrefs(forceLayout = true)
+    }
+
+    private fun refreshListPrefs(forceLayout: Boolean = false) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val oldLayout = ProfileListPrefs.gridLayout to ProfileListPrefs.columnCount
+            withContext(Dispatchers.IO) { ProfileListPrefs.refresh() }
+            if (forceLayout || oldLayout != (ProfileListPrefs.gridLayout to ProfileListPrefs.columnCount)) {
+                pagerAdapter?.groupFragments?.values?.filter { it.view != null }?.forEach { it.switchLayoutMode() }
+            }
+        }
     }
 
     fun refreshAllGroupFragmentsCardStyle() {
@@ -458,23 +467,7 @@ class ConfigurationFragment @JvmOverloads constructor(
             }
             val groupFragment = getCurrentGroupFragment() ?: return@launch
             val adapter = groupFragment.adapter ?: return@launch
-            val trimmed = query.trim()
-            if (trimmed.isEmpty()) {
-                adapter.filter("")
-            } else {
-                val lower = trimmed.lowercase()
-                val matched = withContext(Dispatchers.Default) {
-                    val all = adapter.allConfigurationIdList
-                    val map = adapter.configurationList
-                    all.filter { id ->
-                        val entity = map[id] ?: return@filter false
-                        (entity.displayName()?.lowercase()?.contains(lower) == true) ||
-                                (entity.displayType()?.lowercase()?.contains(lower) == true) ||
-                                (entity.displayAddress()?.lowercase()?.contains(lower) == true)
-                    }
-                }
-                adapter.applyFilterResult(matched)
-            }
+            adapter.filter(query)
             updateToolbarMenuTitles()
         }
         return true
@@ -483,30 +476,8 @@ class ConfigurationFragment @JvmOverloads constructor(
     override fun onQueryTextSubmit(query: String): Boolean {
         currentSearchQuery = query
         searchJob?.cancel()
-        val groupFragment = getCurrentGroupFragment()
-        val adapter = groupFragment?.adapter
-        if (adapter != null) {
-            val trimmed = query.trim()
-            if (trimmed.isEmpty()) {
-                adapter.filter("")
-            } else {
-                val lower = trimmed.lowercase()
-                viewLifecycleOwner.lifecycleScope.launch {
-                    val matched = withContext(Dispatchers.Default) {
-                        val all = adapter.allConfigurationIdList
-                        val map = adapter.configurationList
-                        all.filter { id ->
-                            val entity = map[id] ?: return@filter false
-                            (entity.displayName()?.lowercase()?.contains(lower) == true) ||
-                                    (entity.displayType()?.lowercase()?.contains(lower) == true) ||
-                                    (entity.displayAddress()?.lowercase()?.contains(lower) == true)
-                        }
-                    }
-                    adapter.applyFilterResult(matched)
-                    updateToolbarMenuTitles()
-                }
-            }
-        }
+        getCurrentGroupFragment()?.adapter?.filter(query)
+        updateToolbarMenuTitles()
         return true
     }
 
@@ -1059,8 +1030,8 @@ class ConfigurationFragment @JvmOverloads constructor(
     }
 
     override fun onResume() {
-        ProfileListPrefs.refresh()
         super.onResume()
+        refreshListPrefs()
         if (speedTestHidden && speedTestJob != null) {
             speedTestHidden = false
             speedTestDialog?.show()
@@ -2593,7 +2564,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                     recyclerView: RecyclerView,
                     viewHolder: RecyclerView.ViewHolder
                 ): Int {
-                    val dragFlags = if (DataStore.groupLayoutMode == 1) {
+                    val dragFlags = if (ProfileListPrefs.gridLayout) {
                         ItemTouchHelper.UP or ItemTouchHelper.DOWN or ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT
                     } else {
                         ItemTouchHelper.UP or ItemTouchHelper.DOWN
@@ -2613,7 +2584,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                     viewHolder: RecyclerView.ViewHolder,
                 ): Int {
                     return if (isEnabled) {
-                        if (DataStore.groupLayoutMode == 1) {
+                        if (ProfileListPrefs.gridLayout) {
                             ItemTouchHelper.UP or ItemTouchHelper.DOWN or ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT
                         } else {
                             ItemTouchHelper.UP or ItemTouchHelper.DOWN
@@ -2787,10 +2758,9 @@ class ConfigurationFragment @JvmOverloads constructor(
         }
 
         private fun setupLayoutManager() {
-            ProfileListPrefs.refresh()
-            layoutManager = if (DataStore.groupLayoutMode == 1) {
+            layoutManager = if (ProfileListPrefs.gridLayout) {
                 // @author 雾晚: Honor manual double-column selection at every width/font size.
-                FixedGridLayoutManager(configurationListView, DataStore.nodeColumnCount.coerceIn(2, 3)).apply {
+                FixedGridLayoutManager(configurationListView, ProfileListPrefs.columnCount).apply {
                     spanSizeLookup = object : androidx.recyclerview.widget.GridLayoutManager.SpanSizeLookup() {
                         override fun getSpanSize(position: Int) = nodeSections.span(position, spanCount)
                     }
@@ -3105,6 +3075,14 @@ class ConfigurationFragment @JvmOverloads constructor(
 
             init {
                 setHasStableIds(true)
+                registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
+                    override fun onChanged() { listRevision++ }
+                    override fun onItemRangeChanged(positionStart: Int, itemCount: Int) { listRevision++ }
+                    override fun onItemRangeChanged(positionStart: Int, itemCount: Int, payload: Any?) { listRevision++ }
+                    override fun onItemRangeInserted(positionStart: Int, itemCount: Int) { listRevision++ }
+                    override fun onItemRangeRemoved(positionStart: Int, itemCount: Int) { listRevision++ }
+                    override fun onItemRangeMoved(fromPosition: Int, toPosition: Int, itemCount: Int) { listRevision++ }
+                })
             }
 
             var configurationIdList: MutableList<Long> = mutableListOf()
@@ -3113,16 +3091,8 @@ class ConfigurationFragment @JvmOverloads constructor(
             private val pendingTrafficUpdates = HashSet<Long>()
             private val profileStatePayload = Any()
 
-            private fun getItem(profileId: Long): ProxyEntity {
-                var profile = configurationList[profileId]
-                if (profile == null) {
-                    profile = ProfileManager.getProfile(profileId)
-                    if (profile != null) {
-                        configurationList[profileId] = profile
-                    }
-                }
-                return profile!!
-            }
+            private fun getItem(profileId: Long): ProxyEntity =
+                configurationList[profileId]!! // A deleted group is handled by the existing bind guard; never query SQLite here.
 
             private fun getItemAt(index: Int) = getItem(configurationIdList[index])
 
@@ -3312,67 +3282,62 @@ class ConfigurationFragment @JvmOverloads constructor(
                             .getOrDefault(false)
             }
 
-            /**
-             * @author 雾晚：列表整体替换改走 DiffUtil——搜索过滤、排序、刷新时条目平滑增删/移动，
-             * 不再整表闪烁；超大列表仍整表刷新，避免主线程计算差异过久。
-             */
-            private fun dispatchIdChange(
-                oldIds: List<Long>,
-                newIds: List<Long>,
-                oldEntities: Map<Long, ProxyEntity>?,
+            // All publications stay on Main. Diff calculation sees immutable IDs/content flags only.
+            // Any intervening adapter notification invalidates the snapshot; the newest request retries.
+            private var diffGeneration = 0
+            private var listRevision = 0
+
+            private fun submitIdChange(
+                requestedIds: List<Long>,
+                newEntities: Map<Long, ProxyEntity>? = null,
+                isCurrent: () -> Boolean = { true },
+                afterApply: () -> Unit = {},
             ) {
-                val diffLimit = 1000
-                if (oldIds.isEmpty() || newIds.isEmpty() || oldIds.size > diffLimit || newIds.size > diffLimit) {
-                    notifyDataSetChanged()
-                    return
-                }
-                val diff = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
-                    override fun getOldListSize() = oldIds.size
-                    override fun getNewListSize() = newIds.size
-                    override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int) =
-                        oldIds[oldItemPosition] == newIds[newItemPosition]
-
-                    override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
-                        if (oldEntities == null) return true
-                        val id = newIds[newItemPosition]
-                        return sameDisplay(oldEntities[id], configurationList[id])
+                val generation = ++diffGeneration
+                val newIds = requestedIds.toList()
+                viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main.immediate) {
+                    while (generation == diffGeneration && adapter === this@ConfigurationAdapter && listView != null) {
+                        val revision = listRevision
+                        val oldIds = configurationIdList.toList()
+                        val changedIds = if (newEntities == null) emptySet() else newIds.filterTo(HashSet()) {
+                            !sameDisplay(configurationList[it], newEntities[it])
+                        }
+                        val diff = withContext(Dispatchers.Default) {
+                            NodeListDiff.calculate(oldIds, newIds, changedIds)
+                        }
+                        if (generation != diffGeneration || !isCurrent() || adapter !== this@ConfigurationAdapter || listView == null) return@launch
+                        if (revision != listRevision) {
+                            // A structural/content event may make either a DB or filter result stale.
+                            // Reload current data rather than replaying a filter captured before that event.
+                            reloadProfiles()
+                            return@launch
+                        }
+                        if (newEntities != null) {
+                            configurationList.clear()
+                            configurationList.putAll(newEntities)
+                            allConfigurationIdList.clear()
+                            allConfigurationIdList.addAll(newEntities.keys)
+                        }
+                        configurationIdList.clear()
+                        configurationIdList.addAll(newIds)
+                        batchUpdating = true
+                        try {
+                            diff.dispatchUpdatesTo(this@ConfigurationAdapter)
+                        } finally {
+                            batchUpdating = false
+                        }
+                        rebuildNodeSections()
+                        afterApply()
+                        return@launch
                     }
-                }, true)
-                batchUpdating = true
-                try {
-                    diff.dispatchUpdatesTo(this)
-                } finally {
-                    batchUpdating = false
                 }
-                rebuildNodeSections()
             }
 
-            fun applyFilterResult(matched: List<Long>) {
-                val oldIds = configurationIdList.toList()
-                configurationIdList.clear()
-                configurationIdList.addAll(matched)
-                dispatchIdChange(oldIds, matched, null)
-            }
-
-            fun filter(name: String) {
-                val query = name.trim()
-                val oldIds = configurationIdList.toList()
-                if (query.isEmpty()) {
-                    configurationIdList.clear()
-                    configurationIdList.addAll(allConfigurationIdList)
-                    dispatchIdChange(oldIds, configurationIdList.toList(), null)
-                    return
-                }
-                configurationIdList.clear()
-                val lower = query.lowercase()
-                val matched = allConfigurationIdList.filter { id ->
-                    val entity = configurationList[id] ?: return@filter false
-                    (entity.displayName()?.lowercase()?.contains(lower) == true) ||
-                            (entity.displayType()?.lowercase()?.contains(lower) == true) ||
-                            (entity.displayAddress()?.lowercase()?.contains(lower) == true)
-                }
-                configurationIdList.addAll(matched)
-                dispatchIdChange(oldIds, matched, null)
+            fun filter(@Suppress("UNUSED_PARAMETER") name: String) {
+                // Search and DB updates share a publication generation. Filtering a cached map
+                // could cancel a fresh DB result and resurrect deleted rows; reload both together.
+                ++diffGeneration
+                reloadProfiles()
             }
 
             fun move(from: Int, to: Int) {
@@ -3466,7 +3431,7 @@ class ConfigurationFragment @JvmOverloads constructor(
 
             fun updateSpeedTestResult(profileId: Long, outcome: SpeedTestOutcome) {
                 liveSpeedTests.remove(profileId)
-                val profile = configurationList[profileId] ?: ProfileManager.getProfile(profileId) ?: return
+                val profile = configurationList[profileId] ?: run { reloadProfiles(); return }
                 configurationList[profileId] = profile
                 profile.speedTestMode = outcome.mode
                 profile.speedTestDownloadBitsPerSecond = outcome.downloadBitsPerSecond
@@ -3531,10 +3496,10 @@ class ConfigurationFragment @JvmOverloads constructor(
                 if (noTraffic) {
                     (parentFragment as? ConfigurationFragment)?.refreshProfileState()
                 }
-                val index = configurationIdList.indexOf(profile.id)
-                if (index < 0) return
                 listView?.post {
                     if (adapter !== this || listView == null) return@post
+                    val index = configurationIdList.indexOf(profile.id)
+                    if (index < 0) return@post
                     if ((undoManagerValue != null)) {
                         undoManager.flush()
                     }
@@ -3590,11 +3555,10 @@ class ConfigurationFragment @JvmOverloads constructor(
 
             override suspend fun onRemoved(groupId: Long, profileId: Long) {
                 if (groupId != proxyGroup.id && !isAllGroupsTab) return
-                val index = configurationIdList.indexOf(profileId)
-                if (index < 0) return
-
                 listView?.post {
                     if (adapter !== this || listView == null) return@post
+                    val index = configurationIdList.indexOf(profileId)
+                    if (index < 0) return@post
                     configurationIdList.removeAt(index)
                     configurationList.remove(profileId)
                     notifyItemRemoved(index)
@@ -3630,14 +3594,18 @@ class ConfigurationFragment @JvmOverloads constructor(
              */
             fun reloadProfiles() {
                 val generation = reloadGeneration.incrementAndGet()
-                if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
-                    runOnDefaultDispatcher { reloadProfilesNow(generation) }
-                } else {
-                    reloadProfilesNow(generation)
+                // Snapshot the adapter revision on Main before starting the DB read. Changes
+                // during either the read or diff must invalidate this result, not be overwritten.
+                listView?.post {
+                    if (generation != reloadGeneration.get() || adapter !== this || listView == null) return@post
+                    ++diffGeneration
+                    val revision = listRevision
+                    val search = (parentFragment as? ConfigurationFragment)?.currentSearchQuery.orEmpty().trim().lowercase()
+                    runOnDefaultDispatcher { reloadProfilesNow(generation, revision, search) }
                 }
             }
 
-            private fun reloadProfilesNow(generation: Int) {
+            private fun reloadProfilesNow(generation: Int, revision: Int, search: String) {
                 var newProfiles = if (isAllGroupsTab) {
                     // All-groups tab: fetch every profile from non-disabled groups.
                     // phase2: one disabled-flag lookup per group instead of one per node (N SQLite reads).
@@ -3696,7 +3664,11 @@ class ConfigurationFragment @JvmOverloads constructor(
                     newProfiles = newProfiles.sortedBy { groupOrder[it.groupId] ?: Int.MAX_VALUE }
                 }
                 val newProfileMap = newProfiles.associateBy { it.id }
-                val newProfileIds = newProfiles.map { it.id }.distinct()
+                val newProfileIds = newProfiles.filter { entity ->
+                    search.isEmpty() || entity.displayName().lowercase().contains(search) ||
+                            entity.displayType().lowercase().contains(search) ||
+                            entity.displayAddress().lowercase().contains(search)
+                }.map { it.id }.distinct()
 
                 var selectedProfileIndex = -1
 
@@ -3715,23 +3687,21 @@ class ConfigurationFragment @JvmOverloads constructor(
                 listView?.post {
                     if (adapter !== this || listView == null) return@post
                     if (generation != reloadGeneration.get()) return@post
-                    val oldIds = configurationIdList.toList()
-                    val oldEntities = HashMap(configurationList)
-                    configurationList.clear()
-                    configurationList.putAll(newProfileMap)
-                    allConfigurationIdList.clear()
-                    allConfigurationIdList.addAll(newProfileIds)
-                    configurationIdList.clear()
-                    configurationIdList.addAll(newProfileIds)
-                    dispatchIdChange(oldIds, newProfileIds, oldEntities)
-
-                    if (selectedProfileIndex != -1) {
-                        configurationListView.scrollTo(selectedProfileIndex, true)
-                    } else if (newProfiles.isNotEmpty()) {
-                        configurationListView.scrollTo(0, true)
+                    if (revision != listRevision || search != pf?.currentSearchQuery.orEmpty().trim().lowercase()) {
+                        reloadProfiles()
+                        return@post
                     }
-                    updateSubscriptionInfoCard()
-
+                    submitIdChange(newProfileIds, newProfileMap, isCurrent = {
+                        generation == reloadGeneration.get() &&
+                                search == pf?.currentSearchQuery.orEmpty().trim().lowercase()
+                    }) {
+                        if (selectedProfileIndex != -1) {
+                            configurationListView.scrollTo(selectedProfileIndex, true)
+                        } else if (newProfiles.isNotEmpty()) {
+                            configurationListView.scrollTo(0, true)
+                        }
+                        updateSubscriptionInfoCard()
+                    }
                 }
             }
 

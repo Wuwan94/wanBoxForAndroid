@@ -3,19 +3,24 @@ package io.nekohasekai.sagernet.ui
 import io.nekohasekai.sagernet.database.DataStore
 
 /**
- * phase2: values read on every node-card bind / click. DataStore reads are synchronous SQLite
- * queries (no cache, see audit 3.3 #4/#5), so the node list reads them once per (re)layout here
- * instead of once per bound card. Refreshed when the list layout is (re)created and from
- * ConfigurationFragment.onResume (the settings that change them live on other screens).
+ * Values read on every node-card bind / click. DataStore reads are synchronous SQLite
+ * queries (no cross-process cache), so the node list uses this view-scoped snapshot instead
+ * of reading once per bound card. Refreshed on IO from ConfigurationFragment.onResume
+ * (the settings that change these values live on other screens).
  */
 object ProfileListPrefs {
-    @Volatile var gridLayout: Boolean = false
-        private set
-    @Volatile var haptic: Boolean = true
-        private set
+    private data class Snapshot(val gridLayout: Boolean, val haptic: Boolean, val columnCount: Int)
+    @Volatile private var snapshot = Snapshot(false, true, 2)
+    val gridLayout get() = snapshot.gridLayout
+    val haptic get() = snapshot.haptic
+    val columnCount get() = snapshot.columnCount
 
+    /** Call on IO; this is a view snapshot, not a cross-process storage cache. */
     fun refresh() {
-        gridLayout = DataStore.groupLayoutMode == 1
-        haptic = DataStore.hapticFeedback
+        snapshot = Snapshot(
+            DataStore.groupLayoutMode == 1,
+            DataStore.hapticFeedback,
+            DataStore.nodeColumnCount.coerceIn(2, 3),
+        )
     }
 }
