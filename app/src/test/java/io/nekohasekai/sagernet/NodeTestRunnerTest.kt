@@ -14,7 +14,7 @@ class NodeTestRunnerTest {
         val active=AtomicInteger();val peak=AtomicInteger()
         coroutineScope { (1..20).map { async {
             NodeTestRunner.measure { url,timeout ->
-                assertEquals("http://connectivitycheck.gstatic.com/generate_204",url);assertEquals(5000,timeout)
+                assertEquals("http://connectivitycheck.gstatic.com/generate_204",url);assertEquals(NodeTestRunner.DEFAULT_TIMEOUT_MS,timeout)
                 val n=active.incrementAndGet();peak.updateAndGet { maxOf(it,n) }
                 try { delay(20); 42 } finally { active.decrementAndGet() }
             }
@@ -47,5 +47,12 @@ class NodeTestRunnerTest {
             18
         })
         assertEquals(2,calls)
+    }
+    /** 单节点与批量延迟测试共用高级设置里的唯一超时；JVM 无 Application 时回退默认值。 @author 雾晚 */
+    @Test fun singleAndBatchProbesShareOneTimeoutSetting()=runBlocking {
+        assertEquals(NodeTestRunner.DEFAULT_TIMEOUT_MS,NodeTestRunner.resolveTimeoutMs())
+        var seen=0
+        assertEquals(5,NodeTestRunner.measure(url="fixture",timeoutMs=1234) { _,timeout->seen=timeout;5 })
+        assertEquals(1234,seen)
     }
 }

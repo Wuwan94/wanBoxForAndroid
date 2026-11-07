@@ -2131,7 +2131,7 @@ class ConfigurationFragment @JvmOverloads constructor(
         val targetUrl = NodeTestRunner.DEFAULT_URL
         Logs.d(
             "URLTestTrace batch=start isAll=$isAll groupId=${group.id} group=${group.name} " +
-                    "concurrent=${DataStore.connectionTestConcurrent} timeout=${NodeTestRunner.NETWORK_TIMEOUT_MS}ms " +
+                    "concurrent=${DataStore.connectionTestConcurrent} timeout=${NodeTestRunner.resolveTimeoutMs()}ms " +
                     "link=$targetUrl serviceState=${DataStore.serviceState} " +
                     "currentProfile=${DataStore.currentProfile} network=${SagerNet.underlyingNetwork}"
         )
