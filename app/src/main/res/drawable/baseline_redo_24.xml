@@ -1,5 +1,11 @@
-<vector android:autoMirrored="true" android:height="24dp"
-    android:tint="#000000" android:viewportHeight="24"
-    android:viewportWidth="24" android:width="24dp" xmlns:android="http://schemas.android.com/apk/res/android">
-    <path android:fillColor="@android:color/white" android:pathData="M18.4,10.6C16.55,8.99 14.15,8 11.5,8c-4.65,0 -8.58,3.03 -9.96,7.22L3.9,16c1.05,-3.19 4.05,-5.5 7.6,-5.5 1.95,0 3.73,0.72 5.12,1.88L13,16h9V7l-3.6,3.6z"/>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- P1: existing 24dp rounded line style; resource identity/call sites retained. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24"
+    android:autoMirrored="true"
+    android:tint="?attr/colorControlNormal">
+    <path android:pathData="M3,16 C5,9 12,7 19,11 M15,6 L20,11 L15,16"
+        android:fillColor="@android:color/transparent" android:strokeColor="@color/minimal_icon"
+        android:strokeWidth="1.6" android:strokeLineCap="round" android:strokeLineJoin="round" />
 </vector>
