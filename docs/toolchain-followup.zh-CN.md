@@ -1,6 +1,6 @@
-# 工具链与可靠性跟进（未发布）
+# 工具链与可靠性跟进（已随 preview.2 发布）
 
-本变更基于 v3.0.12-preview.1 后的 main；不修改已发布的版本号、标签或下载资产。
+本文保留 preview.2 发布前的实现与本地验证记录；相关变更已随 [v3.0.12-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.12-preview.2) 发布。下文的“正式预览需经 CI 重建”等措辞描述当时的验证边界，不代表 preview.2 仍未发布；当前发布状态见 [版本对照](current-version.zh-CN.md)。
 
 ## 工具链
 

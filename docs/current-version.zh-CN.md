@@ -1,23 +1,39 @@
 # 发布、源码与版本对照
 
-发布状态以 GitHub Release、tag 和实际下载资产为准。稳定版与 preview.2 的实测依据保留如下；preview.1（v3.0.12）的资产文件、SHA256 清单及实际版本信息以其发布页为准。
+核对日期：2026-11-07。已发布状态以 GitHub Release、tag 和实际下载资产为准；下一版本目标不等于已发布版本。
 
-| 对象 | 源码/版本 | APK / 模块版本信息 |
+| 对象 | 版本与状态 | 版本码及来源 |
 |---|---|---|
-| 已发布正式版 | v3.0.11，tag `03c6eb70854c797ee1e4069e378145be5ca56b0d` | 实际 APK / 模块版本码：10065 / 2013 |
-| 上一预览版 | v3.0.11-preview.2，tag `2fbe17f662897f44bf903c957fd9723e4a4977f9` | 实际 APK / 模块版本码：10077 / 2015 |
-| 当前预览版 | v3.0.12-preview.1；元数据码 `2017`，预览 APK / 模块版本码 `10086` / `2017` | 以发布页实际 APK、模块及 SHA256SUMS 为准 |
+| 已发布正式版 | [v3.0.11](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11)，非 prerelease；tag `03c6eb70854c797ee1e4069e378145be5ca56b0d` | APK / Root 模块 `10065 / 2013`；tag 的 `nb4a.properties` 与历史资产核验记录一致 |
+| 已发布预览版 | [v3.0.12-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.12-preview.2)，prerelease；tag `56ce6df50374666755821b046b38d06542c5c1e9` | Release 说明和 tag 元数据：APK / Root 模块 `10092 / 2018` |
+| 当前源码基线 | 上述 preview.2 提交；本轮第一阶段仅修改文档 | `VERSION_NAME=3.0.11`、`VERSION_CODE=2017`；`PRE_VERSION_NAME=3.0.12-preview.2`、`PRE_VERSION_CODE=2018`。当前源码正式线元数据不是已发布 v3.0.11 资产的版本码 |
+| 本轮目标 | `v3.0.12-preview.3` 收口验证版，**未发布** | 任务 6 才顺延版本元数据；模块码须 `>2018`、APK 码须 `>10092`，以 `tools/version_code.py` 校验后再填写，不预先声明候选资产版本 |
+
+## preview.2 发布资产快照
+
+以下为 GitHub Release API 返回的资产名称、字节数与 digest；此处是发布索引快照，**不代替本轮下载、解包、签名与 SHA256SUMS 校验**。
+
+| 文件 | 字节数 | GitHub SHA-256 digest |
+|---|---:|---|
+| `wanBoxForAndroid-3.0.12-preview.2-arm64-v8a-release.apk` | 6173441 | `f0339ae504cc5383e982360b60cd7dac945c25ed7985f6cf80053dacadb8672c` |
+| `wanbox-root-module-arm64-v8a.zip` | 17743049 | `63d12d604d60f2fcb2fe28b06c090c1295664cf782dac6536bbdee8d6f16067f` |
+| `wanbox-root-module-with-manager-arm64-v8a.zip` | 23228024 | `a8e148a905ffde1ad3d398fa6fb15cdc6fc13de56dddfe23d55e4eae5a1a7337` |
+| `SHA256SUMS` | 333 | `655708bebff47efc67d1f438688d86def448dec195d7743df4e458ff117a4a9c` |
 
 ## 资产与兼容信息
 
-正式版与 preview.2 的资产检查记录包含 Release digest、SHA256SUMS、ZIP 清单、模块内管理器 APK 与外部 APK 的字节一致性；APK 身份由 `aapt` 读取，签名由 `apksigner` 验证。对应机器可读基线见 [版本证据](preview3-version-evidence.json)。
+历史机器可读记录 [preview3-version-evidence.json](preview3-version-evidence.json) 对应 v3.0.11 正式版与 v3.0.11-preview.2，**不是 v3.0.12-preview.2 或本轮 preview.3 的核验结果**。其中包括 Release digest、SHA256SUMS、ZIP 清单、带管理器模块内 APK 与外部 APK 的字节一致性、`aapt` 身份与 `apksigner` 验证。
 
-共同包名：`com.lit008834.pixel.wanboxforandroid`。共同证书 SHA-256：`80ecee1c42d861d59cdc460447335fc4bfdf80103d6225a17c1bdf83a33521f6`。
+历史共同包名为 `com.lit008834.pixel.wanboxforandroid`，证书 SHA-256 为 `80ecee1c42d861d59cdc460447335fc4bfdf80103d6225a17c1bdf83a33521f6`；本轮候选资产必须重新与上一已发布版本核对，不能把历史记录当作新资产已验签。
 
-正式版与 preview.2 的实际版本码分别高于其先前版本。v3.0.12-preview.1 的发布构建会使用仓库版本码脚本检查正式线和预览线基线，并从实际 APK、Root 模块和发布页清单核验最终资产；源码元数据本身不代替发布附件证据。
+Android 12+（minSdk 31）、arm64-v8a、Root；瘦管理器和 Root 模块必须使用同一发布页的同版资产。下载通过同一 Release 的 SHA256SUMS 后才可提示安装，禁止静默安装；资产不全时拒绝更新并引导至发布页。
 
-## 发布来源
+## 发布来源与边界
 
-v3.0.12-preview.1 以 v3.0.11-preview.3 为代码基线，保留现有界面与交互。其公开发布由 main 上的人工工作流完成，工作流要求 `approved_sha` 与精确构建提交一致；Release 直接使用同一次通过候选校验的构件与 SHA256 清单。上传后先核验 Release、tag 与资产，再清理旧预览；正式版 Release 与 tag 始终保留。
+preview.2 包含工具链升级与可靠性修复，已发布说明见 [PREVIEW_NOTES.md](../PREVIEW_NOTES.md)。原先的 preview.1 草稿 [release-notes-next.zh-CN.md](release-notes-next.zh-CN.md) 仅是历史材料，不作为当前发布说明。
+
+preview.3 分阶段门槛见 [发布清单](release-checklist.zh-CN.md)。当前未做真机回归；只有真实 Root 设备矩阵签核后才能考虑正式版。本轮授权仅覆盖预览版，不授权发布 v3.0.12 正式版。
+
+公开发布须使用获批精确提交及同次核验的四件套资产；先回读 Release、tag 和资产验证，再清理旧预览，正式版 Release 与 tag 保留。
 
 正式版历史说明见 [RELEASE_NOTES.md](../RELEASE_NOTES.md)。
