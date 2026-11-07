@@ -34,6 +34,7 @@ import io.nekohasekai.sagernet.databinding.LayoutAboutBinding
 import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.plugin.PluginManager.loadString
 import io.nekohasekai.sagernet.utils.PackageCache
+import io.nekohasekai.sagernet.utils.ArtifactDownload
 import io.nekohasekai.sagernet.utils.UpdateArtifacts
 import io.nekohasekai.sagernet.widget.ListListener
 import libcore.Libcore
@@ -363,12 +364,12 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
             val context = requireContext()
             val dir = File(context.cacheDir, "updates").apply { mkdirs() }
             runOnIoDispatcher {
+                val sumsFile = File(dir, UpdateArtifacts.SUMS_NAME)
+                val apkFile = File(dir, bundle.apk.name)
+                val moduleFile = File(dir, bundle.module.name)
                 try {
-                    val sumsFile = File(dir, UpdateArtifacts.SUMS_NAME)
                     downloadFile(bundle.sums.downloadUrl, sumsFile)
                     val sums = UpdateArtifacts.parseSums(sumsFile.readText())
-                    val apkFile = File(dir, bundle.apk.name)
-                    val moduleFile = File(dir, bundle.module.name)
                     downloadFile(bundle.apk.downloadUrl, apkFile)
                     downloadFile(bundle.module.downloadUrl, moduleFile)
                     val apkOk = UpdateArtifacts.verify(apkFile, sums)
@@ -393,6 +394,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                         })
                     }
                 } catch (e: Exception) {
+                    listOf(apkFile, moduleFile, sumsFile).forEach { it.delete() }
                     Logs.w(e)
                     runOnMainDispatcher {
                         Toast.makeText(app, e.readableMessage, Toast.LENGTH_LONG).show()
@@ -403,19 +405,20 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
 
         private fun downloadFile(url: String, target: File) {
             val request = Request.Builder().url(url).build()
-            OkHttpClient().newCall(request).execute().use { response ->
+            downloadClient.newCall(request).execute().use { response ->
                 val body = response.body
                 if (!response.isSuccessful || body == null) {
                     throw IOException("HTTP ${response.code}")
                 }
                 body.byteStream().use { input ->
-                    target.outputStream().use { output -> input.copyTo(output) }
+                    ArtifactDownload.write(target, input)
                 }
             }
         }
 
         companion object {
 
+            private val downloadClient by lazy { OkHttpClient() }
             private val numberRegex = Regex("\\d+")
 
             /**

@@ -43,6 +43,25 @@ class UpdateArtifactsTest {
     }
 
     @Test
+    fun selectsPlainModuleRegardlessOfAssetOrder() {
+        val names = arrayOf(
+            "wanbox-root-module-with-manager-arm64-v8a.zip",
+            "foreign-module.zip",
+            "wanBoxForAndroid-3.0.12-preview.1-arm64-v8a.apk",
+            "wanbox-root-module-arm64-v8a.zip",
+            "SHA256SUMS",
+        )
+        for (ordered in listOf(names.toList(), names.reversed())) {
+            val bundle = UpdateArtifacts.selectBundle(UpdateArtifacts.parseAssets(release(*ordered.toTypedArray())))!!
+            assertEquals("wanbox-root-module-arm64-v8a.zip", bundle.module.name)
+        }
+        assertNull(UpdateArtifacts.selectBundle(UpdateArtifacts.parseAssets(release(
+            "wanbox-root-module-with-manager-arm64-v8a.zip",
+            "wanBoxForAndroid-3.0.12-preview.1-arm64-v8a.apk", "SHA256SUMS",
+        ))))
+    }
+
+    @Test
     fun refusesIncompleteRelease() {
         assertNull(
             UpdateArtifacts.selectBundle(
