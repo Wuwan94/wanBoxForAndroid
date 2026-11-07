@@ -6,8 +6,8 @@
 |---|---|---|
 | 已发布正式版 | [v3.0.11](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11)，非 prerelease；tag `03c6eb70854c797ee1e4069e378145be5ca56b0d` | APK / Root 模块 `10065 / 2013`；tag 的 `nb4a.properties` 与历史资产核验记录一致 |
 | 已发布预览版 | [v3.0.12-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.12-preview.2)，prerelease；tag `56ce6df50374666755821b046b38d06542c5c1e9` | Release 说明和 tag 元数据：APK / Root 模块 `10092 / 2018` |
-| 当前源码基线 | 上述 preview.2 提交；本轮第一阶段仅修改文档 | `VERSION_NAME=3.0.11`、`VERSION_CODE=2017`；`PRE_VERSION_NAME=3.0.12-preview.2`、`PRE_VERSION_CODE=2018`。当前源码正式线元数据不是已发布 v3.0.11 资产的版本码 |
-| 本轮目标 | `v3.0.12-preview.3` 收口验证版，**未发布** | 任务 6 才顺延版本元数据；模块码须 `>2018`、APK 码须 `>10092`，以 `tools/version_code.py` 校验后再填写，不预先声明候选资产版本 |
+| 当前源码基线 | wabi/preview3-closeout 分阶段收口源码 | `VERSION_NAME=3.0.11`、`VERSION_CODE=2017`；`PRE_VERSION_NAME=3.0.12-preview.3`、`PRE_VERSION_CODE=2019`（APK10098）。当前源码正式线元数据不是已发布 v3.0.11 资产的版本码 |
+| 本轮目标 | `v3.0.12-preview.3` 收口验证版，**未发布** | 任务6已按既有规律顺延2019/10098；候选资产仍待完整构建和签名/哈希验收 |
 
 ## preview.2 发布资产快照
 
@@ -30,7 +30,7 @@ Android 12+（minSdk 31）、arm64-v8a、Root；瘦管理器和 Root 模块必�
 
 ## 发布来源与边界
 
-preview.2 包含工具链升级与可靠性修复，已发布说明见 [PREVIEW_NOTES.md](../PREVIEW_NOTES.md)。原先的 preview.1 草稿 [release-notes-next.zh-CN.md](release-notes-next.zh-CN.md) 仅是历史材料，不作为当前发布说明。
+preview.2已发布说明以其GitHub Release为准；PREVIEW_NOTES.md与release-notes-next.zh-CN.md现为preview.3候选草稿，不代表已经发布。
 
 preview.3 分阶段门槛见 [发布清单](release-checklist.zh-CN.md)。当前未做真机回归；只有真实 Root 设备矩阵签核后才能考虑正式版。本轮授权仅覆盖预览版，不授权发布 v3.0.12 正式版。
 

@@ -32,9 +32,9 @@
 
 当前已发布正式版为 [v3.0.11](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11)，已发布预览版为 [v3.0.12-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.12-preview.2)。本轮目标为 **v3.0.12-preview.3 收口验证版（未发布）**，不替换正式版；源码元数据与发布资产的边界见 [版本对照](docs/current-version.zh-CN.md)。
 
-preview.2 已包含 URLTest 异步首轮探测、普通模块完整文件名匹配与失败下载清理。工具链为 Gradle 8.13 / AGP 8.11.1 / Kotlin 2.2.21 / KSP 2.2.21-2.0.4 / compileSdk 36 / Room 2.7.2；targetSdk 35、minSdk 31、JDK 17、Build Tools 35.0.1 不变。内核固定为 `reF1nd/sing-box v1.15.0-alpha.13-reF1nd`，不据此宣称它是当前上游最新版本。已发布范围与验证边界见 [preview.2 发行说明](PREVIEW_NOTES.md)，实现与自动化记录见 [工具链及可靠性跟进](docs/toolchain-followup.zh-CN.md)。
+preview.2 已包含 URLTest 异步首轮探测、普通模块完整文件名匹配与失败下载清理。工具链为 Gradle 8.13 / AGP 8.11.1 / Kotlin 2.2.21 / KSP 2.2.21-2.0.4 / compileSdk 36 / Room 2.7.2；targetSdk 35、minSdk 31、JDK 17、Build Tools 35.0.1 不变。内核固定为 `reF1nd/sing-box v1.15.0-alpha.13-reF1nd`，不据此宣称它是当前上游最新版本。本轮更新与验证边界见 [preview.3 发行说明草稿](PREVIEW_NOTES.md)，实现与自动化记录见 [工具链及可靠性跟进](docs/toolchain-followup.zh-CN.md)。
 
-preview.3 按 [分阶段验收清单](docs/release-checklist.zh-CN.md)推进：先修正文档，再补回归与异常路径测试、清尾和评估，最后准备版本及发布材料。当前阶段只更新文档，版本元数据尚未顺延；**未做真机回归**，不得把自动化结果当作 Root 真机签核，也不发布 v3.0.12 正式版。
+preview.3 按 [分阶段验收清单](docs/release-checklist.zh-CN.md)推进：先修正文档，再补回归与异常路径测试、清尾和评估，最后准备版本及发布材料。版本元数据已顺延至模块码2019 / APK10098；最终本地与候选验收尚未完成；**未做真机回归**，不得把自动化结果当作 Root 真机签核，也不发布 v3.0.12 正式版。
 
 **安装要求：Android 12+、arm64-v8a、Root（Magisk / KernelSU / APatch）**。瘦管理器不包含核心，必须搭配同一发布页中的 Root 模块，不能混用其他版本；安装前先备份并检查 `SHA256SUMS`。更新必须校验后由用户确认安装，不静默安装，不提供 VPN 回退。
 
