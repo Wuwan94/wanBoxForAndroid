@@ -1,33 +1,25 @@
-# v3.0.12-preview.1 发行说明
+# v3.0.12-preview.2 发行说明
 
-本说明对应预览版 `v3.0.12-preview.1`，不替换 `v3.0.11` 正式版历史。
+本预览版包含工具链升级和可靠性修复；不替换 `v3.0.11` 正式版。
 
 ## 更新内容
 
-- **内核**：保持 `reF1nd/sing-box v1.15.0-alpha.13-reF1nd`（commit `17397d022647b73378705e1f91ff031dddaaec21`）。这是当前最新的 1.15 预览，上游没有 alpha.14；`libcore/go.mod` 的 sing / sing-tun / sing-quic / sing-vmess / quic-go 与该 tag 的 go.mod 逐项一致，Go 仍为 1.25.5。本版不提供稳定版内核选项，也不保留 1.14.x 回退。
-- **自动选择启动先测速**：URLTest 组启动时先完成一轮受限测速（上限 5s），首次选路依据真实延迟跳过不可用成员，不再先连接列表第一个节点。全部成员都不可用时仍保留原有回退，避免完全不可用。
-- **延迟测试超时统一**：节点测速不再硬编码 5000ms；单节点测速与批量测速共用高级设置里的「测速超时时间」（`speedTestTimeoutMs`，默认 8000ms，钳制 1–60s）。
-- **应用内检查更新**：只读本仓库 GitHub Releases，只接受同一 Release 内的管理器 APK、Root 模块与 `SHA256SUMS` 三件套。对话框明确提示两者必须从同一发布页同版更新；选择「下载并校验」后逐文件校验 SHA256，校验通过才打开系统安装器，模块 ZIP 交由用户在 Magisk / KernelSU / APatch 中安装。不会静默安装，资产不全时引导前往发布页。
+- **启动与选路**：URLTest 首轮探测改为异步，核心启动不再同步等待网络；首次 TCP/UDP 连接等待首轮结果，保留 5 秒总预算，并响应连接取消和分组关闭。节点选择读写使用同一把锁，避免状态查询与后台测速并发访问。
+- **模块匹配**：更新器按完整文件名 `wanbox-root-module-arm64-v8a.zip` 选择普通 Root 模块，不再受 with-manager 资产排序影响；缺少普通模块时拒绝不完整更新包。
+- **下载清理**：使用同目录唯一临时文件，下载成功后替换目标；异常时清理临时文件和本次更新包，并复用 HTTP 客户端。仍须通过同一 Release 的 SHA256SUMS 校验后才提示安装，不静默安装。
+- **工具链**：升级至 Gradle 8.13、AGP 8.11.1、Kotlin 2.2.21、KSP 2.2.21-2.0.4 和 compileSdk 36；Room 相关组件统一升级至 2.7.2。targetSdk 35、minSdk 31、JDK 17 与 Build Tools 35.0.1 保持不变。
+- **内核**：沿用固定的 `reF1nd/sing-box v1.15.0-alpha.13-reF1nd` 基线，并包含本版 URLTest 修复；不提供稳定版内核切换。
+- 保留单节点与批量测速统一超时设置：默认 8 秒，可设 1–60 秒。
 
-## 安装与兼容
+## 安装与版本
 
 - Android 12+（API 31+）、arm64-v8a、Root（Magisk / KernelSU / APatch）。
-- 瘦管理器 APK 不含核心，**必须与同一发布页的 Root 模块配套使用，两者版本必须一致**；不能只更新其中一个。
-- 升级前请先导出备份。本版**未经真机验证**，不承诺覆盖安装后的数据保留、TUN 重启、节点切换或模块状态读取；如遇异常请回滚到上一版并恢复备份。
-- 下载后请用同一发布页的 `SHA256SUMS` 核对 APK 与模块 ZIP。
+- 预览版本名 `3.0.12-preview.2`，元数据/Root 模块版本码 `2018`，APK `versionCode=10092`，高于上一预览版 `10086/2017`。
+- 提供瘦管理器 APK、普通 Root 模块、内置管理器模块（with-manager）和 SHA256SUMS。
+- 管理器与模块须使用同一发布页的同版资产，不能只更新其中一个。请先导出备份，并核对 SHA256SUMS。
 
-## 工具链
+## 自动化验证与边界
 
-- Gradle 8.10.2、AGP 8.8.1、Kotlin 2.0.21、compileSdk / targetSdk 35、minSdk 31 **保持不变**。
-- Gradle 9.9.0 + AGP 9.5.1 + Kotlin 2.2.21 + SDK 36 的升级尝试因旧 `applicationVariants` 输出命名与 AGP 9 内置 Kotlin 迁移未完成而**整体回退**，未混入本版；`runs-on` 仍为 `ubuntu-24.04`。
-
-## 版本与资产
-
-- 版本名 `3.0.12-preview.1`，元数据码 `2017`；预览 APK `versionCode=10086`，Root 模块 `versionCode=2017`，均高于 `v3.0.11-preview.3` 的 `10083/2016`。
-- 发布资产：瘦管理器 APK、普通 Root 模块 ZIP、内置管理器的 Root 模块 ZIP（with-manager）、`SHA256SUMS`。具体 SHA256 以发布页清单为准。
-
-## 验证边界
-
-- 本地已完成：Kotlin 单测（`NodeTestRunnerTest`、`UpdateArtifactsTest`）、`app:compileOssDebugKotlin`、`libcore` 的 `protocol/urltest` 与 `protocol/loadbalance` Go 测试。
-- CI 结果、APK 签名与 ABI、模块内核版本以发布页与 Actions 记录为准。
-- **未完成真机运行时回归**：没有 Android 12+ Root 设备验证，模拟器/编译结果不代表真机通过。
+- 升级与可靠性代码在提交 `693184d` 的 Verify Android Build 中完成原生核心重建、Android 构建、单元测试、签名版本构建及 debug/release 数据库迁移验证。
+- 本预览发布流程另外对本次精确提交重建/复用匹配的原生制品、签名打包，并验证候选资产、ABI、版本、签名和校验清单；具体结果见本次 Actions。
+- 未做真机回归；模拟器和自动化结果不等同于 Root 真机运行验证。
