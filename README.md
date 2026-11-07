@@ -33,6 +33,8 @@
 
 v3.0.12-preview.1 保留当前界面与交互，内核核对为 `v1.15.0-alpha.13-reF1nd`（当前最新 1.15 预览），新增自动选择启动先测速、统一延迟测试超时、应用内检查更新（下载后按 SHA256SUMS 校验，不静默安装）；工具链保持 Gradle 8.10.2 / AGP 8.8.1 / Kotlin 2.0.21 / SDK 35。详细范围见 [发行说明](docs/release-notes-next.zh-CN.md)。
 
+当前源码的后续工具链升级与可靠性修复见 [未发布跟进说明](docs/toolchain-followup.zh-CN.md)。
+
 **安装要求：Android 12+、arm64-v8a、Root（Magisk / KernelSU / APatch）**。瘦管理器不包含核心，必须搭配同一发布页中的 Root 模块，不能混用其他版本；安装前先备份并检查 `SHA256SUMS`。
 
 预览渠道仅保留最新一个版本；清理旧预览前先核验新版本的完整发布资产，正式版始终保留。[v3.0.11 正式版历史说明](RELEASE_NOTES.md)保持原文。

@@ -5,7 +5,7 @@ go 1.25.5
 require (
 	// 与 Throne 2e7182b9ea99947a409fee30f74df83752ab763c 的测速基线一致。
 	github.com/Mahdi-zarei/speedtest-go v1.7.13-0.20260107171856-79c565dfd83a
-	// 与 sing-box 1.14 兼容版本
+	// Juicity 适配层版本；与下方 replace 锁定的 reF1nd sing-box 一同编译验证。
 	github.com/exclavenetwork/sing-juicity v0.3.0
 	github.com/gofrs/uuid/v5 v5.5.1
 	github.com/miekg/dns v1.1.72
