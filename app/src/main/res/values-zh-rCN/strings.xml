@@ -646,7 +646,12 @@
     <string name="check_update_release">检查正式版更新</string>
     <string name="release_not_available">Throne目前尚未发布正式版</string>
     <string name="update_dialog_title">发现新版本</string>
-    <string name="update_dialog_message">当前版本：%1$s\n可升级版本：%2$s\n是否前往下载？</string>
+    <string name="update_dialog_message">当前版本：%1$s\n可升级版本：%2$s\n管理器 APK 与 Root 模块必须从同一发布页下载并保持同版，不能只更新其中一个。\n是否下载并校验？</string>
+    <string name="update_download_verify">下载并校验</string>
+    <string name="update_open_release">前往发布页</string>
+    <string name="update_checksum_failed">SHA256 校验失败，已删除下载文件；请前往发布页手动下载。</string>
+    <string name="update_module_hint">Root 模块已校验：\n%1$s\n请在 Magisk / KernelSU / APatch 中安装该 ZIP。</string>
+    <string name="update_assets_missing">该版本缺少 APK、Root 模块或 SHA256SUMS，请前往发布页查看。</string>
     <string name="check_update_no">检查成功，但没有更新。</string>
     <string name="reset_settings">恢复默认设置</string>
     <string name="reset_settings_message">恢复默认设置，但节点、分组等数据将保留。如需完全清除数据，请在系统设置中直接清除应用数据。</string>

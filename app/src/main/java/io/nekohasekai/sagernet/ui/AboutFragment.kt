@@ -19,6 +19,7 @@ import androidx.activity.result.component1
 import androidx.activity.result.component2
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.doOnPreDraw
 import androidx.recyclerview.widget.RecyclerView
@@ -33,9 +34,14 @@ import io.nekohasekai.sagernet.databinding.LayoutAboutBinding
 import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.plugin.PluginManager.loadString
 import io.nekohasekai.sagernet.utils.PackageCache
+import io.nekohasekai.sagernet.utils.UpdateArtifacts
 import io.nekohasekai.sagernet.widget.ListListener
 import libcore.Libcore
 import moe.matsuri.nb4a.plugin.Plugins
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.io.File
+import java.io.IOException
 import androidx.core.net.toUri
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.nekohasekai.sagernet.SagerNet
@@ -292,15 +298,19 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                         setURL(url)
                     }.execute()
                     val responseStr = Util.getStringBox(response.contentString)
-                    val (releaseName, releaseUrl) = if (isPreview) {
+                    val release = if (isPreview) {
                         val arr = JSONArray(responseStr)
                         if (arr.length() == 0) throw IllegalStateException("No releases found")
-                        val first = arr.getJSONObject(0)
-                        first.getString("name") to first.getString("html_url")
+                        arr.getJSONObject(0)
                     } else {
-                        val release = JSONObject(responseStr)
-                        release.getString("name") to release.getString("html_url")
+                        JSONObject(responseStr)
                     }
+                    val releaseName = release.getString("name")
+                    val releaseUrl = release.getString("html_url")
+                    // @author 雾晚: 只接受同一 Release 内的 APK + Root 模块 + SHA256SUMS 三件套。
+                    val bundle = UpdateArtifacts.selectBundle(
+                        UpdateArtifacts.parseAssets(release.toString())
+                    )
                     // Release name is the git tag, e.g. "v1.4.2-m20-10" or "Ownbox 2.3.5".
                     // Compare it with the local version name segment by segment.
                     val cleanReleaseName = releaseName.replace(Regex("(?i)^Ownbox\\s*"), "")
@@ -309,7 +319,10 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                     runOnMainDispatcher {
                         if (haveUpdate) {
                             val context = requireContext()
-                            MaterialAlertDialogBuilder(context)
+                            val openRelease = {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, releaseUrl.toUri()))
+                            }
+                            val dialog = MaterialAlertDialogBuilder(context)
                                 .setTitle(R.string.update_dialog_title)
                                 .setMessage(
                                     context.getString(
@@ -318,12 +331,17 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                                         releaseName
                                     )
                                 )
-                                .setPositiveButton(R.string.yes) { _, _ ->
-                                    val intent = Intent(Intent.ACTION_VIEW, releaseUrl.toUri())
-                                    context.startActivity(intent)
-                                }
+                                .setNeutralButton(R.string.update_open_release) { _, _ -> openRelease() }
                                 .setNegativeButton(R.string.no, null)
-                                .show()
+                            if (bundle == null) {
+                                Toast.makeText(app, R.string.update_assets_missing, Toast.LENGTH_LONG).show()
+                                dialog.setPositiveButton(R.string.update_open_release) { _, _ -> openRelease() }
+                            } else {
+                                dialog.setPositiveButton(R.string.update_download_verify) { _, _ ->
+                                    downloadBundle(bundle)
+                                }
+                            }
+                            dialog.show()
                         } else {
                             Toast.makeText(app, R.string.check_update_no, Toast.LENGTH_SHORT).show()
                         }
@@ -333,6 +351,65 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                     runOnMainDispatcher {
                         Toast.makeText(app, e.readableMessage, Toast.LENGTH_SHORT).show()
                     }
+                }
+            }
+        }
+
+        /**
+         * 下载同一 Release 的 APK、Root 模块与 SHA256SUMS，校验通过后才打开系统安装器；
+         * 不静默安装，模块 ZIP 交由用户在 Root 管理器中安装。 @author 雾晚
+         */
+        fun downloadBundle(bundle: UpdateArtifacts.Bundle) {
+            val context = requireContext()
+            val dir = File(context.cacheDir, "updates").apply { mkdirs() }
+            runOnIoDispatcher {
+                try {
+                    val sumsFile = File(dir, UpdateArtifacts.SUMS_NAME)
+                    downloadFile(bundle.sums.downloadUrl, sumsFile)
+                    val sums = UpdateArtifacts.parseSums(sumsFile.readText())
+                    val apkFile = File(dir, bundle.apk.name)
+                    val moduleFile = File(dir, bundle.module.name)
+                    downloadFile(bundle.apk.downloadUrl, apkFile)
+                    downloadFile(bundle.module.downloadUrl, moduleFile)
+                    val apkOk = UpdateArtifacts.verify(apkFile, sums)
+                    val moduleOk = UpdateArtifacts.verify(moduleFile, sums)
+                    runOnMainDispatcher {
+                        if (!apkOk || !moduleOk) {
+                            listOf(apkFile, moduleFile, sumsFile).forEach { it.delete() }
+                            Toast.makeText(app, R.string.update_checksum_failed, Toast.LENGTH_LONG).show()
+                            return@runOnMainDispatcher
+                        }
+                        Toast.makeText(
+                            app,
+                            app.getString(R.string.update_module_hint, moduleFile.absolutePath),
+                            Toast.LENGTH_LONG
+                        ).show()
+                        val uri = FileProvider.getUriForFile(
+                            context, BuildConfig.APPLICATION_ID + ".cache", apkFile
+                        )
+                        context.startActivity(Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, "application/vnd.android.package-archive")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                        })
+                    }
+                } catch (e: Exception) {
+                    Logs.w(e)
+                    runOnMainDispatcher {
+                        Toast.makeText(app, e.readableMessage, Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
+
+        private fun downloadFile(url: String, target: File) {
+            val request = Request.Builder().url(url).build()
+            OkHttpClient().newCall(request).execute().use { response ->
+                val body = response.body
+                if (!response.isSuccessful || body == null) {
+                    throw IOException("HTTP ${response.code}")
+                }
+                body.byteStream().use { input ->
+                    target.outputStream().use { output -> input.copyTo(output) }
                 }
             }
         }
