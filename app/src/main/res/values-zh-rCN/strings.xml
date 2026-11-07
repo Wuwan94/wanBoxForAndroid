@@ -1183,4 +1183,7 @@
     <string name="health_check_apply_hint">下次连接或重载后生效</string>
     <string name="module_events_title">模块最近事件</string>
     <string name="module_events_empty">（暂无模块事件，或模块未安装）</string>
+    <string name="update_storage_failed">更新文件写入失败，请检查剩余存储空间后重试；本次下载文件已清理。</string>
+    <string name="update_transfer_failed">更新下载失败，请检查网络后重试；本次下载文件已清理。</string>
+    <string name="update_install_unavailable">无法打开系统安装器，请前往发布页手动下载。</string>
 </resources>

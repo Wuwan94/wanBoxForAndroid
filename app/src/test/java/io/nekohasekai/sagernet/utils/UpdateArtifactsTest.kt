@@ -108,6 +108,19 @@ class UpdateArtifactsTest {
     }
 
     @Test
+    fun rejectsDuplicateOrUnsafeAssetNames() {
+        val apk = "wanBoxForAndroid-3.0.12-preview.2-arm64-v8a.apk"
+        val module = UpdateArtifacts.MODULE_NAME
+        val sums = UpdateArtifacts.SUMS_NAME
+        assertNull(UpdateArtifacts.selectBundle(UpdateArtifacts.parseAssets(release(
+            "../$apk", module, sums,
+        ))))
+        assertNull(UpdateArtifacts.selectBundle(UpdateArtifacts.parseAssets(release(
+            apk, module, sums, module,
+        ))))
+    }
+
+    @Test
     fun ignoresMalformedSumsLines() {
         val sums = UpdateArtifacts.parseSums(
             """

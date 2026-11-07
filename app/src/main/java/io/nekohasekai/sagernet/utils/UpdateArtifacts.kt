@@ -33,6 +33,8 @@ object UpdateArtifacts {
      * 命名规则与发布流水线一致：APK 含 arm64-v8a，模块按普通版完整文件名精确匹配，不能误选 with-manager。
      */
     fun selectBundle(assets: List<ReleaseAsset>): Bundle? {
+        // Assets become local cache filenames. Reject ambiguity and path components before download.
+        if (assets.any { !isSafeName(it.name) } || assets.map { it.name }.toSet().size != assets.size) return null
         val sums = assets.firstOrNull { it.name == SUMS_NAME } ?: return null
         val apk = assets.firstOrNull {
             it.name.endsWith(".apk", ignoreCase = true) && it.name.contains("arm64-v8a")
@@ -42,6 +44,10 @@ object UpdateArtifacts {
         } ?: return null
         return Bundle(apk, module, sums)
     }
+
+    internal fun isSafeName(name: String): Boolean =
+        name.isNotBlank() && name != "." && name != ".." &&
+            name.none { it == '/' || it == '\\' || it.isISOControl() }
 
     /** 解析 `SHA256SUMS`：`<64 位十六进制>  <文件名>`，允许 `*` 前缀。 */
     fun parseSums(text: String): Map<String, String> = text.lineSequence()

@@ -1297,4 +1297,7 @@
     <string name="health_check_apply_hint">Takes effect on next connect or reload</string>
     <string name="module_events_title">Recent module events</string>
     <string name="module_events_empty">(no module events, or module not installed)</string>
+    <string name="update_storage_failed">Unable to save this update. Check free storage and try again; files from this attempt were removed.</string>
+    <string name="update_transfer_failed">Update download failed. Check your network and try again; files from this attempt were removed.</string>
+    <string name="update_install_unavailable">Unable to open the system installer. Open the release page to download manually.</string>
 </resources>

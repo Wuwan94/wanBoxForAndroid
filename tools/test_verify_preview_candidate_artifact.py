@@ -78,6 +78,40 @@ class CandidateArtifactTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "does not list exactly"):
             verify_artifact.verify(self.folder, self.source_sha, self.run_id, self.tag)
 
+    def test_with_manager_uses_complete_filename_not_prefix_or_suffix(self):
+        original = "wanbox-root-module-with-manager-arm64-v8a.zip"
+        report_path = self.folder / "candidate-validation.json"
+        sums_path = self.folder / "SHA256SUMS"
+        original_report = report_path.read_text()
+        original_sums = sums_path.read_text()
+        for lookalike in (original + ".bak", "prefix-" + original, original.replace("arm64-v8a", "x86_64")):
+            with self.subTest(lookalike=lookalike):
+                (self.folder / original).rename(self.folder / lookalike)
+                report_path.write_text(original_report.replace(original, lookalike))
+                sums_path.write_text(original_sums.replace(original, lookalike))
+                with self.assertRaisesRegex(ValueError, "allowlist"):
+                    verify_artifact.verify(self.folder, self.source_sha, self.run_id, self.tag)
+                (self.folder / lookalike).rename(self.folder / original)
+                report_path.write_text(original_report)
+                sums_path.write_text(original_sums)
+
+    def test_missing_with_manager_is_not_substituted_by_plain_module(self):
+        (self.folder / "wanbox-root-module-with-manager-arm64-v8a.zip").unlink()
+        with self.assertRaisesRegex(ValueError, "missing or unexpected"):
+            verify_artifact.verify(self.folder, self.source_sha, self.run_id, self.tag)
+
+    def test_both_module_variants_are_independent_of_report_order(self):
+        report_path = self.folder / "candidate-validation.json"
+        report = json.loads(report_path.read_text())
+        report["assets"].reverse()
+        report_path.write_text(json.dumps(report))
+        (self.folder / "SHA256SUMS").write_text("".join(
+            f"{asset['sha256']}  {asset['name']}\n" for asset in report["assets"]
+        ))
+        actual = verify_artifact.verify(self.folder, self.source_sha, self.run_id, self.tag)
+        self.assertEqual({asset["name"] for asset in report["assets"]},
+                         {asset["name"] for asset in actual["assets"]})
+
     def test_rejects_extra_file(self):
         (self.folder / "unexpected.zip").write_bytes(b"extra")
         with self.assertRaisesRegex(ValueError, "unexpected files"):

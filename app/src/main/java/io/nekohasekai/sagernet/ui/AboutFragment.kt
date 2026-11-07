@@ -36,6 +36,7 @@ import io.nekohasekai.sagernet.plugin.PluginManager.loadString
 import io.nekohasekai.sagernet.utils.PackageCache
 import io.nekohasekai.sagernet.utils.ArtifactDownload
 import io.nekohasekai.sagernet.utils.UpdateArtifacts
+import io.nekohasekai.sagernet.utils.UpdateDownload
 import io.nekohasekai.sagernet.widget.ListListener
 import libcore.Libcore
 import moe.matsuri.nb4a.plugin.Plugins
@@ -309,9 +310,8 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                     val releaseName = release.getString("name")
                     val releaseUrl = release.getString("html_url")
                     // @author 雾晚: 只接受同一 Release 内的 APK + Root 模块 + SHA256SUMS 三件套。
-                    val bundle = UpdateArtifacts.selectBundle(
-                        UpdateArtifacts.parseAssets(release.toString())
-                    )
+                    val assets = UpdateArtifacts.parseAssets(release.toString())
+                    val bundle = UpdateArtifacts.selectBundle(assets)
                     // Release name is the git tag, e.g. "v1.4.2-m20-10" or "Ownbox 2.3.5".
                     // Compare it with the local version name segment by segment.
                     val cleanReleaseName = releaseName.replace(Regex("(?i)^Ownbox\\s*"), "")
@@ -339,7 +339,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                                 dialog.setPositiveButton(R.string.update_open_release) { _, _ -> openRelease() }
                             } else {
                                 dialog.setPositiveButton(R.string.update_download_verify) { _, _ ->
-                                    downloadBundle(bundle)
+                                    downloadBundle(assets)
                                 }
                             }
                             dialog.show()
@@ -360,44 +360,43 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
          * 下载同一 Release 的 APK、Root 模块与 SHA256SUMS，校验通过后才打开系统安装器；
          * 不静默安装，模块 ZIP 交由用户在 Root 管理器中安装。 @author 雾晚
          */
-        fun downloadBundle(bundle: UpdateArtifacts.Bundle) {
+        private fun downloadBundle(assets: List<UpdateArtifacts.ReleaseAsset>) {
             val context = requireContext()
-            val dir = File(context.cacheDir, "updates").apply { mkdirs() }
+            val dir = File(context.cacheDir, "updates")
             runOnIoDispatcher {
-                val sumsFile = File(dir, UpdateArtifacts.SUMS_NAME)
-                val apkFile = File(dir, bundle.apk.name)
-                val moduleFile = File(dir, bundle.module.name)
                 try {
-                    downloadFile(bundle.sums.downloadUrl, sumsFile)
-                    val sums = UpdateArtifacts.parseSums(sumsFile.readText())
-                    downloadFile(bundle.apk.downloadUrl, apkFile)
-                    downloadFile(bundle.module.downloadUrl, moduleFile)
-                    val apkOk = UpdateArtifacts.verify(apkFile, sums)
-                    val moduleOk = UpdateArtifacts.verify(moduleFile, sums)
-                    runOnMainDispatcher {
-                        if (!apkOk || !moduleOk) {
-                            listOf(apkFile, moduleFile, sumsFile).forEach { it.delete() }
-                            Toast.makeText(app, R.string.update_checksum_failed, Toast.LENGTH_LONG).show()
-                            return@runOnMainDispatcher
-                        }
-                        Toast.makeText(
-                            app,
-                            app.getString(R.string.update_module_hint, moduleFile.absolutePath),
-                            Toast.LENGTH_LONG
-                        ).show()
-                        val uri = FileProvider.getUriForFile(
-                            context, BuildConfig.APPLICATION_ID + ".cache", apkFile
-                        )
-                        context.startActivity(Intent(Intent.ACTION_VIEW).apply {
-                            setDataAndType(uri, "application/vnd.android.package-archive")
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-                        })
+                    val ready = UpdateDownload.prepare(assets, dir) { asset, target ->
+                        downloadFile(asset.downloadUrl, target)
                     }
-                } catch (e: Exception) {
-                    listOf(apkFile, moduleFile, sumsFile).forEach { it.delete() }
-                    Logs.w(e)
                     runOnMainDispatcher {
-                        Toast.makeText(app, e.readableMessage, Toast.LENGTH_LONG).show()
+                        try {
+                            val uri = FileProvider.getUriForFile(
+                                context, BuildConfig.APPLICATION_ID + ".cache", ready.apk
+                            )
+                            Toast.makeText(
+                                app,
+                                app.getString(R.string.update_module_hint, ready.module.absolutePath),
+                                Toast.LENGTH_LONG
+                            ).show()
+                            context.startActivity(Intent(Intent.ACTION_VIEW).apply {
+                                setDataAndType(uri, "application/vnd.android.package-archive")
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                            })
+                        } catch (_: Exception) {
+                            ready.directory.deleteRecursively()
+                            Toast.makeText(app, R.string.update_install_unavailable, Toast.LENGTH_LONG).show()
+                        }
+                    }
+                } catch (e: UpdateDownload.Failure) {
+                    // Fixed localized errors never expose asset URLs, response bodies or credentials.
+                    val message = when (e.reason) {
+                        UpdateDownload.Reason.CHECKSUM -> R.string.update_checksum_failed
+                        UpdateDownload.Reason.ASSETS -> R.string.update_assets_missing
+                        UpdateDownload.Reason.STORAGE -> R.string.update_storage_failed
+                        UpdateDownload.Reason.TRANSFER -> R.string.update_transfer_failed
+                    }
+                    runOnMainDispatcher {
+                        Toast.makeText(app, message, Toast.LENGTH_LONG).show()
                     }
                 }
             }
