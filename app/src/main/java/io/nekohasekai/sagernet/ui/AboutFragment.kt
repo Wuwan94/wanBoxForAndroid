@@ -383,7 +383,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
                             })
                         } catch (_: Exception) {
-                            ready.directory.deleteRecursively()
+                            UpdateDownload.release(ready)
                             Toast.makeText(app, R.string.update_install_unavailable, Toast.LENGTH_LONG).show()
                         }
                     }

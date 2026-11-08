@@ -154,36 +154,92 @@ class UpdateDownloadTest {
         assertEquals(setOf(previous.name, ready!!.directory.name), cache.list()!!.toSet())
     }
 
-    @Test
-    fun newerSuccessfulAttemptReclaimsPreviousAttemptDirectory() = withCache { cache, previous ->
-        val first = UpdateDownload.prepare(assets, cache, ::transfer)
-        assertTrue(first.directory.isDirectory)
-        val second = UpdateDownload.prepare(assets, cache, ::transfer)
-        assertFalse(first.directory.exists())
-        assertArrayEquals(payload[apkName], second.apk.readBytes())
-        assertArrayEquals(payload[moduleName], second.module.readBytes())
-        assertEquals(setOf(previous.name, second.directory.name), cache.list()!!.toSet())
-        assertEquals("previous update", previous.readText())
+    private fun <T> withClock(start: Long, body: (LongArray) -> T): T {
+        val now = longArrayOf(start)
+        val original = UpdateDownload.clock
+        UpdateDownload.clock = { now[0] }
+        try { return body(now) } finally { UpdateDownload.clock = original }
     }
 
     @Test
-    fun failedNewerAttemptLeavesNoAttemptDirectoriesBehind() = withCache { cache, previous ->
-        val first = UpdateDownload.prepare(assets, cache, ::transfer)
-        assertThrows(UpdateDownload.Failure::class.java) {
-            UpdateDownload.prepare(assets, cache) { _, _ -> throw IOException("connection reset") }
+    fun heldReadyPairStaysReadableWhileNewerAttemptRuns() = withCache { cache, previous ->
+        withClock(1_000_000L) { _ ->
+            val first = UpdateDownload.prepare(assets, cache, ::transfer)
+            // The consumer (system installer / Root manager) still holds A while B downloads and finishes.
+            val second = UpdateDownload.prepare(assets, cache) { asset, target ->
+                assertArrayEquals(payload[apkName], first.apk.readBytes())
+                assertArrayEquals(payload[moduleName], first.module.readBytes())
+                transfer(asset, target)
+            }
+            assertArrayEquals(payload[apkName], first.apk.readBytes())
+            assertArrayEquals(payload[moduleName], first.module.readBytes())
+            assertArrayEquals(payload[apkName], second.apk.readBytes())
+            assertEquals(setOf(previous.name, first.directory.name, second.directory.name), cache.list()!!.toSet())
         }
-        assertFalse(first.directory.exists())
+    }
+
+    @Test
+    fun failedNewerAttemptOnlyCleansItselfAndKeepsHeldPair() = withCache { cache, previous ->
+        withClock(1_000_000L) { _ ->
+            val first = UpdateDownload.prepare(assets, cache, ::transfer)
+            assertThrows(UpdateDownload.Failure::class.java) {
+                UpdateDownload.prepare(assets, cache) { _, _ -> throw IOException("connection reset") }
+            }
+            assertArrayEquals(payload[moduleName], first.module.readBytes())
+            assertEquals(setOf(previous.name, first.directory.name), cache.list()!!.toSet())
+        }
+    }
+
+    @Test
+    fun releasedPairIsReclaimedImmediately() = withCache { cache, previous ->
+        val ready = UpdateDownload.prepare(assets, cache, ::transfer)
+        UpdateDownload.release(ready)
+        UpdateDownload.release(ready) // idempotent
+        assertFalse(ready.directory.exists())
         assertEquals(listOf(previous.name), cache.list()!!.sorted())
     }
 
     @Test
-    fun attemptLeftoverFromKilledProcessIsReclaimedButOtherCacheEntriesStay() = withCache { cache, _ ->
-        val leftover = File(cache, "attempt-leftover").apply { mkdirs() }
-        File(leftover, "partial.apk").writeText("partial")
-        val unrelated = File(cache, "unrelated").apply { mkdirs() }
-        val ready = UpdateDownload.prepare(assets, cache, ::transfer)
-        assertFalse(leftover.exists())
-        assertTrue(unrelated.isDirectory)
-        assertTrue(ready.directory.isDirectory)
+    fun expiredHeldPairIsReclaimedByNextAttempt() = withCache { cache, previous ->
+        withClock(1_000_000L) { now ->
+            val first = UpdateDownload.prepare(assets, cache, ::transfer)
+            now[0] += UpdateDownload.RETENTION_MS
+            val second = UpdateDownload.prepare(assets, cache, ::transfer)
+            assertFalse(first.directory.exists())
+            assertEquals(setOf(previous.name, second.directory.name), cache.list()!!.toSet())
+        }
+    }
+
+    @Test
+    fun retainedPairsAreBoundedNewestFirst() = withCache { cache, previous ->
+        withClock(1_000_000L) { now ->
+            val attempts = (1..4).map {
+                now[0] += 1_000
+                UpdateDownload.prepare(assets, cache, ::transfer)
+            }
+            val kept = attempts.takeLast(UpdateDownload.MAX_RETAINED)
+            attempts.dropLast(UpdateDownload.MAX_RETAINED).forEach { assertFalse(it.directory.exists()) }
+            kept.forEach { assertArrayEquals(payload[moduleName], it.module.readBytes()) }
+            assertEquals(setOf(previous.name) + kept.map { it.directory.name }, cache.list()!!.toSet())
+        }
+    }
+
+    @Test
+    fun attemptLeftoverFromKilledProcessIsReclaimedOnlyAfterRetention() = withCache { cache, _ ->
+        withClock(System.currentTimeMillis()) { now ->
+            val leftover = File(cache, "attempt-leftover").apply { mkdirs() }
+            File(leftover, "module.zip").writeText("flash me after the APK install restarted the app")
+            leftover.setLastModified(now[0] - 60_000)
+            val unrelated = File(cache, "unrelated").apply { mkdirs() }
+            val ready = UpdateDownload.prepare(assets, cache, ::transfer)
+            // A previous process's verified pair may still be waiting for the Root manager.
+            assertTrue(leftover.isDirectory)
+            UpdateDownload.release(ready)
+            leftover.setLastModified(now[0] - UpdateDownload.RETENTION_MS - 1)
+            val next = UpdateDownload.prepare(assets, cache, ::transfer)
+            assertFalse(leftover.exists())
+            assertTrue(unrelated.isDirectory)
+            assertTrue(next.directory.isDirectory)
+        }
     }
 }
