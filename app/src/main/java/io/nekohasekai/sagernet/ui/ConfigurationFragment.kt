@@ -217,7 +217,7 @@ class ConfigurationFragment @JvmOverloads constructor(
         set(value) { groupPagerView = value }
     private var tabMediator: TabLayoutMediator? = null
 
-    val alwaysShowAddress by lazy { DataStore.alwaysShowAddress }
+    val alwaysShowAddress get() = ProfileListPrefs.alwaysShowAddress
 
     val multiSelectedIds = java.util.Collections.synchronizedSet(LinkedHashSet<Long>()).apply {
         if (initialSelectedIds != null) {
@@ -893,7 +893,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                                 val group = adapter.groupList[pos]
                                 // Skip "All" sentinel tab and ungrouped tabs
                                 if (!group.ungrouped && group.id != ALL_GROUPS_SENTINEL_ID) {
-                                    if (DataStore.hapticFeedback) {
+                                    if (ProfileListPrefs.haptic) {
                                         v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                                     }
                                     showGroupSettingsConfirmDialog(group)

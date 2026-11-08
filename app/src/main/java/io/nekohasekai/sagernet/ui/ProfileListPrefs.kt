@@ -9,11 +9,17 @@ import io.nekohasekai.sagernet.database.DataStore
  * (the settings that change these values live on other screens).
  */
 object ProfileListPrefs {
-    private data class Snapshot(val gridLayout: Boolean, val haptic: Boolean, val columnCount: Int)
-    @Volatile private var snapshot = Snapshot(false, true, 2)
+    private data class Snapshot(
+        val gridLayout: Boolean,
+        val haptic: Boolean,
+        val columnCount: Int,
+        val alwaysShowAddress: Boolean,
+    )
+    @Volatile private var snapshot = Snapshot(false, true, 2, false)
     val gridLayout get() = snapshot.gridLayout
     val haptic get() = snapshot.haptic
     val columnCount get() = snapshot.columnCount
+    val alwaysShowAddress get() = snapshot.alwaysShowAddress
 
     /** Call on IO; this is a view snapshot, not a cross-process storage cache. */
     fun refresh() {
@@ -21,6 +27,7 @@ object ProfileListPrefs {
             DataStore.groupLayoutMode == 1,
             DataStore.hapticFeedback,
             DataStore.nodeColumnCount.coerceIn(2, 3),
+            DataStore.alwaysShowAddress,
         )
     }
 }
