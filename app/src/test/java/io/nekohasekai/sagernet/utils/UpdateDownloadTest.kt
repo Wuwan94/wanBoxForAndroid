@@ -153,4 +153,37 @@ class UpdateDownloadTest {
         assertArrayEquals(payload[moduleName], ready!!.module.readBytes())
         assertEquals(setOf(previous.name, ready!!.directory.name), cache.list()!!.toSet())
     }
+
+    @Test
+    fun newerSuccessfulAttemptReclaimsPreviousAttemptDirectory() = withCache { cache, previous ->
+        val first = UpdateDownload.prepare(assets, cache, ::transfer)
+        assertTrue(first.directory.isDirectory)
+        val second = UpdateDownload.prepare(assets, cache, ::transfer)
+        assertFalse(first.directory.exists())
+        assertArrayEquals(payload[apkName], second.apk.readBytes())
+        assertArrayEquals(payload[moduleName], second.module.readBytes())
+        assertEquals(setOf(previous.name, second.directory.name), cache.list()!!.toSet())
+        assertEquals("previous update", previous.readText())
+    }
+
+    @Test
+    fun failedNewerAttemptLeavesNoAttemptDirectoriesBehind() = withCache { cache, previous ->
+        val first = UpdateDownload.prepare(assets, cache, ::transfer)
+        assertThrows(UpdateDownload.Failure::class.java) {
+            UpdateDownload.prepare(assets, cache) { _, _ -> throw IOException("connection reset") }
+        }
+        assertFalse(first.directory.exists())
+        assertEquals(listOf(previous.name), cache.list()!!.sorted())
+    }
+
+    @Test
+    fun attemptLeftoverFromKilledProcessIsReclaimedButOtherCacheEntriesStay() = withCache { cache, _ ->
+        val leftover = File(cache, "attempt-leftover").apply { mkdirs() }
+        File(leftover, "partial.apk").writeText("partial")
+        val unrelated = File(cache, "unrelated").apply { mkdirs() }
+        val ready = UpdateDownload.prepare(assets, cache, ::transfer)
+        assertFalse(leftover.exists())
+        assertTrue(unrelated.isDirectory)
+        assertTrue(ready.directory.isDirectory)
+    }
 }
