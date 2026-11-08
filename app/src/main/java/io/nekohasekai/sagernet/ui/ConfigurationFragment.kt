@@ -409,10 +409,16 @@ class ConfigurationFragment @JvmOverloads constructor(
 
     private fun refreshListPrefs(forceLayout: Boolean = false) {
         viewLifecycleOwner.lifecycleScope.launch {
-            val oldLayout = ProfileListPrefs.gridLayout to ProfileListPrefs.columnCount
-            withContext(Dispatchers.IO) { ProfileListPrefs.refresh() }
-            if (forceLayout || oldLayout != (ProfileListPrefs.gridLayout to ProfileListPrefs.columnCount)) {
-                pagerAdapter?.groupFragments?.values?.filter { it.view != null }?.forEach { it.switchLayoutMode() }
+            // DataStore reads stay on IO; only the rebind/relayout decision comes back to main.
+            val change = withContext(Dispatchers.IO) { ProfileListPrefs.refresh() }
+            val visible = pagerAdapter?.groupFragments?.values?.filter { it.view != null }.orEmpty()
+            when {
+                forceLayout || change == ProfileListPrefsChange.RELAYOUT ->
+                    visible.forEach { it.switchLayoutMode() }
+                // @author 雾晚: 设置页切换「始终显示地址」后返回，已有卡片立即按新设置重绑。
+                change == ProfileListPrefsChange.REBIND ->
+                    visible.forEach { it.adapter?.notifyDataSetChanged() }
+                else -> Unit
             }
         }
     }
