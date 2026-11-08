@@ -331,7 +331,7 @@ type URLTestGroup struct {
 	idleTimeout         time.Duration
 	history             *urltest.HistoryStorage
 	checkAccess         sync.Mutex
-	checkDone           chan struct{}
+	checkFlight         *urlTestFlight
 	pause               pause.Manager
 	pauseCallback       *list.Element[pause.Callback]
 	interruptGroup      *interrupt.Group
@@ -550,7 +550,7 @@ func (g *URLTestGroup) URLTest(ctx context.Context) (map[string]uint16, error) {
 	return g.urlTest(ctx, true)
 }
 
-func (g *URLTestGroup) urlTest(ctx context.Context, force bool) (map[string]uint16, error) {
+func (g *URLTestGroup) urlTest(ctx context.Context, force bool) (result map[string]uint16, err error) {
 	// Every probe entry point belongs to the group lifecycle, including explicit
 	// checks whose caller supplied an independent context. Closed groups cannot
 	// restart probes, and closing a group also cancels an in-flight manual check.
@@ -566,34 +566,45 @@ func (g *URLTestGroup) urlTest(ctx context.Context, force bool) (map[string]uint
 		return nil, err
 	}
 	g.checkAccess.Lock()
-	if done := g.checkDone; done != nil {
+	if flight := g.checkFlight; flight != nil {
 		g.checkAccess.Unlock()
-		// Join an in-flight probe: startup must not signal readiness before it
-		// has populated history and selection.
+		// Join an in-flight probe and share its result: startup must not signal
+		// readiness before it has populated history and selection, and a manual
+		// check must not mistake the joined round for its own empty success.
 		select {
-		case <-done:
-			return make(map[string]uint16), nil
+		case <-flight.done:
+			return flight.result, flight.err
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-g.ctx.Done():
 			return nil, g.ctx.Err()
 		}
 	}
-	done := make(chan struct{})
-	g.checkDone = done
+	flight := &urlTestFlight{done: make(chan struct{})}
+	g.checkFlight = flight
 	g.checkAccess.Unlock()
 	defer func() {
 		g.checkAccess.Lock()
-		g.checkDone = nil
-		close(done)
+		flight.result, flight.err = result, err
+		g.checkFlight = nil
+		close(flight.done)
 		g.checkAccess.Unlock()
 	}()
-	result := URLTestOutbounds(ctx, g.outbound, g.history, g.logger, g.outbounds, g.link, g.interval, force)
+	result = URLTestOutbounds(ctx, g.outbound, g.history, g.logger, g.outbounds, g.link, g.interval, force)
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
 	g.performUpdateCheck()
 	return result, nil
+}
+
+// urlTestFlight is one in-flight probe round. The leader publishes its result
+// before closing done, so callers that joined the round share the real result.
+// @author 雾晚
+type urlTestFlight struct {
+	done   chan struct{}
+	result map[string]uint16
+	err    error
 }
 
 type urlTestResult struct {
