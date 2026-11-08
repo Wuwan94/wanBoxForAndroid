@@ -23,8 +23,8 @@
 
 ## 自动化验证与边界
 
-- 本地验证：原生核心（libcore.aar）构建成功；Go 测试中本次涉及的 urltest、loadbalance 包全部通过（含 `-race` 竞态检测）；Python 工具测试 72 项通过（含新增的版本码漂移检查与 prune 测试）。本地另有一项 `internal/appowner` 的 socket 归属测试因本机容器 /proc 环境限制失败，该包与本次改动无交集、代码与 preview.3 一致，以 CI 结果为准。
-- 本机 Gradle 守护进程环境异常，Kotlin/JVM 单元测试与 APK 构建未在本机完成；发布门槛为 CI `Verify Android Build` 对候选分支的完整运行通过，未通过则不发布。最终核验结果将在发布前回填本节。
+- 本地验证：原生核心（libcore.aar）构建成功；Go 测试中本次涉及的 urltest、loadbalance 包全部通过（含 `-race` 竞态检测）；Python 工具测试 72 项通过（含新增的版本码漂移检查与 prune 测试）。
+- CI 验证：`Verify Android Build` run `42459255214` 对候选分支完整通过——LibCore 构建、Kotlin 编译、全部 JVM 单元测试（含更新器 3 项新回归测试）、签名 Release 变体构建、调试与 Release 两套数据库迁移验证、Magisk 模块构建均成功。本机 Gradle 守护进程环境异常未能完成的 Kotlin/JVM 与 APK 验证，以及本地 `internal/appowner` 一项因容器 /proc 受限失败的测试（与本次改动无交集），均以该 CI 全量结果为准。首轮验证 run `42455253935` 的代码相关步骤亦全部通过，仅模拟器迁移步骤因运行机卡死而取消重跑。
 - 未做 Magisk、KernelSU、APatch 真机矩阵或实体设备回归；自动化结果不等同于这些 Root 环境的实测。本次为预览版，不替换 v3.0.11 正式版。
 
 ---
