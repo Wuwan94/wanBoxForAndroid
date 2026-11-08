@@ -18,6 +18,8 @@ private val Project.android get() = extensions.getByName<ApplicationExtension>("
 private lateinit var metadata: Properties
 private lateinit var localProperties: Properties
 
+// 版本码规则的唯一来源是 tools/version_code.py；这里是构建期复刻，
+// tools/test_version_code.py 会校验乘数与预览序号范围一致，禁止只改一边。
 private val PREVIEW_VERSION_SUFFIX = Regex("-preview\\.([1-4])$")
 
 fun apkVersionCode(code: Int, versionName: String): Int {

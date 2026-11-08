@@ -6,6 +6,7 @@
 可行性、同版本拒绝、降级拒绝、模块版本方向、非法值。
 """
 import json
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -13,7 +14,9 @@ from version_code import (
     APK_MULTIPLIER,
     VersionError,
     apk_version_code,
+    check_kotlin_rule,
     check_upgrade,
+    main,
     parse_code,
     parse_properties,
     resolve,
@@ -137,6 +140,50 @@ PRE_VERSION_CODE=2015
             baseline["module_version_code"],
         )
         self.assertTrue(verdict["ok"], verdict["reasons"])
+
+
+class KotlinRuleConsistencyTest(unittest.TestCase):
+    """构建实际执行的 Helpers.kt 复刻必须与规则一致，漂移要在 CI 直接失败。"""
+
+    HELPERS = (
+        Path(__file__).resolve().parents[1]
+        / "buildSrc/src/main/kotlin/Helpers.kt"
+    )
+
+    def test_repo_helpers_match_the_rule(self):
+        helpers = self.HELPERS.read_text(encoding="utf-8")
+        self.assertEqual([], check_kotlin_rule(helpers))
+
+    def test_multiplier_drift_is_reported(self):
+        text = (
+            r'private val PREVIEW_VERSION_SUFFIX = Regex("-preview\\.([1-4])$")'
+            "\nfun apkVersionCode(code: Int, versionName: String): Int {\n"
+            "    return code * 6 + 0\n}\n"
+        )
+        reasons = check_kotlin_rule(text)
+        self.assertTrue(any("乘数" in reason for reason in reasons), reasons)
+
+    def test_suffix_range_drift_is_reported(self):
+        text = (
+            r'private val PREVIEW_VERSION_SUFFIX = Regex("-preview\\.([1-9])$")'
+            "\nfun apkVersionCode(code: Int, versionName: String): Int {\n"
+            "    return code * 5 + 0\n}\n"
+        )
+        reasons = check_kotlin_rule(text)
+        self.assertTrue(any("预览序号范围" in reason for reason in reasons), reasons)
+
+    def test_missing_kotlin_rule_is_reported(self):
+        self.assertEqual(2, len(check_kotlin_rule("fun unrelated() = 1")))
+
+    def test_cli_check_kotlin_exit_codes(self):
+        self.assertEqual(0, main(["--check-kotlin", str(self.HELPERS)]))
+        with tempfile.TemporaryDirectory() as tmp:
+            drifted = Path(tmp) / "Helpers.kt"
+            drifted.write_text(
+                self.HELPERS.read_text(encoding="utf-8").replace("code * 5", "code * 6"),
+                encoding="utf-8",
+            )
+            self.assertEqual(1, main(["--check-kotlin", str(drifted)]))
 
 
 if __name__ == "__main__":
