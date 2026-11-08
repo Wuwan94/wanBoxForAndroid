@@ -398,4 +398,4 @@ jobs:
       - name: Verify published preview and retain only newest prerelease
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 tools/prune_prereleases.py --repo "$GITHUB_REPOSITORY" --keep-tag "$PREVIEW_TAG" --only-tag v3.0.11-preview.2
+        run: python3 tools/prune_prereleases.py --repo "$GITHUB_REPOSITORY" --keep-tag "$PREVIEW_TAG"

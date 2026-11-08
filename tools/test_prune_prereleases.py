@@ -144,7 +144,8 @@ class WorkflowRetentionTests(unittest.TestCase):
         self.assertIn('name: preview-candidate', preview)
         self.assertIn('tools/verify_preview_candidate_artifact.py', preview)
         self.assertIn('candidate/SHA256SUMS', preview)
-        self.assertIn('--only-tag v3.0.11-preview.2', preview)
+        self.assertIn('run: python3 tools/prune_prereleases.py --repo "$GITHUB_REPOSITORY" --keep-tag "$PREVIEW_TAG"', preview)
+        self.assertNotIn('--only-tag', preview)
         candidate_step = preview.split('name: Validate unpublished candidate assets', 1)[1].split(
             '- uses: actions/upload-artifact@v4', 1)[0]
         self.assertIn("python3 - <<'PY'", candidate_step)
