@@ -212,8 +212,8 @@ func TestStartupSelectionCanBeObservedConcurrently(t *testing.T) {
 // More members than the six-slot batch force a second wave: the per-member
 // three-second timeout alone must not extend startup past its five-second budget.
 func TestStartupBudgetExhaustionKeepsFallback(t *testing.T) {
-	if startupProbeBudget != 5*time.Second {
-		t.Fatalf("startup budget=%v, want five seconds", startupProbeBudget)
+	if probeBudget != 5*time.Second {
+		t.Fatalf("startup budget=%v, want five seconds", probeBudget)
 	}
 	entered, stopped := make(chan struct{}, 7), make(chan struct{}, 7)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -231,11 +231,11 @@ func TestStartupBudgetExhaustionKeepsFallback(t *testing.T) {
 	group.PostStart()
 	select {
 	case <-group.startupDone:
-	case <-time.After(startupProbeBudget + time.Second):
+	case <-time.After(probeBudget + time.Second):
 		t.Fatal("startup exceeded its total budget")
 	}
 	elapsed := time.Since(started)
-	if elapsed < startupProbeBudget-500*time.Millisecond {
+	if elapsed < probeBudget-500*time.Millisecond {
 		t.Fatalf("probe finished before the budget was exhausted: %v", elapsed)
 	}
 	for range members {
@@ -392,7 +392,7 @@ func TestMemberTimeoutStillPenalizesRecentHistory(t *testing.T) {
 	group.PostStart()
 	select {
 	case <-group.startupDone:
-	case <-time.After(startupProbeBudget + time.Second):
+	case <-time.After(probeBudget + time.Second):
 		t.Fatal("member timeout did not complete startup")
 	}
 	awaitStartupEvent(t, stopped, "member timeout")

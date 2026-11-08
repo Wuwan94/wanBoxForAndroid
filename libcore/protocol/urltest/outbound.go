@@ -28,8 +28,8 @@ import (
 	"github.com/sagernet/sing/service/pause"
 )
 
-// @author 雾晚: 启动首轮测速的硬上限；成员多或全部超时也不阻塞核心启动。
-const startupProbeBudget = 5 * time.Second
+// @author 雾晚: 每轮测速的总预算硬上限；启动、手动与定时轮次共用，成员多或全部超时也不让一轮探测无限拖长。
+const probeBudget = 5 * time.Second
 
 type URLTestOptions struct {
 	Outbounds                 []string           `json:"outbounds" reference:"outbound"`
@@ -395,9 +395,7 @@ func (g *URLTestGroup) PostStart() {
 	g.access.Unlock()
 	go func() {
 		defer close(g.startupDone)
-		startCtx, cancel := context.WithTimeout(g.ctx, startupProbeBudget)
-		defer cancel()
-		g.CheckOutbounds(startCtx, true)
+		g.CheckOutbounds(g.ctx, true)
 	}()
 }
 
@@ -559,7 +557,8 @@ func (g *URLTestGroup) urlTest(ctx context.Context, force bool) (map[string]uint
 	if err := g.ctx.Err(); err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithCancel(ctx)
+	// 入口统一施加总预算：批量并发只有六槽，单成员三秒超时挡不住成员众多的整轮拖长。@author 雾晚
+	ctx, cancel := context.WithTimeout(ctx, probeBudget)
 	stop := context.AfterFunc(g.ctx, cancel)
 	defer stop()
 	defer cancel()
