@@ -24,18 +24,18 @@ class PruneTests(unittest.TestCase):
         with self.assertRaises(ValueError): prune.prune_candidates([release(1), release(2)], release(1))
         with self.assertRaises(ValueError): prune.prune_candidates([release(2)], release(1))
 
-    def test_exact_cleanup_target_preserves_other_old_previews(self):
+    def test_cleanup_selects_every_older_preview(self):
         old_one, old_two, keep = release(1), release(2), release(3)
         old_one['tag_name'] = 'v3.0.11-preview.1'
         old_two['tag_name'] = 'v3.0.11-preview.2'
         keep['tag_name'] = 'v3.0.11-preview.3'
         releases = [old_one, old_two, keep]
-        self.assertEqual(prune.prune_candidates(releases, keep, 'v3.0.11-preview.2'), [old_two])
+        self.assertEqual(prune.prune_candidates(releases, keep), [old_one, old_two])
         self.assertEqual(
             prune.orphan_preview_tags(
-                ['v3.0.11-preview.1', 'v3.0.11-preview.2'],
-                'v3.0.11-preview.3', [keep], 'v3.0.11-preview.2'),
-            ['v3.0.11-preview.2'],
+                ['v3.0.11-preview.1', 'v3.0.11-preview.2', 'v3.0.11-preview.3'],
+                'v3.0.11-preview.3', []),
+            ['v3.0.11-preview.1', 'v3.0.11-preview.2'],
         )
 
     def test_old_preview_release_and_tag_deleted_only_after_live_checks(self):
@@ -146,6 +146,7 @@ class WorkflowRetentionTests(unittest.TestCase):
         self.assertIn('candidate/SHA256SUMS', preview)
         self.assertIn('run: python3 tools/prune_prereleases.py --repo "$GITHUB_REPOSITORY" --keep-tag "$PREVIEW_TAG"', preview)
         self.assertNotIn('--only-tag', preview)
+        self.assertNotIn('--only-tag', (workflows / 'release.yml').read_text())
         candidate_step = preview.split('name: Validate unpublished candidate assets', 1)[1].split(
             '- uses: actions/upload-artifact@v4', 1)[0]
         self.assertIn("python3 - <<'PY'", candidate_step)

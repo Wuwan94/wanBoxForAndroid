@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Prune older published preview releases and their tags after verifying the new preview.
+The preview channel keeps only the newest prerelease: every older preview
+release and orphaned preview tag is deleted, with no per-tag exception.
 Stable releases and stable tags are preserved. Uses the job's gh authentication.
 """
 import argparse
@@ -51,7 +53,7 @@ def validate_assets(release, directory):
             raise ValueError('downloaded asset checksum mismatch')
 
 
-def prune_candidates(releases, keep, only_tag=None):
+def prune_candidates(releases, keep):
     current = [r for r in releases if r['id'] == keep['id']]
     if len(current) != 1 or current[0]['tag_name'] != keep['tag_name']:
         raise ValueError('new release absent from complete listing')
@@ -60,16 +62,8 @@ def prune_candidates(releases, keep, only_tag=None):
                 and r.get('published_at') and preview_version(r.get('tag_name', '')) is not None]
     if any(preview_version(r['tag_name']) > keep_version for r in previews):
         raise ValueError('newer preview exists; refusing stale cleanup')
-    candidates = [r for r in previews if r['id'] != keep['id']
-                  and preview_version(r['tag_name']) < keep_version]
-    if only_tag is not None:
-        if preview_version(only_tag) is None or preview_version(only_tag) >= keep_version:
-            raise ValueError('only-tag must name an older preview')
-        matches = [r for r in candidates if r['tag_name'] == only_tag]
-        if len(matches) > 1:
-            raise ValueError('multiple releases use the exact old preview tag')
-        return matches
-    return candidates
+    return [r for r in previews if r['id'] != keep['id']
+            and preview_version(r['tag_name']) < keep_version]
 
 
 def gh(*args):
@@ -84,18 +78,13 @@ def require_deleted(endpoint):
         raise ValueError(f'could not verify deletion: {endpoint}: {result.stderr.strip()}')
 
 
-def orphan_preview_tags(tags, keep_tag, releases, only_tag=None):
+def orphan_preview_tags(tags, keep_tag, releases):
     keep_version = preview_version(keep_tag)
     release_tags = {r.get('tag_name') for r in releases}
-    candidates = sorted(tag for tag in set(tags)
-                        if preview_version(tag) is not None
-                        and preview_version(tag) < keep_version
-                        and tag not in release_tags)
-    if only_tag is not None:
-        if preview_version(only_tag) is None or preview_version(only_tag) >= keep_version:
-            raise ValueError('only-tag must name an older preview')
-        return [tag for tag in candidates if tag == only_tag]
-    return candidates
+    return sorted(tag for tag in set(tags)
+                  if preview_version(tag) is not None
+                  and preview_version(tag) < keep_version
+                  and tag not in release_tags)
 
 
 def release_exists(repo, tag):
@@ -158,16 +147,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--repo', required=True)
     parser.add_argument('--keep-tag', required=True)
-    parser.add_argument('--only-tag', help='delete only this exact older preview release/tag')
     args = parser.parse_args()
     if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', args.repo):
         raise ValueError('invalid repository')
     if not PREVIEW_TAG.fullmatch(args.keep_tag):
         raise ValueError('not an explicit preview tag')
-    if args.only_tag is not None and (
-            preview_version(args.only_tag) is None
-            or preview_version(args.only_tag) >= preview_version(args.keep_tag)):
-        raise ValueError('only-tag must name an older preview')
     base = f'repos/{args.repo}/releases'
     keep = json.loads(gh('api', f'{base}/tags/{args.keep_tag}'))
     with tempfile.TemporaryDirectory() as temporary:
@@ -176,7 +160,7 @@ def main():
         validate_assets(keep, directory)
     # The publication workflows share a concurrency group; also refuse stale runs.
     pages = json.loads(gh('api', '--paginate', '--slurp', f'{base}?per_page=100'))
-    candidates = prune_candidates([r for page in pages for r in page], keep, args.only_tag)
+    candidates = prune_candidates([r for page in pages for r in page], keep)
     for release in candidates:
         live = json.loads(gh('api', f"{base}/{release['id']}"))
         if live.get('prerelease') is not True or live.get('draft') or live['id'] == keep['id']:
@@ -184,7 +168,7 @@ def main():
         delete_old_preview(live, args.repo)
     release_pages = json.loads(gh('api', '--paginate', '--slurp', f'{base}?per_page=100'))
     all_releases = [release for page in release_pages for release in page]
-    orphans = orphan_preview_tags(list_tag_names(args.repo), args.keep_tag, all_releases, args.only_tag)
+    orphans = orphan_preview_tags(list_tag_names(args.repo), args.keep_tag, all_releases)
     for tag in orphans:
         delete_orphan_preview_tag(tag, args.repo, args.keep_tag)
     print(f"Verified and retained preview: {keep['html_url']}; stable releases and tags untouched")
