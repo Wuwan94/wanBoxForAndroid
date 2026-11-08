@@ -21,13 +21,22 @@ object ProfileListPrefs {
     val columnCount get() = snapshot.columnCount
     val alwaysShowAddress get() = snapshot.alwaysShowAddress
 
-    /** Call on IO; this is a view snapshot, not a cross-process storage cache. */
-    fun refresh() {
-        snapshot = Snapshot(
+    /**
+     * Call on IO; this is a view snapshot, not a cross-process storage cache.
+     * Returns what the already bound node cards need so a changed setting shows at once.
+     */
+    fun refresh(): ProfileListPrefsChange {
+        val old = snapshot
+        val new = Snapshot(
             DataStore.groupLayoutMode == 1,
             DataStore.hapticFeedback,
             DataStore.nodeColumnCount.coerceIn(2, 3),
             DataStore.alwaysShowAddress,
+        )
+        snapshot = new
+        return ProfileListPrefsChange.between(
+            old.gridLayout, old.columnCount, old.alwaysShowAddress,
+            new.gridLayout, new.columnCount, new.alwaysShowAddress,
         )
     }
 }
