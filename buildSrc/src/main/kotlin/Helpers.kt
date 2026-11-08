@@ -19,10 +19,14 @@ private lateinit var metadata: Properties
 private lateinit var localProperties: Properties
 
 // 版本码规则的唯一来源是 tools/version_code.py；这里是构建期复刻，
-// tools/test_version_code.py 会校验乘数与预览序号范围一致，禁止只改一边。
+// tools/test_version_code.py 会校验乘数与预览序号范围一致；每次 Gradle 配置还会用
+// tools/version_code_vectors.txt 的固定向量校验下面函数的实际返回值，禁止只改一边。
 private val PREVIEW_VERSION_SUFFIX = Regex("-preview\\.([1-4])$")
 
 fun apkVersionCode(code: Int, versionName: String): Int {
+    // 与 version_code.py 的 parse_code 一致：正整数，且 ×5 + 4 仍在 Android int 范围内。
+    require(code > 0) { "Metadata version code must be a positive integer: $code" }
+    require(code.toLong() * 5 + 4 <= Int.MAX_VALUE) { "Metadata version code overflows versionCode: $code" }
     val preview = PREVIEW_VERSION_SUFFIX.find(versionName)
     require(!versionName.contains("-preview") || preview != null) {
         "Preview version must end in -preview.1 through -preview.4: $versionName"
@@ -30,8 +34,37 @@ fun apkVersionCode(code: Int, versionName: String): Int {
     return code * 5 + (preview?.groupValues?.get(1)?.toInt() ?: 0)
 }
 
+/**
+ * 用 tools/version_code_vectors.txt 的固定向量校验 [apkVersionCode] 的实际行为，
+ * 返回不符的向量说明；Python 规则的单测读取同一文件。 @author 雾晚
+ */
+fun versionCodeVectorMismatches(vectors: String): List<String> = vectors.lineSequence()
+    .map { it.trim() }
+    .filter { it.isNotEmpty() && !it.startsWith("#") }
+    .mapNotNull { line ->
+        val parts = line.split("|")
+        if (parts.size != 3) return@mapNotNull "malformed vector: $line"
+        val code = parts[0].trim().toIntOrNull() ?: return@mapNotNull "malformed code: $line"
+        val actual = runCatching { apkVersionCode(code, parts[1].trim()) }
+            .fold({ it.toString() }, { "reject" })
+        if (actual == parts[2].trim()) null else "$line -> $actual"
+    }
+    .toList()
+
+private fun Project.verifyVersionCodeRule() {
+    val file = rootProject.file("tools/version_code_vectors.txt")
+    if (!file.isFile) throw GradleException("Missing ${file.path}: version-code rule cannot be verified")
+    val mismatches = versionCodeVectorMismatches(file.readText())
+    if (mismatches.isNotEmpty()) {
+        throw GradleException(
+            "Kotlin apkVersionCode drifted from tools/version_code.py:\n" + mismatches.joinToString("\n")
+        )
+    }
+}
+
 fun Project.requireMetadata(): Properties {
     if (!::metadata.isInitialized) {
+        verifyVersionCodeRule()
         metadata = Properties().apply {
             load(rootProject.file("nb4a.properties").inputStream())
         }

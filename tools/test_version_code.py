@@ -186,5 +186,57 @@ class KotlinRuleConsistencyTest(unittest.TestCase):
             self.assertEqual(1, main(["--check-kotlin", str(drifted)]))
 
 
+class SharedVectorTest(unittest.TestCase):
+    """Python 规则与 Gradle 实际执行的 Kotlin 复刻共用 tools/version_code_vectors.txt。
+
+    Kotlin 侧在每次 Gradle 配置时用同一份向量校验 apkVersionCode 的真实返回值
+    （Helpers.kt verifyVersionCodeRule），这里校验 Python 侧，并锁住 Kotlin 侧确实调用了它。
+    """
+
+    ROOT = Path(__file__).resolve().parents[1]
+    VECTORS = ROOT / "tools/version_code_vectors.txt"
+
+    def _vectors(self):
+        rows = []
+        for raw in self.VECTORS.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            code, name, expected = (part.strip() for part in line.split("|"))
+            rows.append((int(code), name, expected))
+        return rows
+
+    def test_python_rule_matches_every_vector(self):
+        rows = self._vectors()
+        self.assertGreaterEqual(len(rows), 10)
+        for code, name, expected in rows:
+            with self.subTest(code=code, name=name):
+                if expected == "reject":
+                    with self.assertRaises(VersionError):
+                        apk_version_code(code, name)
+                else:
+                    self.assertEqual(int(expected), apk_version_code(code, name))
+
+    def test_vectors_cover_required_boundaries(self):
+        rows = self._vectors()
+        names = {name for _, name, _ in rows}
+        # 预览序号确实参与计算：同一元数据码的 preview.1 与 preview.4 结果不同。
+        same_code = {name: exp for code, name, exp in rows if code == 2020 and exp != "reject"}
+        self.assertEqual(3, int(same_code["3.0.12-preview.4"]) - int(same_code["3.0.12-preview.1"]))
+        for bad in ("3.0.12-preview.0", "3.0.12-preview.5", "3.0.12-preview", "3.0.12-preview.4-rc"):
+            self.assertIn(bad, names)
+        self.assertTrue(any(code <= 0 and exp == "reject" for code, _, exp in rows))
+        # 溢出边界：最大可用元数据码通过，再加一被拒绝。
+        self.assertIn((429496728, "3.0.12-preview.4", "2147483644"), rows)
+        self.assertIn((429496729, "3.0.12", "reject"), rows)
+        self.assertTrue(any("preview" not in name and exp != "reject" for _, name, exp in rows))
+
+    def test_gradle_verifies_kotlin_behaviour_against_vectors(self):
+        helpers = (self.ROOT / "buildSrc/src/main/kotlin/Helpers.kt").read_text(encoding="utf-8")
+        self.assertIn('rootProject.file("tools/version_code_vectors.txt")', helpers)
+        metadata = helpers[helpers.index("fun Project.requireMetadata()"):]
+        self.assertIn("verifyVersionCodeRule()", metadata[: metadata.index("return metadata")])
+
+
 if __name__ == "__main__":
     unittest.main()
