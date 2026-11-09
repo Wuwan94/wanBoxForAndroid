@@ -1,6 +1,6 @@
 # v3.0.13-preview.2 发行说明
 
-**状态：稳定性预览版。** 本版由仓库 `Preview Build` 工作流从 main 上经审查的提交构建并发布，不替换 v3.0.11 正式版。已发布正式版为 v3.0.11，上一版预览为 v3.0.13-preview.1；发布前的未发布候选阶段记录保留在提交历史与中文候选报告中，安装请以本 Release 页四件套为唯一来源。未做真机回归，不据此晋升正式版。
+**状态：稳定性预览版。** 本版由仓库 `Preview Build` 工作流从 main 上经审查的提交构建并发布，不替换 v3.0.11 正式版。已发布正式版为 v3.0.11，上一版预览 v3.0.13-preview.1 的 Release 与 tag 已按预览渠道策略清理；发布前的候选阶段记录保留在提交历史与中文候选报告中，安装请以本 Release 页四件套为唯一来源。未做真机回归，不据此晋升正式版。
 
 ## 更新
 
@@ -13,20 +13,21 @@
 ## 安装与版本
 
 - Android 12+、arm64-v8a、Root（Magisk / KernelSU / APatch），瘦管理器不含内核，无普通 VPN 回退。
-- 候选元数据 `PRE_VERSION_NAME=3.0.13-preview.2`、`PRE_VERSION_CODE=2022`，按 `metadataCode*5+previewSuffix` 预期 APK `10112`，高于已发布预览的 2021/10106；正式线 `VERSION_NAME=3.0.11`、`VERSION_CODE=2017` 不改动。实际产物版本码以本地构建与 CI 产物核验为准。
+- 本版元数据 `PRE_VERSION_NAME=3.0.13-preview.2`、`PRE_VERSION_CODE=2022`，按 `metadataCode*5+previewSuffix` 得 APK `10112`，高于上一版预览的 2021/10106；正式线 `VERSION_NAME=3.0.11`、`VERSION_CODE=2017` 不改动。实际发布产物的版本码已由工作流与资产回读核验。
 - 包名、签名、设置键及默认值、Room schema 和备份格式不变；管理器和 Root 模块必须同一发布页同版成套更新。
 - **成套下载**：请从本 Release 页下载 arm64-v8a 瘦 APK、普通 Root 模块、带管理器 Root 模块与 `SHA256SUMS`，先核对哈希；管理器和 Root 模块必须同页同版成套更新，不要只更新其中一个。
 
 ## 自动化验证及边界
 
-- 本地已实跑：Oss / PreviewDebug JVM 单测各 373 项、Python 工具测试 80 项、两套 debug APK 构建、版本码共享向量、Android 安全检查与 `git diff --check`。本版 APK 与 Root 模块由 `Preview Build` 工作流使用仓库签名凭据构建并逐项校验，最终以该运行的资产核验为准。
+- 本地已实跑：Oss / PreviewDebug JVM 单测各 373 项、Python 工具测试 80 项、两套 debug APK 构建、版本码共享向量、Android 安全检查与 `git diff --check`。
+- 仓库 `Verify Android Build` 运行 `42582172641` 全绿；`Preview Build` 运行 `42584446640` 的原生构建、OSS APK、模拟器冷启动测量与发布作业全部成功，四件套资产已回读核验；发布 tag 指向 main 提交 `320f8173e59576d7891ac824c262db68bccf936c`。
 - 未做 Magisk、KernelSU、APatch 真机矩阵或实体设备回归；模拟器、JVM 与静态检查不能替代 Root 真机验证。
 
 ---
 
 ## 历史归档：v3.0.13-preview.1 已发布说明
 
-> 以下为 v3.0.13-preview.1 已发布说明原文，保留当时语境、版本码与测试数量，不作为本轮 v3.0.13-preview.2 候选的结果。
+> 以下为 v3.0.13-preview.1 已发布说明原文（该 Release 与 tag 已按预览渠道策略清理），保留当时语境、版本码与测试数量，不作为本轮 v3.0.13-preview.2 的结果。
 
 # v3.0.13-preview.1 发行说明
 
