@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 更新包专用 FileProvider 路径：只暴露 cache/updates/，不开放整个缓存目录。 -->
+<paths>
+    <cache-path name="updates" path="updates/" />
+</paths>

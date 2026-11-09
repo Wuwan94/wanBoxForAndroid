@@ -242,4 +242,94 @@ class UpdateDownloadTest {
             assertTrue(next.directory.isDirectory)
         }
     }
+
+    @Test
+    fun clockRollbackDoesNotExpireAStillConsumablePair() = withCache { cache, _ ->
+        withClock(1_000_000L) { now ->
+            val first = UpdateDownload.prepare(assets, cache, ::transfer)
+            now[0] += UpdateDownload.RETENTION_MS
+            now[0] = 1L // 系统时间被回拨到远早于下载开始
+            val second = UpdateDownload.prepare(assets, cache, ::transfer)
+            // 回拨时保守保留：不因负的 elapsed 把仍待交接的第一份误判为过期。
+            assertTrue(first.directory.exists())
+            assertTrue(second.directory.exists())
+            assertArrayEquals(payload[moduleName], first.module.readBytes())
+        }
+    }
+
+    @Test
+    fun thirdSuccessfulDownloadDropsOldestPairByPolicy() = withCache { cache, _ ->
+        withClock(1_000_000L) { now ->
+            val attempts = (1..3).map {
+                now[0] += 1_000
+                UpdateDownload.prepare(assets, cache, ::transfer)
+            }
+            // 既定策略是「最多两份、1 小时」，不是对消费者的永久持有保证：
+            // 第三次成功后最旧一份被挤出，UI 必须提供明确的导出入口。
+            assertFalse(attempts[0].directory.exists())
+            assertTrue(attempts[1].directory.exists())
+            assertTrue(attempts[2].directory.exists())
+        }
+    }
+
+    @Test
+    fun failedDeletionKeepsRegistryAndIsRetriedByNextAttempt() = withCache { cache, _ ->
+        val original = UpdateDownload.removeAttempt
+        withClock(1_000_000L) { now ->
+            val first = UpdateDownload.prepare(assets, cache, ::transfer)
+            UpdateDownload.removeAttempt = { false }
+            try {
+                now[0] += UpdateDownload.RETENTION_MS
+                // 删除失败时目录仍在，且仍能被导出入口找到。
+                val second = UpdateDownload.prepare(assets, cache, ::transfer)
+                assertTrue(first.directory.exists())
+                assertNotNull(UpdateDownload.recentReady(cache))
+            } finally {
+                UpdateDownload.removeAttempt = original
+            }
+            now[0] += 1_000
+            UpdateDownload.prepare(assets, cache, ::transfer)
+            assertFalse("恢复删除后应按同一规则重试回收", first.directory.exists())
+        }
+    }
+
+    @Test
+    fun recentReadyLocatesVerifiedPairWithoutPrivatePath() = withCache { cache, _ ->
+        assertNull(UpdateDownload.recentReady(cache))
+        val incomplete = File(cache, "attempt-incomplete").apply { mkdirs() }
+        File(incomplete, "module.zip").writeText("only a module")
+        assertNull(UpdateDownload.recentReady(cache))
+        val ready = UpdateDownload.prepare(assets, cache, ::transfer)
+        val found = UpdateDownload.recentReady(cache)!!
+        assertArrayEquals(ready.apk.readBytes(), found.apk.readBytes())
+        assertArrayEquals(ready.module.readBytes(), found.module.readBytes())
+        assertEquals(ready.directory.name, found.directory.name)
+    }
+
+    @Test
+    fun recentReadyRefusesExpiredAttemptDirectory() = withCache { cache, _ ->
+        val now = System.currentTimeMillis()
+        withClock(now) { clock ->
+            val ready = UpdateDownload.prepare(assets, cache, ::transfer)
+            assertNotNull(UpdateDownload.recentReady(cache))
+            ready.directory.setLastModified(now - UpdateDownload.RETENTION_MS - 1)
+            assertNull(UpdateDownload.recentReady(cache))
+            clock[0] = now - 10L // 时间回拨：保守保留，仍可导出
+            assertNotNull(UpdateDownload.recentReady(cache))
+        }
+    }
+
+    @Test
+    fun outOfOrderCompletionKeepsBothVerifiedPairs() = withCache { cache, _ ->
+        var later: UpdateDownload.Ready? = null
+        val earlier = UpdateDownload.prepare(assets, cache) { asset, target ->
+            // 后开始的尝试先完成，先开始的尝试随后才完成。
+            if (later == null) later = UpdateDownload.prepare(assets, cache, ::transfer)
+            transfer(asset, target)
+        }
+        assertArrayEquals(payload[apkName], earlier.apk.readBytes())
+        assertArrayEquals(payload[apkName], later!!.apk.readBytes())
+        assertTrue(earlier.directory.exists())
+        assertTrue(later!!.directory.exists())
+    }
 }
