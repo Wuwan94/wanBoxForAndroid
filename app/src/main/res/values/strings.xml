@@ -785,6 +785,17 @@
     <string name="update_module_hint">Root module verified:\n%1$s\nInstall this ZIP in Magisk / KernelSU / APatch.</string>
     <string name="update_assets_missing">This release is missing the APK, Root module or SHA256SUMS. Open the release page instead.</string>
     <string name="check_update_no">Check successful, but no updates.</string>
+    <string name="update_ready_title">Update package verified</string>
+    <string name="update_ready_message">Manager APK and Root module passed SHA256SUMS verification. Installing the APK restarts the app, so save the Root module ZIP first and flash it afterwards in Magisk / KernelSU / APatch. Verified files are kept for %1$d hours, at most %2$d recent sets; after that, download them again.</string>
+    <string name="update_save_module">Save Root module ZIP</string>
+    <string name="update_install_apk">Install manager APK</string>
+    <string name="update_later">Later</string>
+    <string name="update_export_recent_module">Export last verified Root module</string>
+    <string name="update_no_recent_module">No verified Root module is available to export. Check for updates and download again.</string>
+    <string name="update_module_export_unavailable">Could not share the Root module ZIP. Open the release page to download it manually.</string>
+    <string name="update_no_preview_channel">No published preview release could be verified on this channel. Open the releases page to check manually.</string>
+    <string name="update_no_formal_channel">No published stable release could be verified on this channel. Open the releases page to check manually.</string>
+    <string name="update_local_version_unknown">The installed version cannot be verified automatically. Open the releases page to check manually.</string>
     <string name="reset_settings">Restore default settings</string>
     <string name="reset_settings_message">Restore default settings, but data such as nodes and groups will be retained. To completely clear data, clear application data directly in the system settings.</string>
     <string name="minimize">Minimize</string>

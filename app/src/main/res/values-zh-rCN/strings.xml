@@ -653,6 +653,17 @@
     <string name="update_module_hint">Root 模块已校验：\n%1$s\n请在 Magisk / KernelSU / APatch 中安装该 ZIP。</string>
     <string name="update_assets_missing">该版本缺少 APK、Root 模块或 SHA256SUMS，请前往发布页查看。</string>
     <string name="check_update_no">检查成功，但没有更新。</string>
+    <string name="update_ready_title">更新包已校验</string>
+    <string name="update_ready_message">管理器 APK 与 Root 模块已按 SHA256SUMS 校验通过。安装 APK 会重启应用，请先保存 Root 模块 ZIP，重启后再到 Magisk / KernelSU / APatch 中刷入。已校验文件保留 %1$d 小时、最多 %2$d 份；超时或被新下载挤出后需要重新下载。</string>
+    <string name="update_save_module">保存 Root 模块 ZIP</string>
+    <string name="update_install_apk">安装管理器 APK</string>
+    <string name="update_later">稍后</string>
+    <string name="update_export_recent_module">导出最近校验的 Root 模块</string>
+    <string name="update_no_recent_module">没有可导出的已校验模块，请重新检查更新并下载。</string>
+    <string name="update_module_export_unavailable">无法分享 Root 模块 ZIP，请前往发布页手动下载。</string>
+    <string name="update_no_preview_channel">该渠道没有可核对的已发布预览版，请前往发布页手动查看。</string>
+    <string name="update_no_formal_channel">该渠道没有可核对的已发布正式版，请前往发布页手动查看。</string>
+    <string name="update_local_version_unknown">当前应用版本无法自动核对，请前往发布页手动检查。</string>
     <string name="reset_settings">恢复默认设置</string>
     <string name="reset_settings_message">恢复默认设置，但节点、分组等数据将保留。如需完全清除数据，请在系统设置中直接清除应用数据。</string>
     <string name="minimize">最小化</string>

@@ -1,6 +1,7 @@
 package io.nekohasekai.sagernet.ui
 
 import android.app.Activity
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -37,6 +38,7 @@ import io.nekohasekai.sagernet.utils.PackageCache
 import io.nekohasekai.sagernet.utils.ArtifactDownload
 import io.nekohasekai.sagernet.utils.UpdateArtifacts
 import io.nekohasekai.sagernet.utils.UpdateDownload
+import io.nekohasekai.sagernet.utils.UpdateRelease
 import io.nekohasekai.sagernet.widget.ListListener
 import libcore.Libcore
 import moe.matsuri.nb4a.plugin.Plugins
@@ -49,8 +51,6 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.database.DataStore
 import moe.matsuri.nb4a.utils.Util
-import org.json.JSONArray
-import org.json.JSONObject
 import io.nekohasekai.sagernet.core.CoreRuntime
 
 class AboutFragment : ToolbarFragment(R.layout.layout_about) {
@@ -125,11 +125,14 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                                         .setItems(arrayOf(
                                             getString(R.string.check_update_release),
                                             getString(R.string.check_update_preview),
+                                            getString(R.string.update_export_recent_module),
                                             getString(R.string.about_open_releases)
                                         )) { _, which ->
                                             when (which) {
                                                 0 -> checkUpdate(isPreview = false)
                                                 1 -> checkUpdate(isPreview = true)
+                                                // APK 安装会重启应用：重启后仍能把同版模块交给 Root 管理器。
+                                                2 -> exportRecentModule()
                                                 else -> requireContext().launchCustomTab(
                                                     "https://github.com/Wuwan94/wanBoxForAndroid/releases"
                                                 )
@@ -284,69 +287,31 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
             }
         }
 
+        /**
+         * 两个入口共用一条渠道规则：正式检查只选正式版，预览检查只选预览版。
+         * 版本身份只取校验后的 tag_name；展示标题、发布时间和 API 数组顺序都不参与判定。
+         * 分页有硬边界，选中的 Release 资产不与其他 Release 拼接。 @author 雾晚
+         */
         fun checkUpdate(isPreview: Boolean = false) {
+            val channel = if (isPreview) UpdateRelease.Channel.PREVIEW else UpdateRelease.Channel.FORMAL
             runOnIoDispatcher {
                 try {
                     val client = CoreRuntime.httpClient().apply {
                         modernTLS()
                         tryProxyOutbound()
                     }
-                    val url = if (isPreview) {
-                        "https://api.github.com/repos/Wuwan94/wanBoxForAndroid/releases"
-                    } else {
-                        "https://api.github.com/repos/Wuwan94/wanBoxForAndroid/releases/latest"
+                    val records = mutableListOf<UpdateRelease.Record>()
+                    var page: Int? = 1
+                    while (page != null) {
+                        val url = "https://api.github.com/repos/Wuwan94/wanBoxForAndroid/releases" +
+                            "?per_page=${UpdateRelease.PAGE_SIZE}&page=$page"
+                        val response = client.newRequest().apply { setURL(url) }.execute()
+                        val parsed = UpdateRelease.parsePage(Util.getStringBox(response.contentString))
+                        records += parsed
+                        page = UpdateRelease.nextPage(page, parsed.size)
                     }
-                    val response = client.newRequest().apply {
-                        setURL(url)
-                    }.execute()
-                    val responseStr = Util.getStringBox(response.contentString)
-                    val release = if (isPreview) {
-                        val arr = JSONArray(responseStr)
-                        if (arr.length() == 0) throw IllegalStateException("No releases found")
-                        arr.getJSONObject(0)
-                    } else {
-                        JSONObject(responseStr)
-                    }
-                    val releaseName = release.getString("name")
-                    val releaseUrl = release.getString("html_url")
-                    // @author 雾晚: 只接受同一 Release 内的 APK + Root 模块 + SHA256SUMS 三件套。
-                    val assets = UpdateArtifacts.parseAssets(release.toString())
-                    val bundle = UpdateArtifacts.selectBundle(assets)
-                    // Release name is the git tag, e.g. "v1.4.2-m20-10" or "Ownbox 2.3.5".
-                    // Compare it with the local version name segment by segment.
-                    val cleanReleaseName = releaseName.replace(Regex("(?i)^Ownbox\\s*"), "")
-                    val haveUpdate = cleanReleaseName.isNotBlank() &&
-                            compareVersionNames(cleanReleaseName, BuildConfig.VERSION_NAME) > 0
-                    runOnMainDispatcher {
-                        if (haveUpdate) {
-                            val context = requireContext()
-                            val openRelease = {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, releaseUrl.toUri()))
-                            }
-                            val dialog = MaterialAlertDialogBuilder(context)
-                                .setTitle(R.string.update_dialog_title)
-                                .setMessage(
-                                    context.getString(
-                                        R.string.update_dialog_message,
-                                        SagerNet.appVersionNameForDisplay,
-                                        releaseName
-                                    )
-                                )
-                                .setNeutralButton(R.string.update_open_release) { _, _ -> openRelease() }
-                                .setNegativeButton(R.string.no, null)
-                            if (bundle == null) {
-                                Toast.makeText(app, R.string.update_assets_missing, Toast.LENGTH_LONG).show()
-                                dialog.setPositiveButton(R.string.update_open_release) { _, _ -> openRelease() }
-                            } else {
-                                dialog.setPositiveButton(R.string.update_download_verify) { _, _ ->
-                                    downloadBundle(assets)
-                                }
-                            }
-                            dialog.show()
-                        } else {
-                            Toast.makeText(app, R.string.check_update_no, Toast.LENGTH_SHORT).show()
-                        }
-                    }
+                    val selection = UpdateRelease.select(records, channel, BuildConfig.VERSION_NAME)
+                    runOnMainDispatcher { showUpdateResult(selection, channel) }
                 } catch (e: Exception) {
                     Logs.w(e)
                     runOnMainDispatcher {
@@ -356,9 +321,71 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
             }
         }
 
+        private fun showUpdateResult(selection: UpdateRelease.Selection, channel: UpdateRelease.Channel) {
+            val context = requireContext()
+            val openReleases = {
+                context.startActivity(
+                    Intent(Intent.ACTION_VIEW, "https://github.com/Wuwan94/wanBoxForAndroid/releases".toUri())
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            }
+            val openRelease = { url: String ->
+                context.startActivity(
+                    Intent(Intent.ACTION_VIEW, url.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            }
+            val record = selection.record
+            when {
+                selection.reason == UpdateRelease.Reason.INVALID_LOCAL_VERSION -> {
+                    MaterialAlertDialogBuilder(context)
+                        .setTitle(R.string.update_dialog_title)
+                        .setMessage(R.string.update_local_version_unknown)
+                        .setPositiveButton(R.string.update_open_release) { _, _ -> openReleases() }
+                        .setNegativeButton(R.string.no, null)
+                        .show()
+                }
+                selection.reason == UpdateRelease.Reason.NO_RELEASE || record == null -> {
+                    MaterialAlertDialogBuilder(context)
+                        .setTitle(R.string.update_dialog_title)
+                        .setMessage(
+                            if (channel == UpdateRelease.Channel.PREVIEW) R.string.update_no_preview_channel
+                            else R.string.update_no_formal_channel
+                        )
+                        .setPositiveButton(R.string.update_open_release) { _, _ -> openReleases() }
+                        .setNegativeButton(R.string.no, null)
+                        .show()
+                }
+                !selection.newer -> {
+                    Toast.makeText(app, R.string.check_update_no, Toast.LENGTH_SHORT).show()
+                }
+                else -> {
+                    val baseMessage = context.getString(
+                        R.string.update_dialog_message,
+                        SagerNet.appVersionNameForDisplay,
+                        record.tagName,
+                    ) + "\n" + record.displayName
+                    val dialog = MaterialAlertDialogBuilder(context)
+                        .setTitle(R.string.update_dialog_title)
+                        .setNeutralButton(R.string.update_open_release) { _, _ -> openRelease(record.htmlUrl) }
+                        .setNegativeButton(R.string.no, null)
+                    if (selection.bundle == null) {
+                        // 资产不全：明确提示 + 发布页入口，绝不说成「已经最新」，也不跨 Release 拼文件。
+                        dialog.setMessage(baseMessage + "\n" + context.getString(R.string.update_assets_missing))
+                            .setPositiveButton(R.string.update_open_release) { _, _ -> openRelease(record.htmlUrl) }
+                    } else {
+                        dialog.setMessage(baseMessage)
+                            .setPositiveButton(R.string.update_download_verify) { _, _ ->
+                                downloadBundle(record.assets)
+                            }
+                    }
+                    dialog.show()
+                }
+            }
+        }
+
         /**
-         * 下载同一 Release 的 APK、Root 模块与 SHA256SUMS，校验通过后才打开系统安装器；
-         * 不静默安装，模块 ZIP 交由用户在 Root 管理器中安装。 @author 雾晚
+         * 下载同一 Release 的 APK、Root 模块与 SHA256SUMS，校验通过后才交给用户；
+         * 不静默安装，模块 ZIP 通过受限 FileProvider + 系统分享交给用户保存/刷入。 @author 雾晚
          */
         private fun downloadBundle(assets: List<UpdateArtifacts.ReleaseAsset>) {
             val context = requireContext()
@@ -368,25 +395,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                     val ready = UpdateDownload.prepare(assets, dir) { asset, target ->
                         downloadFile(asset.downloadUrl, target)
                     }
-                    runOnMainDispatcher {
-                        try {
-                            val uri = FileProvider.getUriForFile(
-                                context, BuildConfig.APPLICATION_ID + ".cache", ready.apk
-                            )
-                            Toast.makeText(
-                                app,
-                                app.getString(R.string.update_module_hint, ready.module.absolutePath),
-                                Toast.LENGTH_LONG
-                            ).show()
-                            context.startActivity(Intent(Intent.ACTION_VIEW).apply {
-                                setDataAndType(uri, "application/vnd.android.package-archive")
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-                            })
-                        } catch (_: Exception) {
-                            UpdateDownload.release(ready)
-                            Toast.makeText(app, R.string.update_install_unavailable, Toast.LENGTH_LONG).show()
-                        }
-                    }
+                    runOnMainDispatcher { showReadyActions(context, ready) }
                 } catch (e: UpdateDownload.Failure) {
                     // Fixed localized errors never expose asset URLs, response bodies or credentials.
                     val message = when (e.reason) {
@@ -399,6 +408,84 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                         Toast.makeText(app, message, Toast.LENGTH_LONG).show()
                     }
                 }
+            }
+        }
+
+        /** 校验通过后的两个明确动作：先保存模块 ZIP，再安装 APK；不要求用户手输私有路径。 */
+        private fun showReadyActions(context: Context, ready: UpdateDownload.Ready) {
+            val apkUri: Uri
+            val moduleUri: Uri
+            try {
+                apkUri = FileProvider.getUriForFile(context, UPDATE_FILE_PROVIDER, ready.apk)
+                moduleUri = FileProvider.getUriForFile(context, UPDATE_FILE_PROVIDER, ready.module)
+            } catch (_: Exception) {
+                // FileProvider 路径不可用时立即释放，不把已校验文件留在缓存里却无法交接。
+                UpdateDownload.release(ready)
+                Toast.makeText(app, R.string.update_install_unavailable, Toast.LENGTH_LONG).show()
+                return
+            }
+            val installApk = {
+                try {
+                    context.startActivity(Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(apkUri, "application/vnd.android.package-archive")
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                        clipData = ClipData.newUri(context.contentResolver, "wanBox manager APK", apkUri)
+                    })
+                } catch (_: Exception) {
+                    UpdateDownload.release(ready)
+                    Toast.makeText(app, R.string.update_install_unavailable, Toast.LENGTH_LONG).show()
+                }
+            }
+            val saveModule = { shareModuleZip(context, moduleUri) }
+            MaterialAlertDialogBuilder(context)
+                .setTitle(R.string.update_ready_title)
+                .setMessage(
+                    context.getString(
+                        R.string.update_ready_message,
+                        UpdateDownload.RETENTION_MS / (60L * 60 * 1000),
+                        UpdateDownload.MAX_RETAINED,
+                    )
+                )
+                .setPositiveButton(R.string.update_save_module) { _, _ -> saveModule() }
+                .setNeutralButton(R.string.update_install_apk) { _, _ -> installApk() }
+                .setNegativeButton(R.string.update_later, null)
+                .show()
+        }
+
+        /** 升级重启后仍可导出最近一次已校验的模块：只授予单个 ZIP 的读取 URI 权限。 */
+        private fun exportRecentModule() {
+            val context = requireContext()
+            runOnIoDispatcher {
+                val ready = UpdateDownload.recentReady(File(context.cacheDir, "updates"))
+                runOnMainDispatcher {
+                    if (ready == null) {
+                        Toast.makeText(app, R.string.update_no_recent_module, Toast.LENGTH_LONG).show()
+                    } else {
+                        try {
+                            val uri = FileProvider.getUriForFile(context, UPDATE_FILE_PROVIDER, ready.module)
+                            shareModuleZip(context, uri)
+                        } catch (_: Exception) {
+                            Toast.makeText(app, R.string.update_module_export_unavailable, Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }
+        }
+
+        private fun shareModuleZip(context: Context, uri: Uri) {
+            try {
+                val share = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/zip"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    clipData = ClipData.newUri(context.contentResolver, "wanBox Root module", uri)
+                }
+                context.startActivity(
+                    Intent.createChooser(share, context.getString(R.string.update_save_module))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            } catch (_: Exception) {
+                Toast.makeText(app, R.string.update_module_export_unavailable, Toast.LENGTH_LONG).show()
             }
         }
 
@@ -418,43 +505,9 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
         companion object {
 
             private val downloadClient by lazy { OkHttpClient() }
-            private val numberRegex = Regex("\\d+")
 
-            /**
-             * Compares two version names segment by segment (split by "-").
-             * Each segment is compared by its numeric groups in order,
-             * and left segments dominate right ones, e.g.
-             * "v1.2.3-m21-1" > "v1.2.3-m20-100".
-             *
-             * Returns a positive value if [a] is newer than [b],
-             * a negative value if it is older, and 0 if they are equal.
-             */
-            fun compareVersionNames(a: String, b: String): Int {
-                val segmentsA = a.split("-")
-                val segmentsB = b.split("-")
-                for (i in 0 until maxOf(segmentsA.size, segmentsB.size)) {
-                    val segmentA = segmentsA.getOrNull(i).orEmpty()
-                    val segmentB = segmentsB.getOrNull(i).orEmpty()
-                    val numbersA = extractNumbers(segmentA)
-                    val numbersB = extractNumbers(segmentB)
-                    if (numbersA.isEmpty() && numbersB.isEmpty()) {
-                        val compared = segmentA.compareTo(segmentB)
-                        if (compared != 0) return compared
-                        continue
-                    }
-                    for (j in 0 until maxOf(numbersA.size, numbersB.size)) {
-                        val numberA = numbersA.getOrNull(j)
-                        val numberB = numbersB.getOrNull(j)
-                        if (numberA == null) return -1
-                        if (numberB == null) return 1
-                        if (numberA != numberB) return if (numberA < numberB) -1 else 1
-                    }
-                }
-                return 0
-            }
-
-            private fun extractNumbers(segment: String): List<Long> =
-                numberRegex.findAll(segment).mapNotNull { it.value.toLongOrNull() }.toList()
+            /** 专用 FileProvider 只映射 cache/updates/，不开放整个缓存目录。 */
+            private val UPDATE_FILE_PROVIDER = BuildConfig.APPLICATION_ID + ".updates"
 
         }
 

@@ -483,6 +483,17 @@
                 android:resource="@xml/cache_paths" />
         </provider>
 
+        <!-- 更新包交接专用：只授予 cache/updates/ 下单个文件的读取 URI，不开放整个缓存目录。 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_paths" />
+        </provider>
+
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="${applicationId}.androidx-startup"
