@@ -4,13 +4,13 @@
 
 ## wanBox 3.0.x 发布记录
 
-### v3.0.13-preview.2（未发布候选，未发布）
+### v3.0.13-preview.2（已发布预览）
 
-- 状态：本地候选与可审查补丁，**未发布**；未推送、未合并、未打 tag，没有可下载的四件套资产。发布前后状态分别更新，发布前不写成「已发布」。
+- 状态：**已发布预览**（prerelease），由 `Preview Build` 工作流从 main 提交 `320f8173e59576d7891ac824c262db68bccf936c` 发布；Release 提供 arm64-v8a 瘦 APK、普通 Root 模块、带管理器 Root 模块与 `SHA256SUMS` 四件套。发布前后状态分别更新，正式版 v3.0.11 不受影响。
 - 更新渠道与版本身份：以校验后的 `tag_name` 判定版本，`name` 只作展示；正式/预览渠道各自严格筛选与排序，分页有界；资产不全明确提示并给发布页入口，不跨 Release 拼接。
 - 更新包交接：受限 FileProvider 只暴露 `cache/updates/`，新增「保存 Root 模块 ZIP」与升级重启后「导出最近校验的 Root 模块」入口；明确「1 小时、最多 2 份」是有界缓存策略，不是永久持有保证。
 - 文档一致性：新增离线检查 `tools/check_current_version_docs.py` 与注入漂移的回归测试，挂入现有 Python 验证流程；历史数值保留归档语境。
-- 候选元数据 `PRE_VERSION_NAME=3.0.13-preview.2`、`PRE_VERSION_CODE=2022`，预期 APK `10112`；正式线不动。**未做真机回归**，不晋升正式版。
+- 本版元数据 `PRE_VERSION_NAME=3.0.13-preview.2`、`PRE_VERSION_CODE=2022`，实际 APK `versionCode=10112`；正式线不动。**未做真机回归**，不晋升正式版。
 
 ### v3.0.13-preview.1（已发布预览）
 

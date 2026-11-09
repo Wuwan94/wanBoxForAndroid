@@ -14,10 +14,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 STABLE_TAG = "v3.0.11"
-PUBLISHED_PREVIEW = "v3.0.13-preview.1"
-PUBLISHED_PREVIEW_COMMIT = "7b21b3d87e4f080b05fd1a109bd19b71c66fad23"
-CANDIDATE = "v3.0.13-preview.2"
-CANDIDATE_CODE = "2022"
+PUBLISHED_PREVIEW = "v3.0.13-preview.2"
+PUBLISHED_PREVIEW_COMMIT = "320f8173e59576d7891ac824c262db68bccf936c"
+ARCHIVED_PREVIEW = "v3.0.13-preview.1"
 HISTORY_MARKER = "历史归档"
 
 FILES = {
@@ -69,75 +68,81 @@ def failures(root: Path = ROOT) -> list[str]:
     except (FileNotFoundError, UnicodeDecodeError) as exc:
         return [f"读取当前版本文档失败: {exc}"]
 
-    # 1. 源码元数据：正式线不动，预览线指向未发布候选。
+    # 1. 源码元数据：正式线不动，预览线指向已发布版本。
     if props.get("VERSION_NAME") != "3.0.11":
         errors.append(f"nb4a.properties: VERSION_NAME 应为 3.0.11，实际 {props.get('VERSION_NAME')!r}")
     if props.get("VERSION_CODE") != "2017":
         errors.append(f"nb4a.properties: VERSION_CODE 应为 2017（正式线不改），实际 {props.get('VERSION_CODE')!r}")
-    if props.get("PRE_VERSION_NAME") != CANDIDATE[1:]:
-        errors.append(f"nb4a.properties: PRE_VERSION_NAME 应为 {CANDIDATE[1:]}，实际 {props.get('PRE_VERSION_NAME')!r}")
-    if props.get("PRE_VERSION_CODE") != CANDIDATE_CODE:
-        errors.append(f"nb4a.properties: PRE_VERSION_CODE 应为 {CANDIDATE_CODE}，实际 {props.get('PRE_VERSION_CODE')!r}")
+    if props.get("PRE_VERSION_NAME") != PUBLISHED_PREVIEW[1:]:
+        errors.append(f"nb4a.properties: PRE_VERSION_NAME 应为 {PUBLISHED_PREVIEW[1:]}，实际 {props.get('PRE_VERSION_NAME')!r}")
+    if props.get("PRE_VERSION_CODE") != "2022":
+        errors.append(f"nb4a.properties: PRE_VERSION_CODE 应为 2022，实际 {props.get('PRE_VERSION_CODE')!r}")
 
-    # 2. README 中英版本快照与徽章：三条状态必须同时成立。
+    # 2. README 中英版本快照与徽章：只有两个已发布状态，不留未发布候选徽章。
     head = "\n".join(readme.splitlines()[:45])
     for label, token in (
         ("已发布正式版", STABLE_TAG),
         ("已发布预览版", PUBLISHED_PREVIEW),
-        ("未发布候选", CANDIDATE),
     ):
         if token not in head:
             errors.append(f"README.md 当前版本快照缺少{label} {token}")
-    if re.search(r"已发布预览(?:版)?为\s*\[?v?3\.0\.12-preview\.3", head):
-        errors.append("README.md 仍把 v3.0.12-preview.3 写成已发布预览")
-    if re.search(r"本轮目标为\s*\*\*v3\.0\.12-preview\.4", head):
-        errors.append("README.md 仍把 v3.0.12-preview.4 写成本轮目标")
     if f"releases/tag/{PUBLISHED_PREVIEW}" not in head:
-        errors.append("README.md 预览徽章/link 未指向已发布的 v3.0.13-preview.1")
-    if not re.search(r"Next-[^\"]*3\.0\.13--preview\.2[^\"]*unreleased", head):
-        errors.append("README.md 未发布徽章应标注 3.0.13-preview.2 且注明 unreleased")
+        errors.append(f"README.md 预览徽章/link 未指向已发布的 {PUBLISHED_PREVIEW}")
+    if f"已发布预览版为 [{PUBLISHED_PREVIEW}]" not in head:
+        errors.append(f"README.md 中文快照未把 {PUBLISHED_PREVIEW} 标为已发布预览")
+    if re.search(r'Next-[^"]*unreleased', head):
+        errors.append("README.md 仍保留未发布候选徽章")
     en = [line for line in head.splitlines() if line.startswith("Published releases:")]
-    if not en or not all(t in en[0] for t in (STABLE_TAG, PUBLISHED_PREVIEW, CANDIDATE)):
-        errors.append("README.md 英文快照未同时列出正式版 / 已发布预览 / 未发布候选")
+    if not en or not all(t in en[0] for t in (STABLE_TAG, PUBLISHED_PREVIEW)):
+        errors.append("README.md 英文快照未同时列出正式版与已发布预览")
+    if en and "unreleased candidate" in en[0]:
+        errors.append("README.md 英文快照仍把本版写成未发布候选")
 
-    # 3. 版本对照：三行状态 + 已发布预览的精确来源提交。
+    # 3. 版本对照：两行状态 + 已发布预览的精确来源提交。
     table = "\n".join(current.splitlines()[:14])
-    for label in ("已发布正式版", "已发布预览版", "未发布候选"):
+    for label in ("已发布正式版", "已发布预览版"):
         if label not in table:
             errors.append(f"docs/current-version.zh-CN.md 表格缺少「{label}」行")
     if PUBLISHED_PREVIEW not in table or PUBLISHED_PREVIEW_COMMIT not in table:
-        errors.append("docs/current-version.zh-CN.md 已发布预览行缺少 v3.0.13-preview.1 或其精确提交")
-    if CANDIDATE not in table:
-        errors.append("docs/current-version.zh-CN.md 未标出未发布候选 v3.0.13-preview.2")
-    if "v3.0.12-preview.4" in table and "历史" not in table:
-        errors.append("docs/current-version.zh-CN.md 当前表格仍以 v3.0.12-preview.4 为未发布目标")
-    if "发布页" in current and "releases/tag/v3.0.12-preview.3" in current:
-        errors.append("docs/current-version.zh-CN.md 仍把已清理的 preview.3 链接当作当前下载入口")
+        errors.append(f"docs/current-version.zh-CN.md 已发布预览行缺少 {PUBLISHED_PREVIEW} 或其精确提交")
+    if "未发布候选" in table:
+        errors.append("docs/current-version.zh-CN.md 当前表格仍标有未发布候选")
+    if "当前源码基线" in table:
+        errors.append(
+            "docs/current-version.zh-CN.md 仍把发布 tag 提交写成「当前源码基线」；"
+            "发布后的文档同步会移动 main HEAD，只能记为固定发布基线"
+        )
 
-    # 4. 发布清单：标题与首段指向本轮候选，旧 preview.3 只能留在历史归档。
-    if not checklist.lstrip().startswith(f"# {CANDIDATE}"):
-        errors.append("docs/release-checklist.zh-CN.md 标题未对齐 v3.0.13-preview.2")
-    if "未发布候选" not in "\n".join(checklist.splitlines()[:6]):
-        errors.append("docs/release-checklist.zh-CN.md 首段未声明「未发布候选」")
-    if re.search(r"本轮目标仅为\s*\*\*v3\.0\.12-preview\.3", checklist):
-        errors.append("docs/release-checklist.zh-CN.md 当前区段仍以 v3.0.12-preview.3 为本轮目标")
+    # 4. 发布清单：标题与首段指向已发布版本。
+    if not checklist.lstrip().startswith(f"# {PUBLISHED_PREVIEW}"):
+        errors.append("docs/release-checklist.zh-CN.md 标题未对齐已发布预览")
+    lead = "\n".join(checklist.splitlines()[:6])
+    if "已发布" not in lead:
+        errors.append("docs/release-checklist.zh-CN.md 首段未声明「已发布」")
+    if "未发布候选" in lead:
+        errors.append("docs/release-checklist.zh-CN.md 首段仍写「未发布候选」")
 
-    # 5. 发行说明：候选稿不得写成已发布；preview.1 已发布说明保留归档语境。
+    # 5. 发行说明：当前区段必须是已发布预览；归档预览保留在历史段落。
     for name, text in (("PREVIEW_NOTES.md", notes), ("docs/release-notes-next.zh-CN.md", next_notes)):
-        title = text.splitlines()[0] if text.splitlines() else ""
-        if not title.startswith(f"# {CANDIDATE}"):
-            errors.append(f"{name} 标题未对齐未发布候选 {CANDIDATE}")
-        if "未发布候选" not in text:
-            errors.append(f"{name} 未标注「未发布候选」")
-        if "已发布说明" not in text or PUBLISHED_PREVIEW not in text:
-            errors.append(f"{name} 缺少 {PUBLISHED_PREVIEW} 已发布说明的历史归档段落")
+        section = current_section(text)
+        title = section.splitlines()[0] if section.splitlines() else ""
+        if not title.startswith(f"# {PUBLISHED_PREVIEW}"):
+            errors.append(f"{name} 标题未对齐已发布预览 {PUBLISHED_PREVIEW}")
+        if "稳定性预览版" not in section:
+            errors.append(f"{name} 当前区段未声明「稳定性预览版」")
+        if "未发布候选" in section:
+            errors.append(f"{name} 当前区段仍写「未发布候选」")
+        if "已发布说明" not in text or ARCHIVED_PREVIEW not in text:
+            errors.append(f"{name} 缺少 {ARCHIVED_PREVIEW} 已发布说明的历史归档段落")
 
-    # 6. CHANGELOG：已发布 preview.1 与未发布 preview.2 分别记账。
+    # 6. CHANGELOG：已发布本版与归档预览分别记账。
     changelog_head = "\n".join(changelog.splitlines()[:40])
     if PUBLISHED_PREVIEW not in changelog_head:
-        errors.append("CHANGELOG.md 缺少已发布的 v3.0.13-preview.1 记录")
-    if CANDIDATE not in changelog_head or "未发布" not in changelog_head:
-        errors.append("CHANGELOG.md 缺少标注为未发布的 v3.0.13-preview.2 候选记录")
+        errors.append(f"CHANGELOG.md 缺少已发布的 {PUBLISHED_PREVIEW} 记录")
+    if ARCHIVED_PREVIEW not in changelog_head:
+        errors.append(f"CHANGELOG.md 缺少归档预览 {ARCHIVED_PREVIEW} 记录")
+    if "（未发布候选，未发布）" in changelog_head:
+        errors.append("CHANGELOG.md 仍把本版标题写成未发布候选")
 
     return errors
 
