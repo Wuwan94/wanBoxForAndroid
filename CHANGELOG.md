@@ -4,6 +4,20 @@
 
 ## wanBox 3.0.x 发布记录
 
+### v3.0.13-preview.2（未发布候选，未发布）
+
+- 状态：本地候选与可审查补丁，**未发布**；未推送、未合并、未打 tag，没有可下载的四件套资产。发布前后状态分别更新，发布前不写成「已发布」。
+- 更新渠道与版本身份：以校验后的 `tag_name` 判定版本，`name` 只作展示；正式/预览渠道各自严格筛选与排序，分页有界；资产不全明确提示并给发布页入口，不跨 Release 拼接。
+- 更新包交接：受限 FileProvider 只暴露 `cache/updates/`，新增「保存 Root 模块 ZIP」与升级重启后「导出最近校验的 Root 模块」入口；明确「1 小时、最多 2 份」是有界缓存策略，不是永久持有保证。
+- 文档一致性：新增离线检查 `tools/check_current_version_docs.py` 与注入漂移的回归测试，挂入现有 Python 验证流程；历史数值保留归档语境。
+- 候选元数据 `PRE_VERSION_NAME=3.0.13-preview.2`、`PRE_VERSION_CODE=2022`，预期 APK `10112`；正式线不动。**未做真机回归**，不晋升正式版。
+
+### v3.0.13-preview.1（已发布预览）
+
+- 修复更新包过早清理、地址显示开关返回后不重绑，以及 Python/Kotlin 版本码固定向量一致性；这三项是本轮回归基线，不是 preview.2 的新增成果。
+- 预览名 `3.0.13-preview.1`，Root 模块码 `2021`，APK `versionCode=10106`；发布来源 tag/commit `7b21b3d87e4f080b05fd1a109bd19b71c66fad23`。
+- 详细已发布说明见 [PREVIEW_NOTES.md](PREVIEW_NOTES.md) 的历史归档段落；未做真机回归。
+
 ### v3.0.12-preview.1（预览版）
 
 - 内核核对：`SINGBOX_VERSION` 使用 `v1.15.0-alpha.13-reF1nd`（commit `17397d022647b73378705e1f91ff031dddaaec21`），为当前最新 1.15 预览；`libcore/go.mod` 的 sing / sing-tun / sing-quic / sing-vmess / quic-go 与该 tag 逐项一致，Go 1.25.5 未变。未引入稳定版内核或 1.14.x 回退。

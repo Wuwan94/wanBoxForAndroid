@@ -68,6 +68,7 @@ jobs:
           (cd libcore && go test -race tun_source.go tun_source_test.go)
           python3 -m unittest discover -s tools -p test_clean_subscription.py
           python3 -m unittest discover -s tools -p 'test_*.py'
+          python3 tools/check_current_version_docs.py
           go -C ../sing-box-netproxy run ./cmd/sing-box check -c "$GITHUB_WORKSPACE/docs/config/local-proxy.json"
           go -C ../sing-box-netproxy run ./cmd/sing-box check -c "$GITHUB_WORKSPACE/docs/config/tun-fakeip.json"
       - name: Test and package independent Root module
