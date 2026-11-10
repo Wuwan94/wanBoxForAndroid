@@ -140,6 +140,7 @@ jobs:
           WANBOX_INTERNAL_TEST=1 ./gradlew app:testOssDebugUnitTest app:assembleOssDebug app:assembleOssDebugAndroidTest -PwanboxInternalTestAbi=x86_64
           ./gradlew app:testPreviewDebugUnitTest app:assemblePreviewDebug
           python3 tools/check_android_security.py ossDebug previewDebug
+          python3 tools/check_core_gate.py
           python3 -m unittest discover -s tools -p test_ci_probe_stages.py -v
           bash tools/diagnostics/build_security_probe.sh
       - name: Prepare key for the unpublished release comparison build
@@ -158,7 +159,8 @@ jobs:
           ./gradlew app:assembleOssRelease
           mkdir -p public-apks
           cp app/build/outputs/apk/oss/release/*arm64-v8a*.apk public-apks/
-          python3 tools/verify_apk_abi.py public-apks/*.apk
+          python3 tools/verify_apk_abi.py --thin public-apks/*.apk
+          python3 tools/check_keep_features.py --apk public-apks/*arm64-v8a*.apk
           WANBOX_INTERNAL_TEST=1 ./gradlew app:assembleOssReleaseAndroidTest -PwanboxInternalTestAbi=x86_64 -PwanboxReleaseTests
       - name: Measure same variant and ABI APK payload
         if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
@@ -244,8 +246,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       # @author 雾晚: 工作词 7.1 口径——只算模块 zip 与 App APK 两个用户下载物。
-      # 当前绝对值仍超 26MB，所以这里判的是「相对已记录基线不回退」，
-      # 绝对预算用 --enforce-limit 在 P7 验收时判定，避免每次构建都红且无信息量。
+      # 瘦管理器必须同时满足绝对 25 MiB 预算与既有回归门禁。
       - name: Measure download budget
         if: ${{ always() && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository) }}
         run: |
@@ -257,7 +258,7 @@ jobs:
           python3 tools/size_budget.py \
             --module rootmodule/build/wanbox-root-module-arm64-v8a.zip \
             --apk "$APK" \
-            --baseline docs/rebuild/size-baseline.json \
+            --enforce-limit --baseline docs/rebuild/size-baseline.json \
             --json audit-baseline/size-budget.json 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
       # @author 雾晚: 压体积必须知道分量，不能只报总量。

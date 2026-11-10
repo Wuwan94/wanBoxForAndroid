@@ -14,8 +14,8 @@ val generatedLicenseAssets = layout.buildDirectory.dir("generated/assets/rootLic
 // @author 雾晚 (B 路线 · 体积预算): 瘦管理器构建开关。
 //   ./gradlew assembleRelease -PwanboxThin=true
 // 该产物不含 lib/libgojni.so：核心只随 root 模块分发，管理器改为通过 wanboxctl / 回环 HTTP 驱动它。
-// 默认构建（不带该参数）行为与历史版本完全一致，CI 与产物路径不变。
-val wanboxThin: Boolean = providers.gradleProperty("wanboxThin").map { it.toBoolean() }.getOrElse(false)
+// 默认构建使用瘦管理器；仅诊断嵌入核心时显式传 -PwanboxThin=false。
+val wanboxThin: Boolean = providers.gradleProperty("wanboxThin").map { it.toBoolean() }.getOrElse(true)
 val generateRootLicenseAsset by tasks.registering(Copy::class) {
     from(rootProject.layout.projectDirectory.file("LICENSE"))
     into(generatedLicenseAssets)
