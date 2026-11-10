@@ -66,7 +66,9 @@ class InputMethodDirectConfigTest {
                     if (fakeIndex >= 0) assertTrue(dnsIndex < fakeIndex)
                     val server = config.getJSONObject("dns").getJSONArray("servers").objects().single { it.optString("tag") == "dns-direct" }
                     assertEquals("direct", server.getString("detour"))
-                    Libcore.newTestSingBoxInstance(result, null).close()
+                    // JSON/generator assertions run in the shipping thin lane; JNI validation
+                    // additionally runs in the explicit full-core diagnostic CI lane.
+                    if (BuildConfig.WITH_CORE) Libcore.newTestSingBoxInstance(result, null).close()
                 }
             // Rule disable/delete stays effective; neither migration nor hidden config recreates it.
             SagerDatabase.rulesDao.updateRule(imported.copy(enabled = false))

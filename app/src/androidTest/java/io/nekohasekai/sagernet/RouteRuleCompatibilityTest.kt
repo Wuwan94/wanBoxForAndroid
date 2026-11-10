@@ -48,6 +48,8 @@ class RouteRuleCompatibilityTest {
         }
     }
     @Test fun realPinnedCoreChecksActionsAndRejectsRe2AndSchemaErrorsWithoutStartingService() {
+        // The shipping manager has no JNI; this test runs in the explicit diagnostic CI lane.
+        org.junit.Assume.assumeTrue("pinned JNI core is tested separately", BuildConfig.WITH_CORE)
         for (config in listOf("", "{\"action\":\"reject\",\"method\":\"reply\",\"no_drop\":true}",
             "{\"action\":\"sniff\",\"sniffer\":[\"tls\",\"http\"]}", "{\"action\":\"resolve\",\"strategy\":\"ipv4_only\"}",
             "{\"action\":\"route-options\",\"override_port\":443}", "{\"action\":\"hijack-dns\"}",

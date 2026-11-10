@@ -17,6 +17,8 @@ class ThinBuildContractTest(unittest.TestCase):
         self.assertIn('python3 tools/verify_apk_abi.py --thin public-apks/*.apk', workflow)
         self.assertIn('python3 tools/check_keep_features.py --apk public-apks/*arm64-v8a*.apk', workflow)
         self.assertIn('--enforce-limit --baseline docs/rebuild/size-baseline.json', workflow)
+        self.assertIn('-PwanboxThin=false -Pandroid.testInstrumentationRunnerArguments.class=', workflow)
+        self.assertIn('cp -a app/build/outputs/androidTest-results audit-thin/results', workflow)
 
 
 if __name__ == '__main__':

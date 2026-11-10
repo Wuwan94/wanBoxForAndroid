@@ -188,6 +188,12 @@ jobs:
             WANBOX_INTERNAL_TEST=1 ./gradlew app:connectedOssDebugAndroidTest -PwanboxInternalTestAbi=x86_64
             test "$(find app/build/outputs/connected_android_test_additional_output/ossDebugAndroidTest -name '*.png' | wc -l)" -ge 72
             bash tools/diagnostics/verify_external_control.sh
+            # Preserve the shipping thin results before a separate JNI diagnostic install.
+            mkdir -p audit-thin
+            cp -a app/build/reports/androidTests audit-thin/reports
+            cp -a app/build/outputs/androidTest-results audit-thin/results
+            # Existing core-schema tests must not load JNI in the thin APK or disappear.
+            WANBOX_INTERNAL_TEST=1 ./gradlew app:connectedOssDebugAndroidTest -PwanboxInternalTestAbi=x86_64 -PwanboxThin=false -Pandroid.testInstrumentationRunnerArguments.class=io.nekohasekai.sagernet.RouteRuleCompatibilityTest#realPinnedCoreChecksActionsAndRejectsRe2AndSchemaErrorsWithoutStartingService,io.nekohasekai.sagernet.InputMethodDirectConfigTest
       - name: Check packaged release manifest
         if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
         run: python3 tools/check_android_security.py ossRelease
@@ -212,6 +218,7 @@ jobs:
         with:
           name: audit-test-reports
           path: |
+            audit-thin
             app/build/reports/tests
             app/build/reports/androidTests
             app/build/outputs/androidTest-results
