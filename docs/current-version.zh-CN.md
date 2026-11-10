@@ -1,6 +1,6 @@
 # 发布、源码与版本对照
 
-核对日期：2026-11-09。已发布状态以 GitHub Release、tag 和实际下载资产为准；源码元数据本身不构成已发布证据。
+核对日期：2026-11-10。已发布状态以 GitHub Release、tag 和实际下载资产为准；源码元数据本身不构成已发布证据。
 
 | 对象 | 版本与状态 | 版本码及来源 |
 |---|---|---|
@@ -8,7 +8,9 @@
 | 已发布预览版 | [v3.0.13-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.13-preview.2)，prerelease；tag/commit `320f8173e59576d7891ac824c262db68bccf936c` | Release 四件套已发布；APK `10112` / Root 模块 `2022`，按 `metadataCode*5+previewSuffix` |
 | 发布基线 | [v3.0.13-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.13-preview.2) 的 tag/commit `320f8173e59576d7891ac824c262db68bccf936c` | 发布 tag 固定指向该提交；发布后的文档同步提交不改变已发布的四件套资产 |
 
-源码元数据正式线为 `VERSION_NAME=3.0.11`、`VERSION_CODE=2017`，不随预览版本改动；预览线为 `PRE_VERSION_NAME=3.0.13-preview.2`、`PRE_VERSION_CODE=2022`。
+源码元数据正式线为 `VERSION_NAME=3.0.11`、`VERSION_CODE=2017`，不随预览版本改动；预览线为 `PRE_VERSION_NAME=3.0.13-preview.3`、`PRE_VERSION_CODE=2023`。
+
+源码预览正准备 v3.0.13-preview.3（APK 10118 / 模块 2023）；尚未发布，已发布资产仍以上表 preview.2 为准。发行说明开头为新版本发布准备稿。
 
 ## 历史归档：v3.0.12-preview.2 发布资产快照
 

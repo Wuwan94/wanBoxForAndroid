@@ -230,9 +230,7 @@ jobs:
           test "$RELEASE_TAG" = "v$VERSION_NAME"
           echo "release tag: $RELEASE_TAG"
           # tag 已存在则拒绝，避免覆盖既有发布
-          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "tag $RELEASE_TAG already exists"; exit 1
-          fi
+          bash tools/check_release_tag.sh
           # dispatch 必须由获批 PR 合并提交触发；push tag 时以 tag 指向的提交为准
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             test -n "$APPROVED_SHA"
@@ -259,6 +257,7 @@ jobs:
           ./run init action gradle
           # @author 雾晚: 正式版与 preview.32 同为瘦管理器，不带内嵌 libgojni.so。
           ./gradlew app:assembleOssRelease -PwanboxThin=true
+          python3 tools/check_android_security.py ossRelease
           APK_DIR=app/build/outputs/apk/oss/release
           find app/build/outputs/apk -type f -name '*.apk' -print
           test -d "$APK_DIR"
@@ -550,9 +549,7 @@ jobs:
           set -euo pipefail
           VERSION_NAME=$(python3 tools/version_code.py --properties nb4a.properties --channel formal --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["version_name"])')
           test "$RELEASE_TAG" = "v$VERSION_NAME"
-          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "tag $RELEASE_TAG already exists"; exit 1
-          fi
+          bash tools/check_release_tag.sh
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             test "$GITHUB_SHA" = "$APPROVED_SHA" || { echo "github.sha != approved_sha"; exit 1; }
           fi

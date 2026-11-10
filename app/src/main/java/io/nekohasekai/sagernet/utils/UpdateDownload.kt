@@ -136,6 +136,7 @@ internal object UpdateDownload {
             }
             directory.deleteRecursively()
             throw when (e) {
+                is kotlinx.coroutines.CancellationException -> e
                 is Failure -> e
                 is ArtifactDownload.StorageException -> Failure(Reason.STORAGE, e)
                 else -> Failure(Reason.TRANSFER, e)
