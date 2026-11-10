@@ -75,6 +75,22 @@ class UpdateDownloadTest {
     }
 
     @Test
+    fun cancellationAtEveryStageIsPreservedAndCleansOnlyItsAttempt() = withCache { cache, previous ->
+        for (failedName in assets.map { it.name }) {
+            val cancel = kotlinx.coroutines.CancellationException("view destroyed")
+            val actual = assertThrows(kotlinx.coroutines.CancellationException::class.java) {
+                UpdateDownload.prepare(assets, cache) { asset, target ->
+                    if (asset.name == failedName) throw cancel
+                    transfer(asset, target)
+                }
+            }
+            assertSame(cancel, actual)
+            assertEquals("previous update", previous.readText())
+            assertEquals(listOf(previous.name), cache.list()!!.sorted())
+        }
+    }
+
+    @Test
     fun fullDiskAtEveryStageCleansAttemptAndNeverPrompts() = withCache { cache, previous ->
         // /dev/full is Linux's real ENOSPC device: no host disk is filled and no fake exception is thrown.
         assumeTrue("Linux ENOSPC device required", File("/dev/full").exists())

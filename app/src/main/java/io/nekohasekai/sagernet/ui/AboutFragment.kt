@@ -35,22 +35,21 @@ import io.nekohasekai.sagernet.databinding.LayoutAboutBinding
 import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.plugin.PluginManager.loadString
 import io.nekohasekai.sagernet.utils.PackageCache
-import io.nekohasekai.sagernet.utils.ArtifactDownload
 import io.nekohasekai.sagernet.utils.UpdateArtifacts
 import io.nekohasekai.sagernet.utils.UpdateDownload
 import io.nekohasekai.sagernet.utils.UpdateRelease
 import io.nekohasekai.sagernet.widget.ListListener
 import libcore.Libcore
 import moe.matsuri.nb4a.plugin.Plugins
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import java.io.File
-import java.io.IOException
 import androidx.core.net.toUri
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.database.DataStore
-import moe.matsuri.nb4a.utils.Util
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.*
+import io.nekohasekai.sagernet.utils.UpdateTask
+import io.nekohasekai.sagernet.utils.UpdateTransport
 import io.nekohasekai.sagernet.core.CoreRuntime
 
 class AboutFragment : ToolbarFragment(R.layout.layout_about) {
@@ -83,9 +82,12 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
             .replace(R.id.about_fragment_holder, AboutContent())
             .commitAllowingStateLoss()
 
-        runOnDefaultDispatcher {
-            val license = view.context.assets.open("LICENSE").bufferedReader().readText()
-            onMainDispatcher {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val license = withContext(Dispatchers.IO) {
+                view.context.assets.open("LICENSE").bufferedReader().use { it.readText() }
+            }
+            ensureActive()
+            run {
                 binding.license.text = license
                 Linkify.addLinks(binding.license, Linkify.EMAIL_ADDRESSES or Linkify.WEB_URLS)
             }
@@ -97,6 +99,28 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
     }
 
     class AboutContent : MaterialAboutFragment() {
+        private val updateTask = UpdateTask()
+        private var updateDialog: androidx.appcompat.app.AlertDialog? = null
+
+        // A backgrounded/left page must not deliver a late dialog or keep an update transfer alive.
+        override fun onStop() {
+            updateTask.cancel()
+            updateDialog?.dismiss()
+            updateDialog = null
+            super.onStop()
+        }
+
+        override fun onDestroyView() {
+            updateDialog?.dismiss()
+            updateDialog = null
+            super.onDestroyView()
+        }
+
+        private fun transport(job: Job): UpdateTransport {
+            check(!DataStore.mixedInboundDisabled) { "更新需要启用并启动核心的 mixed 入站；不会回退直连。" }
+            return UpdateTransport(DataStore.mixedPort, DataStore.mixedUsername, DataStore.mixedPassword, job)
+        }
+
 
         val requestIgnoreBatteryOptimizations = registerForActivityResult(
             ActivityResultContracts.StartActivityForResult()
@@ -120,7 +144,8 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                                 .text(R.string.app_version)
                                 .subText(SagerNet.appVersionNameForDisplay + " · " + getString(R.string.about_check_update_hint))
                                 .setOnClickAction {
-                                    com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+                                    updateDialog?.dismiss()
+                                    updateDialog = MaterialAlertDialogBuilder(context ?: return@setOnClickAction)
                                         .setTitle(R.string.app_version)
                                         .setItems(arrayOf(
                                             getString(R.string.check_update_release),
@@ -293,36 +318,38 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
          * 分页有硬边界，选中的 Release 资产不与其他 Release 拼接。 @author 雾晚
          */
         fun checkUpdate(isPreview: Boolean = false) {
+            val owner = viewLifecycleOwnerLiveData.value ?: return
             val channel = if (isPreview) UpdateRelease.Channel.PREVIEW else UpdateRelease.Channel.FORMAL
-            runOnIoDispatcher {
+            updateTask.launch(owner.lifecycleScope) {
                 try {
-                    val client = CoreRuntime.httpClient().apply {
-                        modernTLS()
-                        tryProxyOutbound()
+                    val selection = withContext(Dispatchers.IO) {
+                        transport(coroutineContext.job).use { client ->
+                            val records = mutableListOf<UpdateRelease.Record>()
+                            var page: Int? = 1
+                            while (page != null) {
+                                val url = "https://api.github.com/repos/Wuwan94/wanBoxForAndroid/releases" +
+                                    "?per_page=${UpdateRelease.PAGE_SIZE}&page=$page"
+                                val parsed = UpdateRelease.parsePage(client.text(url))
+                                records += parsed
+                                page = UpdateRelease.nextPage(page, parsed.size)
+                            }
+                            UpdateRelease.select(records, channel, BuildConfig.VERSION_NAME)
+                        }
                     }
-                    val records = mutableListOf<UpdateRelease.Record>()
-                    var page: Int? = 1
-                    while (page != null) {
-                        val url = "https://api.github.com/repos/Wuwan94/wanBoxForAndroid/releases" +
-                            "?per_page=${UpdateRelease.PAGE_SIZE}&page=$page"
-                        val response = client.newRequest().apply { setURL(url) }.execute()
-                        val parsed = UpdateRelease.parsePage(Util.getStringBox(response.contentString))
-                        records += parsed
-                        page = UpdateRelease.nextPage(page, parsed.size)
-                    }
-                    val selection = UpdateRelease.select(records, channel, BuildConfig.VERSION_NAME)
-                    runOnMainDispatcher { showUpdateResult(selection, channel) }
+                    ensureActive()
+                    showUpdateResult(selection, channel)
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
-                    Logs.w(e)
-                    runOnMainDispatcher {
-                        Toast.makeText(app, e.readableMessage, Toast.LENGTH_SHORT).show()
-                    }
+                    ensureActive()
+                    Toast.makeText(context ?: return@launch, "更新检查失败，请确认核心 mixed 代理可用；不会回退直连。", Toast.LENGTH_LONG).show()
                 }
             }
         }
 
         private fun showUpdateResult(selection: UpdateRelease.Selection, channel: UpdateRelease.Channel) {
-            val context = requireContext()
+            val context = context ?: return
+            updateDialog?.dismiss()
             val openReleases = {
                 context.startActivity(
                     Intent(Intent.ACTION_VIEW, "https://github.com/Wuwan94/wanBoxForAndroid/releases".toUri())
@@ -337,7 +364,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
             val record = selection.record
             when {
                 selection.reason == UpdateRelease.Reason.INVALID_LOCAL_VERSION -> {
-                    MaterialAlertDialogBuilder(context)
+                    updateDialog = MaterialAlertDialogBuilder(context)
                         .setTitle(R.string.update_dialog_title)
                         .setMessage(R.string.update_local_version_unknown)
                         .setPositiveButton(R.string.update_open_release) { _, _ -> openReleases() }
@@ -345,7 +372,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                         .show()
                 }
                 selection.reason == UpdateRelease.Reason.NO_RELEASE || record == null -> {
-                    MaterialAlertDialogBuilder(context)
+                    updateDialog = MaterialAlertDialogBuilder(context)
                         .setTitle(R.string.update_dialog_title)
                         .setMessage(
                             if (channel == UpdateRelease.Channel.PREVIEW) R.string.update_no_preview_channel
@@ -378,7 +405,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                                 downloadBundle(record.assets)
                             }
                     }
-                    dialog.show()
+                    updateDialog = dialog.show()
                 }
             }
         }
@@ -388,31 +415,38 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
          * 不静默安装，模块 ZIP 通过受限 FileProvider + 系统分享交给用户保存/刷入。 @author 雾晚
          */
         private fun downloadBundle(assets: List<UpdateArtifacts.ReleaseAsset>) {
-            val context = requireContext()
-            val dir = File(context.cacheDir, "updates")
-            runOnIoDispatcher {
+            val owner = viewLifecycleOwnerLiveData.value ?: return
+            val dir = File((context ?: return).applicationContext.cacheDir, "updates")
+            updateTask.launch(owner.lifecycleScope) {
                 try {
-                    val ready = UpdateDownload.prepare(assets, dir) { asset, target ->
-                        downloadFile(asset.downloadUrl, target)
+                    val ready = withContext(Dispatchers.IO) {
+                        transport(coroutineContext.job).use { client ->
+                            UpdateDownload.prepare(assets, dir) { asset, target ->
+                                client.download(asset.downloadUrl, target)
+                            }
+                        }
                     }
-                    runOnMainDispatcher { showReadyActions(context, ready) }
-                } catch (e: UpdateDownload.Failure) {
+                    ensureActive()
+                    showReadyActions(context ?: return@launch, ready)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    ensureActive()
                     // Fixed localized errors never expose asset URLs, response bodies or credentials.
-                    val message = when (e.reason) {
+                    val message = when ((e as? UpdateDownload.Failure)?.reason) {
                         UpdateDownload.Reason.CHECKSUM -> R.string.update_checksum_failed
                         UpdateDownload.Reason.ASSETS -> R.string.update_assets_missing
                         UpdateDownload.Reason.STORAGE -> R.string.update_storage_failed
-                        UpdateDownload.Reason.TRANSFER -> R.string.update_transfer_failed
+                        else -> R.string.update_transfer_failed
                     }
-                    runOnMainDispatcher {
-                        Toast.makeText(app, message, Toast.LENGTH_LONG).show()
-                    }
+                    Toast.makeText(context ?: return@launch, message, Toast.LENGTH_LONG).show()
                 }
             }
         }
 
         /** 校验通过后的两个明确动作：先保存模块 ZIP，再安装 APK；不要求用户手输私有路径。 */
         private fun showReadyActions(context: Context, ready: UpdateDownload.Ready) {
+            updateDialog?.dismiss()
             val apkUri: Uri
             val moduleUri: Uri
             try {
@@ -437,7 +471,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                 }
             }
             val saveModule = { shareModuleZip(context, moduleUri) }
-            MaterialAlertDialogBuilder(context)
+            updateDialog = MaterialAlertDialogBuilder(context)
                 .setTitle(R.string.update_ready_title)
                 .setMessage(
                     context.getString(
@@ -454,10 +488,13 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
 
         /** 升级重启后仍可导出最近一次已校验的模块：只授予单个 ZIP 的读取 URI 权限。 */
         private fun exportRecentModule() {
-            val context = requireContext()
-            runOnIoDispatcher {
-                val ready = UpdateDownload.recentReady(File(context.cacheDir, "updates"))
-                runOnMainDispatcher {
+            val owner = viewLifecycleOwnerLiveData.value ?: return
+            val cache = File((context ?: return).applicationContext.cacheDir, "updates")
+            updateTask.launch(owner.lifecycleScope) {
+                val ready = withContext(Dispatchers.IO) { UpdateDownload.recentReady(cache) }
+                ensureActive()
+                val context = context ?: return@launch
+                run {
                     if (ready == null) {
                         Toast.makeText(app, R.string.update_no_recent_module, Toast.LENGTH_LONG).show()
                     } else {
@@ -489,22 +526,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
             }
         }
 
-        private fun downloadFile(url: String, target: File) {
-            val request = Request.Builder().url(url).build()
-            downloadClient.newCall(request).execute().use { response ->
-                val body = response.body
-                if (!response.isSuccessful || body == null) {
-                    throw IOException("HTTP ${response.code}")
-                }
-                body.byteStream().use { input ->
-                    ArtifactDownload.write(target, input)
-                }
-            }
-        }
-
         companion object {
-
-            private val downloadClient by lazy { OkHttpClient() }
 
             /** 专用 FileProvider 只映射 cache/updates/，不开放整个缓存目录。 */
             private val UPDATE_FILE_PROVIDER = BuildConfig.APPLICATION_ID + ".updates"
