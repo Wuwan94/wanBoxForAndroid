@@ -58,7 +58,7 @@ class CurrentVersionDocsTest(unittest.TestCase):
             props = root / checker.FILES["properties"]
             props.write_text(
                 props.read_text(encoding="utf-8").replace(
-                    "PRE_VERSION_NAME=3.0.13-preview.2", "PRE_VERSION_NAME=3.0.13-preview.1"
+                    f"PRE_VERSION_NAME={checker.SOURCE_PREVIEW[1:]}", "PRE_VERSION_NAME=3.0.13-preview.1"
                 ),
                 encoding="utf-8",
             )

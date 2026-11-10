@@ -16,6 +16,8 @@ ROOT = Path(__file__).resolve().parent.parent
 STABLE_TAG = "v3.0.11"
 PUBLISHED_PREVIEW = "v3.0.13-preview.2"
 PUBLISHED_PREVIEW_COMMIT = "320f8173e59576d7891ac824c262db68bccf936c"
+SOURCE_PREVIEW = "v3.0.13-preview.3"
+SOURCE_PREVIEW_CODE = "2023"
 ARCHIVED_PREVIEW = "v3.0.13-preview.1"
 HISTORY_MARKER = "历史归档"
 
@@ -68,15 +70,15 @@ def failures(root: Path = ROOT) -> list[str]:
     except (FileNotFoundError, UnicodeDecodeError) as exc:
         return [f"读取当前版本文档失败: {exc}"]
 
-    # 1. 源码元数据：正式线不动，预览线指向已发布版本。
+    # 1. 源码元数据：正式线不动，预览线可先指向待发布版本。
     if props.get("VERSION_NAME") != "3.0.11":
         errors.append(f"nb4a.properties: VERSION_NAME 应为 3.0.11，实际 {props.get('VERSION_NAME')!r}")
     if props.get("VERSION_CODE") != "2017":
         errors.append(f"nb4a.properties: VERSION_CODE 应为 2017（正式线不改），实际 {props.get('VERSION_CODE')!r}")
-    if props.get("PRE_VERSION_NAME") != PUBLISHED_PREVIEW[1:]:
-        errors.append(f"nb4a.properties: PRE_VERSION_NAME 应为 {PUBLISHED_PREVIEW[1:]}，实际 {props.get('PRE_VERSION_NAME')!r}")
-    if props.get("PRE_VERSION_CODE") != "2022":
-        errors.append(f"nb4a.properties: PRE_VERSION_CODE 应为 2022，实际 {props.get('PRE_VERSION_CODE')!r}")
+    if props.get("PRE_VERSION_NAME") != SOURCE_PREVIEW[1:]:
+        errors.append(f"nb4a.properties: PRE_VERSION_NAME 应为 {SOURCE_PREVIEW[1:]}，实际 {props.get('PRE_VERSION_NAME')!r}")
+    if props.get("PRE_VERSION_CODE") != SOURCE_PREVIEW_CODE:
+        errors.append(f"nb4a.properties: PRE_VERSION_CODE 应为 {SOURCE_PREVIEW_CODE}，实际 {props.get('PRE_VERSION_CODE')!r}")
 
     # 2. README 中英版本快照与徽章：只有两个已发布状态，不留未发布候选徽章。
     head = "\n".join(readme.splitlines()[:45])
@@ -126,11 +128,11 @@ def failures(root: Path = ROOT) -> list[str]:
     for name, text in (("PREVIEW_NOTES.md", notes), ("docs/release-notes-next.zh-CN.md", next_notes)):
         section = current_section(text)
         title = section.splitlines()[0] if section.splitlines() else ""
-        if not title.startswith(f"# {PUBLISHED_PREVIEW}"):
-            errors.append(f"{name} 标题未对齐已发布预览 {PUBLISHED_PREVIEW}")
+        if not title.startswith(f"# {SOURCE_PREVIEW}"):
+            errors.append(f"{name} 标题未对齐源码预览 {SOURCE_PREVIEW}")
         if "稳定性预览版" not in section:
             errors.append(f"{name} 当前区段未声明「稳定性预览版」")
-        if "未发布候选" in section:
+        if SOURCE_PREVIEW == PUBLISHED_PREVIEW and "未发布候选" in section:
             errors.append(f"{name} 当前区段仍写「未发布候选」")
         if "已发布说明" not in text or ARCHIVED_PREVIEW not in text:
             errors.append(f"{name} 缺少 {ARCHIVED_PREVIEW} 已发布说明的历史归档段落")

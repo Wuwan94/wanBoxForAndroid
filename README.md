@@ -33,13 +33,13 @@
 
 按预览渠道策略已清理的 v3.0.13-preview.1 修复了更新包过早清理、地址显示开关返回后不重绑，以及 Python/Kotlin 版本码固定向量一致性；这些是回归基线，不是本版新增成果。工具链为 Gradle 8.13 / AGP 8.11.1 / Kotlin 2.2.21 / KSP 2.2.21-2.0.4 / compileSdk 36 / Room 2.7.2；targetSdk 35、minSdk 31、JDK 17、Build Tools 35.0.1 不变。内核固定为 `reF1nd/sing-box v1.15.0-alpha.13-reF1nd`，不据此宣称它是当前上游最新版本。v3.0.13-preview.1 的已发布说明保留在 [PREVIEW_NOTES.md](PREVIEW_NOTES.md) 的历史归档段落，本版发行说明见同文件开头。
 
-v3.0.13-preview.2 已发布预览聚焦三处：更新渠道与版本身份分离（以校验后的 tag 判定，排除中文展示标题与数组顺序影响）、更新包交接链路（校验后的模块 ZIP 可导出给 Root 管理器）、当前版本文档一致性的离线检查。本版元数据为模块码 2022 / APK 10112；**未做真机回归**，不得把自动化结果当作 Root 真机签核，也不得据此晋升正式版。
+v3.0.13-preview.2 已发布预览聚焦三处：更新渠道与版本身份分离（以校验后的 tag 判定，排除中文展示标题与数组顺序影响）、更新包交接链路（校验后的模块 ZIP 可导出给 Root 管理器）、当前版本文档一致性的离线检查。该已发布版为模块码 2022 / APK 10112；源码正准备 preview.3（2023 / 10118）；**未做真机回归**，不得把自动化结果当作 Root 真机签核，也不得据此晋升正式版。
 
 **安装要求：Android 12+、arm64-v8a、Root（Magisk / KernelSU / APatch）**。瘦管理器不包含核心，必须搭配同一发布页中的 Root 模块，不能混用其他版本；安装前先备份并检查 `SHA256SUMS`。更新必须校验后由用户确认安装，不静默安装，不提供 VPN 回退。
 
 预览渠道仅保留最新一个版本；清理旧预览前先核验新版本的完整发布资产，正式版始终保留。[v3.0.11 正式版历史说明](RELEASE_NOTES.md)保持原文。
 
-Published releases: stable v3.0.11 and preview v3.0.13-preview.2. There is no pending candidate release at this time. No Root-device regression sign-off has been completed. Requires Android 12+, ARM64 and Root; pair the thin manager APK with the Root module from the same release page.
+Published releases: stable v3.0.11 and preview v3.0.13-preview.2. Source metadata is preparing v3.0.13-preview.3; it is not published yet. No Root-device regression sign-off has been completed. Requires Android 12+, ARM64 and Root; pair the thin manager APK with the Root module from the same release page.
 ---
 
 ## 📥 发行版下载 / Downloads
