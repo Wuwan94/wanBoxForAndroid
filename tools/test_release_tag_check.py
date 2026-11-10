@@ -24,7 +24,11 @@ class TagCheckTest(unittest.TestCase):
         for error in ['gh: API rate limit exceeded (HTTP 403)', 'gh: Bad credentials (HTTP 401)',
                       'gh: timeout', 'gh: Too Many Requests (HTTP 429)', 'HTTP 404', 'gh: error (HTTP 500)', 'gh: dns error', '']:
             with self.subTest(error=error): self.assertNotEqual(0, self.run_check(1, error))
-    def test_both_publish_guards_use_helper(self):
+    def test_all_publish_guards_use_helper(self):
         s = (ROOT/'.github/workflows/release.yml').read_text()
         self.assertEqual(2, s.count('bash tools/check_release_tag.sh'))
         self.assertNotIn('if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/', s)
+
+        preview = (ROOT/'.github/workflows/preview.yml').read_text()
+        self.assertIn('bash tools/check_release_tag.sh', preview)
+        self.assertNotIn('git ls-remote --exit-code --tags origin', preview)
