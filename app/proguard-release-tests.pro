@@ -166,3 +166,19 @@
 -keep,allowobfuscation class androidx.recyclerview.widget.RecyclerView$ItemAnimator {
     public boolean isRunning();
 }
+
+# @author 雾晚: ThinManagerTest calls these APIs from the separate test APK.
+# Thin release R8 folds/inlines CoreRuntime, so retain only the exercised facades
+# in verification builds; shipping builds never include this file.
+-keep,allowobfuscation class io.nekohasekai.sagernet.core.CoreRuntime {
+    public static final io.nekohasekai.sagernet.core.CoreRuntime INSTANCE;
+    public boolean getAvailable();
+    public io.nekohasekai.sagernet.core.WanHttpClient httpClient();
+}
+-keep,allowobfuscation class io.nekohasekai.sagernet.core.WanHttpClient {
+    public io.nekohasekai.sagernet.core.WanHttpClient modernTLS();
+    public io.nekohasekai.sagernet.core.WanHttpRequest newRequest();
+}
+-keep,allowobfuscation class io.nekohasekai.sagernet.core.WanHttpRequest {
+    public io.nekohasekai.sagernet.core.WanHttpRequest setURL(java.lang.String);
+}

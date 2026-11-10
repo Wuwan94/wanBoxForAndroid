@@ -20,6 +20,22 @@ class ThinBuildContractTest(unittest.TestCase):
         self.assertIn('-PwanboxThin=false -Pandroid.testInstrumentationRunnerArguments.class=', workflow)
         self.assertIn('cp -a app/build/outputs/androidTest-results audit-thin/results', workflow)
 
+    def test_release_instrumentation_retains_only_called_thin_http_facades(self):
+        gradle = (ROOT / 'app/build.gradle.kts').read_text()
+        rules = (ROOT / 'app/proguard-release-tests.pro').read_text()
+        self.assertIn('providers.gradleProperty("wanboxReleaseTests").isPresent', gradle)
+        self.assertIn('proguardFiles("proguard-release-tests.pro")', gradle)
+        for signature in (
+            'class io.nekohasekai.sagernet.core.CoreRuntime {',
+            'public boolean getAvailable();',
+            'public io.nekohasekai.sagernet.core.WanHttpClient httpClient();',
+            'public io.nekohasekai.sagernet.core.WanHttpClient modernTLS();',
+            'public io.nekohasekai.sagernet.core.WanHttpRequest newRequest();',
+            'public io.nekohasekai.sagernet.core.WanHttpRequest setURL(java.lang.String);',
+        ):
+            self.assertIn(signature, rules)
+        self.assertNotIn('class io.nekohasekai.sagernet.core.**', rules)
+
 
 if __name__ == '__main__':
     unittest.main()
