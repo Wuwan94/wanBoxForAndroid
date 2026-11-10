@@ -67,6 +67,9 @@ type State struct {
 	Telemetry       *Telemetry            `json:"telemetry,omitempty"`
 	Events          []Event               `json:"events,omitempty"`
 	InstallData     *InstallDataSelection `json:"installData,omitempty"`
+	// ProfileTags is populated only by the read-only `node tags` CLI response.
+	// It is copied from the active generation and never contains controller secrets.
+	ProfileTags map[string]string `json:"profileTags,omitempty"`
 	// @author 雾晚 (phase 2): data-plane health ("ok" / "degraded"), last core exit
 	// reason and its class. Optional fields: older managers ignore them.
 	Health     string `json:"health,omitempty"`

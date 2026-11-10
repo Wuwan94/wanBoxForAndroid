@@ -781,6 +781,10 @@
     <string name="update_dialog_message">Current version: %1$s\nAvailable version: %2$s\nThe manager APK and the Root module must be downloaded from the same release and kept on the same version.\nDownload and verify?</string>
     <string name="update_download_verify">Download and verify</string>
     <string name="update_open_release">Open release page</string>
+    <string name="update_working_title">Update in progress</string>
+    <string name="update_working_message">Checking or downloading through the configured proxy. Leaving this page will not cancel the task; its result will appear when you return.</string>
+    <string name="update_proxy_unavailable">The configured local mixed proxy is unavailable. Start the Root module/core and try again. Updates never fall back to a direct connection; you can open the release page for a manual download.</string>
+    <string name="update_check_failed">Could not check for updates. No direct connection fallback is used; open the release page to check manually.</string>
     <string name="update_checksum_failed">SHA256 verification failed; downloaded files were removed. Download manually from the release page.</string>
     <string name="update_module_hint">Root module verified:\n%1$s\nInstall this ZIP in Magisk / KernelSU / APatch.</string>
     <string name="update_assets_missing">This release is missing the APK, Root module or SHA256SUMS. Open the release page instead.</string>

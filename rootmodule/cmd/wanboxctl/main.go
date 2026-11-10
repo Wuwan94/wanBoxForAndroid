@@ -41,6 +41,14 @@ func main() {
 	// Installed modules and manager staging paths are root-owned. No App-supplied
 	// --module-dir/data-root/command arguments, env overrides or shell execution.
 	r := module.New("/data/adb/wanbox", dir)
+	if len(args) == 2 && args[0] == "node" && args[1] == "tags" {
+		state, err := readProfileTags(r, os.Geteuid())
+		module.Response(os.Stdout, state, err)
+		if err != nil {
+			os.Exit(1)
+		}
+		return
+	}
 	err := runAuthorized(ctx, r, args, os.Geteuid())
 	// @author 雾晚：dashboard 返回绑定同一快照的完整状态，不拼接两代次
 	var state module.State
@@ -56,6 +64,16 @@ func main() {
 	if err != nil {
 		os.Exit(1)
 	}
+}
+
+func readProfileTags(r *module.Runtime, euid int) (module.State, error) {
+	state := r.Status()
+	if euid != 0 {
+		return state, errors.New("root_required")
+	}
+	tags, err := r.ProfileTags()
+	state.ProfileTags = tags
+	return state, err
 }
 
 // Only the long-lived supervisor must escape the caller's cgroup. A Root

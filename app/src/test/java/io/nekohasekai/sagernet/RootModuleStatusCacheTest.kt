@@ -60,6 +60,7 @@ class RootModuleStatusCacheTest {
         assertTrue(RootModuleClient.mutatesModule("config apply"))
         assertTrue(RootModuleClient.mutatesModule("node select 7"))
         assertTrue(RootModuleClient.mutatesModule("data selection-finish 0123456789abcdef0123456789abcdef"))
+        assertFalse(RootModuleClient.mutatesModule("node tags"))
         assertFalse(RootModuleClient.mutatesModule("status"))
         assertFalse(RootModuleClient.mutatesModule("dashboard"))
         assertFalse(RootModuleClient.mutatesModule("config validate"))

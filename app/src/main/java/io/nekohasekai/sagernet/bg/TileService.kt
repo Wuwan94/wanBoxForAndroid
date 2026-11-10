@@ -27,6 +27,18 @@ import android.service.quicksettings.TileService as BaseTileService
 class TileService : BaseTileService(), SagerConnection.Callback {
     companion object {
         const val ACTION_REFRESH_ICON = "io.nekohasekai.sagernet.action.REFRESH_TILE_ICON"
+
+        internal fun stateFromBinderValue(value: Int): BaseService.State? =
+            BaseService.State.values().getOrNull(value)
+
+        internal fun normalizeProfileName(profileName: String?): String? =
+            profileName?.trim()?.takeIf { it.isNotEmpty() && !it.equals("null", ignoreCase = true) }
+
+        internal fun displayState(state: BaseService.State?): Int = when (state) {
+            BaseService.State.Idle, BaseService.State.Stopped -> Tile.STATE_INACTIVE
+            BaseService.State.Connecting, BaseService.State.Connected -> Tile.STATE_ACTIVE
+            BaseService.State.Stopping, null -> Tile.STATE_UNAVAILABLE
+        }
     }
 
     private val defaultIcon by lazy { Icon.createWithResource(this, R.drawable.ic_throne_tile) }
@@ -61,7 +73,17 @@ class TileService : BaseTileService(), SagerConnection.Callback {
         updateTile(state, profileName)
 
     override fun onServiceConnected(service: ISagerNetService) {
-        updateTile(BaseService.State.values()[service.state], service.profileName)
+        val state = runCatching { stateFromBinderValue(service.state) }.getOrNull()
+        val profileName = runCatching { service.profileName }.getOrNull()
+        if (state == null) showUnavailable() else updateTile(state, profileName)
+    }
+
+    override fun onServiceDisconnected() {
+        showUnavailable()
+    }
+
+    override fun onBinderDied() {
+        showUnavailable()
     }
 
     override fun cbSelectorUpdate(id: Long) {
@@ -100,11 +122,21 @@ class TileService : BaseTileService(), SagerConnection.Callback {
     }
 
     private fun toggleConnection() {
-        connection.rebindIfServiceChanged(this)
         val now = SystemClock.elapsedRealtime()
         if (now - lastTapTime < 700L) return
         lastTapTime = now
+        connection.rebindIfServiceChanged(this)
         SagerNet.toggleService()
+    }
+
+    private fun showUnavailable() {
+        qsTile?.apply {
+            icon = getTileIcon()
+            state = displayState(null)
+            label = getString(R.string.app_name)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) setSubtitle(getString(R.string.unavailable))
+            updateTile()
+        }
     }
 
     private fun updateTile(serviceState: BaseService.State, profileName: String?) {
@@ -113,7 +145,7 @@ class TileService : BaseTileService(), SagerConnection.Callback {
             icon = currentIcon
 
             // 防御性空值与空白字符串过滤
-            val validProfileName = profileName?.trim()?.takeIf { it.isNotEmpty() && !it.equals("null", ignoreCase = true) }
+            val validProfileName = normalizeProfileName(profileName)
 
             when (serviceState) {
                 BaseService.State.Idle, BaseService.State.Stopped -> {
