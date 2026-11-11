@@ -42,11 +42,11 @@ env:
   WANBOX_EMULATOR_API: '35'
   WANBOX_SIGNER_SHA256: '80ECEE1C42D861D59CDC460447335FC4BFDF80103D6225A17C1BDF83A33521F6'
   WANBOX_PACKAGE: 'com.lit008834.pixel.wanboxforandroid'
-  WANBOX_BASELINE_TAG: 'v3.0.10-preview.32'
-  WANBOX_BASELINE_APK: 'wanBoxForAndroid-3.0.10-preview.32-arm64-v8a-release.apk'
-  WANBOX_BASELINE_APK_SHA256: '4ec372492e0c9b54c091f0693bc416db6726e5cd727d936a6edee6e0b8aa0016'
-  WANBOX_BASELINE_VERSION_CODE: '10050'
-  WANBOX_BASELINE_MODULE_CODE: '2010'
+  WANBOX_BASELINE_TAG: 'v3.0.11'
+  WANBOX_BASELINE_APK: 'wanBoxForAndroid-3.0.11-arm64-v8a.apk'
+  WANBOX_BASELINE_APK_SHA256: 'e95e7331b099f9a0cc7e4e9dbf22ac3fab203656d1722d4b2041658c8d758233'
+  WANBOX_BASELINE_VERSION_CODE: '10065'
+  WANBOX_BASELINE_MODULE_CODE: '2013'
   WANBOX_BUILD_CHANNEL: 'formal'
 
 jobs:
@@ -156,7 +156,7 @@ jobs:
           print('module.prop versionCode:', values.get('versionCode'))
           assert values.get('version') == expected['version_name'], 'module version mismatch'
           assert values.get('versionCode') == str(expected['module_version_code']), 'module code mismatch'
-          assert int(values['versionCode']) > 2010, 'module code must exceed preview.32'
+          assert int(values['versionCode']) > 2013, 'module code must exceed v3.0.11 baseline'
           assert 'package-manifest.json' in names, 'manifest missing'
           print('Formal module identity OK')
           PY
@@ -255,7 +255,7 @@ jobs:
           echo "ndk.dir=${ANDROID_HOME}/ndk/${{ env.WANBOX_NDK_VERSION }}" >> local.properties
           export LOCAL_PROPERTIES="${{ secrets.LOCAL_PROPERTIES }}"
           ./run init action gradle
-          # @author 雾晚: 正式版与 preview.32 同为瘦管理器，不带内嵌 libgojni.so。
+          # @author 雾晚: 正式版与 v3.0.11 同为瘦管理器，不带内嵌 libgojni.so。
           ./gradlew app:assembleOssRelease -PwanboxThin=true
           python3 tools/check_android_security.py ossRelease
           APK_DIR=app/build/outputs/apk/oss/release
@@ -306,7 +306,7 @@ jobs:
           cp "$APK_DIR"/*x86_64*.apk internal-apks/
           for fixture in internal-apks/*.apk; do "$APKSIGNER" verify "$fixture"; done
       # @author 雾晚: G7 —— 与已发布 .32 的实际 APK 跨版本比对，而不只是和常量比。
-      - name: Cross-version identity check against preview.32
+      - name: Cross-version identity check against v3.0.11
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -318,7 +318,7 @@ jobs:
           AAPT=$(find "${ANDROID_HOME}/build-tools" -name aapt | sort -V | tail -n 1)
           APKSIGNER=$(find "${ANDROID_HOME}/build-tools" -name apksigner | sort -V | tail -n 1)
           "$AAPT" dump badging "baseline/${{ env.WANBOX_BASELINE_APK }}" \
-            | grep -q "versionCode='${{ env.WANBOX_BASELINE_VERSION_CODE }}' versionName='3.0.10-preview.32'"
+            | grep -q "versionCode='${{ env.WANBOX_BASELINE_VERSION_CODE }}' versionName='3.0.11'"
           base_pkg=$("$AAPT" dump badging "baseline/${{ env.WANBOX_BASELINE_APK }}" | sed -n "s/^package: name='\([^']*\)'.*/\1/p" | head -1)
           test "$base_pkg" = "${{ env.WANBOX_PACKAGE }}"
           base_sig=$("$APKSIGNER" verify --print-certs "baseline/${{ env.WANBOX_BASELINE_APK }}" \
