@@ -1,6 +1,6 @@
-# v3.0.13-preview.4 发行说明（候选）
+# v3.0.13-preview.4 发行说明
 
-**状态：未发布的稳定性预览版候选。** 本文件供源码审查；仓库 `Preview Build` 在正式发布时会移除本标题后缀和本状态段，再将剩余中文说明作为 Release 正文。
+**状态：已发布的稳定性预览版。** 由仓库 `Preview Build` 正式发布；[Release 页面](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.13-preview.4)的 tag 指向合并提交 `d9f34202b9856b4cb151d8f4d52c532142e22e70`。本版不替换稳定版 `v3.0.11`。
 
 稳定性预览版，不替换稳定版 `v3.0.11`。正式发布的 arm64-v8a 管理器 APK、普通 Root 模块、带管理器 Root 模块与 `SHA256SUMS` 必须由仓库 `Preview Build` 流程生成；请仅从本 Release 页下载同版整套文件并先核对哈希。本地临时测试签名 APK 不属于发布资产。
 
@@ -20,15 +20,16 @@
 
 ## 自动化验证与边界
 
-- PR CI `42938060987` 与完整 `Verify Android Build` / closeout run `42938103418` 均在复审核准源码提交 `46c342fb292c5e040e033bfc6c49742dcc4e7dc0` 上成功。
-- 跨版本备份互通以 `v3.0.13-preview.3`（`77e291a150819a70d87c0af8458f1c603088e432`）为基线，在 Android 35 x86_64 模拟器完成旧版导出、旧版→新版导入、新版导出、新版→旧版导入；四项各 `OK (1 test)`，证据中的三份数据文件哈希也通过。此项是模拟器验证，不是真机或 Root 环境验证。
+- PR #21 的应用代码提交 `46c342fb292c5e040e033bfc6c49742dcc4e7dc0` 通过 PR CI `42938060987` 和完整 verify/closeout `42938103418`。加入发布说明隔离修正后的最终 PR head `ffdfc8e96bbf851558bb81d0b669e8055b79765a` 又通过 PR CI `42943516659` 与完整 verify/closeout `42943570310`；所有结论均对应各自精确 SHA。
+- 跨版本备份互通以 `v3.0.13-preview.3`（`77e291a150819a70d87c0af8458f1c603088e432`）为基线，在 Android 35 x86_64 模拟器完成旧版导出、旧版→新版导入、新版导出、新版→旧版导入；最终 closeout run `42943570310` 的四项各 `OK (1 test)`，三份数据文件哈希也通过。此项是模拟器验证，不是真机或 Root 环境验证。
+- 正式 `Preview Build` run `42948432554` 从获批合并提交 `d9f34202b9856b4cb151d8f4d52c532142e22e70` 生成并发布正式签名资产；发布后四件套、API digest、`SHA256SUMS`、ZIP 完整性和 APK 签名均已回读核验。
 - 未做 Magisk / KernelSU / APatch 真机矩阵；模拟器、JVM 与静态检查不能替代 Root 真机签核。
 
 ---
 
 ## 历史归档：v3.0.13-preview.3 已发布说明
 
-> 以下为 preview.3 当时发布说明摘要与历史验证记录，不是 preview.4 的功能或测试证据。
+> 以下为 preview.3 当时发布说明摘要与历史验证记录，不是 preview.4 的功能或测试证据；preview.3 的 Release/tag 已在 preview.4 新资产和哈希核验后清理，稳定版 v3.0.11 保留。
 
 # v3.0.13-preview.3 发行说明
 

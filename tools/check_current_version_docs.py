@@ -14,11 +14,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 STABLE_TAG = "v3.0.11"
-PUBLISHED_PREVIEW = "v3.0.13-preview.3"
-PUBLISHED_PREVIEW_COMMIT = "77e291a150819a70d87c0af8458f1c603088e432"
+PUBLISHED_PREVIEW = "v3.0.13-preview.4"
+PUBLISHED_PREVIEW_COMMIT = "d9f34202b9856b4cb151d8f4d52c532142e22e70"
 SOURCE_PREVIEW = "v3.0.13-preview.4"
 SOURCE_PREVIEW_CODE = "2024"
-ARCHIVED_PREVIEW = "v3.0.13-preview.2"
+ARCHIVED_PREVIEW = "v3.0.13-preview.3"
 HISTORY_MARKER = "历史归档"
 
 FILES = {
@@ -70,7 +70,7 @@ def failures(root: Path = ROOT) -> list[str]:
     except (FileNotFoundError, UnicodeDecodeError) as exc:
         return [f"读取当前版本文档失败: {exc}"]
 
-    # 1. 源码元数据：正式线不动，预览线可先指向待发布版本。
+    # 1. 源码元数据：正式线不动，预览线与当前已发布预览保持一致。
     if props.get("VERSION_NAME") != "3.0.11":
         errors.append(f"nb4a.properties: VERSION_NAME 应为 3.0.11，实际 {props.get('VERSION_NAME')!r}")
     if props.get("VERSION_CODE") != "2017":
@@ -107,7 +107,7 @@ def failures(root: Path = ROOT) -> list[str]:
             errors.append(f"docs/current-version.zh-CN.md 表格缺少「{label}」行")
     if PUBLISHED_PREVIEW not in table or PUBLISHED_PREVIEW_COMMIT not in table:
         errors.append(f"docs/current-version.zh-CN.md 已发布预览行缺少 {PUBLISHED_PREVIEW} 或其精确提交")
-    if "未发布候选" in table:
+    if "未发布候选" in table or "未发布的稳定性预览版候选" in table:
         errors.append("docs/current-version.zh-CN.md 当前表格仍标有未发布候选")
     if "当前源码基线" in table:
         errors.append(
@@ -124,7 +124,7 @@ def failures(root: Path = ROOT) -> list[str]:
     if "未发布候选" in lead:
         errors.append("docs/release-checklist.zh-CN.md 首段仍写「未发布候选」")
 
-    # 5. 发行说明：当前区段跟随源码候选，但不得冒充已发布预览；归档预览保留。
+    # 5. 发行说明：当前区段跟随源码预览并如实标记发布状态；归档预览保留。
     for name, text in (("PREVIEW_NOTES.md", notes), ("docs/release-notes-next.zh-CN.md", next_notes)):
         section = current_section(text)
         title = section.splitlines()[0] if section.splitlines() else ""
@@ -132,7 +132,9 @@ def failures(root: Path = ROOT) -> list[str]:
             errors.append(f"{name} 标题未对齐源码预览 {SOURCE_PREVIEW}")
         if "稳定性预览版" not in section:
             errors.append(f"{name} 当前区段未声明「稳定性预览版」")
-        if SOURCE_PREVIEW == PUBLISHED_PREVIEW and "未发布候选" in section:
+        if SOURCE_PREVIEW == PUBLISHED_PREVIEW and (
+            "未发布的稳定性预览版候选" in section or title.endswith("（候选）")
+        ):
             errors.append(f"{name} 当前区段仍把已发布版本写成「未发布候选」")
         if SOURCE_PREVIEW != PUBLISHED_PREVIEW and "状态：未发布的稳定性预览版候选" not in section:
             errors.append(f"{name} 当前源码候选必须明确标为「未发布候选」")
