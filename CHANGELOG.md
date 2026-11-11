@@ -4,9 +4,23 @@
 
 ## wanBox 3.0.x 发布记录
 
-### v3.0.13-preview.4（已发布预览）
+### v3.0.14（正式版）
 
-- 由仓库正式 `Preview Build` run `42962314460` 发布；Release/tag `v3.0.13-preview.4` 指向 PR #23 合并提交 `e7a6411e03c30ec4bcf4a8a00244362664d070a6`。稳定版 v3.0.11 未变。
+- **晋升说明**：3.0.14 由预览线晋升为正式版，聚合 3.0.12 ~ 3.0.14 预览线的全量稳定性成果（瘦架构、分应用 LruCache、Controller 延时探测、生命周期后台下载、更新器同版导出）；v3.0.13-preview.4 代码复查的六项修复已随 v3.0.14-preview.1 先行发布，本版全量承接，正式说明见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。
+- **稳定性演进要点**：分应用代理列表新增 120 项原生 `LruCache` 与协程异步化，消除滑动掉帧；瘦管理器 Controller 支持 REST 回环探测与鉴权、解耦核心测速；代理切换在 fresh 状态与共享变更锁内原子决策，消除状态翻转竞态；更新器后台稳定下载、`release-tag.txt` 版本戳同版强校验导出、代理状态脱敏与版本规则漂移守卫收口。
+- 版本映射为 Root 模块码 `2026`、APK `versionCode=10130`，可在 v3.0.11（`10065 / 2013`）上覆盖安装；设置、节点、订阅备份与 v3.0.11 双向兼容。正式发布走 `release.yml` 两阶段（候选构建→核对→正式上架），不执行 prune，v3.0.11 正式版保留。
+- 未做 Magisk / KernelSU / APatch 真机矩阵；自动化结果不等于 Root 真机签核。
+
+### v3.0.14-preview.1（已发布预览）
+
+- 由仓库正式 `Preview Build` run `43003022425` 发布；Release/tag `v3.0.14-preview.1` 指向 PR #26 合并提交 `8b4e60893dc4d783caeab1b0f5ddb6667aa0549d`。稳定版 v3.0.11 未变。
+- 落实 v3.0.13-preview.4 代码复查确认的剩余六项修复：版本规则漂移守卫补齐（`--check-app-tag`）、更新包按版本戳绑定同版、导出独立守卫、发布 tag 检查按 HTTP 状态码判定、代理不可用只认源头标记、清理 14 个已提交 `.pyc`；无功能增减，preview.4 的功能内容保持不变。修复由 PR #25 合入（合并提交 `1d769fad65768029374134a37bcb67d163deb42f`，Verify CI run `42976607018` 全绿）。
+- 版本映射为 Root 模块码 `2025`、APK `versionCode=10126`。正式签名 APK、普通 Root 模块、带管理器模块与 `SHA256SUMS` 四件套均由正式 workflow 生成；下载文件与 GitHub API digest、SHA256SUMS 相符，APK 证书匹配固定发布签名，带管理器 ZIP 内 APK 与独立 APK 字节一致。APK+普通模块为 22.83 MiB，低于 26 MiB。
+- preview.4 的同版覆盖重发被发布说明状态机拒绝，其 Release/tag 已删除并由本版取代；未做 Magisk / KernelSU / APatch 真机矩阵；v3.0.11 稳定版保留。
+
+### v3.0.13-preview.4（历史发布预览，已删除）
+
+- 由仓库正式 `Preview Build` run `42962314460` 发布；Release/tag `v3.0.13-preview.4` 指向 PR #23 合并提交 `e7a6411e03c30ec4bcf4a8a00244362664d070a6`。其同版覆盖重发被发布说明状态机拒绝后，Release/tag 已删除并由 v3.0.14-preview.1 取代。稳定版 v3.0.11 未变。
 - 修正更新器页面生命周期和代理失败提示；新增瘦模式节点延迟探测；QS Tile 对 Connecting/Stopping 状态拒绝切换，并在 fresh Root 状态与共享锁内原子决策；分应用列表查询/图标加载移至后台。
 - 版本映射为 Root 模块码 `2024`、APK `versionCode=10124`。正式签名 APK、普通 Root 模块、带管理器模块与 `SHA256SUMS` 四件套均由正式 workflow 生成；下载文件与 GitHub API digest、SHA256SUMS 相符，APK 证书匹配固定发布签名，带管理器 ZIP 内 APK 与独立 APK 字节一致。APK+普通模块为 22.83 MiB，低于 26 MiB。
 - preview.3 的备份导出/导入与 preview.4 双向互通在 Android 35 x86_64 模拟器通过；未做 Magisk / KernelSU / APatch 真机矩阵。preview.3 Release/tag 在 .4 完整核验后按单预览偏好清理；v3.0.11 稳定版保留。
