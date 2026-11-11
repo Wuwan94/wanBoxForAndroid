@@ -13,7 +13,8 @@ docs/
 ├── 🎨 3. 界面交互与用户体验规范 (UI & User Experience)
 ├── 📊 4. 自动化验收与稳定性审计报告 (Reports & Quality Audits)
 ├── ⚙️ 5. 配置资产与体积基线 (Configuration & Build Baseline)
-└── 📜 6. 历史里程碑与版本归档 (Historical Milestones & Archive)
+├── 📜 6. 历史里程碑与版本归档 (Historical Milestones & Archive)
+└── 🤝 7. 社区治理与贡献规范 (Community & Governance)
 ```
 
 ---
@@ -107,3 +108,13 @@ wanBox 严守「证据驱动」与「Fail-Closed」原则，所有关键改动�
 - [**installer-data-recovery.zh-CN.md**](./installer-data-recovery.zh-CN.md)：旧版安装器数据恢复与迁移应急方案。
 - [**selective-ownbox-2.9.9.zh-CN.md**](./selective-ownbox-2.9.9.zh-CN.md)：早期 OwnBox 2.9.9 差异化特性归档。
 - [**preview3-version-evidence.json**](./preview3-version-evidence.json)：早期自动化测试保留的机器可读证据基线。
+
+---
+
+## 🤝 七、社区治理与贡献规范
+
+| 文档名称 | 主要内容与规约说明 | 状态 / 作用 |
+|---|---|---|
+| [**CONTRIBUTING.md**](../CONTRIBUTING.md) | **开发者贡献指南**：架构不可动红线（瘦身解耦、Fail-Closed）、25 MiB 严格体积门禁、本地自动化单测与 Conventional Commits 提交约定。 | 贡献标准 |
+| [**SECURITY.md**](../SECURITY.md) | **安全策略与漏洞报告**：支持渠道、威胁模型（流量防泄露、Root 权限边界）与 Private Vulnerability Reporting 私密披露机制。 | 安全保障 |
+| [**PULL_REQUEST_TEMPLATE.md**](../.github/PULL_REQUEST_TEMPLATE.md) | **PR 审查模板**：自动化验收与架构安全自查 Checklist。 | 协作守卫 |

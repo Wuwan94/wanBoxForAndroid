@@ -37,6 +37,46 @@ Published releases: stable v3.0.14 and preview v3.0.14-preview.1 (preview tag co
 
 ---
 
+## 🏛️ 系统架构 / Architecture
+
+wanBox 采用**“界面与核心解耦、三层架构划分（arch/）、Root 原生承载”**的现代化设计：
+
+```mermaid
+graph TD
+    subgraph UI["Thin Manager · 极致瘦身管理器 APK (~6.1 MiB)"]
+        Activity["Material 3 原生界面 · 毫秒级冷启动"]
+        AppList["分应用代理 · 120项 原生 LruCache 内存缓存"]
+        Controller["ThinControllerDelayClient · 协程异步通信"]
+    end
+
+    subgraph Loopback["本地回环鉴权总线 · Fail-Closed"]
+        REST["127.0.0.1:9090 (REST API / Bearer Token)"]
+        Wanboxctl["wanboxctl node tags (只读探测)"]
+    end
+
+    subgraph CoreDaemon["Root 模块系统守护 · Magisk / KSU / APatch"]
+        Daemon["sing-box v1.15.0-alpha 内核 (reF1nd)"]
+        Route["TUN 接口 / 系统级 iptables 透明转发规则"]
+    end
+
+    subgraph Traffic["全局网络流量"]
+        SystemTraffic["系统与三方 App 流量"]
+    end
+
+    Activity --> Controller
+    AppList --> Controller
+    Controller -->|严格绑定回环·禁直连回退| REST
+    Wanboxctl --> REST
+    REST --> Daemon
+    Daemon --> Route
+    SystemTraffic -->|按分应用规则精准出站| Route
+```
+
+- **界面端零核心常驻**：彻底剥离 `libgojni.so` 与 Cgo/JNI 绑定，杜绝内存泄漏与被 Android 低内存查杀（LMK）连带终止。
+- **Fail-Closed 绝对防泄漏**：更新检查与延时探测全程经由 `127.0.0.1` 走 mixed 代理，核心未启动时直接 Fail-Closed 阻断，坚决不回退直连。
+
+---
+
 ## 🌟 核心特色 / Key Features
 
 - 🪶 **极致瘦身管理器（Thin Manager）**：管理器 APK 仅约 6.1 MiB，剥离核心二进制（零 JNI、无 `libgojni.so` 内存常驻），提供丝滑的 Material 3 原生交互与毫秒级冷启动。
@@ -66,6 +106,38 @@ Published releases: stable v3.0.14 and preview v3.0.14-preview.1 (preview tag co
 
 ---
 
+## ❓ 常见问题 / FAQ
+
+<details>
+<summary><b>Q1: 为什么状态栏没有 Android 系统的 VPN 钥匙图标？</b></summary>
+<br>
+wanBox 是一套面向已 Root 设备的系统级方案，底层直接在 Linux 内核层构建 TUN 接口并利用 iptables / nftables 进行透明代理转发，而不是走 Android 传统的 <code>VpnService</code>。这种原生承载方式带来了两大优势：
+<ol>
+  <li><b>极致性能</b>：消除系统 VPN 框架在用户态与内核态之间的重复拷贝，网络开销更低、续航更长；</li>
+  <li><b>永不掉线</b>：不会因为系统清理普通 VPN 应用而后门掉线或断网，由 Root 守护进程保持持久生命周期。</li>
+</ol>
+</details>
+
+<details>
+<summary><b>Q2: 为什么检查更新或测速时报错“代理未启动”？</b></summary>
+<br>
+这是 wanBox 严苛的 <b>Fail-Closed（故障阻断）安全边界</b> 在生效。wanBox 绝不在代理未就绪时静默使用直连网络发送请求，以免向外界泄露您的真实 IP。当遇到此提示时，请确保模块的核心服务已通过快捷磁贴或管理器正常启动，并在本地 127.0.0.1 回环端口上正常监听。
+</details>
+
+<details>
+<summary><b>Q3: 模块更新后需要重启手机吗？</b></summary>
+<br>
+<b>建议重启。</b>虽然部分热更新可以通过重启后台核心进程生效，但在 Magisk / KernelSU / APatch 中刷入新版 Root 模块后，重启设备能确保系统的全局 iptables 规则链、挂载命名空间以及守护脚本彻底干净地重新加载，避免出现旧进程残留或端口被占用的隐患。
+</details>
+
+<details>
+<summary><b>Q4: 瘦管理器 APK 和 Root 模块 ZIP 的匹配原则是什么？</b></summary>
+<br>
+必须严格执行<b>“成套同版配对原则”</b>。由于瘦管理器内不含核心二进制，其配置生成规范、REST 协议结构与版本戳检查均与同发布的 Root 模块深度绑定。请务必从同一个 Release 发布页下载成套的 APK 与模块 ZIP 进行安装，切勿跨版本混用。
+</details>
+
+---
+
 ## 📚 官方文档中心 / Documentation Hub
 
 仓库文档已按照工程体系全面分层归类，详细内容请访问 **[📖 wanBox 技术文档中心 (docs/README.md)](docs/README.md)**：
@@ -85,6 +157,8 @@ Published releases: stable v3.0.14 and preview v3.0.14-preview.1 (preview tag co
 
 - 遇到使用问题、连接异常或特性建议，欢迎提交议题：[GitHub Issues](https://github.com/Wuwan94/wanBoxForAndroid/issues)
 - 交流与动态通知，欢迎加入 Telegram 频道：[@OwnBoxs](https://t.me/OwnBoxs)
+- 参与代码贡献与架构演进，请参阅：[📖 贡献指南 (CONTRIBUTING.md)](CONTRIBUTING.md)
+- 报告潜在安全漏洞与流量隐患，请参阅：[🛡️ 安全策略 (SECURITY.md)](SECURITY.md)
 
 ---
 
