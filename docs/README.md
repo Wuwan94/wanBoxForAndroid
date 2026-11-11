@@ -22,8 +22,8 @@ docs/
 
 | 文档名称 | 主要内容与规约说明 | 状态 / 作用 |
 |---|---|---|
-| [**current-version.zh-CN.md**](./current-version.zh-CN.md) | **发布、源码与版本对照**：正式版与当前已发布预览的 Git 提交、版本码向量、四件套发布资产 SHA-256 镜像与核验记录。 | 核心维护 |
-| [**release-checklist.zh-CN.md**](./release-checklist.zh-CN.md) | **分阶段发布检查清单**：不可动兼容性约束、Fail-Closed 本地代理策略、25 MiB 体积门禁与自动化实跑证据要求。 | 核心维护 |
+| [**current-version.zh-CN.md**](./current-version.zh-CN.md) | **发布、源码与版本对照**：正式版（当前 v3.0.14）与当前已发布预览的 Git 提交、版本码向量、四件套发布资产 SHA-256 镜像与核验记录。 | 核心维护 |
+| [**release-checklist.zh-CN.md**](./release-checklist.zh-CN.md) | **分阶段发布检查清单**：预览分阶段门槛与 v3.0.14 正式版发布清单（G1–G13 门禁基线、候选构建→核对→正式上架两阶段流程）；不可动兼容性约束、Fail-Closed 本地代理策略、26 MiB 体积门禁与自动化实跑证据要求。 | 核心维护 |
 | [**release-notes-next.zh-CN.md**](./release-notes-next.zh-CN.md) | **下一版发行说明草稿**：下一阶段功能演进范围、缺陷收敛规划及当前预览说明快照。 | 核心维护 |
 | [**project-positioning.zh-CN.md**](./project-positioning.zh-CN.md) | **项目定位与工程原则**：明确独立分支维护路线、瘦管理器架构、Root 模块承载核心与免 VPN 运行原则。 | 基础规范 |
 
