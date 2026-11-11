@@ -6,7 +6,7 @@ on:
       tag:
         description: "Release Tag（必须严格等于 v$VERSION_NAME）"
         required: true
-        default: "v3.0.11"
+        default: "v3.0.14"
       approved_sha:
         description: "获批 PR 合并后的确切提交 SHA（必须等于本次运行的 github.sha）"
         required: true
