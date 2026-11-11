@@ -1,6 +1,6 @@
 # v3.0.14-preview.1 分阶段发布清单
 
-本版 **v3.0.14-preview.1 已发布预览**，tag 指向合并提交 `8b4e60893dc4d783caeab1b0f5ddb6667aa0549d`；已发布正式版仍为 v3.0.11，前一预览 v3.0.13-preview.4 的 Release/tag 已删除并由本版取代。本清单记录本轮预览发布门槛与结果；Root 真机矩阵仍待签核，不能据此晋升正式版。
+本版 **v3.0.14-preview.1 已发布预览**，tag 指向合并提交 `8b4e60893dc4d783caeab1b0f5ddb6667aa0549d`；已发布正式版已由 v3.0.11 晋升为 v3.0.14（正式版发布清单见本文件下文专节），前一预览 v3.0.13-preview.4 的 Release/tag 已删除并由本版取代。本清单记录本轮预览发布门槛与结果，并附 v3.0.14 正式版发布清单；Root 真机矩阵仍待签核。
 
 ## 当前基线与不可变约束
 
@@ -9,7 +9,7 @@
 - 内核 `reF1nd/sing-box v1.15.0-alpha.13-reF1nd`。内核和 targetSdk 阶段只评估，升级须另获确认。
 - 模块拥有代理生命周期；管理器为瘦 APK，不引入多内核、不恢复 VPN、不重做 UI。
 - 不删除或改名设置键、不改默认值；TLS 默认验证证书；日志不得含备份内容、节点凭据、订阅原文。
-- 上一版预览 preview.4 的版本码为 Root 模块 `2024` / APK `10124`；已发布 v3.0.14-preview.1 按 `tools/version_code.py` 与共享固定向量顺延为 `2025 / 10126`（3.0.13 线已用满 preview.4，新开 3.0.14 线），正式线元数据不改动。
+- 上一版预览 preview.4 的版本码为 Root 模块 `2024` / APK `10124`；已发布 v3.0.14-preview.1 按 `tools/version_code.py` 与共享固定向量顺延为 `2025 / 10126`（3.0.13 线已用满 preview.4，新开 3.0.14 线）；晋升后正式线元数据为 `3.0.14 / 2026`，预览线占位顺延为 `3.0.15-preview.1 / 2027`。
 
 ## 阶段与验收
 
@@ -22,7 +22,7 @@
 | 3 更新器异常路径 | 断网、磁盘满、SHA256 不符、资产不全；普通及 with-manager 完整文件名匹配 | 可复现证据；临时文件及本次包清理、不弹安装、错误可读；校验后才由用户安装 |
 | 4 P1 清尾 | baseline-prof.txt、>1000 节点 DiffUtil 与已定位主线程读取、图标、工具页；跨进程失效只设计 | 每项独立提交可回滚；基线与性能数据真实记录，不伪造设备结果，不实现设置缓存 |
 | 5 内核与 targetSdk 评估 | 上游 / fork 新预览、TUN 栈 / stack 弃用、Android auto_redirect、targetSdk 36 行为影响 | 两份评估文档；不擅自升级，升级动作另等确认 |
-| 6 版本与发布材料 | 顺延版本码；发行说明按更新 / 安装版本 / 自动化及边界三部分 | README、元数据和发行说明一致；无真机签核时保留“未做真机回归”；不得发布正式版 |
+| 6 版本与发布材料 | 顺延版本码；发行说明按更新 / 安装版本 / 自动化及边界三部分 | README、元数据和发行说明一致；无真机签核时保留“未做真机回归”；正式版须另获明确授权后按下文正式版发布清单发布 |
 
 ## 预览发布前硬门槛
 
@@ -35,7 +35,7 @@
 - [x] 中文发行说明如实区分自动化与真机边界；只发布 prerelease，不宣称正式版可用。
 - [x] 发布后回读四件套名称、数量、大小、SHA256 与 tag；新预览完整，v3.0.13-preview.4 已删除，稳定版 v3.0.11 保留。
 
-任何一项发布前门禁失败都应停止发布，保留构件、日志和失败现场。preview.1 已按上述门禁发布；本清单不授权发布正式版。
+任何一项发布前门禁失败都应停止发布，保留构件、日志和失败现场。preview.1 已按上述门禁发布；正式版发布已由用户另行明确授权，门禁按下文「v3.0.14 正式版发布清单」执行。
 
 ## 真机待签核矩阵（不能用模拟器代替）
 
@@ -48,7 +48,68 @@
 | 更新 | 正常、断网、校验失败 | 校验通过才提示安装；失败清理，旧版仍可用 |
 | 数据 | 新旧版本双向备份导入 | 设置键、节点、订阅完整 |
 
-全部保持“待签核”。未全签核不得转正式版；本轮只授权预览版，正式发布必须另获明确授权。
+全部保持“待签核”。正式发布已另获用户明确授权（2026-11-11），按下文正式版发布清单的两阶段流程执行；真机矩阵不因正式发布而视为已签核，发行说明如实标注未做真机回归。
+
+---
+
+## v3.0.14 正式版发布清单
+
+> 适用范围：`main` 上的 v3.0.14 正式版（非预览）发布。本次正式发布已由用户明确授权（2026-11-11）；仍须在获批 PR 合并、构建与资产核验完成后按两阶段流程执行。
+> **本次流程明确要求不删除旧版、不覆盖已有 tag、不强推**：正式版不触发 `prune_prereleases.py`，`v3.0.11` 正式版与 `v3.0.14-preview.1` 预览版均保留。
+
+### 核心规则
+
+| 项 | 本版规则 |
+|---|---|
+| 旧 Release / tag | **不删除**。正式版不触发 `prune_prereleases.py`；预览线的既有 prune 只作用于 prerelease，且不在正式发布流程中执行 |
+| 覆盖升级声明 | 同签名 + 版本码严格递增即可覆盖安装；数据保留以备份双向兼容口径为准，真机 D1–D10 未验证项如实标注，不宣称真机签核 |
+| 版本码 | 必须**严格大于已发布 v3.0.11**：APK `> 10065`、模块 `> 2013`；本版为 APK `10130`、模块 `2026` |
+| 触发方式 | 两阶段 dispatch（见下文流程顺序）；dispatch 必须提供 `approved_sha`，且 `github.sha` 等于获批 PR 合并提交；tag 已存在则拒绝 |
+| 测试 | Go / Kotlin / Android / Python 全量测试 + 13 项发布门禁（G1–G13） |
+
+### 版本规则（`nb4a.properties`）
+
+| 字段 | 当前值 | 说明 |
+|---|---|---|
+| `VERSION_NAME` | `3.0.14` | tag 必须严格等于 `v$VERSION_NAME` → `v3.0.14` |
+| `VERSION_CODE` | `2026` | APK `versionCode = 2026 × 5 = 10130`；Root 模块码 `2026` |
+| `PRE_VERSION_NAME` | `3.0.15-preview.1` | **未发布候选**，只为满足 `PRE > FORMAL` 断言 |
+| `PRE_VERSION_CODE` | `2027` | 必须 `> VERSION_CODE`（`preview.yml` 硬断言）；预览 APK `10136` |
+| `SINGBOX_VERSION` | `v1.15.0-alpha.13-reF1nd` | 与 v3.0.11 一致 |
+
+`×5` 换算与渠道判定由 `tools/version_code.py` 统一实现，两条渠道不得各自用 shell 算术推断。
+
+### 发布前门禁清单（G1–G13，沿用正式门禁基线）
+
+| ID | 门禁 | 失败处理 |
+|---|---|---|
+| G1 | 4 个 `release.yml` 作业固定 `ubuntu-24.04`；Go `1.26.10`、JDK 17、NDK `25.0.8775105`；其余工作流同步固定 | 停止 |
+| G2 | `libcore` 与 `rootmodule` 的 Go 测试（含 `-race`） | 停止 |
+| G3 | `app:testOssDebugUnitTest`、`app:compileOssDebugAndroidTestKotlin`、`:core-domain:test`、Python 全量单测 | 停止 |
+| G4 | tag == `v$VERSION_NAME`；tag 不存在；dispatch 的 `approved_sha` == `github.sha` | 停止 |
+| G5 | `version_code.py --enforce`：APK `> 10065`、模块 `> 2013` | 停止 |
+| G6 | `aapt`：包名 / `versionName` / `versionCode` / `minSdk=31` / `targetSdk=35`；`verify_apk_abi.py --thin`；`lib/` 条目为 0 | 停止 |
+| G7 | `apksigner`：v2 验签 + 证书 `80ecee…21f6`；**下载 v3.0.11 实际 APK 做跨版本包名 / 签名 / 版本码比对** | 停止 |
+| G8 | 正式模块 `--channel formal`；`module.prop` 为 `3.0.14` / `2026`；ZIP 完整性 | 停止 |
+| G9 | 普通模块 ZIP 与带管理器 ZIP 均通过 `python3 -m zipfile -t` | 停止 |
+| G10 | 资产白名单恰为 `{APK, 普通模块 ZIP, 带管理器 ZIP, SHA256SUMS}` | 停止 |
+| G11 | 上传前 `sha256sum --check`；发布后回读资产并比对大小 / SHA256 | 停止 |
+| G12 | `verify_upgrade` 静态契约（同包名、同签名、版本码严格递增）；`publish needs: [build, verify_upgrade]` | 停止 |
+| G13 | 发布后 Release 的 `prerelease=false`、资产数量 / 名称 / 大小 / digest 与本地一致；**正式版不得触发 prune** | 停止 |
+
+CI 层**不执行**覆盖安装；`verify_upgrade` 只保留纯静态契约硬门禁，工作流输出明确标注「CI 层不执行覆盖安装，真机 D1–D10 未验证」。真机验证矩阵（D1–D10）仍全部保持“未验证”，不得以 CI 模拟器结果或静态推断替代；本次发布由用户明确授权，发行说明已如实标注未做真机回归。
+
+### 流程顺序（两阶段，不可跳步）
+
+```
+S1 release/v3.0.14 分支提交晋升改动 → 开 PR
+S2 Verify CI 全绿（LibCore 编译、Debug APK 构建、单测、Manifest 校验、体积测量）→ Squash 合入 main
+S3 阶段一（候选构建）：在 main 上触发 release.yml，tag=v3.0.14、publish_release=false、approved_sha=<合并提交 SHA>；产出候选构件并核对 SHA256SUMS
+S4 阶段二（正式上架）：二次触发 release.yml，tag=v3.0.14、publish_release=true，填入阶段一的 candidate_run_id 与 expected_checksums_sha256
+S5 发布后回读 Release API：prerelease=false、四件套名称/大小/SHA256 吻合、旧正式版 v3.0.11 完好保留
+```
+
+> Release 正文由 CI 从 `RELEASE_NOTES.md` 复制生成；发布后若需勘误，只编辑 Release 正文，不覆盖 tag、不重发同名 Release。
 
 ---
 

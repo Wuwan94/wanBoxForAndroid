@@ -1,3 +1,26 @@
+# v3.0.15-preview.1 发行说明（候选）
+
+**状态：未发布的稳定性预览版候选。** 本文件供源码审查；仓库 `Preview Build` 在正式发布时会移除本标题后缀和本状态段，再将剩余中文说明作为 Release 正文。
+
+稳定性预览版，不替换稳定版 `v3.0.14`。本节为 3.0.15 预览线占位候选：v3.0.14 已晋升正式版，上一预览 v3.0.14-preview.1 已随正式版晋升归档（见下文「已发布说明」）。本候选的具体变更待后续迭代填充，现阶段不包含任何已实现的功能或修复声明。正式发布的 arm64-v8a 管理器 APK、普通 Root 模块、带管理器 Root 模块与 `SHA256SUMS` 必须由仓库 `Preview Build` 流程生成；本地临时测试签名 APK 不属于发布资产。
+
+## 安装与版本
+
+- Android 12+、arm64-v8a、Root（Magisk / KernelSU / APatch），瘦管理器不含内核，无普通 VPN 回退。
+- 预览名 `3.0.15-preview.1`，Root 模块码 `2027`，APK `versionCode=10136`；按既有 `metadataCode*5+previewSuffix` 计算，高于正式版 3.0.14 的 2026/10130。
+- 发布候选须提供瘦 APK、普通 Root 模块、with-manager 模块及 SHA256SUMS，管理器和模块必须同页同版成套，不能只更新其中一个。
+
+## 自动化验证与边界
+
+- 本候选仅为版本占位，未经任何构建、测试或发布流程；不得据此宣称 3.0.15-preview.1 已发布或可用。
+- 未做 Magisk / KernelSU / APatch 真机矩阵；本次为预览候选，不替换 v3.0.14 正式版。
+
+---
+
+## 历史归档：v3.0.14-preview.1 已发布说明
+
+> 以下为 preview.1 当时发布说明原文与历史验证记录，保留当时语境；该预览的六项复查修复已由 v3.0.14 正式版全量承接，正式说明见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。preview.1 的 Release/tag 保留，稳定版现为 v3.0.14。
+
 # v3.0.14-preview.1 发行说明
 
 **状态：已发布的稳定性预览版。** 由仓库 `Preview Build` 正式发布；[Release 页面](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14-preview.1)的 tag 指向合并提交 `8b4e60893dc4d783caeab1b0f5ddb6667aa0549d`。本版不替换稳定版 `v3.0.11`。
@@ -28,7 +51,6 @@
 - 正式 `Preview Build` run `43003022425` 从获批合并提交 `8b4e60893dc4d783caeab1b0f5ddb6667aa0549d` 生成并发布正式签名资产；发布后四件套、API digest 与 `SHA256SUMS` 均已回读核验，文件名、体积与哈希见[版本对照](docs/current-version.zh-CN.md)。
 - 未做 Magisk / KernelSU / APatch 真机矩阵；模拟器、JVM 与静态检查不能替代 Root 真机签核。本次为预览版，不替换 v3.0.11 正式版。
 
----
 
 ## 历史归档：v3.0.13-preview.4 已发布说明
 

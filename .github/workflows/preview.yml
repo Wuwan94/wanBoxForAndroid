@@ -185,7 +185,7 @@ jobs:
           FORMAL_APK=$(find app/build/outputs/apk/oss/release -name '*arm64-v8a*.apk')
           test -n "$FORMAL_APK"
           "$AAPT" dump badging "$FORMAL_APK" | tee formal-apk-badging.txt
-          grep -q "versionCode='$FORMAL_APK_CODE' versionName='3.0.11'" formal-apk-badging.txt
+          grep -q "versionCode='$FORMAL_APK_CODE' versionName='3.0.14'" formal-apk-badging.txt
           "$APKSIGNER" verify --verbose --print-certs "$FORMAL_APK" > formal-apk-signature.txt
           grep -qi '80ecee1c42d861d59cdc460447335fc4bfdf80103d6225a17c1bdf83a33521f6' formal-apk-signature.txt
           python3 tools/verify_apk_abi.py --thin "$FORMAL_APK"

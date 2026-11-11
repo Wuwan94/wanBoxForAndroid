@@ -25,14 +25,12 @@ class PreparePreviewReleaseNotesTest(unittest.TestCase):
         self.assertIn("稳定性预览版，不替换稳定版 `v3.0.11`。", result)
         self.assertIn("## 更新", result)
 
-    def test_current_published_notes_are_not_candidate_input(self):
+    def test_current_source_notes_render_without_candidate_marker(self):
         root = SCRIPT.parents[1]
         source = (root / "PREVIEW_NOTES.md").read_text(encoding="utf-8")
-        self.assertTrue(source.startswith("# v3.0.14-preview.1 发行说明\n"))
-        self.assertFalse(source.splitlines()[0].endswith(module.CANDIDATE_SUFFIX))
-        self.assertNotIn(module.STATUS_PREFIX, source)
-        with self.assertRaisesRegex(ValueError, "title must be explicitly marked"):
-            module.render_release_notes(source)
+        result = module.render_release_notes(source)
+        self.assertTrue(result.startswith("# v3.0.15-preview.1 发行说明\n"))
+        self.assertNotIn(module.STATUS_PREFIX, result)
 
     def test_rejects_notes_without_source_candidate_marker(self):
         source = "# v3.0.13-preview.4 发行说明\n\n## 更新\n\n- 内容\n"

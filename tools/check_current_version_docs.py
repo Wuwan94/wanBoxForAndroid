@@ -13,11 +13,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-STABLE_TAG = "v3.0.11"
+STABLE_TAG = "v3.0.14"
 PUBLISHED_PREVIEW = "v3.0.14-preview.1"
 PUBLISHED_PREVIEW_COMMIT = "8b4e60893dc4d783caeab1b0f5ddb6667aa0549d"
-SOURCE_PREVIEW = "v3.0.14-preview.1"
-SOURCE_PREVIEW_CODE = "2025"
+SOURCE_PREVIEW = "v3.0.15-preview.1"
+SOURCE_PREVIEW_CODE = "2027"
 ARCHIVED_PREVIEW = "v3.0.13-preview.4"
 HISTORY_MARKER = "历史归档"
 
@@ -70,11 +70,11 @@ def failures(root: Path = ROOT) -> list[str]:
     except (FileNotFoundError, UnicodeDecodeError) as exc:
         return [f"读取当前版本文档失败: {exc}"]
 
-    # 1. 源码元数据：正式线不动，预览线与当前已发布预览保持一致。
-    if props.get("VERSION_NAME") != "3.0.11":
-        errors.append(f"nb4a.properties: VERSION_NAME 应为 3.0.11，实际 {props.get('VERSION_NAME')!r}")
-    if props.get("VERSION_CODE") != "2017":
-        errors.append(f"nb4a.properties: VERSION_CODE 应为 2017（正式线不改），实际 {props.get('VERSION_CODE')!r}")
+    # 1. 源码元数据：正式线为已晋升的 3.0.14，预览线为下一线占位候选。
+    if props.get("VERSION_NAME") != "3.0.14":
+        errors.append(f"nb4a.properties: VERSION_NAME 应为 3.0.14，实际 {props.get('VERSION_NAME')!r}")
+    if props.get("VERSION_CODE") != "2026":
+        errors.append(f"nb4a.properties: VERSION_CODE 应为 2026（正式线），实际 {props.get('VERSION_CODE')!r}")
     if props.get("PRE_VERSION_NAME") != SOURCE_PREVIEW[1:]:
         errors.append(f"nb4a.properties: PRE_VERSION_NAME 应为 {SOURCE_PREVIEW[1:]}，实际 {props.get('PRE_VERSION_NAME')!r}")
     if props.get("PRE_VERSION_CODE") != SOURCE_PREVIEW_CODE:
