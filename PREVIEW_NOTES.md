@@ -1,6 +1,6 @@
-# v3.0.14-preview.1 发行说明（候选）
+# v3.0.14-preview.1 发行说明
 
-**状态：未发布的稳定性预览版候选。** 本文件供源码审查；仓库 `Preview Build` 在正式发布时会移除本标题后缀和本状态段，再将剩余中文说明作为 Release 正文。
+**状态：已发布的稳定性预览版。** 由仓库 `Preview Build` 正式发布；[Release 页面](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14-preview.1)的 tag 指向合并提交 `8b4e60893dc4d783caeab1b0f5ddb6667aa0549d`。本版不替换稳定版 `v3.0.11`。
 
 稳定性预览版，不替换稳定版 `v3.0.11`。正式发布的 arm64-v8a 管理器 APK、普通 Root 模块、带管理器 Root 模块与 `SHA256SUMS` 必须由仓库 `Preview Build` 流程生成；请仅从本 Release 页下载同版整套文件并先核对哈希。本地临时测试签名 APK 不属于发布资产。
 
@@ -25,6 +25,7 @@
 
 - 六项修复由 PR #25 合入 main（合并提交 `1d769fad65768029374134a37bcb67d163deb42f`），其 Verify CI（run `42976607018`）的 Build LibCore 与 Build Android Debug APK 均成功；本地 Python 工具测试 108 项先行通过。
 - preview.4 的同版覆盖重发曾被发布流程拒绝：本说明在 preview.4 发布后已翻为已发布状态，仓库校验不接受同一版本二次发布。且版本规则每线最多 preview.4，故新开 3.0.14 线顺延为 preview.1，修复内容与原计划一致。
+- 正式 `Preview Build` run `43003022425` 从获批合并提交 `8b4e60893dc4d783caeab1b0f5ddb6667aa0549d` 生成并发布正式签名资产；发布后四件套、API digest 与 `SHA256SUMS` 均已回读核验，文件名、体积与哈希见[版本对照](docs/current-version.zh-CN.md)。
 - 未做 Magisk / KernelSU / APatch 真机矩阵；模拟器、JVM 与静态检查不能替代 Root 真机签核。本次为预览版，不替换 v3.0.11 正式版。
 
 ---

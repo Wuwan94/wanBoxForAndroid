@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11"><img src="https://img.shields.io/badge/Stable-3.0.11-green.svg?style=flat-square" alt="Stable 3.0.11"></a>
-  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.13-preview.4"><img src="https://img.shields.io/badge/Preview-v3.0.13--preview.4-orange.svg?style=flat-square" alt="Published preview v3.0.13-preview.4"></a>
+  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14-preview.1"><img src="https://img.shields.io/badge/Preview-v3.0.14--preview.1-orange.svg?style=flat-square" alt="Published preview v3.0.14-preview.1"></a>
   <a href="https://android-arsenal.com/api?level=31"><img src="https://img.shields.io/badge/Android-12%2B%20(API%2031%2B)-brightgreen.svg?style=flat-square" alt="Minimum Android version"></a>
   <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases"><img src="https://img.shields.io/badge/ABI-arm64--v8a-informational.svg?style=flat-square" alt="Supported ABI"></a>
   <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPL--3.0-orange.svg?style=flat-square" alt="License"></a>
@@ -23,17 +23,17 @@
 
 ## 📌 当前版本核对 / Release and source snapshot
 
-当前已发布正式版为 [v3.0.11](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11)，当前唯一已发布预览版为 [v3.0.13-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.13-preview.4)，tag 指向 `e7a6411e03c30ec4bcf4a8a00244362664d070a6`，不替换正式版；源码元数据与发布资产的边界见 [版本对照](docs/current-version.zh-CN.md)。
+当前已发布正式版为 [v3.0.11](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11)，当前唯一已发布预览版为 [v3.0.14-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14-preview.1)，tag 指向 `8b4e60893dc4d783caeab1b0f5ddb6667aa0549d`，不替换正式版；源码元数据与发布资产的边界见 [版本对照](docs/current-version.zh-CN.md)。
 
-preview.4 的 Root 模块码为 `2024`、APK `versionCode=10124`。更新器生命周期、瘦模式节点延迟探测、QS Tile 过渡态保护和分应用列表异步加载及 LruCache 优化等改进已由 PR #21 与 PR #23 合并；正式预览资产由仓库 `Preview Build` 流程生成并验签，发布后 SHA256 与资产完整性已核对。CI、跨版本模拟器互通证据与边界见[验收报告](docs/reports/v3.0.13-preview.4-evolution.zh-CN.md)。工具链为 Gradle 8.13 / AGP 8.11.1 / Kotlin 2.2.21 / KSP 2.2.21-2.0.4 / compileSdk 36 / Room 2.7.2；targetSdk 35、minSdk 31、JDK 17、Build Tools 35.0.1 不变。内核固定为 `reF1nd/sing-box v1.15.0-alpha.13-reF1nd`，不据此宣称它是当前上游最新版本。
+preview.1 的 Root 模块码为 `2025`、APK `versionCode=10126`。本版承接 v3.0.13-preview.4，落实其代码复查确认的剩余六项修复（版本规则漂移守卫、更新包版本戳绑定、导出独立守卫、发布 tag 状态码检查、代理源头标记、清理已提交字节码），修复由 PR #25 合入、升版由 PR #26 完成；preview.4 的功能内容保持不变。正式预览资产由仓库 `Preview Build` 流程生成并验签，发布后 SHA256 与资产完整性已核对；验证与边界见 [PREVIEW_NOTES.md](PREVIEW_NOTES.md)。工具链为 Gradle 8.13 / AGP 8.11.1 / Kotlin 2.2.21 / KSP 2.2.21-2.0.4 / compileSdk 36 / Room 2.7.2；targetSdk 35、minSdk 31、JDK 17、Build Tools 35.0.1 不变。内核固定为 `reF1nd/sing-box v1.15.0-alpha.13-reF1nd`，不据此宣称它是当前上游最新版本。
 
-preview.3（模块码 `2023` / APK `10118`）曾作为上一预览发布，已在 preview.4 完整核验后按渠道偏好清理；稳定版 v3.0.11 保持不变。当前说明见 [PREVIEW_NOTES.md](PREVIEW_NOTES.md)，资产哈希见[版本对照](docs/current-version.zh-CN.md)。**未做 Magisk、KernelSU、APatch 真机回归**，自动化结果不等于 Root 真机签核。
+v3.0.13-preview.4（模块码 `2024` / APK `10124`）曾作为上一预览发布；其同版覆盖重发被发布流程拒绝后，Release/tag 已删除并由 v3.0.14-preview.1 取代，preview.3 更早已按渠道偏好清理；稳定版 v3.0.11 保持不变。当前说明见 [PREVIEW_NOTES.md](PREVIEW_NOTES.md)，资产哈希见[版本对照](docs/current-version.zh-CN.md)。**未做 Magisk、KernelSU、APatch 真机回归**，自动化结果不等于 Root 真机签核。
 
 **安装要求：Android 12+、arm64-v8a、Root（Magisk / KernelSU / APatch）**。瘦管理器不包含核心，必须搭配同一发布页中的 Root 模块，不能混用其他版本；安装前先备份并检查 `SHA256SUMS`。更新必须校验后由用户确认安装，不静默安装，不提供 VPN 回退。
 
 预览渠道仅保留最新一个版本；清理旧预览前先核验新版本的完整发布资产，正式版始终保留。[v3.0.11 正式版历史说明](RELEASE_NOTES.md)保持原文。
 
-Published releases: stable v3.0.11 and preview v3.0.13-preview.4 (tag commit e7a6411e03c30ec4bcf4a8a00244362664d070a6). The official Preview Build assets and SHA256SUMS were verified; the replaced preview.3 was removed after publication, while stable v3.0.11 remains. No Root-device regression sign-off has been completed. Requires Android 12+, ARM64 and Root; pair the thin manager APK with the Root module from the same release page.
+Published releases: stable v3.0.11 and preview v3.0.14-preview.1 (tag commit 8b4e60893dc4d783caeab1b0f5ddb6667aa0549d). The official Preview Build assets and SHA256SUMS were verified; the replaced v3.0.13-preview.4 was removed, while stable v3.0.11 remains. No Root-device regression sign-off has been completed. Requires Android 12+, ARM64 and Root; pair the thin manager APK with the Root module from the same release page.
 
 ---
 
