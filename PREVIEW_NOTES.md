@@ -1,6 +1,39 @@
-# v3.0.13-preview.4 发行说明
+# v3.0.14-preview.1 发行说明（候选）
 
-**状态：已发布的稳定性预览版。** 由仓库 `Preview Build` 正式发布；[Release 页面](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.13-preview.4)的 tag 指向合并提交 `e7a6411e03c30ec4bcf4a8a00244362664d070a6`。本版不替换稳定版 `v3.0.11`。
+**状态：未发布的稳定性预览版候选。** 本文件供源码审查；仓库 `Preview Build` 在正式发布时会移除本标题后缀和本状态段，再将剩余中文说明作为 Release 正文。
+
+稳定性预览版，不替换稳定版 `v3.0.11`。正式发布的 arm64-v8a 管理器 APK、普通 Root 模块、带管理器 Root 模块与 `SHA256SUMS` 必须由仓库 `Preview Build` 流程生成；请仅从本 Release 页下载同版整套文件并先核对哈希。本地临时测试签名 APK 不属于发布资产。
+
+## 更新
+
+本版在 preview.4 基础上落实 v3.0.13-preview.4 代码复查确认的剩余六项修复，均为更新器与发布工具链的稳定性、一致性修复，无功能增减；preview.4 的功能内容（更新器生命周期、瘦模式节点延迟探测、QS Tile 原子切换、分应用列表图标缓存等）保持不变：
+
+- **版本规则漂移守卫补齐**：`UpdateRelease.TAG_REGEX` 是版本规则的第三份拷贝且此前无守卫；现 `tools/version_code.py --check-app-tag` 将其纳入与 Kotlin/Python 同源的漂移检查，锚点缺失或范围漂移直接报错。
+- **更新包按版本戳绑定**：`UpdateDownload` 在下载校验通过后写入版本戳，`recentReady()` 只导出与当前已装 App 版本一致的更新包；此前仅按修改时间取「最近」一份，可能导出版本不匹配的模块，无版本戳的旧包不再被当作同版导出。
+- **导出独立守卫**：关于页导出最近模块改用独立的 `UpdateTask` 守卫，不再与检查/下载共用单飞锁；此前下载进行中点导出会被静默吞掉、无任何反馈。
+- **发布 tag 检查按状态码判定**：`tools/check_release_tag.sh` 改用 `gh api -i` 的 HTTP 状态行判定 tag 是否存在，不再匹配 gh 的报错文本，文本变化不再导致误判。
+- **代理不可用只认源头标记**：更新传输层在本机 mixed 代理连接被拒时抛出专属的 `UpdateProxyUnavailable` 标记，失败分类只认该标记；此前任意 `ConnectException` 都会被误判为代理不可用。
+- **清理已提交字节码**：删除误提交的 14 个 `tools/__pycache__/*.pyc`，`.gitignore` 增加 `__pycache__/` 与 `*.pyc`。
+
+## 安装与版本
+
+- Android 12+、arm64-v8a、Root（Magisk / KernelSU / APatch），瘦管理器不含内核，无普通 VPN 回退。
+- 预览名 `3.0.14-preview.1`，Root 模块码 `2025`，APK `versionCode=10126`；按既有 `metadataCode*5+previewSuffix` 计算，高于 preview.4 的 2024/10124。
+- 发布候选须提供瘦 APK、普通 Root 模块、with-manager 模块及 SHA256SUMS，管理器和模块必须同页同版成套，不能只更新其中一个。
+
+## 自动化验证与边界
+
+- 六项修复由 PR #25 合入 main（合并提交 `1d769fad65768029374134a37bcb67d163deb42f`），其 Verify CI（run `42976607018`）的 Build LibCore 与 Build Android Debug APK 均成功；本地 Python 工具测试 108 项先行通过。
+- preview.4 的同版覆盖重发曾被发布流程拒绝：本说明在 preview.4 发布后已翻为已发布状态，仓库校验不接受同一版本二次发布。且版本规则每线最多 preview.4，故新开 3.0.14 线顺延为 preview.1，修复内容与原计划一致。
+- 未做 Magisk / KernelSU / APatch 真机矩阵；模拟器、JVM 与静态检查不能替代 Root 真机签核。本次为预览版，不替换 v3.0.11 正式版。
+
+---
+
+## 历史归档：v3.0.13-preview.4 已发布说明
+
+> 以下为 preview.4 当时发布说明摘要与历史验证记录，不是 v3.0.14-preview.1 的功能或测试证据；preview.4 的 Release/tag 已删除，本版 v3.0.14-preview.1 为其复查修复的顺延发布，稳定版 v3.0.11 保留。
+
+# v3.0.13-preview.4 发行说明
 
 稳定性预览版，不替换稳定版 `v3.0.11`。正式发布的 arm64-v8a 管理器 APK、普通 Root 模块、带管理器 Root 模块与 `SHA256SUMS` 必须由仓库 `Preview Build` 流程生成；请仅从本 Release 页下载同版整套文件并先核对哈希。本地临时测试签名 APK 不属于发布资产。
 
@@ -24,6 +57,7 @@
 - 跨版本备份互通以 `v3.0.13-preview.3`（`77e291a150819a70d87c0af8458f1c603088e432`）为基线，在 Android 35 x86_64 模拟器完成旧版导出、旧版→新版导入、新版导出、新版→旧版导入；最终 closeout run `42943570310` 的四项各 `OK (1 test)`，三份数据文件哈希也通过。此项是模拟器验证，不是真机或 Root 环境验证。
 - 正式 `Preview Build` run `42962314460` 从获批合并提交 `e7a6411e03c30ec4bcf4a8a00244362664d070a6`（合入 PR #23）生成并发布正式签名资产；发布后四件套、API digest、`SHA256SUMS`、ZIP 完整性和 APK 签名均已回读核验。
 - 未做 Magisk / KernelSU / APatch 真机矩阵；模拟器、JVM 与静态检查不能替代 Root 真机签核。
+
 
 ---
 

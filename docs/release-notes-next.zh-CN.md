@@ -1,6 +1,37 @@
-# v3.0.13-preview.4 发行说明
+# v3.0.14-preview.1 发行说明（候选）
 
-**状态：已发布的稳定性预览版。** 由仓库 `Preview Build` 正式发布，tag 指向合并提交 `e7a6411e03c30ec4bcf4a8a00244362664d070a6`；不替换稳定版 v3.0.11。正式资产和哈希核验记录见[版本对照](current-version.zh-CN.md)。
+**状态：未发布的稳定性预览版候选。** 本文件是下一预览版的说明草稿，供源码审查；不替换 v3.0.11 正式版，候选源码和本说明都不是已签名发布资产。
+
+## 更新
+
+本版在 preview.4 基础上落实 v3.0.13-preview.4 代码复查确认的剩余六项修复，无功能增减；preview.4 的功能内容保持不变：
+
+- **版本规则漂移守卫补齐**：`UpdateRelease.TAG_REGEX` 是版本规则的第三份拷贝且此前无守卫；现 `tools/version_code.py --check-app-tag` 将其纳入与 Kotlin/Python 同源的漂移检查，锚点缺失或范围漂移直接报错。
+- **更新包按版本戳绑定**：`UpdateDownload` 在下载校验通过后写入版本戳，`recentReady()` 只导出与当前已装 App 版本一致的更新包；此前仅按修改时间取「最近」一份，可能导出版本不匹配的模块，无版本戳的旧包不再被当作同版导出。
+- **导出独立守卫**：关于页导出最近模块改用独立的 `UpdateTask` 守卫，不再与检查/下载共用单飞锁；此前下载进行中点导出会被静默吞掉、无任何反馈。
+- **发布 tag 检查按状态码判定**：`tools/check_release_tag.sh` 改用 `gh api -i` 的 HTTP 状态行判定 tag 是否存在，不再匹配 gh 的报错文本，文本变化不再导致误判。
+- **代理不可用只认源头标记**：更新传输层在本机 mixed 代理连接被拒时抛出专属的 `UpdateProxyUnavailable` 标记，失败分类只认该标记；此前任意 `ConnectException` 都会被误判为代理不可用。
+- **清理已提交字节码**：删除误提交的 14 个 `tools/__pycache__/*.pyc`，`.gitignore` 增加 `__pycache__/` 与 `*.pyc`。
+
+## 安装与版本
+
+- Android 12+、arm64-v8a、Root（Magisk / KernelSU / APatch）；瘦 APK 不含原生核心，由配套 Root 模块持有核心，无普通 VPN 回退。
+- 发布元数据为 `PRE_VERSION_NAME=3.0.14-preview.1`、Root 模块码 `2025`、APK `versionCode=10126`；正式线 `3.0.11 / 2017` 不变。版本码由共享固定向量计算。
+- 包名、设置键及默认值、Room schema、备份/还原格式和同页同版配对规则保持不变；26 MiB 预算沿用。可分发 APK 与模块均来自正式签名构建，不使用本地临时测试签名资产。
+
+## 验证与边界
+
+- 六项修复由 PR #25 合入 main（合并提交 `1d769fad65768029374134a37bcb67d163deb42f`），Verify CI（run `42976607018`）的 Build LibCore 与 Build Android Debug APK 均成功。
+- preview.4 的同版覆盖重发被发布说明状态机校验拒绝，且版本规则每线最多 preview.4，故新开 3.0.14 线以 preview.1 发布，修复内容不变。
+- 未做 Magisk / KernelSU / APatch 真机矩阵；模拟器、JVM 与静态检查不能替代 Root 真机签核，不据此晋升正式版。
+
+---
+
+## 历史归档：v3.0.13-preview.4 已发布说明
+
+> 以下为 preview.4 当时发布说明摘要与历史验证记录，不是 v3.0.14-preview.1 的功能或测试证据；preview.4 的 Release/tag 已删除，v3.0.14-preview.1 为其复查修复的顺延发布。
+
+# v3.0.13-preview.4 发行说明
 
 ## 更新
 
@@ -21,6 +52,7 @@
 - 最终 PR head `ffdfc8e96bbf851558bb81d0b669e8055b79765a` 的 PR CI `42943516659` 与完整 verify/closeout `42943570310` 均成功；详细记录见 `docs/reports/v3.0.13-preview.4-evolution.zh-CN.md`。
 - preview.3→preview.4、preview.4→preview.3 的导出/导入四个方向均在 Android 35 x86_64 模拟器各 `OK (1 test)`；不是 Root 真机验证。
 - 未做 Magisk / KernelSU / APatch 真机矩阵；模拟器、JVM 与静态检查不能替代 Root 真机签核，不据此晋升正式版。
+
 
 ---
 
