@@ -1,51 +1,86 @@
-# wanBoxForAndroid
+<div align="center">
+  <img src="docs/logo.png" alt="wanBox for Android Logo" width="120" height="120" />
+  <br />
+  <h1>wanBox for Android</h1>
+  <p><strong>面向已 Root 设备的高性能 Android 代理管理器与系统级核心套件。</strong></p>
+  <p>基于原生 sing-box 内核打造 · 瘦管理器架构 · 系统级 TUN 透明路由 · 严苛 Fail-Closed</p>
 
-<p align="center">
-  <img src="docs/logo.png" width="128" height="128" alt="wanBoxForAndroid Logo">
-  <br>
-  <b>面向已 Root 设备的独立 Android 代理管理器与系统级核心套件</b>
-  <br>
-  <b>An independent, root-focused Android proxy suite & thin manager</b>
-</p>
+  <p>
+    <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14"><img src="https://img.shields.io/badge/Stable-v3.0.14-14B8A6?style=for-the-badge&labelColor=0F172A" alt="Stable v3.0.14" /></a>
+    <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14-preview.1"><img src="https://img.shields.io/badge/Preview-v3.0.14--preview.1-F59E0B?style=for-the-badge&labelColor=0F172A" alt="Published preview v3.0.14-preview.1" /></a>
+    <a href="https://github.com/Wuwan94/wanBoxForAndroid/stargazers"><img src="https://img.shields.io/github/stars/Wuwan94/wanBoxForAndroid?style=for-the-badge&color=0F172A" alt="GitHub stars" /></a>
+    <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPL--3.0-64748B?style=for-the-badge" alt="GPL-3.0 License" /></a>
+  </p>
 
-<p align="center">
-  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14"><img src="https://img.shields.io/badge/Stable-3.0.14-green.svg?style=flat-square" alt="Stable 3.0.14"></a>
-  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14-preview.1"><img src="https://img.shields.io/badge/Preview-v3.0.14--preview.1-orange.svg?style=flat-square" alt="Published preview v3.0.14-preview.1"></a>
-  <a href="https://android-arsenal.com/api?level=31"><img src="https://img.shields.io/badge/Android-12%2B%20(API%2031%2B)-brightgreen.svg?style=flat-square" alt="Minimum Android version"></a>
-  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases"><img src="https://img.shields.io/badge/ABI-arm64--v8a-informational.svg?style=flat-square" alt="Supported ABI"></a>
-  <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPL--3.0-orange.svg?style=flat-square" alt="License"></a>
-  <a href="https://t.me/OwnBoxs"><img src="https://img.shields.io/badge/Telegram-@OwnBoxs-2CA5E0.svg?logo=telegram&style=flat-square" alt="Telegram"></a>
-</p>
+  <p>
+    <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/latest"><img src="https://img.shields.io/badge/⬇%20下载最新版-14B8A6?style=for-the-badge&labelColor=0F172A" alt="Download latest" /></a>
+    <a href="https://github.com/Wuwan94/wanBoxForAndroid/issues"><img src="https://img.shields.io/badge/反馈问题-GitHub%20Issues-334155?style=for-the-badge" alt="Report an issue" /></a>
+    <a href="https://t.me/OwnBoxs"><img src="https://img.shields.io/badge/加入社区-Telegram-229ED9?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram community" /></a>
+  </p>
 
-· If this project helps you, joining our TG channel is the best support you can give me.
+  <p>
+    <sub>Android 12+ (API 31+) · arm64-v8a · Magisk / KernelSU / APatch · Open Source</sub>
+  </p>
+</div>
 
----
+> **版本发布**：当前已发布正式版为 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14)，已发布预览版为 [v3.0.14-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14-preview.1)。
 
-## 📌 当前版本核对 / Release and source snapshot
-
-当前已发布正式版为 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14)，当前唯一已发布预览版为 [v3.0.14-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14-preview.1)，其 tag 指向 `8b4e60893dc4d783caeab1b0f5ddb6667aa0549d`；源码元数据与发布资产的边界见 [版本对照](docs/current-version.zh-CN.md)。正式线源码元数据为 `VERSION_NAME=3.0.14`、`VERSION_CODE=2026`（APK `versionCode=10130`、Root 模块码 `2026`），正式版四件套为 `wanBoxForAndroid-3.0.14-arm64-v8a.apk`、`wanbox-root-module-arm64-v8a.zip`、`wanbox-root-module-with-manager-arm64-v8a.zip` 与 `SHA256SUMS`，发布回读数据待发布后同步至版本对照。下一预览线占位为 `3.0.15-preview.1`（`PRE_VERSION_CODE=2027`、APK `10136`），仅为源码候选，尚未发布。
-
-preview.1 的 Root 模块码为 `2025`、APK `versionCode=10126`。本版承接 v3.0.13-preview.4，落实其代码复查确认的剩余六项修复（版本规则漂移守卫、更新包版本戳绑定、导出独立守卫、发布 tag 状态码检查、代理源头标记、清理已提交字节码），修复由 PR #25 合入、升版由 PR #26 完成；preview.4 的功能内容保持不变。正式预览资产由仓库 `Preview Build` 流程生成并验签，发布后 SHA256 与资产完整性已核对；验证与边界见 [PREVIEW_NOTES.md](PREVIEW_NOTES.md)。工具链为 Gradle 8.13 / AGP 8.11.1 / Kotlin 2.2.21 / KSP 2.2.21-2.0.4 / compileSdk 36 / Room 2.7.2；targetSdk 35、minSdk 31、JDK 17、Build Tools 35.0.1 不变。内核固定为 `reF1nd/sing-box v1.15.0-alpha.13-reF1nd`，不据此宣称它是当前上游最新版本。
-
-v3.0.13-preview.4（模块码 `2024` / APK `10124`）曾作为上一预览发布；其同版覆盖重发被发布流程拒绝后，Release/tag 已删除并由 v3.0.14-preview.1 取代，preview.3 更早已按渠道偏好清理；上一正式版 v3.0.11 保留，正式版已晋升为 v3.0.14。当前说明见 [PREVIEW_NOTES.md](PREVIEW_NOTES.md)，资产哈希见[版本对照](docs/current-version.zh-CN.md)。**未做 Magisk、KernelSU、APatch 真机回归**，自动化结果不等于 Root 真机签核。
-
-**安装要求：Android 12+、arm64-v8a、Root（Magisk / KernelSU / APatch）**。瘦管理器不包含核心，必须搭配同一发布页中的 Root 模块，不能混用其他版本；安装前先备份并检查 `SHA256SUMS`。更新必须校验后由用户确认安装，不静默安装，不提供 VPN 回退。
-
-预览渠道仅保留最新一个版本；清理旧预览前先核验新版本的完整发布资产，正式版始终保留且正式发布不执行 prune。[v3.0.14 正式版说明](RELEASE_NOTES.md)已替换原 v3.0.11 说明正文；v3.0.11 的发布说明保留在其 Release 页与 git 历史中。
-
-Published releases: stable v3.0.14 and preview v3.0.14-preview.1 (preview tag commit 8b4e60893dc4d783caeab1b0f5ddb6667aa0549d). The official Preview Build assets and SHA256SUMS were verified; the replaced v3.0.13-preview.4 was removed, while previous stable v3.0.11 remains available. No Root-device regression sign-off has been completed. Requires Android 12+, ARM64 and Root; pair the thin manager APK with the Root module from the same release page.
+Published releases: stable v3.0.14 and preview v3.0.14-preview.1.
 
 ---
 
-## 🏛️ 系统架构 / Architecture
+## ✦ 项目简介
 
-wanBox 采用**“界面与核心解耦、三层架构划分（arch/）、Root 原生承载”**的现代化设计：
+**wanBox** 是一款面向已 Root 设备的现代化 Android 代理管理器与系统级核心套件。项目基于原生 **sing-box** 内核打造，采用“瘦身管理器 + Root 守护进程”双层解耦架构，通过 Linux 内核原生 TUN 接口与系统级透明代理实现高性能网络接管。
+
+与依赖 Android 传统 `VpnService` 的普通代理应用不同，wanBox 完全消除 VPN 框架在用户态与内核态的重复拷贝，状态栏无系统 VPN 钥匙图标，零 VPN 接口额外耗电与后台保活焦虑。
+
+> **项目定位：** wanBox 为客户端及模块工具套件，不内置或提供任何第三方代理订阅。实际连接速度、延迟与各服务可用状态取决于网络环境与节点配置。
+
+## ✨ 核心功能
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🪶 瘦身架构与零常驻</h3>
+      <p>管理器 APK 仅约 6.1 MiB，彻底剥离 JNI 核心二进制（无 <code>libgojni.so</code> 常驻内存），消除内存泄漏与系统低内存（LMK）连带查杀，毫秒级冷启动。</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>⚡ 原生 Root 系统级承载</h3>
+      <p>由 Magisk / KernelSU / APatch 模块持有核心进程与独立 TUN 路由生命周期，系统透明代理直出，无 VPN 钥匙图标，零 VPN 额外开销与保活困扰。</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🔒 严苛 Fail-Closed 安全边界</h3>
+      <p>更新检查与延迟探测严格经由 <code>127.0.0.1</code> 走本地 mixed 代理，核心未启动时确定性阻断，坚决不回退直连，杜绝真实 IP 泄漏。</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>🏎️ 智能分应用与 LruCache 缓存</h3>
+      <p>应用图标与标签后台协程异步解析，搭配 120 项原生内存 <code>LruCache</code>，快速滑动零白块、零掉帧，杜绝主线程阻塞与重复 IPC 调用。</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🎛️ 原子化 QS Tile 快捷磁贴</h3>
+      <p>通知栏快捷磁贴引入防抖状态机，过滤 Connecting / Stopping 过渡态；状态切换前强读物理真值，并发调用加锁保护。</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>🛡️ 25 MiB 预算与严谨工程</h3>
+      <p>管理器与模块双产物严守 25 MiB 硬门禁；108 项离线自动化单测全量覆盖，版本码单源绑定防漂移，守护每一份构建证据。</p>
+    </td>
+  </tr>
+</table>
+
+## 🏛️ 系统架构
+
+wanBox 采用**“界面与核心解耦、三层架构划分、Root 原生承载”**的设计体系：
 
 ```mermaid
 graph TD
     subgraph UI["Thin Manager · 极致瘦身管理器 APK (~6.1 MiB)"]
         Activity["Material 3 原生界面 · 毫秒级冷启动"]
-        AppList["分应用代理 · 120项 原生 LruCache 内存缓存"]
+        AppList["分应用代理 · 120项 原生 LruCache 缓存"]
         Controller["ThinControllerDelayClient · 协程异步通信"]
     end
 
@@ -72,50 +107,55 @@ graph TD
     SystemTraffic -->|按分应用规则精准出站| Route
 ```
 
-- **界面端零核心常驻**：彻底剥离 `libgojni.so` 与 Cgo/JNI 绑定，杜绝内存泄漏与被 Android 低内存查杀（LMK）连带终止。
-- **Fail-Closed 绝对防泄漏**：更新检查与延时探测全程经由 `127.0.0.1` 走 mixed 代理，核心未启动时直接 Fail-Closed 阻断，坚决不回退直连。
+- **界面端零核心常驻**：彻底剥离 `libgojni.so` 与 JNI 绑定，杜绝内存泄漏与被系统低内存查杀（LMK）连带终止。
+- **Fail-Closed 绝对防泄漏**：网络探测与更新检查严格经由 `127.0.0.1`，核心未启动时直接 Fail-Closed 阻断，坚决不回退直连。
 
----
+## 📥 下载与安装
 
-## 🌟 核心特色 / Key Features
+### 最新版本
 
-- 🪶 **极致瘦身管理器（Thin Manager）**：管理器 APK 仅约 6.1 MiB，剥离核心二进制（零 JNI、无 `libgojni.so` 内存常驻），提供丝滑的 Material 3 原生交互与毫秒级冷启动。
-- ⚡ **原生 Root 模块承载**：由 Magisk / KernelSU / APatch 模块持有核心进程与 TUN 系统路由生命周期，崩溃自动守护，无普通 VPN 接口开销与易被系统查杀问题。
-- 🔒 **Fail-Closed 严苛安全边界**：更新检查与瘦模式延迟探测均严格绑定本地回环端口（`127.0.0.1`）与 mixed 代理，代理不可达时明确报错阻断，坚决不回退直连，不泄露真实 IP。
-- 🎛️ **原子化 QS Tile 磁贴同步**：通知栏快捷磁贴引入防抖状态机，自动抑制过渡态，切换前绕过缓存强读物理真值，并发调用自动加锁保护。
-- 🏎️ **流式分应用代理与 LruCache 缓存**：应用列表包名与标签在后台协程异步解析，搭配 120 项原生内存 `LruCache`，快速滑动零掉帧、零白块闪烁，杜绝重复 IPC。
-- 🛡️ **严格的 25 MiB 总下载预算**：APK 与配套模块在构建期严守体积硬门禁，所有改动均经过本地与 CI 完整证据链检验。
+<p align="center">
+  <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/latest"><img src="https://img.shields.io/badge/前往最新版下载-查看所有安装包-14B8A6?style=for-the-badge&logo=github&logoColor=white" alt="Go to latest release" /></a>
+</p>
 
----
+建议优先打开 [**GitHub Releases 最新发布页**](https://github.com/Wuwan94/wanBoxForAndroid/releases/latest)，查看当前版本的说明、安装包与校验文件。
 
-## 📥 发行版下载 / Downloads
+### 发行资产清单
 
-👉 **[前往 GitHub Releases 官方下载页面](https://github.com/Wuwan94/wanBoxForAndroid/releases)**
+| 资产名称 | 类型 | 适用场景 | 下载 | 校验 |
+|:--|:--|:--|:--:|:--:|
+| **wanbox-root-module-with-manager-arm64-v8a.zip** · 推荐 | 模块 + 管理器合一 | 刷入即用，开箱内含同版本管理器 | [下载 ZIP](https://github.com/Wuwan94/wanBoxForAndroid/releases/latest) | [SHA-256](https://github.com/Wuwan94/wanBoxForAndroid/releases/latest) |
+| **wanBoxForAndroid-*.apk** | 瘦身管理器 APK | 独立管理器（约 6.1 MiB），需搭配已安装模块 | [下载 APK](https://github.com/Wuwan94/wanBoxForAndroid/releases/latest) | [SHA-256](https://github.com/Wuwan94/wanBoxForAndroid/releases/latest) |
+| **wanbox-root-module-arm64-v8a.zip** | 独立 Root 模块 | 纯内核与守护进程（sing-box v1.15.0-alpha） | [下载 ZIP](https://github.com/Wuwan94/wanBoxForAndroid/releases/latest) | [SHA-256](https://github.com/Wuwan94/wanBoxForAndroid/releases/latest) |
 
-从 **v3.0.7-preview.6** 起，本仓库新构建只发布 **arm64-v8a** 架构，运行环境要求 **Android 12+** 及 **已 Root 设备**。
+> ⚠️ **成套同版配对原则**：瘦管理器 APK 内部不含核心，**必须与同一发布页中的 Root 模块同步安装或更新**，严禁跨版本混用。
 
-> ⚠️ **成套同版配对原则**：瘦管理器 APK 内部不含核心，**必须与同一发布页中的 Root 模块 ZIP 同步更新并搭配使用**，严禁跨版本混用。
+### 快速安装步骤
 
----
+1. **下载模块**：从最新 Release 页面下载推荐的合一模块包 `wanbox-root-module-with-manager-arm64-v8a.zip`。
+2. **刷入并重启**：在 Magisk、KernelSU 或 APatch 管理器中选择模块本地刷入，完成后重启手机。
+3. **完成配置**：开机后打开桌面上的 wanBox 管理器，导入订阅或节点配置即可畅享系统级代理。
 
-## 🚀 快速上手 / Quick Start
+## 🧩 技术栈
 
-1. **下载附件**：从最新 Release 页面下载成套的 `wanbox-root-module-with-manager-arm64-v8a.zip`（或单独下载 Root 模块与 APK），并核对 `SHA256SUMS`。
-2. **刷入模块**：在 Magisk、KernelSU 或 APatch 管理器中选择模块 ZIP 刷入，完成后重启手机。
-3. **安装管理器**：安装同版本 `wanBoxForAndroid-*.apk`，打开应用即可自动识别已运行的核心服务，配置节点即刻畅享。
-
----
+| 组件 | 规范与版本 | 说明 |
+|:--|:--|:--|
+| 系统支持 | Android 12+ (API 31+) | 仅支持 arm64-v8a 架构已 Root 设备 |
+| 承载环境 | Magisk / KernelSU / APatch | 系统级 TUN 接口与透明代理路由 |
+| 管理端语言 | Kotlin (SDK 35 / JDK 17) | Material 3 原生界面，轻量瘦身设计 |
+| 核心引擎 | sing-box `v1.15.0-alpha.13-reF1nd` | 纯 Go 内核，系统守护进程常驻 |
+| 自动化 | GitHub Actions CI / CD | 108 项离线门禁、Fail-Closed 与 25MB 体积校验 |
 
 ## ❓ 常见问题 / FAQ
 
 <details>
 <summary><b>Q1: 为什么状态栏没有 Android 系统的 VPN 钥匙图标？</b></summary>
 <br>
-wanBox 是一套面向已 Root 设备的系统级方案，底层直接在 Linux 内核层构建 TUN 接口并利用 iptables / nftables 进行透明代理转发，而不是走 Android 传统的 <code>VpnService</code>。这种原生承载方式带来了两大优势：
-<ol>
-  <li><b>极致性能</b>：消除系统 VPN 框架在用户态与内核态之间的重复拷贝，网络开销更低、续航更长；</li>
+wanBox 是一套面向已 Root 设备的系统级方案，底层直接在 Linux 内核层构建 TUN 接口并利用 iptables 进行透明代理转发，而不是走 Android 传统的 <code>VpnService</code>。
+<ul>
+  <li><b>极致性能</b>：消除系统 VPN 框架在用户态与内核态之间的重复拷贝，网络开销更低、更省电；</li>
   <li><b>永不掉线</b>：不会因为系统清理普通 VPN 应用而后门掉线或断网，由 Root 守护进程保持持久生命周期。</li>
-</ol>
+</ul>
 </details>
 
 <details>
@@ -127,7 +167,7 @@ wanBox 是一套面向已 Root 设备的系统级方案，底层直接在 Linux 
 <details>
 <summary><b>Q3: 模块更新后需要重启手机吗？</b></summary>
 <br>
-<b>建议重启。</b>虽然部分热更新可以通过重启后台核心进程生效，但在 Magisk / KernelSU / APatch 中刷入新版 Root 模块后，重启设备能确保系统的全局 iptables 规则链、挂载命名空间以及守护脚本彻底干净地重新加载，避免出现旧进程残留或端口被占用的隐患。
+<b>建议重启。</b>在 Magisk / KernelSU / APatch 中刷入新版 Root 模块后，重启设备能确保系统的全局 iptables 规则链、挂载命名空间以及守护脚本彻底干净地重新加载，避免出现旧进程残留或端口被占用的隐患。
 </details>
 
 <details>
@@ -136,32 +176,57 @@ wanBox 是一套面向已 Root 设备的系统级方案，底层直接在 Linux 
 必须严格执行<b>“成套同版配对原则”</b>。由于瘦管理器内不含核心二进制，其配置生成规范、REST 协议结构与版本戳检查均与同发布的 Root 模块深度绑定。请务必从同一个 Release 发布页下载成套的 APK 与模块 ZIP 进行安装，切勿跨版本混用。
 </details>
 
----
+## 🗺️ 项目文档
 
-## 📚 官方文档中心 / Documentation Hub
+- [📖 技术文档中心 (docs/README.md)](docs/README.md)
+- [📌 版本发布对照 (docs/current-version.zh-CN.md)](docs/current-version.zh-CN.md)
+- [📋 分阶段发布清单 (docs/release-checklist.zh-CN.md)](docs/release-checklist.zh-CN.md)
+- [📝 更新日志 (CHANGELOG.md)](CHANGELOG.md)
+- [🚀 正式发布说明 (RELEASE_NOTES.md)](RELEASE_NOTES.md)
+- [🤝 社区贡献指南 (CONTRIBUTING.md)](CONTRIBUTING.md)
+- [🛡️ 安全策略 (SECURITY.md)](SECURITY.md)
 
-仓库文档已按照工程体系全面分层归类，详细内容请访问 **[📖 wanBox 技术文档中心 (docs/README.md)](docs/README.md)**：
+## 💬 社区、反馈与参与
 
-| 模块板块 | 主要内容 | 快速入口 |
-|---|---|---|
-| 📌 **版本发布与管理规约** | 源码对照、发布检查清单与演进规划 | [`docs/current-version.zh-CN.md`](docs/current-version.zh-CN.md) · [`docs/release-checklist.zh-CN.md`](docs/release-checklist.zh-CN.md) |
-| 🏗️ **核心系统与网络路由架构** | 出站分流、B 路由、跨进程同步与代次调优 | [`docs/b-route-design.md`](docs/b-route-design.md) · [`docs/app-outbound-routing.zh-CN.md`](docs/app-outbound-routing.zh-CN.md) |
-| 🎨 **界面交互与用户体验规范** | Liquid Glass 质感、Material 3 规范与 UI 重构 | [`docs/ui-redesign/`](docs/ui-redesign/) · [`docs/liquid-glass.zh-CN.md`](docs/liquid-glass.zh-CN.md) |
-| 📊 **自动化验收与审查报告** | preview.4 验收报告、25MB 预算报告与备份互通 | [`docs/reports/`](docs/reports/) · [`docs/reports/v3.0.13-preview.4-evolution.zh-CN.md`](docs/reports/v3.0.13-preview.4-evolution.zh-CN.md) |
-| ⚙️ **配置资产与体积基线** | 本地回环代理示例、TUN FakeIP 配置与体积基线 | [`docs/config/`](docs/config/) · [`docs/rebuild/`](docs/rebuild/) |
-| 📜 **历史里程碑与归档** | 包名迁移记录、早期版本说明与恢复指引 | [`docs/APP_ID_MIGRATION.md`](docs/APP_ID_MIGRATION.md) · [`docs/RELEASE_3.0.3.zh-CN.md`](docs/RELEASE_3.0.3.zh-CN.md) |
+- **Telegram 频道：** [@OwnBoxs](https://t.me/OwnBoxs)
+- **问题反馈：** [提交 GitHub Issue](https://github.com/Wuwan94/wanBoxForAndroid/issues)
+- **源码与贡献：** 欢迎阅读代码并参与改进，提交 PR 前请参阅 [贡献指南 (CONTRIBUTING.md)](CONTRIBUTING.md)。
 
----
+## 📄 许可证
 
-## 💬 反馈与社区 / Community
-
-- 遇到使用问题、连接异常或特性建议，欢迎提交议题：[GitHub Issues](https://github.com/Wuwan94/wanBoxForAndroid/issues)
-- 交流与动态通知，欢迎加入 Telegram 频道：[@OwnBoxs](https://t.me/OwnBoxs)
-- 参与代码贡献与架构演进，请参阅：[📖 贡献指南 (CONTRIBUTING.md)](CONTRIBUTING.md)
-- 报告潜在安全漏洞与流量隐患，请参阅：[🛡️ 安全策略 (SECURITY.md)](SECURITY.md)
+本项目遵循 [GNU General Public License v3.0 (GPL-3.0)](LICENSE) 开源协议。
 
 ---
 
-## 📄 授权协议 / License
+<div align="center">
+  <p><strong>wanBox · Clean, robust, root-powered network proxy for Android.</strong></p>
+  <p><sub>如果 wanBox 对你有帮助，欢迎点亮 ⭐ Star、提交反馈，或加入 Telegram 频道。</sub></p>
+</div>
 
-wanBoxForAndroid 遵循 [GNU General Public License v3.0 (GPL-3.0)](https://www.gnu.org/licenses/gpl-3.0) 开源协议。
+<details>
+  <summary><strong>English</strong> — Show the English overview</summary>
+
+  <div align="center">
+    <h2>wanBox for Android</h2>
+    <p><strong>A high-performance, root-focused Android proxy suite & thin manager.</strong></p>
+    <p>Built around the native sing-box core, wanBox decouples the lightweight UI from the root daemon, providing zero-JNI overhead, system-level TUN routing, and strict Fail-Closed security.</p>
+    <p>
+      <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/latest">Download latest release</a> ·
+      <a href="https://github.com/Wuwan94/wanBoxForAndroid/issues">Report an issue</a> ·
+      <a href="https://t.me/OwnBoxs">Telegram channel</a>
+    </p>
+  </div>
+
+  ### Highlights
+
+  - **Thin Manager Architecture:** APK size ~6.1 MiB with zero native core overhead in UI process (no <code>libgojni.so</code> in app RAM).
+  - **Root-Powered TUN Routing:** Core lifecycle managed by Magisk / KernelSU / APatch daemon; no Android VPN framework overhead or notification key icon.
+  - **Strict Fail-Closed Policy:** Traffic checks and latency probes are strictly routed via 127.0.0.1 mixed proxy, preventing real IP leaks.
+  - **Smooth Per-App Proxy:** Background async icon loading with 120-item native <code>LruCache</code> for smooth scrolling.
+  - **Atomic QS Tile:** State-machine debounce to filter transient states and eliminate race conditions.
+  - **25 MiB Hard Size Budget:** Rigorous binary size and automated regression gate enforcement.
+
+  ### License & Community
+
+  Licensed under [GPL-3.0](LICENSE). Visit [GitHub Issues](https://github.com/Wuwan94/wanBoxForAndroid/issues) or join [@OwnBoxs on Telegram](https://t.me/OwnBoxs).
+</details>
