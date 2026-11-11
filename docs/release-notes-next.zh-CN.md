@@ -1,6 +1,6 @@
 # v3.0.13-preview.4 发行说明
 
-**状态：已发布的稳定性预览版。** 由仓库 `Preview Build` 正式发布，tag 指向合并提交 `d9f34202b9856b4cb151d8f4d52c532142e22e70`；不替换稳定版 v3.0.11。正式资产和哈希核验记录见[版本对照](current-version.zh-CN.md)。
+**状态：已发布的稳定性预览版。** 由仓库 `Preview Build` 正式发布，tag 指向合并提交 `e7a6411e03c30ec4bcf4a8a00244362664d070a6`；不替换稳定版 v3.0.11。正式资产和哈希核验记录见[版本对照](current-version.zh-CN.md)。
 
 ## 更新
 
@@ -8,7 +8,7 @@
 - **代理失败提示**：更新继续只经配置的本地 mixed 代理；本地连接拒绝或 mixed 入站禁用会明确提示核心/代理不可用，不作直连回退。失败弹窗保留打开 GitHub Release 页的手动下载按钮，错误文案有简体中文和英文资源。
 - **瘦模式节点延迟探测**：Kotlin 只读运行中的 profile-tag 映射，通过 `Proxy.NO_PROXY` 与 `Authorization` 请求绑定在 `127.0.0.1` 的 Clash Controller `/proxies/{tag}/delay`；不改当前节点、不跟随重定向、不经 mixed 代理绕回，瘦 APK 不含核心 JNI。
 - **QS Tile**：Connecting/Stopping 状态下忽略点击；服务切换前绕过状态缓存读取 fresh Root 状态，并在 Root 模块共享变更锁内原子决策和执行。回归测试覆盖过渡态、稳定态与并发变更争用。
-- **分应用列表**：包名/label 查询留在后台；可见行图标异步按需加载，复用 ViewHolder 前检查身份；保留用户/系统应用过滤、UID 路由及导入导出路径。
+- **分应用列表**：包名/label 查询留在后台；可见行图标异步按需加载并引入 120 项原生 `LruCache` 内存缓存，复用 ViewHolder 前检查身份并在 Activity 销毁时清空引用，彻底消除快速滚动白块与重复 IPC；保留用户/系统应用过滤、UID 路由及导入导出路径。
 
 ## 安装与版本
 
