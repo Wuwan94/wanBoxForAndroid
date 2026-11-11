@@ -649,6 +649,10 @@
     <string name="update_dialog_message">当前版本：%1$s\n可升级版本：%2$s\n管理器 APK 与 Root 模块必须从同一发布页下载并保持同版，不能只更新其中一个。\n是否下载并校验？</string>
     <string name="update_download_verify">下载并校验</string>
     <string name="update_open_release">前往发布页</string>
+    <string name="update_working_title">更新任务进行中</string>
+    <string name="update_working_message">正在通过已配置代理检查或下载。离开此页面不会取消任务，返回后会继续显示结果。</string>
+    <string name="update_proxy_unavailable">当前配置的本地 mixed 代理不可用。请启动 Root 模块/核心后重试；更新不会回退直连，也可打开发布页手动下载。</string>
+    <string name="update_check_failed">更新检查失败。不会回退直连；可打开发布页手动查看。</string>
     <string name="update_checksum_failed">SHA256 校验失败，已删除下载文件；请前往发布页手动下载。</string>
     <string name="update_module_hint">Root 模块已校验：\n%1$s\n请在 Magisk / KernelSU / APatch 中安装该 ZIP。</string>
     <string name="update_assets_missing">该版本缺少 APK、Root 模块或 SHA256SUMS，请前往发布页查看。</string>

@@ -43,7 +43,7 @@ class CurrentVersionDocsTest(unittest.TestCase):
             readme = root / checker.FILES["readme"]
             text = readme.read_text(encoding="utf-8")
             text = text.replace(
-                "已发布预览版为 [v3.0.13-preview.2]",
+                f"已发布预览版为 [{checker.PUBLISHED_PREVIEW}]",
                 "已发布预览版为 [v3.0.13-preview.1]",
             )
             readme.write_text(text, encoding="utf-8")
@@ -82,13 +82,13 @@ class CurrentVersionDocsTest(unittest.TestCase):
         finally:
             tmp.cleanup()
 
-    def test_checker_flags_published_written_as_candidate(self):
+    def test_checker_flags_candidate_written_as_published(self):
         root, tmp = make_tree()
         try:
             notes = root / checker.FILES["notes"]
             notes.write_text(
                 notes.read_text(encoding="utf-8").replace(
-                    "**状态：稳定性预览版。**", "**状态：未发布候选。**"
+                    "状态：未发布的稳定性预览版候选", "状态：已发布的稳定性预览版"
                 ),
                 encoding="utf-8",
             )

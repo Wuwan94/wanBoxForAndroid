@@ -13,8 +13,12 @@ import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.text.util.Linkify
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.component1
 import androidx.activity.result.component2
@@ -37,7 +41,9 @@ import io.nekohasekai.sagernet.plugin.PluginManager.loadString
 import io.nekohasekai.sagernet.utils.PackageCache
 import io.nekohasekai.sagernet.utils.UpdateArtifacts
 import io.nekohasekai.sagernet.utils.UpdateDownload
+import io.nekohasekai.sagernet.utils.UpdateFailureClassifier
 import io.nekohasekai.sagernet.utils.UpdateRelease
+import io.nekohasekai.sagernet.utils.UpdateProxyUnavailable
 import io.nekohasekai.sagernet.widget.ListListener
 import libcore.Libcore
 import moe.matsuri.nb4a.plugin.Plugins
@@ -47,6 +53,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.database.DataStore
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.Lifecycle
 import kotlinx.coroutines.*
 import io.nekohasekai.sagernet.utils.UpdateTask
 import io.nekohasekai.sagernet.utils.UpdateTransport
@@ -101,24 +108,111 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
     class AboutContent : MaterialAboutFragment() {
         private val updateTask = UpdateTask()
         private var updateDialog: androidx.appcompat.app.AlertDialog? = null
+        private var updateProgressDialog: androidx.appcompat.app.AlertDialog? = null
+        private var pendingUpdateUi: (() -> Unit)? = null
+        private var pendingReady: UpdateDownload.Ready? = null
 
-        // A backgrounded/left page must not deliver a late dialog or keep an update transfer alive.
+        // onStop only detaches UI; the view-scoped task is cancelled when the view is actually destroyed.
+        override fun onStart() {
+            super.onStart()
+            val pending = pendingUpdateUi
+            if (pending != null) {
+                pendingUpdateUi = null
+                pendingReady = null // ownership is handed to the queued UI action
+                dismissUpdateProgress()
+                pending()
+            } else if (updateTask.isRunning) {
+                showUpdateProgress()
+            }
+        }
+
         override fun onStop() {
-            updateTask.cancel()
             updateDialog?.dismiss()
             updateDialog = null
+            dismissUpdateProgress()
             super.onStop()
         }
 
         override fun onDestroyView() {
+            updateTask.cancel()
+            pendingUpdateUi = null
+            pendingReady?.let(UpdateDownload::release)
+            pendingReady = null
             updateDialog?.dismiss()
             updateDialog = null
+            dismissUpdateProgress()
             super.onDestroyView()
         }
 
         private fun transport(job: Job): UpdateTransport {
-            check(!DataStore.mixedInboundDisabled) { "更新需要启用并启动核心的 mixed 入站；不会回退直连。" }
+            if (DataStore.mixedInboundDisabled) throw UpdateProxyUnavailable()
             return UpdateTransport(DataStore.mixedPort, DataStore.mixedUsername, DataStore.mixedPassword, job)
+        }
+
+        private fun dispatchUpdateUi(ready: UpdateDownload.Ready? = null, action: () -> Unit) {
+            val owner = viewLifecycleOwnerLiveData.value
+            if (owner == null) {
+                ready?.let(UpdateDownload::release)
+                return
+            }
+            if (!owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                pendingUpdateUi = action
+                pendingReady = ready
+                return
+            }
+            pendingUpdateUi = null
+            pendingReady = null
+            dismissUpdateProgress()
+            action()
+        }
+
+        private fun showUpdateProgress() {
+            if (!lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) || updateProgressDialog?.isShowing == true) return
+            val context = context ?: return
+            val density = context.resources.displayMetrics.density
+            val gap = (16 * density + 0.5f).toInt()
+            val size = (32 * density + 0.5f).toInt()
+            val row = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(gap, gap, gap, gap)
+                addView(ProgressBar(context).apply { isIndeterminate = true }, LinearLayout.LayoutParams(size, size).apply {
+                    marginEnd = gap
+                })
+                addView(TextView(context).apply { text = getString(R.string.update_working_message) })
+            }
+            updateProgressDialog = MaterialAlertDialogBuilder(context)
+                .setTitle(R.string.update_working_title)
+                .setView(row)
+                .setCancelable(false)
+                .show()
+        }
+
+        private fun dismissUpdateProgress() {
+            updateProgressDialog?.dismiss()
+            updateProgressDialog = null
+        }
+
+        private fun showUpdateFailure(message: Int, error: Throwable) {
+            val shownMessage = if (UpdateFailureClassifier.isProxyUnavailable(error)) {
+                R.string.update_proxy_unavailable
+            } else message
+            dispatchUpdateUi {
+                val context = context ?: return@dispatchUpdateUi
+                val openReleases = {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, "https://github.com/Wuwan94/wanBoxForAndroid/releases".toUri())
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
+                updateDialog?.dismiss()
+                updateDialog = MaterialAlertDialogBuilder(context)
+                    .setTitle(R.string.update_dialog_title)
+                    .setMessage(shownMessage)
+                    .setPositiveButton(R.string.update_open_release) { _, _ -> openReleases() }
+                    .setNegativeButton(R.string.no, null)
+                    .show()
+            }
         }
 
 
@@ -320,7 +414,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
         fun checkUpdate(isPreview: Boolean = false) {
             val owner = viewLifecycleOwnerLiveData.value ?: return
             val channel = if (isPreview) UpdateRelease.Channel.PREVIEW else UpdateRelease.Channel.FORMAL
-            updateTask.launch(owner.lifecycleScope) {
+            val started = updateTask.launch(owner.lifecycleScope) {
                 try {
                     val selection = withContext(Dispatchers.IO) {
                         transport(coroutineContext.job).use { client ->
@@ -337,14 +431,15 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                         }
                     }
                     ensureActive()
-                    showUpdateResult(selection, channel)
+                    dispatchUpdateUi { showUpdateResult(selection, channel) }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     ensureActive()
-                    Toast.makeText(context ?: return@launch, "更新检查失败，请确认核心 mixed 代理可用；不会回退直连。", Toast.LENGTH_LONG).show()
+                    showUpdateFailure(R.string.update_check_failed, e)
                 }
             }
+            if (started) showUpdateProgress()
         }
 
         private fun showUpdateResult(selection: UpdateRelease.Selection, channel: UpdateRelease.Channel) {
@@ -417,9 +512,10 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
         private fun downloadBundle(assets: List<UpdateArtifacts.ReleaseAsset>) {
             val owner = viewLifecycleOwnerLiveData.value ?: return
             val dir = File((context ?: return).applicationContext.cacheDir, "updates")
-            updateTask.launch(owner.lifecycleScope) {
+            val started = updateTask.launch(owner.lifecycleScope) {
+                var notHandedOff: UpdateDownload.Ready? = null
                 try {
-                    val ready = withContext(Dispatchers.IO) {
+                    notHandedOff = withContext(Dispatchers.IO) {
                         transport(coroutineContext.job).use { client ->
                             UpdateDownload.prepare(assets, dir) { asset, target ->
                                 client.download(asset.downloadUrl, target)
@@ -427,7 +523,13 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                         }
                     }
                     ensureActive()
-                    showReadyActions(context ?: return@launch, ready)
+                    val ready = notHandedOff ?: return@launch
+                    notHandedOff = null
+                    dispatchUpdateUi(ready) {
+                        val current = context
+                        if (current == null) UpdateDownload.release(ready)
+                        else showReadyActions(current, ready)
+                    }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -439,9 +541,12 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                         UpdateDownload.Reason.STORAGE -> R.string.update_storage_failed
                         else -> R.string.update_transfer_failed
                     }
-                    Toast.makeText(context ?: return@launch, message, Toast.LENGTH_LONG).show()
+                    showUpdateFailure(message, e)
+                } finally {
+                    notHandedOff?.let(UpdateDownload::release)
                 }
             }
+            if (started) showUpdateProgress()
         }
 
         /** 校验通过后的两个明确动作：先保存模块 ZIP，再安装 APK；不要求用户手输私有路径。 */
@@ -490,11 +595,11 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
         private fun exportRecentModule() {
             val owner = viewLifecycleOwnerLiveData.value ?: return
             val cache = File((context ?: return).applicationContext.cacheDir, "updates")
-            updateTask.launch(owner.lifecycleScope) {
+            val started = updateTask.launch(owner.lifecycleScope) {
                 val ready = withContext(Dispatchers.IO) { UpdateDownload.recentReady(cache) }
                 ensureActive()
-                val context = context ?: return@launch
-                run {
+                dispatchUpdateUi {
+                    val context = context ?: return@dispatchUpdateUi
                     if (ready == null) {
                         Toast.makeText(app, R.string.update_no_recent_module, Toast.LENGTH_LONG).show()
                     } else {
@@ -507,6 +612,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                     }
                 }
             }
+            if (started) showUpdateProgress()
         }
 
         private fun shareModuleZip(context: Context, uri: Uri) {

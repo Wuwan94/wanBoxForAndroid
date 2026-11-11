@@ -152,6 +152,31 @@ func TestSelectNodeHotSwitch(t *testing.T) {
 	}
 }
 
+func TestProfileTagsReadOnlyFromRunningGeneration(t *testing.T) {
+	r, _ := fixture(t)
+	fake := &fakeClash{selector: "proxy", now: "node-a", secret: "s3cret"}
+	tags := map[string]ProfileTag{"1": {Tag: "node-a", Name: "A"}, "2": {Tag: "node-b", Name: "B"}}
+	stageSelectNode(t, r, fake, tags, true)
+
+	got, err := r.ProfileTags()
+	if err != nil {
+		t.Fatal("profile tags:", err)
+	}
+	if len(got) != 2 || got["1"] != "node-a" || got["2"] != "node-b" {
+		t.Fatal("unexpected runtime map:", got)
+	}
+	if fake.getPutCount() != 0 || fake.getNow() != "node-a" {
+		t.Fatal("read-only map query changed selector", fake.getPutCount(), fake.getNow())
+	}
+
+	if err := os.Remove(r.path("generations", "rev-select-node", "files", profileTagFile)); err != nil {
+		t.Fatal("remove map:", err)
+	}
+	if _, err := r.ProfileTags(); err == nil || err.Error() != "node_tag_not_found" {
+		t.Fatal("missing map should fail closed:", err)
+	}
+}
+
 func TestSelectNodeAlreadyCurrentSkipsPut(t *testing.T) {
 	r, _ := fixture(t)
 	fake := &fakeClash{selector: "proxy", now: "b", secret: "s3cret"}

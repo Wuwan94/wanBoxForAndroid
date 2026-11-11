@@ -38,8 +38,32 @@ import io.nekohasekai.sagernet.widget.ListListener
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
+
+internal fun matchesAppListFilter(
+    name: String,
+    packageName: String,
+    uid: Int,
+    isSystemApp: Boolean,
+    query: String,
+    showSystemApps: Boolean,
+): Boolean {
+    if (!showSystemApps && isSystemApp) return false
+    if (query.isEmpty()) return true
+    return name.contains(query, true) || packageName.contains(query, true) ||
+        uid.toString().contains(query)
+}
+
+internal fun <T> loadWithFallback(loader: () -> T, fallback: T): T = try {
+    loader()
+} catch (_: Throwable) {
+    fallback
+}
+
+internal fun isSystemApplication(flags: Int): Boolean =
+    flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
 
 class AppListActivity : ThemedActivity() {
     companion object {
@@ -55,10 +79,11 @@ class AppListActivity : ThemedActivity() {
         private val pm: PackageManager, private val appInfo: ApplicationInfo,
         val packageName: String,
     ) {
-        val name: CharSequence = appInfo.loadLabel(pm)    // cached for sorting
-        val icon: Drawable get() = appInfo.loadIcon(pm)
+        val name: CharSequence = loadWithFallback({ appInfo.loadLabel(pm) }, packageName)
         val uid get() = appInfo.uid
-        val sys get() = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+        val sys get() = isSystemApplication(appInfo.flags)
+
+        fun loadIconOrNull(): Drawable? = loadWithFallback({ appInfo.loadIcon(pm) }, null)
     }
 
     private inner class AppViewHolder(val binding: LayoutAppsItemBinding) : RecyclerView.ViewHolder(
@@ -66,17 +91,27 @@ class AppListActivity : ThemedActivity() {
     ),
         View.OnClickListener {
         private lateinit var item: ProxiedApp
+        private var iconJob: Job? = null
 
         init {
             binding.root.setOnClickListener(this)
         }
 
         fun bind(app: ProxiedApp) {
+            iconJob?.cancel()
             item = app
-            binding.itemicon.setImageDrawable(app.icon)
+            binding.itemicon.setImageResource(R.drawable.ic_baseline_android_24)
             binding.title.text = app.name
             binding.desc.text = "${app.packageName} (${app.uid})"
             handlePayload(listOf(SWITCH))
+            iconJob = lifecycleScope.launch(Dispatchers.IO) {
+                val icon = app.loadIconOrNull()
+                withContext(Dispatchers.Main) {
+                    if (item === app) binding.itemicon.setImageDrawable(
+                        icon ?: binding.itemicon.drawable
+                    )
+                }
+            }
         }
 
         fun handlePayload(payloads: List<String>) {
@@ -126,12 +161,12 @@ class AppListActivity : ThemedActivity() {
 
         private val filterImpl = object : Filter() {
             override fun performFiltering(constraint: CharSequence) = FilterResults().apply {
-                var filteredApps = if (constraint.isEmpty()) apps else apps.filter {
-                    it.name.contains(constraint, true) || it.packageName.contains(
-                        constraint, true
-                    ) || it.uid.toString().contains(constraint)
+                val query = constraint.toString()
+                val filteredApps = apps.filter {
+                    matchesAppListFilter(
+                        it.name.toString(), it.packageName, it.uid, it.sys, query, sysApps
+                    )
                 }
-                if (!sysApps) filteredApps = filteredApps.filter { !it.sys }
                 count = filteredApps.size
                 values = filteredApps
             }
@@ -140,6 +175,11 @@ class AppListActivity : ThemedActivity() {
                 @Suppress("UNCHECKED_CAST")
                 filteredApps = results.values as List<ProxiedApp>
                 notifyDataSetChanged()
+                if (loader?.isActive != true) {
+                    binding.list.visibility = if (filteredApps.isEmpty()) View.GONE else View.VISIBLE
+                    binding.appPlaceholder.root.visibility =
+                        if (filteredApps.isEmpty()) View.VISIBLE else View.GONE
+                }
             }
         }
 

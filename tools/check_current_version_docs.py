@@ -14,11 +14,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 STABLE_TAG = "v3.0.11"
-PUBLISHED_PREVIEW = "v3.0.13-preview.2"
-PUBLISHED_PREVIEW_COMMIT = "320f8173e59576d7891ac824c262db68bccf936c"
-SOURCE_PREVIEW = "v3.0.13-preview.3"
-SOURCE_PREVIEW_CODE = "2023"
-ARCHIVED_PREVIEW = "v3.0.13-preview.1"
+PUBLISHED_PREVIEW = "v3.0.13-preview.3"
+PUBLISHED_PREVIEW_COMMIT = "77e291a150819a70d87c0af8458f1c603088e432"
+SOURCE_PREVIEW = "v3.0.13-preview.4"
+SOURCE_PREVIEW_CODE = "2024"
+ARCHIVED_PREVIEW = "v3.0.13-preview.2"
 HISTORY_MARKER = "历史归档"
 
 FILES = {
@@ -124,7 +124,7 @@ def failures(root: Path = ROOT) -> list[str]:
     if "未发布候选" in lead:
         errors.append("docs/release-checklist.zh-CN.md 首段仍写「未发布候选」")
 
-    # 5. 发行说明：当前区段必须是已发布预览；归档预览保留在历史段落。
+    # 5. 发行说明：当前区段跟随源码候选，但不得冒充已发布预览；归档预览保留。
     for name, text in (("PREVIEW_NOTES.md", notes), ("docs/release-notes-next.zh-CN.md", next_notes)):
         section = current_section(text)
         title = section.splitlines()[0] if section.splitlines() else ""
@@ -133,7 +133,9 @@ def failures(root: Path = ROOT) -> list[str]:
         if "稳定性预览版" not in section:
             errors.append(f"{name} 当前区段未声明「稳定性预览版」")
         if SOURCE_PREVIEW == PUBLISHED_PREVIEW and "未发布候选" in section:
-            errors.append(f"{name} 当前区段仍写「未发布候选」")
+            errors.append(f"{name} 当前区段仍把已发布版本写成「未发布候选」")
+        if SOURCE_PREVIEW != PUBLISHED_PREVIEW and "状态：未发布的稳定性预览版候选" not in section:
+            errors.append(f"{name} 当前源码候选必须明确标为「未发布候选」")
         if "已发布说明" not in text or ARCHIVED_PREVIEW not in text:
             errors.append(f"{name} 缺少 {ARCHIVED_PREVIEW} 已发布说明的历史归档段落")
 

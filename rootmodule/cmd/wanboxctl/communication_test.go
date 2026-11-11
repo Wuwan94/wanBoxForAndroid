@@ -50,6 +50,18 @@ func TestRootAuthorizationStillRequiredForEveryPublicCommand(t *testing.T) {
 		}
 	}
 }
+
+func TestNodeTagsCommandRequiresRootAndFailsClosedWhenStopped(t *testing.T) {
+	r := module.New(t.TempDir(), t.TempDir())
+	if _, err := readProfileTags(r, 2000); err == nil || err.Error() != "root_required" {
+		t.Fatal("non-root node tags accepted:", err)
+	}
+	state, err := readProfileTags(r, 0)
+	if err == nil || err.Error() != "module_not_running" || len(state.ProfileTags) != 0 {
+		t.Fatal("stopped node tags did not fail closed:", state, err)
+	}
+}
+
 func TestUnknownArgumentsStillRejected(t *testing.T) {
 	r := module.New(t.TempDir(), t.TempDir())
 	for _, args := range [][]string{{"status;id"}, {"--module-dir", "/tmp"}, {"node", "select", "-1"}} {

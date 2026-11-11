@@ -4,6 +4,12 @@
 
 ## wanBox 3.0.x 发布记录
 
+### v3.0.13-preview.3（已发布预览）
+
+- 已发布 tag `v3.0.13-preview.3` 指向 main 基线 `77e291a150819a70d87c0af8458f1c603088e432`；版本映射为 Root 模块码 `2023`、APK `versionCode=10118`。正式版 v3.0.11 不变。
+- 本版更新器通过本地 mixed 代理检查与下载、保持失败关闭；同步收紧 Release tag、最终 packaged Manifest 安全检查，并固定 GeoIP / GeoSite 来源与 SHA-256。完整历史说明归档于 [PREVIEW_NOTES.md](PREVIEW_NOTES.md)。
+- **历史边界**：preview.3 的旧构建统计和 22.76 MiB 记录不作为 preview.4 构建或体积证据；本轮候选必须重新实测。
+
 ### v3.0.13-preview.2（已发布预览）
 
 - 状态：**已发布预览**（prerelease），由 `Preview Build` 工作流从 main 提交 `320f8173e59576d7891ac824c262db68bccf936c` 发布；Release 提供 arm64-v8a 瘦 APK、普通 Root 模块、带管理器 Root 模块与 `SHA256SUMS` 四件套。发布前后状态分别更新，正式版 v3.0.11 不受影响。

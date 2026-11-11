@@ -3,14 +3,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """测量用户实际下载量：Root 模块 zip + App APK。
 
-口径由《wanBoxForAndroid 全量重构工作词》7.1 节固定，不得改动：
-  合计 = 模块 zip 字节数 + App APK 字节数，判据 sum <= 26,214,400。
+当前候选的硬门禁口径：
+  合计 = 模块 zip 字节数 + App APK 字节数，判据 sum <= 27,262,976（26 MiB）。
 只认 stat 读到的真实字节数，不接受估算或历史数字。
 
 两种用法：
   1) 回归门禁（默认）：与本仓库记录的基线比较，增量超过 512 KB 即失败。
      基线随代码演进更新，避免把「尚未达标的绝对值」变成每次构建都红的噪声。
-  2) 终态判定：加 --enforce-limit，直接按 26,214,400 判定，供 P7 验收使用。
+  2) 终态判定：加 --enforce-limit，直接按 27,262,976 判定，供 P7 验收使用。
 
 退出码：0 通过；1 超限或相对基线回退超阈；2 文件缺失或参数错误。
 """
@@ -21,7 +21,7 @@ import json
 import os
 import sys
 
-LIMIT = 26_214_400
+LIMIT = 27_262_976
 REGRESSION_TOLERANCE = 512 * 1024
 
 

@@ -1,29 +1,40 @@
-# v3.0.13-preview.3 发行说明
+# v3.0.13-preview.4 发行说明（候选）
 
-**状态：稳定性预览版。** 安装以本 Release 页面四件套及 SHA256SUMS 为准；源码中的发行说明本身不构成已发布证据。不替换 v3.0.11 正式版，未做真机 Root 回归，不据此晋升正式版。
+**状态：未发布的稳定性预览版候选。** 本文件供源码审查；仓库 `Preview Build` 在正式发布时会移除本标题后缀和本状态段，再将剩余中文说明作为 Release 正文。
+
+稳定性预览版，不替换稳定版 `v3.0.11`。正式发布的 arm64-v8a 管理器 APK、普通 Root 模块、带管理器 Root 模块与 `SHA256SUMS` 必须由仓库 `Preview Build` 流程生成；请仅从本 Release 页下载同版整套文件并先核对哈希。本地临时测试签名 APK 不属于发布资产。
 
 ## 更新
 
-- 更新检查与 APK / 模块下载统一使用 `UpdateTransport`，遵守配置的本地 mixed 代理及可选认证。代理不可用时明确失败，不悄悄回退直连；保留 HTTPS、证书及主机名验证、超时、SHA-256 和取消处理。
-- 更新任务归属页面生命周期；离开页面取消下载与检查，销毁视图后不操作旧 UI，重复点击不启动多个在途更新。
-- 发布 Tag 检查只接受明确 HTTP 404 为不存在，权限、限流、网络与其他错误失败关闭。
-- Android 安全检查覆盖实际变体的最终 packaged Manifest，校验导出组件、权限和 action 白名单。
-- GeoIP / GeoSite 使用固定版本与 SHA-256，记录来源和构建 provenance，不随 latest 隐式变化。
-- 默认构建和验证统一为瘦管理器，CI 同时执行 25 MiB 绝对下载预算及相对回归门禁；测试专用规则保留 Release instrumentation 所需 facade，普通发布 APK 不受此规则影响。
+- **更新器生命周期**：页面 `onStop()` 只关闭对话框，检查/下载继续；返回时恢复进行中的任务或交付已完成结果。只有 `onDestroyView()` 才取消 view-scope 任务并清理未交接的本次下载目录；快速取消后重试不再被旧 Job 槽位阻塞。
+- **代理失败提示**：更新流量只经配置的本地 mixed 代理；本地连接拒绝或 mixed 入站禁用会明确提示核心/代理不可用，不作直连回退。失败弹窗保留打开 GitHub Release 页的手动下载入口。
+- **瘦模式节点延迟探测**：Kotlin 只读运行中的 profile-tag 映射，通过 `Proxy.NO_PROXY` 与 `Authorization` 请求绑定在 `127.0.0.1` 的 Clash Controller `/proxies/{tag}/delay`；不改当前节点、不跟随重定向、不经 mixed 代理绕回，瘦 APK 不含核心 JNI。
+- **QS Tile**：Connecting/Stopping 状态下忽略点击，服务切换前绕过状态缓存读取 fresh Root 状态，并在 Root 模块共享变更锁内原子决策和执行；回归测试覆盖过渡态、稳定态与并发变更争用。
+- **分应用列表**：包名/label 查询留在后台；可见行图标异步按需加载，复用 ViewHolder 前检查身份；保留用户/系统应用过滤、UID 路由及导入导出路径。
 
 ## 安装与版本
 
 - Android 12+、arm64-v8a、Root（Magisk / KernelSU / APatch）；瘦 APK 不含原生核心，由配套 Root 模块持有核心，无普通 VPN 回退。
-- `PRE_VERSION_NAME=3.0.13-preview.3`、模块码 `2023`、APK `versionCode=10118`，均高于 preview.2 的 `2022 / 10112`；正式线元数据 `3.0.11 / 2017` 不变。
-- 包名、签名配置、设置键、Room schema、备份格式不变。管理器与 Root 模块必须从同一 Release 页面同版成套更新，四件套为瘦 APK、普通模块、带管理器模块与 `SHA256SUMS`。
-- Kotlin 网络、规则资源和 TCP 测速保留。已有 JNI URL / 带宽测速、STUN 在瘦模式下仍隐藏，本轮未将这些功能迁移到模块，不宣称恢复。
+- `PRE_VERSION_NAME=3.0.13-preview.4`、Root 模块码 `2024`、APK `versionCode=10124`；正式线 `3.0.11 / 2017` 不变。版本码由共享固定向量计算。
+- 包名、设置键及默认值、Room schema、备份/还原格式和同页同版配对规则保持不变；26 MiB 体积门禁已由远端验证流程通过。
 
-## 验证与边界
+## 自动化验证与边界
 
-- 本地：Android JVM 381 项、工具 98 项、模块 11 项、诊断 3 项通过；锁定 sing-box 的 Go 测试与 rootmodule race / vet、瘦 Debug APK 构建及安全检查通过。发布版本元数据更新后须再次构建验证。
-- 源码 CI `42786037533` 和最新文档 HEAD CI `42790934488` 成功；前次 API 35 瘦 Debug / Release 各 34 项、0 失败、2 跳过，独立完整核心诊断 2 项通过。旧源码签名瘦 APK 加普通模块为 22.76 MiB，不能冒充新版本资产实测；本版以发布工作流重新构建和校验的资产为准。
-- 本机没有 `/dev/kvm` 和正式签名材料，CI Release 模拟器及签名检查不是本地设备测试。跨版本备份互通、Magisk / KernelSU / APatch 真机安装矩阵未验证；自动化不替代真机签核。
-- 新预览发布并完整回读核验后，清理旧预览 Release 和 tag，只保留最新预览；正式版始终保留。
+- PR CI `42938060987` 与完整 `Verify Android Build` / closeout run `42938103418` 均在复审核准源码提交 `46c342fb292c5e040e033bfc6c49742dcc4e7dc0` 上成功。
+- 跨版本备份互通以 `v3.0.13-preview.3`（`77e291a150819a70d87c0af8458f1c603088e432`）为基线，在 Android 35 x86_64 模拟器完成旧版导出、旧版→新版导入、新版导出、新版→旧版导入；四项各 `OK (1 test)`，证据中的三份数据文件哈希也通过。此项是模拟器验证，不是真机或 Root 环境验证。
+- 未做 Magisk / KernelSU / APatch 真机矩阵；模拟器、JVM 与静态检查不能替代 Root 真机签核。
+
+---
+
+## 历史归档：v3.0.13-preview.3 已发布说明
+
+> 以下为 preview.3 当时发布说明摘要与历史验证记录，不是 preview.4 的功能或测试证据。
+
+# v3.0.13-preview.3 发行说明
+
+preview.3 使用 `UpdateTransport` 经本地 mixed 代理检查和下载、校验更新包；任务原先在 `onStop()` 取消，已在 preview.4 中修正为离页继续。该版还收紧 Release tag 检查、最终 packaged Manifest 安全检查，并固定 GeoIP / GeoSite 来源和 SHA-256。
+
+版本映射为模块码 `2023` / APK `10118`，正式线 `3.0.11 / 2017` 不变。该版历史记录称本地 JVM 381 项、工具 98 项、模块 11 项、诊断 3 项通过，并记录 CI `42786037533` 与文档 HEAD CI `42790934488`；此前签名瘦 APK + 普通模块 22.76 MiB 是旧源码数据，不可替代本轮实测。旧记录注明当时未做跨版本备份互通与 Root 真机矩阵。
 
 ---
 
@@ -79,7 +90,7 @@
 ## 安装与版本
 
 - Android 12+、arm64-v8a、Root（Magisk / KernelSU / APatch），瘦管理器不含内核，无普通 VPN 回退。
-- 预览名 `3.0.13-preview.1`，Root 模块码 `2021`，APK `versionCode=10106`；按既有 `metadataCode*5+previewSuffix` 计算，高于 preview.4 的 2020/10104。版本码规则只允许 `-preview.1` 到 `-preview.4`，所以本版从 3.0.13 预览线开始，而不是 3.0.12-preview.5。
+- 预览名 `3.0.13-preview.1`，Root 模块码 `2021`，APK `versionCode=10106`；按既有 `metadataCode*5+previewSuffix` 计算，低于后续 preview.4 的 `2024/10124`。版本码规则只允许 `-preview.1` 到 `-preview.4`，所以本版从 3.0.13 预览线开始，而不是 3.0.12-preview.5。
 - 包名与签名不变，可覆盖安装；备份格式不变。
 - 管理器和 Root 模块必须同页同版成套更新，不能只更新其中一个。
 

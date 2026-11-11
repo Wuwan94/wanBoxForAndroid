@@ -29,6 +29,38 @@ type ProfileTag struct {
 	Name string `json:"name"`
 }
 
+// ProfileTags returns only the tag mapping staged with the currently running generation.
+// It is read-only and never asks the Clash API to switch the active selector.
+func (r *Runtime) ProfileTags() (map[string]string, error) {
+	result := make(map[string]string)
+	err := r.withLock(func() error {
+		st := r.Status()
+		if st.Phase != "connected" || st.RunningRevision == "" {
+			return errors.New("module_not_running")
+		}
+		var tags map[string]ProfileTag
+		if e := readJSON(r.path("generations", st.RunningRevision, "files", profileTagFile), &tags, 1<<20); e != nil {
+			return errors.New("node_tag_not_found")
+		}
+		for id, tag := range tags {
+			profileID, e := strconv.ParseInt(id, 10, 64)
+			if e != nil || profileID <= 0 || strconv.FormatInt(profileID, 10) != id ||
+				tag.Tag == "" || len(tag.Tag) > 256 || strings.IndexFunc(tag.Tag, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 {
+				continue
+			}
+			result[id] = tag.Tag
+		}
+		if len(result) == 0 {
+			return errors.New("node_tag_not_found")
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 // SelectNode hot-switches the running core to another node without restart.
 // It moves the top-level "proxy" selector through the config's own Clash API,
 // then confirms the switch by reading the selector back. The persisted manager
