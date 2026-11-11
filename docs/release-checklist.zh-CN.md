@@ -1,6 +1,6 @@
 # v3.0.13-preview.4 分阶段发布清单
 
-本版 **v3.0.13-preview.4 已发布预览**，tag 指向合并提交 `d9f34202b9856b4cb151d8f4d52c532142e22e70`；已发布正式版仍为 v3.0.11，前一预览 preview.3 已在新 Release 和资产核验后清理。本清单记录本轮预览发布门槛与结果；Root 真机矩阵仍待签核，不能据此晋升正式版。
+本版 **v3.0.13-preview.4 已发布预览**，tag 指向合并提交 `e7a6411e03c30ec4bcf4a8a00244362664d070a6`；已发布正式版仍为 v3.0.11，前一预览 preview.3 已在新 Release 和资产核验后清理。本清单记录本轮预览发布门槛与结果；Root 真机矩阵仍待签核，不能据此晋升正式版。
 
 ## 当前基线与不可变约束
 
@@ -31,7 +31,7 @@
 - [x] 四件套齐全：瘦 APK、`wanbox-root-module-arm64-v8a.zip`、`wanbox-root-module-with-manager-arm64-v8a.zip`、`SHA256SUMS`。
 - [x] ABI、版本码、包名、签名、ZIP 完整性、GitHub API digest 与 SHA256SUMS 已核对；签名匹配仓库固定正式证书，带管理器模块内 APK 与外部 APK 字节一致。
 - [x] preview.3→preview.4、preview.4→preview.3 的备份导出/导入四个方向均在 Android 35 x86_64 模拟器完成，各 `OK (1 test)`；这是模拟器证据，不是 Root 真机签核。
-- [x] Release/tag 指向获批 PR #21 合并提交 `d9f34202b9856b4cb151d8f4d52c532142e22e70`，未覆盖已有 tag、未强推。
+- [x] Release/tag 指向获批 PR #23 合并提交 `e7a6411e03c30ec4bcf4a8a00244362664d070a6`，未覆盖已有 tag、未强推。
 - [x] 中文发行说明如实区分自动化与真机边界；只发布 prerelease，不宣称正式版可用。
 - [x] 发布后回读四件套名称、数量、大小、SHA256 与 tag；确认新预览完整后仅清理被替代的 preview.3，稳定版 v3.0.11 保留。
 

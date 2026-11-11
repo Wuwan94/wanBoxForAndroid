@@ -6,7 +6,7 @@
 
 ### v3.0.13-preview.4（已发布预览）
 
-- 由仓库正式 `Preview Build` run `42948432554` 发布；Release/tag `v3.0.13-preview.4` 指向 PR #21 合并提交 `d9f34202b9856b4cb151d8f4d52c532142e22e70`。稳定版 v3.0.11 未变。
+- 由仓库正式 `Preview Build` run `42962314460` 发布；Release/tag `v3.0.13-preview.4` 指向 PR #23 合并提交 `e7a6411e03c30ec4bcf4a8a00244362664d070a6`。稳定版 v3.0.11 未变。
 - 修正更新器页面生命周期和代理失败提示；新增瘦模式节点延迟探测；QS Tile 对 Connecting/Stopping 状态拒绝切换，并在 fresh Root 状态与共享锁内原子决策；分应用列表查询/图标加载移至后台。
 - 版本映射为 Root 模块码 `2024`、APK `versionCode=10124`。正式签名 APK、普通 Root 模块、带管理器模块与 `SHA256SUMS` 四件套均由正式 workflow 生成；下载文件与 GitHub API digest、SHA256SUMS 相符，APK 证书匹配固定发布签名，带管理器 ZIP 内 APK 与独立 APK 字节一致。APK+普通模块为 22.83 MiB，低于 26 MiB。
 - preview.3 的备份导出/导入与 preview.4 双向互通在 Android 35 x86_64 模拟器通过；未做 Magisk / KernelSU / APatch 真机矩阵。preview.3 Release/tag 在 .4 完整核验后按单预览偏好清理；v3.0.11 稳定版保留。
