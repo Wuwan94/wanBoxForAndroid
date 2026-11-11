@@ -14,6 +14,13 @@ internal object UpdateDownload {
     private const val ATTEMPT_PREFIX = "attempt-"
 
     /**
+     * [prepare] 在校验通过后写入 attempt 目录的版本戳，内容为该更新包所属
+     * Release 的规范 tag（如 `3.0.13-preview.4`）。[recentReady] 只认版本戳与
+     * 当前已装 App 版本一致的包：目录修改时间只能说明「最近」，不能说明「同版」。
+     */
+    const val TAG_FILE_NAME = "release-tag.txt"
+
+    /**
      * How long a verified pair is kept on disk after [prepare] hands it out. The system
      * installer reads the APK after we return, and the user flashes the module ZIP in
      * their Root manager after the APK install restarts the app, so a Ready pair must
@@ -67,12 +74,14 @@ internal object UpdateDownload {
     }
 
     /**
-     * 进程重启后重新定位最近一次已校验的更新包，供「导出已校验 Root 模块」入口使用。
-     * 只认三件套齐全的 attempt 目录，且仍在 [RETENTION_MS] 内；目录名随机，
-     * 因此这里按目录修改时间取最新，而不是要求用户记住私有路径。
-     * 系统时间回拨时保守保留，避免把仍待交接的包误判为过期。
+     * 进程重启后重新定位已校验的更新包，供「导出已校验 Root 模块」入口使用。
+     * 只认三件套齐全、版本戳与 [expected]（当前已装 App 的版本）一致、且仍在
+     * [RETENTION_MS] 内的 attempt 目录；多个候选时取其中最新的一份。
+     * 没有版本戳的目录（本修复之前下载的包）一律不认：宁可让用户重新下载，
+     * 也不能把版本不明的模块当作「同版」导出。系统时间回拨时保守保留，
+     * 避免把仍待交接的包误判为过期。
      */
-    fun recentReady(cache: File): Ready? {
+    fun recentReady(cache: File, expected: UpdateRelease.Version): Ready? {
         if (!cache.isDirectory) return null
         val now = clock()
         val attempts = cache.listFiles { file ->
@@ -86,6 +95,13 @@ internal object UpdateDownload {
             val module = files.firstOrNull { it.name == UpdateArtifacts.MODULE_NAME }
                 ?: return@mapNotNull null
             if (files.none { it.name == UpdateArtifacts.SUMS_NAME }) return@mapNotNull null
+            val stamp = files.firstOrNull { it.name == TAG_FILE_NAME } ?: return@mapNotNull null
+            val stamped = try {
+                UpdateRelease.parseVersion(stamp.readText())
+            } catch (e: Exception) {
+                null
+            } ?: return@mapNotNull null
+            if (stamped != expected) return@mapNotNull null
             val since = dir.lastModified()
             if (now >= since && now - since >= RETENTION_MS) return@mapNotNull null
             Ready(apk, module, dir) to since
@@ -94,10 +110,12 @@ internal object UpdateDownload {
 
     fun prepare(
         assets: List<UpdateArtifacts.ReleaseAsset>,
+        releaseTag: String,
         cache: File,
         download: (UpdateArtifacts.ReleaseAsset, File) -> Unit,
     ): Ready {
         val bundle = UpdateArtifacts.selectBundle(assets) ?: throw Failure(Reason.ASSETS)
+        val version = UpdateRelease.parseVersion(releaseTag) ?: throw Failure(Reason.ASSETS)
         var directory: File
         var sequence: Long
         synchronized(registryLock) {
@@ -124,6 +142,12 @@ internal object UpdateDownload {
             download(bundle.module, module)
             if (!UpdateArtifacts.verify(apk, sums) || !UpdateArtifacts.verify(module, sums)) {
                 throw Failure(Reason.CHECKSUM)
+            }
+            // 校验通过才盖版本戳：recentReady 靠它把「同版」与「最近」区分开。
+            try {
+                File(directory, TAG_FILE_NAME).writeText(version.tag)
+            } catch (e: IOException) {
+                throw Failure(Reason.STORAGE, e)
             }
             synchronized(registryLock) { heldSince[directory.name] = clock() }
             deleteStaleAttempts(cache, directory, sequence)
