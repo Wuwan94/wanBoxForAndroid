@@ -1,6 +1,6 @@
-# v3.0.14-preview.1 发行说明（候选）
+# v3.0.14-preview.1 发行说明
 
-**状态：未发布的稳定性预览版候选。** 本文件是下一预览版的说明草稿，供源码审查；不替换 v3.0.11 正式版，候选源码和本说明都不是已签名发布资产。
+**状态：已发布的稳定性预览版。** 由仓库 `Preview Build` 正式发布，tag 指向合并提交 `8b4e60893dc4d783caeab1b0f5ddb6667aa0549d`；不替换稳定版 v3.0.11。正式资产和哈希核验记录见[版本对照](current-version.zh-CN.md)。
 
 ## 更新
 
@@ -22,6 +22,7 @@
 ## 验证与边界
 
 - 六项修复由 PR #25 合入 main（合并提交 `1d769fad65768029374134a37bcb67d163deb42f`），Verify CI（run `42976607018`）的 Build LibCore 与 Build Android Debug APK 均成功。
+- 正式 `Preview Build` run `43003022425` 从获批合并提交 `8b4e60893dc4d783caeab1b0f5ddb6667aa0549d` 生成并发布正式签名资产；发布后四件套、API digest 与 `SHA256SUMS` 已回读核验。
 - preview.4 的同版覆盖重发被发布说明状态机校验拒绝，且版本规则每线最多 preview.4，故新开 3.0.14 线以 preview.1 发布，修复内容不变。
 - 未做 Magisk / KernelSU / APatch 真机矩阵；模拟器、JVM 与静态检查不能替代 Root 真机签核，不据此晋升正式版。
 
