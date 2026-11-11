@@ -320,19 +320,11 @@ class SagerNet : Application(),
         }
         fun toggleService(profileId: Long = -1L) = moduleCommand {
             val client = io.nekohasekai.sagernet.bg.RootModuleClient
-            val status = client.call("status")
-            if (status.state.canStop && (profileId == -1L || profileId == status.profileId)) client.stop()
-            else {
-                if (profileId >= 0L) DataStore.selectedProxy = profileId
-                client.startOrReload()
-            }
+            client.toggleService(profileId)
             DataStore.serviceState = client.call("status").state
             io.nekohasekai.sagernet.widget.OwnBoxWidgetHelper.updateAllWidgets(application)
         }
-        fun enableService() = moduleCommand {
-            val client = io.nekohasekai.sagernet.bg.RootModuleClient
-            if (!client.call("status").state.canStop) client.startOrReload()
-        }
+        fun enableService() = moduleCommand { io.nekohasekai.sagernet.bg.RootModuleClient.enableService() }
         fun startService() = moduleCommand { io.nekohasekai.sagernet.bg.RootModuleClient.startOrReload() }
         fun reloadService() { configurationReload.request() }
         // @author 雾晚: restart from newly generated App rules/settings, not the old module snapshot.

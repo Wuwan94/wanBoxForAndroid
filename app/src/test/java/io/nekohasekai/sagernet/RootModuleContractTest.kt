@@ -90,7 +90,7 @@ class RootModuleContractTest {
         assertTrue(activity.substringAfter("override fun onStop()").substringBefore("override fun onDestroy()").contains("connection.disconnect(this)"))
         val app = source("SagerNet.kt")
         assertFalse(app.contains("DefaultNetworkListener.start(this"))
-        assertTrue(app.contains("val status = client.call(\"status\")"))
+        assertTrue(app.contains("client.toggleService(profileId)"))
     }
     @Test fun rootOnlyRegistrationAndHistoricalSettingNormalization() {
         val manifest = File("src/main/AndroidManifest.xml").readText()

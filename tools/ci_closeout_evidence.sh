@@ -26,9 +26,9 @@ cp -a benchmark/build/outputs closeout-evidence/with-profile
 mkdir -p closeout-new-apks
 cp app/build/outputs/apk/preview/debug/*x86_64*.apk closeout-new-apks/app.apk
 cp app/build/outputs/apk/androidTest/preview/debug/*.apk closeout-new-apks/tests.apk
-old=../preview2-compat
-# Fixed released source; the only copied source is this fictional-data interchange test.
-git worktree add --detach "$old" 56ce6df50374666755821b046b38d06542c5c1e9
+old=../preview3-compat
+# Fixed v3.0.13-preview.3 baseline; the only copied source is this fictional-data interchange test.
+git worktree add --detach "$old" 77e291a150819a70d87c0af8458f1c603088e432
 cp app/src/androidTest/java/io/nekohasekai/sagernet/BackupCrossVersionTest.kt "$old/app/src/androidTest/java/io/nekohasekai/sagernet/"
 mkdir -p "$old/app/libs"
 cp app/libs/libcore.aar "$old/app/libs/"
@@ -56,5 +56,5 @@ run_mode export new-export
 adb pull "/sdcard/Android/data/$new_package/files/cross-version.json" closeout-evidence/new-backup.json
 install_pair "$old_apk" "$old_test"
 run_mode import new-to-old
-printf 'Source=%s\nBaseline=56ce6df50374666755821b046b38d06542c5c1e9\nEnvironment=API35 x86_64 emulator, not Root device\n' "$(git rev-parse HEAD)" > closeout-evidence/provenance.txt
+printf 'Source=%s\nBaseline=77e291a150819a70d87c0af8458f1c603088e432 (v3.0.13-preview.3)\nEnvironment=API35 x86_64 emulator, not Root device\n' "$(git rev-parse HEAD)" > closeout-evidence/provenance.txt
 sha256sum closeout-evidence/*backup.json closeout-evidence/baseline-prof.txt > closeout-evidence/SHA256SUMS

@@ -69,6 +69,7 @@ class TileService : BaseTileService(), SagerConnection.Callback {
 
     private val connection = SagerConnection(SagerConnection.CONNECTION_ID_TILE)
     private var lastTapTime = 0L
+    private var currentServiceState: BaseService.State? = null
     override fun stateChanged(state: BaseService.State, profileName: String?, msg: String?) =
         updateTile(state, profileName)
 
@@ -79,10 +80,12 @@ class TileService : BaseTileService(), SagerConnection.Callback {
     }
 
     override fun onServiceDisconnected() {
+        currentServiceState = null
         showUnavailable()
     }
 
     override fun onBinderDied() {
+        currentServiceState = null
         showUnavailable()
     }
 
@@ -122,6 +125,7 @@ class TileService : BaseTileService(), SagerConnection.Callback {
     }
 
     private fun toggleConnection() {
+        if (isTransitionalServiceState(currentServiceState)) return
         val now = SystemClock.elapsedRealtime()
         if (now - lastTapTime < 700L) return
         lastTapTime = now
@@ -130,6 +134,7 @@ class TileService : BaseTileService(), SagerConnection.Callback {
     }
 
     private fun showUnavailable() {
+        currentServiceState = null
         qsTile?.apply {
             icon = getTileIcon()
             state = displayState(null)
@@ -140,6 +145,7 @@ class TileService : BaseTileService(), SagerConnection.Callback {
     }
 
     private fun updateTile(serviceState: BaseService.State, profileName: String?) {
+        currentServiceState = serviceState
         qsTile?.apply {
             val currentIcon = getTileIcon()
             icon = currentIcon

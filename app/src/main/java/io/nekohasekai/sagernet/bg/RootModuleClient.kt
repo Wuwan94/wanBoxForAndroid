@@ -153,6 +153,17 @@ object RootModuleClient {
         }
     }
 
+    /** Read the module's current status without trusting the UI polling TTL cache. */
+    suspend fun callFreshStatus(): Status = withContext(Dispatchers.IO) {
+        statusMutex.withLock {
+            statusCache.invalidate()
+            val cacheGeneration = statusCache.generation()
+            doCall("status").also {
+                statusCache.putIfGeneration(RootModuleReadQuery.STATUS, it, cacheGeneration)
+            }
+        }
+    }
+
     private suspend fun doCall(command: String, input: File? = null): Status {
         val process = try { ProcessBuilder("su", "-c", "exec $CLI $command").start() }
             catch (_: IOException) { throw IOException("root_required") }
@@ -214,43 +225,81 @@ object RootModuleClient {
         if (!startIfStopped) changes.lock()
         else if (!changes.tryLock()) throw IOException("module_busy")
         try {
-            val before = call("status")
-            // @author 雾晚: rule edits use module truth, never a stale UI/Binder state.
-            if (RootModuleDataUpdate.pending()) throw IOException("data_update_pending")
-            if (before.phase == "disabled") throw IOException("module_disabled_or_missing")
-            val profile = SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
-                ?: if (!startIfStopped && !before.state.canStop) return@withContext else throw IOException("profile_missing")
-            // @author 雾晚: refresh cross-user UIDs (TTL-cached) so per-app rules
-            // cover secondary users / cloned apps.
-            runCatching { io.nekohasekai.sagernet.utils.PackageCache.refreshMultiUserUids() }
-            suspend fun applyBackend(backend: RootInboundBackend, expectedRevision: String): Status {
-                val instance = ProxyInstance(profile, rootInboundBackend = backend)
-                val file = File.createTempFile("module-snapshot-", ".json", SagerNet.application.cacheDir)
-                try {
-                    instance.init()
-                    file.writeText(RootModuleSnapshot(instance, expectedRevision).build().toString())
-                    if (file.length() > 192L * 1024 * 1024) throw IOException("snapshot_too_large")
-                    val applied = call("config apply", file)
-                    // Apply owns active-core restart/rollback; passive edits never start a stopped module.
-                    if (startIfStopped) {
-                        call("autostart ${if (DataStore.persistAcrossReboot) "on" else "off"}")
-                        if (!applied.state.canStop) call("start")
-                    }
-                    return applied
-                } finally { file.delete(); instance.close() }
-            }
-            try {
-                applyBackend(RootInboundBackend.EBPF, before.revision)
-            } catch (error: IOException) {
-                // If this kernel/core cannot activate eBPF, retry the same validated profile
-                // with the preserved root-TUN path. Other module/permission errors stay visible.
-                if (error.message !in setOf("core_config_invalid", "new_core_failed_rolled_back", "core_start_failed", "startup_timeout")) throw error
-                Logs.w("Root eBPF inbound failed; retrying with the TUN fallback (${safeError(error)})")
-                val current = call("status")
-                applyBackend(RootInboundBackend.TUN, current.revision)
-            }
+            startOrReloadLocked(startIfStopped)
         } finally { changes.unlock() }
     }
+
+    internal suspend fun <T> tryWithChangesLock(block: suspend () -> T): T {
+        if (!changes.tryLock()) throw IOException("module_busy")
+        try { return block() } finally { changes.unlock() }
+    }
+
+    /** Atomically read fresh state, decide the toggle, and execute it under the shared mutation lock. */
+    internal suspend fun toggleService(profileId: Long = -1L): ServiceToggleAction = withContext(Dispatchers.IO) {
+        RootModuleDataUpdate.applyInstallerSelection()
+        tryWithChangesLock {
+            val status = callFreshStatus()
+            when (val action = serviceToggleAction(status.state, profileId, status.profileId)) {
+                ServiceToggleAction.IGNORE -> action
+                ServiceToggleAction.STOP -> {
+                    call("stop")
+                    action
+                }
+                ServiceToggleAction.START -> {
+                    if (profileId >= 0L) DataStore.selectedProxy = profileId
+                    startOrReloadLocked(startIfStopped = true, beforeStatus = status)
+                    action
+                }
+            }
+        }
+    }
+
+    internal suspend fun enableService() = withContext(Dispatchers.IO) {
+        RootModuleDataUpdate.applyInstallerSelection()
+        tryWithChangesLock {
+            val status = callFreshStatus()
+            if (!status.state.canStop) startOrReloadLocked(startIfStopped = true, beforeStatus = status)
+        }
+    }
+
+    private suspend fun startOrReloadLocked(startIfStopped: Boolean, beforeStatus: Status? = null) {
+        val before = beforeStatus ?: callFreshStatus()
+        // @author 雾晚: rule edits use module truth, never a stale UI/Binder state.
+        if (RootModuleDataUpdate.pending()) throw IOException("data_update_pending")
+        if (before.phase == "disabled") throw IOException("module_disabled_or_missing")
+        val profile = SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
+            ?: if (!startIfStopped && !before.state.canStop) return else throw IOException("profile_missing")
+        // @author 雾晚: refresh cross-user UIDs (TTL-cached) so per-app rules
+        // cover secondary users / cloned apps.
+        runCatching { io.nekohasekai.sagernet.utils.PackageCache.refreshMultiUserUids() }
+        suspend fun applyBackend(backend: RootInboundBackend, expectedRevision: String): Status {
+            val instance = ProxyInstance(profile, rootInboundBackend = backend)
+            val file = File.createTempFile("module-snapshot-", ".json", SagerNet.application.cacheDir)
+            try {
+                instance.init()
+                file.writeText(RootModuleSnapshot(instance, expectedRevision).build().toString())
+                if (file.length() > 192L * 1024 * 1024) throw IOException("snapshot_too_large")
+                val applied = call("config apply", file)
+                // Apply owns active-core restart/rollback; passive edits never start a stopped module.
+                if (startIfStopped) {
+                    call("autostart ${if (DataStore.persistAcrossReboot) "on" else "off"}")
+                    if (!applied.state.canStop) call("start")
+                }
+                return applied
+            } finally { file.delete(); instance.close() }
+        }
+        try {
+            applyBackend(RootInboundBackend.EBPF, before.revision)
+        } catch (error: IOException) {
+            // If this kernel/core cannot activate eBPF, retry the same validated profile
+            // with the preserved root-TUN path. Other module/permission errors stay visible.
+            if (error.message !in setOf("core_config_invalid", "new_core_failed_rolled_back", "core_start_failed", "startup_timeout")) throw error
+            Logs.w("Root eBPF inbound failed; retrying with the TUN fallback (${safeError(error)})")
+            val current = callFreshStatus()
+            applyBackend(RootInboundBackend.TUN, current.revision)
+        }
+    }
+
     suspend fun stop() = changes.withLock { call("stop") }
     /**
      * Hot-switch the running core to another node without restart.
