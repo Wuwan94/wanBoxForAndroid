@@ -1,26 +1,28 @@
 # v3.0.13-preview.4 发行说明（候选）
 
-**状态：未发布的稳定性预览版候选。** 本轮只在独立分支实施并供复审，不替换 v3.0.11 正式版；不合并、不发布、不删除或改写任何 Release/tag。候选源码和本说明都不是已签名发布资产。
+**状态：未发布的稳定性预览版候选。** 本文件供源码审查；仓库 `Preview Build` 在正式发布时会移除本标题后缀和本状态段，再将剩余中文说明作为 Release 正文。
+
+稳定性预览版，不替换稳定版 `v3.0.11`。正式发布的 arm64-v8a 管理器 APK、普通 Root 模块、带管理器 Root 模块与 `SHA256SUMS` 必须由仓库 `Preview Build` 流程生成；请仅从本 Release 页下载同版整套文件并先核对哈希。本地临时测试签名 APK 不属于发布资产。
 
 ## 更新
 
-- **更新器生命周期**：页面 `onStop()` 只关闭对话框，检查/下载继续；返回时重新显示仍在进行的任务或交付已完成结果。只有 `onDestroyView()` 才取消 view-scope 任务；校验完成但尚未交给 UI 就被取消时，仅释放本次更新目录。快速取消后重试不再被旧 Job 占用的槽位吞掉。
-- **代理失败提示**：更新继续只经配置的本地 mixed 代理；本地连接拒绝或 mixed 入站禁用会明确提示核心/代理不可用，不作直连回退。失败弹窗保留打开 GitHub Release 页的手动下载按钮，错误文案有简体中文和英文资源。
+- **更新器生命周期**：页面 `onStop()` 只关闭对话框，检查/下载继续；返回时恢复进行中的任务或交付已完成结果。只有 `onDestroyView()` 才取消 view-scope 任务并清理未交接的本次下载目录；快速取消后重试不再被旧 Job 槽位阻塞。
+- **代理失败提示**：更新流量只经配置的本地 mixed 代理；本地连接拒绝或 mixed 入站禁用会明确提示核心/代理不可用，不作直连回退。失败弹窗保留打开 GitHub Release 页的手动下载入口。
 - **瘦模式节点延迟探测**：Kotlin 只读运行中的 profile-tag 映射，通过 `Proxy.NO_PROXY` 与 `Authorization` 请求绑定在 `127.0.0.1` 的 Clash Controller `/proxies/{tag}/delay`；不改当前节点、不跟随重定向、不经 mixed 代理绕回，瘦 APK 不含核心 JNI。
-- **QS Tile**：加固 Binder 状态越界、服务断开/死亡、空 profile 名和点击防抖处理；状态以真实服务回调/重读为准。
+- **QS Tile**：Connecting/Stopping 状态下忽略点击，服务切换前绕过状态缓存读取 fresh Root 状态，并在 Root 模块共享变更锁内原子决策和执行；回归测试覆盖过渡态、稳定态与并发变更争用。
 - **分应用列表**：包名/label 查询留在后台；可见行图标异步按需加载，复用 ViewHolder 前检查身份；保留用户/系统应用过滤、UID 路由及导入导出路径。
 
 ## 安装与版本
 
 - Android 12+、arm64-v8a、Root（Magisk / KernelSU / APatch）；瘦 APK 不含原生核心，由配套 Root 模块持有核心，无普通 VPN 回退。
-- 候选元数据为 `PRE_VERSION_NAME=3.0.13-preview.4`、Root 模块码 `2024`、APK `versionCode=10124`；正式线 `3.0.11 / 2017` 不变。版本码由共享固定向量计算。
-- 本轮源码不改包名、设置键及默认值、Room schema、备份/还原格式和同页同版配对规则；本地构建与 26 MiB 体积门禁已通过。测量 APK 使用临时测试签名，不是正式发布签名；跨版本备份互通也仍未能在模拟器上实跑，详见验收报告。
+- `PRE_VERSION_NAME=3.0.13-preview.4`、Root 模块码 `2024`、APK `versionCode=10124`；正式线 `3.0.11 / 2017` 不变。版本码由共享固定向量计算。
+- 包名、设置键及默认值、Room schema、备份/还原格式和同页同版配对规则保持不变；26 MiB 体积门禁已由远端验证流程通过。
 
-## 验证与边界
+## 自动化验证与边界
 
-- 单元测试、Android packaged Manifest 安全检查、离线文档检查、Python 工具套件及 APK+Root 模块绝对体积门禁的逐项实跑结果，统一记录在 `docs/reports/v3.0.13-preview.4-evolution.zh-CN.md`；未完成项不得写成通过。
-- 跨版本备份互通须分别使用 preview.3 导出与 preview.4 导入、再反向导出/导入；没有完成双向运行前不宣称无损。仪器测试如果无法启动，报告会说明 `/dev/kvm` 与模拟器限制。
-- 未做 Magisk / KernelSU / APatch 真机矩阵；模拟器、JVM 与静态检查不能替代 Root 真机签核。本候选不得据此晋升正式版。
+- PR CI `42938060987` 与完整 `Verify Android Build` / closeout run `42938103418` 均在复审核准源码提交 `46c342fb292c5e040e033bfc6c49742dcc4e7dc0` 上成功。
+- 跨版本备份互通以 `v3.0.13-preview.3`（`77e291a150819a70d87c0af8458f1c603088e432`）为基线，在 Android 35 x86_64 模拟器完成旧版导出、旧版→新版导入、新版导出、新版→旧版导入；四项各 `OK (1 test)`，证据中的三份数据文件哈希也通过。此项是模拟器验证，不是真机或 Root 环境验证。
+- 未做 Magisk / KernelSU / APatch 真机矩阵；模拟器、JVM 与静态检查不能替代 Root 真机签核。
 
 ---
 
@@ -30,7 +32,7 @@
 
 # v3.0.13-preview.3 发行说明
 
-preview.3 使用 `UpdateTransport` 经本地 mixed 代理检查和下载、校验更新包；任务原先在 `onStop()` 取消，已在 preview.4 候选中修正为离页继续。该版还收紧 Release tag 检查、最终 packaged Manifest 安全检查，并固定 GeoIP / GeoSite 来源和 SHA-256。
+preview.3 使用 `UpdateTransport` 经本地 mixed 代理检查和下载、校验更新包；任务原先在 `onStop()` 取消，已在 preview.4 中修正为离页继续。该版还收紧 Release tag 检查、最终 packaged Manifest 安全检查，并固定 GeoIP / GeoSite 来源和 SHA-256。
 
 版本映射为模块码 `2023` / APK `10118`，正式线 `3.0.11 / 2017` 不变。该版历史记录称本地 JVM 381 项、工具 98 项、模块 11 项、诊断 3 项通过，并记录 CI `42786037533` 与文档 HEAD CI `42790934488`；此前签名瘦 APK + 普通模块 22.76 MiB 是旧源码数据，不可替代本轮实测。旧记录注明当时未做跨版本备份互通与 Root 真机矩阵。
 
@@ -88,7 +90,7 @@ preview.3 使用 `UpdateTransport` 经本地 mixed 代理检查和下载、校�
 ## 安装与版本
 
 - Android 12+、arm64-v8a、Root（Magisk / KernelSU / APatch），瘦管理器不含内核，无普通 VPN 回退。
-- 预览名 `3.0.13-preview.1`，Root 模块码 `2021`，APK `versionCode=10106`；按既有 `metadataCode*5+previewSuffix` 计算，高于 preview.4 的 2020/10104。版本码规则只允许 `-preview.1` 到 `-preview.4`，所以本版从 3.0.13 预览线开始，而不是 3.0.12-preview.5。
+- 预览名 `3.0.13-preview.1`，Root 模块码 `2021`，APK `versionCode=10106`；按既有 `metadataCode*5+previewSuffix` 计算，低于后续 preview.4 的 `2024/10124`。版本码规则只允许 `-preview.1` 到 `-preview.4`，所以本版从 3.0.13 预览线开始，而不是 3.0.12-preview.5。
 - 包名与签名不变，可覆盖安装；备份格式不变。
 - 管理器和 Root 模块必须同页同版成套更新，不能只更新其中一个。
 

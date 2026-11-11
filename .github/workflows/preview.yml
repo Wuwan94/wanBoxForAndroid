@@ -360,7 +360,7 @@ jobs:
         run: |
           python3 tools/verify_preview_candidate_artifact.py --directory candidate --source-sha "$APPROVED_SHA" --run-id "$GITHUB_RUN_ID" --tag "$PREVIEW_TAG"
           (cd candidate && sha256sum --check SHA256SUMS)
-          cp PREVIEW_NOTES.md "$RUNNER_TEMP/preview-notes.md"
+          python3 tools/prepare_preview_release_notes.py --input PREVIEW_NOTES.md --output "$RUNNER_TEMP/preview-notes.md"
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
