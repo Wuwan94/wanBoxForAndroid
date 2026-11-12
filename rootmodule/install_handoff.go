@@ -225,6 +225,10 @@ func (r *Runtime) completeInstallMode(ctx context.Context, wait func(context.Con
 		r.installEvent("module_stage_cleanup_failed")
 		return e
 	}
+	// Belt-and-braces alongside activateMode: after staging retires, the
+	// manager's update flag on the installed module must not survive, or
+	// Magisk/KernelSU keeps announcing a pending reboot update.
+	clearUpdateMarker(target)
 	return nil
 }
 

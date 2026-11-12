@@ -351,7 +351,36 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             }
             preferenceScreen.addPreference(colors)
         }
-        if (section == "root") addHealthCheckPreferences()
+        if (section == "root") {
+            // v3.0.15: module status row follows hot updates live — the
+            // versionCode comes from RootModuleClient.moduleVersionFlow,
+            // which jumps when a no-reboot switch commits.
+            val moduleStatus = Preference(requireContext()).apply {
+                key = "hotUpdateModuleStatus"
+                title = getString(R.string.minimal_root)
+                summary = "—"
+                order = -1
+                isSelectable = false
+            }
+            preferenceScreen.addPreference(moduleStatus)
+            var stateText = "—"
+            fun renderModuleStatus() {
+                val code = io.nekohasekai.sagernet.bg.RootModuleClient.moduleVersionFlow.value
+                moduleStatus.summary = if (code > 0) "$stateText · 模块版本码 $code" else stateText
+            }
+            lifecycleScope.launch {
+                stateText = try {
+                    val module = io.nekohasekai.sagernet.bg.RootModuleClient.call("status")
+                    getString(if (module.connected) R.string.service_state_connected else R.string.service_state_idle)
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                  catch (e: Exception) { io.nekohasekai.sagernet.bg.RootModuleErrors.message(requireContext(), e) }
+                renderModuleStatus()
+            }
+            lifecycleScope.launch {
+                io.nekohasekai.sagernet.bg.RootModuleClient.moduleVersionFlow.collect { renderModuleStatus() }
+            }
+            addHealthCheckPreferences()
+        }
     }
 
     /** phase2: node health check policy (module side reads files/health_check.json) + one-tap failover. */

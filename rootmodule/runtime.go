@@ -130,6 +130,12 @@ type Runtime struct {
 	installStart      func(context.Context) error
 	installRunning    func() bool
 	independentCgroup func() error
+	// Hot-update seams (v3.0.15): route guard, canary health probe and its
+	// timing. Zero values select the production defaults in hot_update.go.
+	installRouteGuard   func(context.Context, bool) error
+	installCanaryCheck  func(context.Context) bool
+	installCanaryWindow time.Duration
+	installCanaryPoll   time.Duration
 }
 
 func New(root, moduleDir string) *Runtime {
