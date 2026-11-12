@@ -18,6 +18,9 @@ import io.nekohasekai.sagernet.fmt.mieru.MieruBean
 import io.nekohasekai.sagernet.fmt.naive.NaiveBean
 import io.nekohasekai.sagernet.fmt.trojan_go.TrojanGoBean
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
@@ -44,6 +47,22 @@ object RootModuleClient {
     internal fun mutatesModule(command: String): Boolean = command !in readOnlyCommands
     /** Drop every cached protocol view before and after state-changing calls. */
     fun invalidateStatusCache() { statusCache.invalidate() }
+
+    // v3.0.15 hot-update awareness: the module broadcasts
+    // "module_hot_update_committed:<versionCode>" on the status event
+    // channel after a no-reboot switch commits. Every status poll and every
+    // reconnect passes through parseResponse, so a foreground App learns the
+    // new module version here and republishes it — no App restart needed.
+    private val _moduleVersionFlow = MutableStateFlow(0)
+    val moduleVersionFlow: StateFlow<Int> = _moduleVersionFlow.asStateFlow()
+
+    private fun noteModuleEvents(events: List<ModuleEvent>) {
+        for (event in events) {
+            if (!event.code.startsWith("module_hot_update_committed:")) continue
+            val code = event.code.substringAfter(':').toIntOrNull() ?: continue
+            if (code > _moduleVersionFlow.value) _moduleVersionFlow.value = code
+        }
+    }
     data class InstallSelection(val id: String, val mode: Int)
     data class Status(val phase: String, val revision: String, val runningRevision: String,
         val profileId: Long, val profileName: String, val stats: RootNotificationSample?, val error: String = "",
@@ -108,6 +127,12 @@ object RootModuleClient {
                 ?.takeIf { it.isNotBlank() && it.length <= 256 && it.none { ch -> ch.code < 0x20 || ch.code == 0x7f } }
             if (id != null && tag != null) id to tag else null
         }?.toMap().orEmpty()
+        val events = state["events"]?.takeIf { it.isJsonArray }?.asJsonArray?.mapNotNull { item ->
+            val obj = item.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
+            val code = obj.safeString("code").takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            ModuleEvent(obj["time"]?.takeIf { it.isJsonPrimitive }?.asLong ?: 0L, code)
+        }.orEmpty()
+        noteModuleEvents(events)
         return Status(phase, state["revision"]?.asString.orEmpty(), state["runningRevision"]?.asString.orEmpty(),
             state["profileId"]?.asLong ?: 0, state["profileName"]?.asString.orEmpty(), stats,
             state["error"]?.asString.orEmpty().takeIf { it.matches(Regex("[a-z_]{1,80}")) }.orEmpty(), selection,
@@ -115,11 +140,7 @@ object RootModuleClient {
             health = state.safeString("health"), lastExit = state.safeString("lastExit"),
             lastReason = state.safeString("lastReason"),
             retryCount = state["retryCount"]?.takeIf { it.isJsonPrimitive }?.asInt ?: 0,
-            events = state["events"]?.takeIf { it.isJsonArray }?.asJsonArray?.mapNotNull { item ->
-                val obj = item.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
-                val code = obj.safeString("code").takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                ModuleEvent(obj["time"]?.takeIf { it.isJsonPrimitive }?.asLong ?: 0L, code)
-            }.orEmpty(), profileTags = profileTags)
+            events = events, profileTags = profileTags)
     }
     suspend fun call(command: String, input: File? = null): Status = withContext(Dispatchers.IO) {
         require(command in commands || command.matches(Regex("data selection-finish [a-f0-9]{32}"))
