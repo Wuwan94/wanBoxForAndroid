@@ -14,11 +14,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 STABLE_TAG = "v3.0.14"
-PUBLISHED_PREVIEW = "v3.0.14-preview.1"
-PUBLISHED_PREVIEW_COMMIT = "8b4e60893dc4d783caeab1b0f5ddb6667aa0549d"
+PUBLISHED_PREVIEW = "v3.0.15-preview.1"
+PUBLISHED_PREVIEW_COMMIT = "5aca93bee39a9d07a56d750908e0d9c88ad5f90c"
 SOURCE_PREVIEW = "v3.0.15-preview.1"
 SOURCE_PREVIEW_CODE = "2027"
-ARCHIVED_PREVIEW = "v3.0.13-preview.4"
+ARCHIVED_PREVIEW = "v3.0.14-preview.1"
 HISTORY_MARKER = "历史归档"
 
 FILES = {
