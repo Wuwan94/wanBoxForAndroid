@@ -1,18 +1,18 @@
 # 发布、源码与版本对照
 
-核对日期：2026-11-11。发布状态以 GitHub Release、tag 与实际下载资产为准；源码元数据本身不构成已发布资产的核验。
+核对日期：2026-11-12。发布状态以 GitHub Release、tag 与实际下载资产为准；源码元数据本身不构成已发布资产的核验。
 
 | 对象 | 版本与状态 | 版本码及来源 |
 |---|---|---|
 | 已发布正式版 | [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14)，非 prerelease；由 3.0.14 预览线晋升 | APK / Root 模块 `10130 / 2026`（源码正式线 `VERSION_NAME=3.0.14`、`VERSION_CODE=2026`）；四件套文件名与发布回读数据见下文 |
-| 已发布预览版 | [v3.0.14-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14-preview.1)，prerelease；tag/commit `8b4e60893dc4d783caeab1b0f5ddb6667aa0549d` | APK `versionCode=10126` / Root 模块码 `2025`；由正式 `Preview Build` run `43003022425` 发布 |
+| 已发布预览版 | [v3.0.15-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.1)，prerelease；tag/commit `5aca93bee39a9d07a56d750908e0d9c88ad5f90c` | APK `versionCode=10136` / Root 模块码 `2027`；由正式 `Preview Build` run `43203156796` 发布 |
 | 上一正式版 | [v3.0.11](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11)，非 prerelease，保留；tag `03c6eb70854c797ee1e4069e378145be5ca56b0d` | APK / Root 模块 `10065 / 2013`（历史资产核验记录，归档语境） |
-| 发布基线 | [v3.0.14-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14-preview.1) 的 tag/commit `8b4e60893dc4d783caeab1b0f5ddb6667aa0549d` | PR #26 合并提交；固定发布基线，不等同于后续 main HEAD |
-| 源码预览占位 | `3.0.15-preview.1` 占位候选，尚未发布 | `PRE_VERSION_NAME=3.0.15-preview.1`、`PRE_VERSION_CODE=2027`；共享向量计算 APK `versionCode=10136` |
+| 发布基线 | [v3.0.15-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.1) 的 tag/commit `5aca93bee39a9d07a56d750908e0d9c88ad5f90c` | PR #34 合并提交；固定发布基线，不等同于后续 main HEAD |
+| 源码预览线 | `3.0.15-preview.1`，与已发布预览同线 | `PRE_VERSION_NAME=3.0.15-preview.1`、`PRE_VERSION_CODE=2027`；共享向量计算 APK `versionCode=10136` |
 
-源码元数据正式线为 `VERSION_NAME=3.0.14`、`VERSION_CODE=2026`；当前预览线为占位候选 `PRE_VERSION_NAME=3.0.15-preview.1`、`PRE_VERSION_CODE=2027`。共享向量计算正式 APK `versionCode=10130`、预览 APK `versionCode=10136`。
+源码元数据正式线为 `VERSION_NAME=3.0.14`、`VERSION_CODE=2026`；当前预览线为 `PRE_VERSION_NAME=3.0.15-preview.1`、`PRE_VERSION_CODE=2027`，已发布。共享向量计算正式 APK `versionCode=10130`、预览 APK `versionCode=10136`。
 
-preview.1 的六项复查修复已通过 PR #25 合并、升版已通过 PR #26 合并，并由官方 `Preview Build` 发布；该六项修复已由 v3.0.14 正式版全量承接。发布 tag 指向 `8b4e60893dc4d783caeab1b0f5ddb6667aa0549d`；v3.0.13-preview.4 的 Release/tag 已删除（同版覆盖重发被发布说明状态机拒绝后改发新线），上一正式版 v3.0.11 保留。
+v3.0.15-preview.1 的热更新加固与卸载治理由 PR #33 合并、发布前 code-review 双轴自审的修复由 PR #34 合并，并由官方 `Preview Build` 发布。发布 tag 指向 `5aca93bee39a9d07a56d750908e0d9c88ad5f90c`；v3.0.14-preview.1 的 Release/tag 已按单预览保留策略删除，正式版 v3.0.14 与上一正式版 v3.0.11 保留。
 
 ## v3.0.14 正式版四件套（文件名）
 
@@ -36,7 +36,22 @@ preview.1 的六项复查修复已通过 PR #25 合并、升版已通过 PR #26 
 
 APK 与普通 Root 模块合计 `23937506` 字节（22.83 MiB）；带管理器模块包为 22.17 MiB，均低于 26 MiB。候选构建的跨版本身份检查已核对包名与正式证书（SHA-256 `80ecee1c42d861d59cdc460447335fc4bfdf80103d6225a17c1bdf83a33521f6`），且 APK `versionCode 10130` 高于 v3.0.11 基线 `10065`。本次发布未执行任何清理：`v3.0.11` 正式版与 `v3.0.14-preview.1` 预览版均保留。
 
-## v3.0.14-preview.1 已发布资产快照
+## v3.0.15-preview.1 已发布资产快照
+
+来源：[GitHub Release v3.0.15-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.1)，正式发布 run `43203156796`。以下 GitHub API SHA-256 digest 与下载文件逐字节匹配；公开 `SHA256SUMS` 清单校验通过。
+
+| 文件 | 字节数 | GitHub SHA-256 digest |
+|---|---:|---|
+| `wanBoxForAndroid-3.0.15-preview.1-arm64-v8a-release.apk` | 6196814 | `5bf494dda9106e10aecb88a62141f6ef3b8be59b4572b2e1ce02f828d003743d` |
+| `wanbox-root-module-arm64-v8a.zip` | 17749902 | `c67332683ce7676db9d03faa5c328dafb0be1515fe5341b531ab839b58f323e6` |
+| `wanbox-root-module-with-manager-arm64-v8a.zip` | 23255747 | `f4fc899763e6dce076cd2069f43a0b425a441b6992836423ec70e84ffd25555a` |
+| `SHA256SUMS` | 333 | `be1130aa8f36e315a21544956d9f2f3bd0863055f93ca751e8282a6b1e8db6b9` |
+
+APK 与普通 Root 模块合计 `23946716` 字节（22.84 MiB）；带管理器模块包为 22.18 MiB，均低于 26 MiB。
+
+## 历史归档：v3.0.14-preview.1 发布资产快照
+
+> 该预览的 Release 与 tag 已在 v3.0.15-preview.1 发布后按单预览保留策略删除。下表为当时 GitHub Release API 返回的索引快照，**不是当前下载入口**；其六项复查修复已由 v3.0.14 正式版全量承接。
 
 来源：[GitHub Release v3.0.14-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14-preview.1)，正式发布 run `43003022425`。以下 GitHub API SHA-256 digest 与下载文件逐字节匹配；公开 `SHA256SUMS` 清单校验通过。
 

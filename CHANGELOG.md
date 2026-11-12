@@ -4,6 +4,14 @@
 
 ## wanBox 3.0.x 发布记录
 
+### v3.0.15-preview.1（已发布预览）
+
+- 由仓库正式 `Preview Build` run `43203156796` 发布；Release/tag `v3.0.15-preview.1` 指向 PR #34 合并提交 `5aca93bee39a9d07a56d750908e0d9c88ad5f90c`（功能由 PR #33 合入）。稳定版 v3.0.14 未变。
+- 模块免重启热更新加固：新核心 5 秒 Canary 健康观察与自动回滚、提交后清除 Magisk `update` 标记并广播 `module_hot_update_committed:<versionCode>`、切换间隙 pref 9001 黑洞守护（严格 Fail-Closed）；App 侧 `RootModuleClient` 新增版本跃迁感知，设置页免重启刷新模块版本码。
+- 卸载纯净治理：`uninstall.sh` 五轨兜底（优雅停止、原生信号强退、强清 TUN 与 pref 9000/9001 策略路由、运行时清理、用户数据默认保留，仅 `.purge_user_data` 标志全清），始终 exit 0。
+- 版本映射为 Root 模块码 `2027`、APK `versionCode=10136`。正式签名 APK、普通 Root 模块、带管理器模块与 `SHA256SUMS` 四件套均由正式 workflow 生成；下载文件与 GitHub API digest、SHA256SUMS 相符。APK+普通模块为 22.84 MiB，低于 26 MiB。
+- 发布前经 code-review 双轴自审并落实三项修复（守护 Fail-Closed 收紧、广播仅限活提交、卸载补清 pref 9001）；上一预览 v3.0.14-preview.1 的 Release/tag 已按单预览保留策略删除；未做 Magisk / KernelSU / APatch 真机矩阵；v3.0.14 稳定版保留。
+
 ### v3.0.14（正式版）
 
 - **晋升说明**：3.0.14 由预览线晋升为正式版，聚合 3.0.12 ~ 3.0.14 预览线的全量稳定性成果（瘦架构、分应用 LruCache、Controller 延时探测、生命周期后台下载、更新器同版导出）；v3.0.13-preview.4 代码复查的六项修复已随 v3.0.14-preview.1 先行发布，本版全量承接，正式说明见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。

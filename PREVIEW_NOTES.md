@@ -1,6 +1,6 @@
-# v3.0.15-preview.1 发行说明（候选）
+# v3.0.15-preview.1 发行说明
 
-**状态：未发布的稳定性预览版候选。** 本文件供源码审查；仓库 `Preview Build` 在正式发布时会移除本标题后缀和本状态段，再将剩余中文说明作为 Release 正文。
+**状态：已发布的稳定性预览版。** 由仓库 `Preview Build` 正式发布；[Release 页面](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.1)的 tag 指向合并提交 `5aca93bee39a9d07a56d750908e0d9c88ad5f90c`。本版不替换稳定版 `v3.0.14`。
 
 稳定性预览版，不替换稳定版 `v3.0.14`。本版主题是模块免重启热更新加固与卸载纯净治理：热更新引入健康观察与自动回滚，卸载引入原生兜底强清；均为稳定性与数据安全修复，无界面功能增减。正式发布的 arm64-v8a 管理器 APK、普通 Root 模块、带管理器 Root 模块与 `SHA256SUMS` 必须由仓库 `Preview Build` 流程生成；本地临时测试签名 APK 不属于发布资产。
 
@@ -20,7 +20,8 @@
 
 ## 自动化验证与边界
 
-- 源码侧验证：Go 全量测试通过（rootmodule 包 + wanboxctl，含新增 Canary 回滚、更新标记清理、黑洞守护中止/降级用例），仓库 Python 测试套件（tools 108 例 + rootmodule 15 例）与版本文档一致性检查通过；arm64 交叉编译通过。发布资产由仓库 `Preview Build` 构建，发布时校验候选来源 SHA 与 `SHA256SUMS`。
+- 源码侧验证：Go 全量测试通过（rootmodule 包 + wanboxctl，含新增 Canary 回滚、更新标记清理、黑洞守护中止用例），仓库 Python 测试套件（tools 108 例 + rootmodule 15 例）与版本文档一致性检查通过；arm64 交叉编译通过。发布前经 code-review 双轴自审并落实三项修复（守护严格 Fail-Closed、广播仅限活提交、卸载补清 pref 9001）。
+- 正式 `Preview Build` run `43203156796` 从获批合并提交 `5aca93bee39a9d07a56d750908e0d9c88ad5f90c`（PR #33 功能合并 + PR #34 评审修复合并）生成并发布正式签名资产；发布后四件套、API digest 与 `SHA256SUMS` 均已回读核验，文件名、体积与哈希见[版本对照](docs/current-version.zh-CN.md)。
 - 未做 Magisk / KernelSU / APatch 真机矩阵：热更新 Canary 回滚、黑洞守护与卸载强清的真机行为未经实测，介意者请留在 v3.0.14 正式版。本次为稳定性预览，不替换 v3.0.14 正式版。
 
 ---

@@ -7,7 +7,7 @@
 
   <p>
     <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14"><img src="https://img.shields.io/badge/Stable-v3.0.14-14B8A6?style=for-the-badge&labelColor=0F172A" alt="Stable v3.0.14" /></a>
-    <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14-preview.1"><img src="https://img.shields.io/badge/Preview-v3.0.14--preview.1-F59E0B?style=for-the-badge&labelColor=0F172A" alt="Published preview v3.0.14-preview.1" /></a>
+    <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.1"><img src="https://img.shields.io/badge/Preview-v3.0.15--preview.1-F59E0B?style=for-the-badge&labelColor=0F172A" alt="Published preview v3.0.15-preview.1" /></a>
     <a href="https://github.com/Wuwan94/wanBoxForAndroid/stargazers"><img src="https://img.shields.io/github/stars/Wuwan94/wanBoxForAndroid?style=for-the-badge&color=0F172A" alt="GitHub stars" /></a>
     <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPL--3.0-64748B?style=for-the-badge" alt="GPL-3.0 License" /></a>
   </p>
@@ -23,9 +23,9 @@
   </p>
 </div>
 
-> **版本发布**：当前已发布正式版为 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14)，已发布预览版为 [v3.0.14-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14-preview.1)。
+> **版本发布**：当前已发布正式版为 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14)，已发布预览版为 [v3.0.15-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.1)。
 
-Published releases: stable v3.0.14 and preview v3.0.14-preview.1.
+Published releases: stable v3.0.14 and preview v3.0.15-preview.1.
 
 ---
 
