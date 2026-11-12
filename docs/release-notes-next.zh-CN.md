@@ -1,158 +1,67 @@
 # v3.0.15-preview.1 发行说明
 
-**状态：已发布的稳定性预览版。** 由仓库 `Preview Build` 正式发布，tag 指向合并提交 `5aca93bee39a9d07a56d750908e0d9c88ad5f90c`；不替换稳定版 v3.0.14。正式资产和哈希核验记录见[版本对照](current-version.zh-CN.md)。
+**状态：已发布的稳定性预览版。** 本版由仓库 `Preview Build` 正式发布；[Release 页面](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.1) tag 指向合并提交 `5aca93bee39a9d07a56d750908e0d9c88ad5f90c`。本版不替换稳定版 `v3.0.14`。
 
-本版主题是模块免重启热更新加固与卸载纯净治理：热更新引入 5 秒 Canary 健康观察与自动回滚、提交后自动清除 Magisk 更新标记并广播新版本码、切换间隙以 pref 9001 黑洞路由守护防真实 IP 泄露；卸载脚本重构为五轨兜底，用户配置默认保留。均为稳定性与数据安全修复，无界面功能增减。
+本版重点攻克 Root 模块在 Magisk / KernelSU / APatch 环境下的**免重启热更新加固**与**卸载纯净治理**。均为底层稳定性、数据安全与网络连续性修复，无界面功能增减。
 
-## 安装与版本
+---
 
-- Android 12+、arm64-v8a、Root（Magisk / KernelSU / APatch）；瘦 APK 不含原生核心，由配套 Root 模块持有核心，无普通 VPN 回退。
-- 源码元数据为 `PRE_VERSION_NAME=3.0.15-preview.1`、Root 模块码 `2027`、APK `versionCode=10136`；正式线 `3.0.14 / 2026`。版本码由共享固定向量计算。
-- 功能由 PR #33 合入（合并提交 `28a7620181a720e64538c90ed8958b2c4e6f3223`），发布前 code-review 双轴自审的修复由 PR #34 合入（合并提交 `5aca93bee39a9d07a56d750908e0d9c88ad5f90c`）。
+## ✦ 核心演进
 
-## 验证与边界
+### 1. 热更新 5 秒 Canary 观察与自动回滚
+新核心启动后进入 5 秒健康观察期（以 500ms 为周期双重核验：底层进程存活 + Clash 控制器 `/version` 回环探活）。若新核心在观察期内秒退或控制器未响应，系统立即触发 Fail-Safe 回滚恢复旧版模块并记录审计事件 `module_update_canary_failed_rolled_back`；只有健康核验全绿通过，才安全销毁旧备份并提交热更新。
 
-- 源码侧验证：Go 全量测试、仓库 Python 测试套件（tools 108 例 + rootmodule 15 例）与版本文档一致性检查通过；arm64 交叉编译通过。
-- 正式 `Preview Build` run `43203156796` 从获批合并提交 `5aca93bee39a9d07a56d750908e0d9c88ad5f90c` 生成并发布正式签名资产；发布后四件套、API digest 与 `SHA256SUMS` 已回读核验。
-- 上一预览 v3.0.14-preview.1 的 Release/tag 已按单预览保留策略删除；稳定版 v3.0.14 保留。
-- 未做 Magisk / KernelSU / APatch 真机矩阵；模拟器、JVM 与静态检查不能替代 Root 真机签核，不据此晋升正式版。
+### 2. 切换间隙瞬态黑洞守护（Fail-Closed）
+为防止旧核心退出至新核心接管 TUN 的毫秒级窗口发生直连外溢，旧核心停止前先注入 `pref 9001 blackhole` 策略路由（TUN 自动路由为 `pref 9000`）。切换间隙流量严格落入黑洞而非物理网卡，杜绝真实 IP 泄漏；新核心就绪或回滚完成后自动解除。若热更新与回滚均失败，黑洞保持开启以维持 Fail-Closed 边界。
+
+### 3. Magisk / KernelSU 更新标记自动收口
+热更新提交后，主动清理模块目录下的 `update` 标志文件，Root 管理器不再误报“重启后生效”；同时通过事件通道广播 `module_hot_update_committed:<versionCode>`，已在前台运行的管理器 App 无需杀进程重启即可在设置页实时刷新模块版本码。
+
+### 4. 卸载脚本五轨纯净收尾（防断网黑洞）
+重构 `uninstall.sh` 为五轨防御机制：
+- **轨 1**：优先调用 `wanboxctl stop` 优雅停机；
+- **轨 2**：二进制损坏或死锁时，原生 Shell 梯级信号强退（`SIGTERM` → 2s 超时 → `SIGKILL`），杜绝孤儿进程卡死；
+- **轨 3**：强制注销 `wanbox-tun` 虚拟网卡，清理 `pref 9000` 与 `pref 9001` 专有策略路由，网络彻底恢复物理直连；
+- **轨 4**：清理 `/data/adb/wanbox/run/*` 锁文件与临时 IPC 资产；
+- **轨 5**：用户数据安全隔离。任一步骤失败均不中断后续清理，脚本恒定以 `exit 0` 退出。
+
+### 5. 用户数据默认保护
+卸载时默认保留 `/data/adb/wanbox/config/` 下的用户节点与订阅配置，避免误点卸载丢失数据；仅在检测到显式全清标记 `/data/adb/wanbox/.purge_user_data` 时才彻底清除目录。
+
+---
+
+## 📦 资产清单与运行环境
+
+- **运行要求**：Android 12+ (API 31+) · arm64-v8a · Magisk / KernelSU / APatch 已 Root 设备。
+- **管理器形态**：纯瘦管理器（APK 约 6.19 MiB），核心仅随 Root 模块分发，不提供普通 VPN 回退。
+- **版本对齐**：模块码 `2027`，APK `versionCode=10136`（高于正式版 3.0.14 的 10130，可直接覆盖安装）。
+
+本 Release 提供 4 个资产，必须**成套配对使用**：
+
+```
+wanBoxForAndroid-3.0.15-preview.1-arm64-v8a-release.apk  瘦身管理器
+wanbox-root-module-arm64-v8a.zip                         Root 核心模块（内核 + wanboxctl）
+wanbox-root-module-with-manager-arm64-v8a.zip             模块 + 管理器合一刷机包
+SHA256SUMS                                               上述资产校验和
+```
+
+---
+
+## 🛡️ 升级、回退与验证边界
+
+1. **升级与热更新**：直接覆盖安装新版 APK，并在 Root 管理器或关于页刷入模块 ZIP；生效后核心自动热重启，无需重启手机系统。
+2. **回退方案**：卸载预览版 APK，安装稳定版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 与配套模块（码 `2026`）。
+3. **验证边界**：本版已全量通过 Go 单测、Python 工具套件（108 项）与版本快照校验。未做全量真机矩阵，日常主力使用建议留在稳定版 v3.0.14。
 
 ---
 
 ## 历史归档：v3.0.14-preview.1 已发布说明
 
-> 以下为 preview.1 当时发布说明原文与历史验证记录，保留当时语境；该预览的六项复查修复已由 v3.0.14 正式版全量承接，正式说明见 [RELEASE_NOTES.md](../RELEASE_NOTES.md)。preview.1 的 Release/tag 保留，稳定版现为 v3.0.14。
+> 以下为 preview.1 当时发布说明原文；该预览的六项复查修复已由 v3.0.14 正式版全量承接，正式说明见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。稳定版现为 v3.0.14。
 
-# v3.0.14-preview.1 发行说明
-
-**状态：已发布的稳定性预览版。** 由仓库 `Preview Build` 正式发布，tag 指向合并提交 `8b4e60893dc4d783caeab1b0f5ddb6667aa0549d`；不替换稳定版 v3.0.11。正式资产和哈希核验记录见[版本对照](current-version.zh-CN.md)。
-
-## 更新
-
-本版在 preview.4 基础上落实 v3.0.13-preview.4 代码复查确认的剩余六项修复，无功能增减；preview.4 的功能内容保持不变：
-
-- **版本规则漂移守卫补齐**：`UpdateRelease.TAG_REGEX` 是版本规则的第三份拷贝且此前无守卫；现 `tools/version_code.py --check-app-tag` 将其纳入与 Kotlin/Python 同源的漂移检查，锚点缺失或范围漂移直接报错。
-- **更新包按版本戳绑定**：`UpdateDownload` 在下载校验通过后写入版本戳，`recentReady()` 只导出与当前已装 App 版本一致的更新包；此前仅按修改时间取「最近」一份，可能导出版本不匹配的模块，无版本戳的旧包不再被当作同版导出。
-- **导出独立守卫**：关于页导出最近模块改用独立的 `UpdateTask` 守卫，不再与检查/下载共用单飞锁；此前下载进行中点导出会被静默吞掉、无任何反馈。
-- **发布 tag 检查按状态码判定**：`tools/check_release_tag.sh` 改用 `gh api -i` 的 HTTP 状态行判定 tag 是否存在，不再匹配 gh 的报错文本，文本变化不再导致误判。
-- **代理不可用只认源头标记**：更新传输层在本机 mixed 代理连接被拒时抛出专属的 `UpdateProxyUnavailable` 标记，失败分类只认该标记；此前任意 `ConnectException` 都会被误判为代理不可用。
-- **清理已提交字节码**：删除误提交的 14 个 `tools/__pycache__/*.pyc`，`.gitignore` 增加 `__pycache__/` 与 `*.pyc`。
-
-## 安装与版本
-
-- Android 12+、arm64-v8a、Root（Magisk / KernelSU / APatch）；瘦 APK 不含原生核心，由配套 Root 模块持有核心，无普通 VPN 回退。
-- 发布元数据为 `PRE_VERSION_NAME=3.0.14-preview.1`、Root 模块码 `2025`、APK `versionCode=10126`；正式线 `3.0.11 / 2017` 不变。版本码由共享固定向量计算。
-- 包名、设置键及默认值、Room schema、备份/还原格式和同页同版配对规则保持不变；26 MiB 预算沿用。可分发 APK 与模块均来自正式签名构建，不使用本地临时测试签名资产。
-
-## 验证与边界
-
-- 六项修复由 PR #25 合入 main（合并提交 `1d769fad65768029374134a37bcb67d163deb42f`），Verify CI（run `42976607018`）的 Build LibCore 与 Build Android Debug APK 均成功。
-- 正式 `Preview Build` run `43003022425` 从获批合并提交 `8b4e60893dc4d783caeab1b0f5ddb6667aa0549d` 生成并发布正式签名资产；发布后四件套、API digest 与 `SHA256SUMS` 已回读核验。
-- preview.4 的同版覆盖重发被发布说明状态机校验拒绝，且版本规则每线最多 preview.4，故新开 3.0.14 线以 preview.1 发布，修复内容不变。
-- 未做 Magisk / KernelSU / APatch 真机矩阵；模拟器、JVM 与静态检查不能替代 Root 真机签核，不据此晋升正式版。
-
-
-## 历史归档：v3.0.13-preview.4 已发布说明
-
-> 以下为 preview.4 当时发布说明摘要与历史验证记录，不是 v3.0.14-preview.1 的功能或测试证据；preview.4 的 Release/tag 已删除，v3.0.14-preview.1 为其复查修复的顺延发布。
-
-# v3.0.13-preview.4 发行说明
-
-## 更新
-
-- **更新器生命周期**：页面 `onStop()` 只关闭对话框，检查/下载继续；返回时恢复进行中的任务或交付已完成结果。只有 `onDestroyView()` 才取消 view-scope 任务并清理未交接的本次下载目录；快速取消后重试不再被旧 Job 槽位阻塞。
-- **代理失败提示**：更新继续只经配置的本地 mixed 代理；本地连接拒绝或 mixed 入站禁用会明确提示核心/代理不可用，不作直连回退。失败弹窗保留打开 GitHub Release 页的手动下载按钮，错误文案有简体中文和英文资源。
-- **瘦模式节点延迟探测**：Kotlin 只读运行中的 profile-tag 映射，通过 `Proxy.NO_PROXY` 与 `Authorization` 请求绑定在 `127.0.0.1` 的 Clash Controller `/proxies/{tag}/delay`；不改当前节点、不跟随重定向、不经 mixed 代理绕回，瘦 APK 不含核心 JNI。
-- **QS Tile**：Connecting/Stopping 状态下忽略点击；服务切换前绕过状态缓存读取 fresh Root 状态，并在 Root 模块共享变更锁内原子决策和执行。回归测试覆盖过渡态、稳定态与并发变更争用。
-- **分应用列表**：包名/label 查询留在后台；可见行图标异步按需加载并引入 120 项原生 `LruCache` 内存缓存，复用 ViewHolder 前检查身份并在 Activity 销毁时清空引用，彻底消除快速滚动白块与重复 IPC；保留用户/系统应用过滤、UID 路由及导入导出路径。
-
-## 安装与版本
-
-- Android 12+、arm64-v8a、Root（Magisk / KernelSU / APatch）；瘦 APK 不含原生核心，由配套 Root 模块持有核心，无普通 VPN 回退。
-- 发布元数据为 `PRE_VERSION_NAME=3.0.13-preview.4`、Root 模块码 `2024`、APK `versionCode=10124`；正式线 `3.0.11 / 2017` 不变。版本码由共享固定向量计算。
-- 包名、设置键及默认值、Room schema、备份/还原格式和同页同版配对规则保持不变；26 MiB 预算由远端门禁通过。可分发 APK 与模块均来自正式签名构建，不使用本地临时测试签名资产。
-
-## 验证与边界
-
-- 最终 PR head `ffdfc8e96bbf851558bb81d0b669e8055b79765a` 的 PR CI `42943516659` 与完整 verify/closeout `42943570310` 均成功；详细记录见 `docs/reports/v3.0.13-preview.4-evolution.zh-CN.md`。
-- preview.3→preview.4、preview.4→preview.3 的导出/导入四个方向均在 Android 35 x86_64 模拟器各 `OK (1 test)`；不是 Root 真机验证。
-- 未做 Magisk / KernelSU / APatch 真机矩阵；模拟器、JVM 与静态检查不能替代 Root 真机签核，不据此晋升正式版。
-
-
----
-
-## 历史归档：v3.0.13-preview.3 已发布说明
-
-> 以下为 preview.3 当时发布说明摘要与历史验证记录，不是 preview.4 的功能或测试证据；preview.3 的 Release/tag 已在 preview.4 新资产核验后清理。
-
-# v3.0.13-preview.3 发行说明
-
-preview.3 使用 `UpdateTransport` 经本地 mixed 代理检查和下载、校验更新包；任务原先在 `onStop()` 取消，已在 preview.4 中修正为离页继续。该版还收紧 Release tag 检查、最终 packaged Manifest 安全检查，并固定 GeoIP / GeoSite 来源和 SHA-256。
-
-版本映射为模块码 `2023` / APK `10118`，正式线 `3.0.11 / 2017` 不变。该版历史记录称本地 JVM 381 项、工具 98 项、模块 11 项、诊断 3 项通过，并记录 CI `42786037533` 与文档 HEAD CI `42790934488`；此前签名瘦 APK + 普通模块 22.76 MiB 是旧源码数据，不可替代本轮实测。旧记录注明当时未做跨版本备份互通与 Root 真机矩阵。
-
----
-
-## 历史归档：v3.0.13-preview.2 已发布说明
-
-> 以下保留 preview.2 发布时的原文、测试数及历史语境，不作为 preview.3 验证结果。该版在新预览成功核验后按渠道策略清理。
-
-# v3.0.13-preview.2 发行说明
-
-**状态：稳定性预览版。** 本版由仓库 `Preview Build` 工作流从 main 上经审查的提交构建并发布，不替换 v3.0.11 正式版。已发布正式版为 v3.0.11，上一版预览 v3.0.13-preview.1 的 Release 与 tag 已按预览渠道策略清理；发布前的候选阶段记录保留在提交历史与中文候选报告中，安装请以本 Release 页四件套为唯一来源。未做真机回归，不据此晋升正式版。
-
-## 更新
-
-- **更新渠道与版本身份**：机器版本身份只取校验后的 `tag_name`，`name`（含中文展示标题与数字描述）仅用于展示；正式检查只选正式版、预览检查只选预览版，预览渠道不隐式迁移到更新的正式版。候选按严格语义版本排序，排除 draft、无效 tag、超大数字与不匹配渠道，并排除发布时间与 API 数组顺序的影响；分页有硬边界。资产不全时明确提示并给发布页入口，不说成「已经最新」，也不跨 Release 拼接文件。
-- **更新包持有与交接**：已校验的更新包仍按「保留 1 小时、最多 2 份」的既有策略回收，不再表述为对消费者的永久持有保证；补上系统时间回拨、删除失败、并发完成顺序的边界记账。新增受限 FileProvider（只暴露 `cache/updates/`）与「保存 Root 模块 ZIP」「导出最近校验的 Root 模块」入口，升级重启后用户仍能把同版模块交给 Root 管理器，不再只给私有 cache 绝对路径。不静默安装、不开放整个缓存目录。
-- **发布文档一致性**：对齐 README 中英快照、版本对照、发布清单、本文件与下一版说明；新增可离线运行的当前版本文档一致性检查及注入漂移的回归测试，挂入现有 Python 验证流程。历史 SHA、测试数量与旧版数值保留归档语境，不改名成本轮结果。
-
-保留 preview.1 的显示偏好重绑、节点列表代数/修订防旧值覆盖、URLTest 五秒总预算与共享在途结果，作为回归保护；本轮不对这些模块做无证据重构。工具链与内核不变：Gradle 8.13 / AGP 8.11.1 / Kotlin 2.2.21 / KSP 2.2.21-2.0.4 / compileSdk 36 / Room 2.7.2；targetSdk 35、minSdk 31、JDK 17、Build Tools 35.0.1；内核固定 `reF1nd/sing-box v1.15.0-alpha.13-reF1nd`。
-
-## 安装与版本
-
-- Android 12+、arm64-v8a、Root（Magisk / KernelSU / APatch），瘦管理器不含内核，无普通 VPN 回退。
-- 本版元数据 `PRE_VERSION_NAME=3.0.13-preview.2`、`PRE_VERSION_CODE=2022`，按 `metadataCode*5+previewSuffix` 得 APK `10112`，高于上一版预览的 2021/10106；正式线 `VERSION_NAME=3.0.11`、`VERSION_CODE=2017` 不改动。实际发布产物的版本码已由工作流与资产回读核验。
-- 包名、签名、设置键及默认值、Room schema 和备份格式不变；管理器和 Root 模块必须同一发布页同版成套更新。
-- **成套下载**：请从本 Release 页下载 arm64-v8a 瘦 APK、普通 Root 模块、带管理器 Root 模块与 `SHA256SUMS`，先核对哈希；管理器和 Root 模块必须同页同版成套更新，不要只更新其中一个。
-
-## 自动化验证及边界
-
-- 本地已实跑：Oss / PreviewDebug JVM 单测各 373 项、Python 工具测试 80 项、两套 debug APK 构建、版本码共享向量、Android 安全检查与 `git diff --check`。
-- 仓库 `Verify Android Build` 运行 `42582172641` 全绿；`Preview Build` 运行 `42584446640` 的原生构建、OSS APK、模拟器冷启动测量与发布作业全部成功，四件套资产已回读核验；发布 tag 指向 main 提交 `320f8173e59576d7891ac824c262db68bccf936c`。
-- 未做 Magisk、KernelSU、APatch 真机矩阵或实体设备回归；模拟器、JVM 与静态检查不能替代 Root 真机验证。
-
----
-
-## 历史归档：v3.0.13-preview.1 已发布说明
-
-> 以下为 v3.0.13-preview.1 已发布说明原文（该 Release 与 tag 已按预览渠道策略清理），保留当时语境、版本码与测试数量，不作为本轮 v3.0.13-preview.2 的结果。
-
-# v3.0.13-preview.1 发行说明
-
-稳定性修复预览，不替换 v3.0.11 正式版。未做真机回归。
-
-## 更新内容
-
-本版落实 v3.0.12-preview.4 复审中确认的问题，均为稳定性与一致性修复，无功能增减：
-
-- 更新器不再删掉正在使用的更新包。此前新一次下载开始时会删除上一次已校验就绪的 APK 与 Root 模块 ZIP，而系统安装器或 Root 管理器可能仍在读取；安装 APK 会重启应用，模块要在之后才刷入。现已就绪的更新包保留 1 小时，最多保留最新 2 份；下载失败只清理本次目录；安装入口不可用时立即释放。新增 5 项 JVM 回归测试，覆盖持有期间并发下载、失败只清自身、释放、过期、数量上限与应用重启后的残留。
-- 切换「始终显示地址」后返回配置页，已有节点卡片立即按新设置显示。此前只有布局或列数变化才会重绑卡片，地址开关要等滚动后才生效。新增 3 项 JVM 测试。
-- 版本码规则改为共享固定向量对照。新增 `tools/version_code_vectors.txt`，Python 规则测试与 Gradle 构建期对 Kotlin 实现的实际计算结果使用同一组向量（正式与预览、预览序号、无效后缀、非正数、溢出边界），任一侧不符即失败；Kotlin 侧补齐此前只有 Python 才有的正整数与溢出校验。
-
-工具链与内核不变：Gradle 8.13 / AGP 8.11.1 / Kotlin 2.2.21 / KSP 2.2.21-2.0.4 / compileSdk 36 / Room 2.7.2；targetSdk 35、minSdk 31、JDK 17、Build Tools 35.0.1；内核固定 `reF1nd/sing-box v1.15.0-alpha.13-reF1nd`。
-
-## 安装与版本
-
-- Android 12+、arm64-v8a、Root（Magisk / KernelSU / APatch），瘦管理器不含内核，无普通 VPN 回退。
-- 预览名 `3.0.13-preview.1`，Root 模块码 `2021`，APK `versionCode=10106`；按既有 `metadataCode*5+previewSuffix` 计算，高于 preview.4 的 2020/10104。版本码规则只允许 `-preview.1` 到 `-preview.4`，所以本版从 3.0.13 预览线开始，而不是 3.0.12-preview.5。
-- 包名与签名不变，可覆盖安装；备份格式不变。
-- 管理器和 Root 模块必须同页同版成套更新，不能只更新其中一个。
-
-## 自动化验证与边界
-
-- 本地验证：更新器 JVM 测试 13 项、显示设置 JVM 测试 3 项全部通过，新增的 4 项生命周期测试在旧代码上确实失败；tools 下 Python 工具测试全部通过；Kotlin 版本码校验函数单独编译实测，能识别人为制造的规则偏差。
-- CI 验证：以 PR #17 的 `Verify Android Build` 全量结果为准（Kotlin 编译、全部 JVM 单元测试、Release 变体、数据库迁移、Magisk 模块）。
-- 未做 Magisk、KernelSU、APatch 真机矩阵或实体设备回归；自动化结果不等同于这些 Root 环境的实测。本次为预览版，不替换 v3.0.11 正式版。
-
----
+### v3.0.14-preview.1 更新摘要
+- **版本规则漂移守卫**：`tools/version_code.py --check-app-tag` 纳入三端同源漂移校验。
+- **更新包版本戳绑定**：`UpdateDownload` 引入版本戳强绑定，彻底杜绝错版模块导出。
+- **导出任务独立守卫**：关于页导出脱离下载单飞锁，避免静默吞并。
+- **状态码判定发布 Tag**：`check_release_tag.sh` 改用 HTTP 状态行判定，消除报错文本正则误判。
+- **代理错误脱敏与源头判定**：仅认 `UpdateProxyUnavailable` 专属标记，不暴露凭据明文。
