@@ -130,6 +130,7 @@ exit 0
         self.assertIsNotNone(sleeper.poll())               # orphan really killed
         self.assertIn("ip link delete wanbox-tun", calls)  # TUN blackhole removed
         self.assertIn("ip rule del pref 9000", calls)      # policy route removed
+        self.assertIn("ip rule del pref 9001", calls)      # hot-update guard removed
 
     def test_broken_binary_falls_back_to_native_kill(self):
         result, calls, sleeper, fallback_used = self.run_uninstall("failing")

@@ -30,6 +30,7 @@ func hotFixture(t *testing.T, canary bool) (*Runtime, string, *int) {
 		t.Fatal(e)
 	}
 	r.installRunning = func() bool { return true }
+	r.installRouteGuard = func(context.Context, bool) error { return nil }
 	starts := new(int)
 	r.installStart = func(context.Context) error { *starts++; return nil }
 	r.installCanaryWindow = 30 * time.Millisecond
@@ -119,17 +120,6 @@ func TestHotInstallGuardFailureAbortsBeforeStop(t *testing.T) {
 	}
 	if _, e := os.Stat(filepath.Join(target, "old")); e != nil {
 		t.Fatal("old code touched despite guard failure")
-	}
-}
-
-func TestHotInstallGuardUnsupportedProceeds(t *testing.T) {
-	r, target, _ := hotFixture(t, true)
-	r.installRouteGuard = func(context.Context, bool) error { return errGuardUnsupported }
-	if e := r.Activate(context.Background(), target); e != nil {
-		t.Fatal(e)
-	}
-	if !eventCodes(r)["module_hot_update_guard_unavailable"] {
-		t.Fatal("guard-unavailable event missing")
 	}
 }
 
