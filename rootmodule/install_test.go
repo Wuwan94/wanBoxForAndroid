@@ -121,6 +121,7 @@ func TestHotInstallFailedRestartRestoresOldCodeAndSnapshot(t *testing.T) {
 	os.Mkdir(target, 0700)
 	os.WriteFile(filepath.Join(target, "old"), []byte("old"), 0600)
 	r.installRunning = func() bool { return true }
+	r.installRouteGuard = func(context.Context, bool) error { return nil }
 	attempts := 0
 	r.installStart = func(context.Context) error {
 		attempts++

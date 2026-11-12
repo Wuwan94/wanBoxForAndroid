@@ -60,6 +60,9 @@ ip rule show 2>/dev/null | grep -E "wanbox|9000" | while read -r line; do
         ip rule del pref "$pref" 2>/dev/null
     fi
 done
+# 热更新瞬态黑洞守护占 pref 9001，规则行不含 wanbox 字样，须显式清除，
+# 否则卸载后可能残留永久黑洞导致断网
+ip rule del pref 9001 2>/dev/null
 
 # 轨 4：运行时垃圾与临时挂载清理
 log "清理运行时锁文件与 IPC 套接字..."

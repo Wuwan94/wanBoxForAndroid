@@ -252,15 +252,12 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 			}
 		}
 		if needGuard {
+			// Fail-closed: a guard that cannot be installed aborts the
+			// switch before the old core stops (CONTRIBUTING §1.3).
 			if e := r.routeGuard(ctx, true); e != nil {
-				if errors.Is(e, errGuardUnsupported) {
-					r.recordEvent("module_hot_update_guard_unavailable")
-				} else {
-					return errors.New("hot_update_guard_failed")
-				}
-			} else {
-				guardOn = true
+				return errors.New("hot_update_guard_failed")
 			}
+			guardOn = true
 		}
 		backup, e := os.MkdirTemp(parent, ".wanbox-previous-")
 		if e != nil {
@@ -346,15 +343,16 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 				return rollback()
 			}
 			releaseGuard()
-		}
-		if hadOld {
-			// The hot switch is committed: the running code IS the update,
-			// so drop the manager's pending-update flag and broadcast the
-			// new versionCode on the status event channel for the App.
-			clearUpdateMarker(target)
+			// Broadcast only on a live commit: the new core started and
+			// passed its canary, so the App may jump its version display.
 			if code, ok := moduleVersionCode(target); ok {
 				r.recordEvent("module_hot_update_committed:" + strconv.Itoa(code))
 			}
+		}
+		if hadOld {
+			// The switch is committed: the installed code IS the update,
+			// so drop the manager's pending-update flag unconditionally.
+			clearUpdateMarker(target)
 			if e = os.RemoveAll(backup); e != nil {
 				// The new module is already running; retaining the private old-code
 				// directory is safer than reporting a failed update or deleting data.

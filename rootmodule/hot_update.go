@@ -25,8 +25,6 @@ import (
 
 const guardRulePref = "9001"
 
-var errGuardUnsupported = errors.New("hot_update_guard_unsupported")
-
 // routeGuard installs or removes the transient blackhole rule. Test seams
 // replace it wholesale; the default shells out to iproute2 like the rest of
 // the module's fixed system commands.
@@ -37,10 +35,14 @@ func (r *Runtime) routeGuard(ctx context.Context, enable bool) error {
 	return defaultRouteGuard(ctx, enable)
 }
 
+// defaultRouteGuard is strictly fail-closed (CONTRIBUTING §1.3): any
+// failure to install the guard — missing binary, missing capability, kernel
+// refusal — aborts the switch before the old core stops. There is no
+// degraded mode; test environments seam installRouteGuard instead.
 func defaultRouteGuard(ctx context.Context, enable bool) error {
 	ip, err := exec.LookPath("ip")
 	if err != nil {
-		return errGuardUnsupported
+		return errors.New("hot_update_guard_failed")
 	}
 	var args []string
 	if enable {
@@ -54,11 +56,6 @@ func defaultRouteGuard(ctx context.Context, enable bool) error {
 	}
 	text := string(out)
 	switch {
-	case strings.Contains(text, "Operation not permitted"):
-		// Sandboxed/CI kernels without CAP_NET_ADMIN: no code on this host
-		// could install the rule. Production root shells have the capability,
-		// so any other failure stays fail-closed and aborts the switch.
-		return errGuardUnsupported
 	case enable && strings.Contains(text, "File exists"):
 		return nil // already installed (idempotent)
 	case !enable && (strings.Contains(text, "No such file") || strings.Contains(text, "No such process")):
