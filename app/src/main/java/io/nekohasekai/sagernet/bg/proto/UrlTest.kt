@@ -12,7 +12,7 @@ class UrlTest(private val overrideLink: String? = null) {
 
     fun resolveLink(profile: ProxyEntity): String {
         if (!overrideLink.isNullOrBlank()) return overrideLink
-        return DataStore.groupUrlTestUrl(profile.groupId)
+        return DataStore.resolvedGroupUrlTestUrl(profile.groupId)
     }
 
     suspend fun doTest(profile: ProxyEntity, useCache: Boolean = true): Int {

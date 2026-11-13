@@ -377,11 +377,12 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var groupIsSelector by profileCacheStore.boolean(Key.GROUP_IS_SELECTOR)
     var groupIsUrlTest by profileCacheStore.boolean("groupIsUrlTest")
     var groupIsLoadBalance by profileCacheStore.boolean("groupIsLoadBalance")
-    private var rawGroupUrlTestUrl by profileCacheStore.string("groupUrlTestUrl") { "" }
-    var groupUrlTestUrl: String
-        get() = rawGroupUrlTestUrl
+    private var rawGroupUrlTestUrlOverride by profileCacheStore.string("groupUrlTestUrl") { "" }
+    // Blank is intentional: it follows the current global URL test setting.
+    var groupUrlTestUrlOverride: String
+        get() = rawGroupUrlTestUrlOverride
         set(value) {
-            rawGroupUrlTestUrl = value
+            rawGroupUrlTestUrlOverride = value
         }
     var groupUrlTestInterval by profileCacheStore.stringToInt("groupUrlTestInterval") { 600 }
     var groupUrlTestTolerance by profileCacheStore.stringToInt("groupUrlTestTolerance") { 100 }
@@ -415,7 +416,7 @@ object DataStore : OnPreferenceDataStoreChangeListener {
         }
         return stored
     }
-    fun groupUrlTestUrl(groupId: Long): String =
+    fun resolvedGroupUrlTestUrl(groupId: Long): String =
         readAndMigrateGroupUrlTestUrlOverride(groupId).trim().takeIf { it.isNotBlank() } ?: connectionTestURL
     fun setGroupUrlTestUrl(groupId: Long, value: String) {
         configurationStore.putString("group_${groupId}_urlTestUrl", value)

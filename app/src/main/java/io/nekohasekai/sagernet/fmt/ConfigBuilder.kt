@@ -1335,7 +1335,7 @@ fun buildConfig(
                 tagMap[it.id] = buildChain(it.id, it)
             }
             if (useAutoSelect && tagMap.isNotEmpty()) {
-                val testUrl = group?.let { DataStore.groupUrlTestUrl(it.id) }
+                val testUrl = group?.let { DataStore.resolvedGroupUrlTestUrl(it.id) }
                 val intervalVal = group?.let { DataStore.groupUrlTestInterval(it.id) }
                 val toleranceVal = group?.let { DataStore.groupUrlTestTolerance(it.id) }
                 val idleTimeoutVal = group?.let { DataStore.groupUrlTestIdleTimeout(it.id) }
@@ -1356,7 +1356,7 @@ fun buildConfig(
                     0,
                     buildLoadBalanceOutbound(
                         tagMap.values.toList(),
-                        testUrl = group?.let { DataStore.groupUrlTestUrl(it.id) },
+                        testUrl = group?.let { DataStore.resolvedGroupUrlTestUrl(it.id) },
                         customTag = TAG_PROXY
                     )
                 )

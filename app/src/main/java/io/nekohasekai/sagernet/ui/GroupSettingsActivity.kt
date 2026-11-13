@@ -51,7 +51,7 @@ class GroupSettingsActivity(
         DataStore.groupIsSelector = isSelector
         DataStore.groupIsUrlTest = DataStore.groupIsUrlTest(id)
         DataStore.groupIsLoadBalance = DataStore.groupIsLoadBalance(id)
-        DataStore.groupUrlTestUrl = DataStore.readAndMigrateGroupUrlTestUrlOverride(id)
+        DataStore.groupUrlTestUrlOverride = DataStore.readAndMigrateGroupUrlTestUrlOverride(id)
         DataStore.groupUrlTestInterval = DataStore.groupUrlTestInterval(id).toInt()
         DataStore.groupUrlTestTolerance = DataStore.groupUrlTestTolerance(id)
         DataStore.groupUrlTestIdleTimeout = DataStore.groupUrlTestIdleTimeout(id)
@@ -97,7 +97,7 @@ class GroupSettingsActivity(
         isSelector = DataStore.groupIsSelector
         DataStore.setGroupIsUrlTest(id, false)
         DataStore.setGroupIsLoadBalance(id, false)
-        DataStore.setGroupUrlTestUrl(id, DataStore.groupUrlTestUrl)
+        DataStore.setGroupUrlTestUrl(id, DataStore.groupUrlTestUrlOverride)
         DataStore.setGroupUrlTestInterval(id, DataStore.groupUrlTestInterval.toLong())
         DataStore.setGroupUrlTestTolerance(id, DataStore.groupUrlTestTolerance)
         DataStore.setGroupUrlTestIdleTimeout(id, DataStore.groupUrlTestIdleTimeout)

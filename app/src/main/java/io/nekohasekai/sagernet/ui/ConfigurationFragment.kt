@@ -2064,7 +2064,7 @@ class ConfigurationFragment @JvmOverloads constructor(
     }
 
     fun urlTestSingle(profile: ProxyEntity) {
-        val targetUrl = DataStore.groupUrlTestUrl(profile.groupId).takeIf { it.isNotBlank() } ?: DataStore.connectionTestURL
+        val targetUrl = DataStore.resolvedGroupUrlTestUrl(profile.groupId)
         runOnDefaultDispatcher {
             profile.status = 0
             profile.ping = 0
