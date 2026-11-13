@@ -1865,7 +1865,14 @@ fun buildConfig(
             // 构建最优先前置路由规则（须位于所有用户规则之前）
             val topRouteRules = mutableListOf<Rule>()
 
-            // @author 雾晚: match Root's configured probe before sniff/resolve and user routes.
+            // 1. sing-box 1.13：sniff（须位于规则最前）
+            if (needSniff) {
+                topRouteRules.add(Rule_DefaultOptions().apply {
+                    action = "sniff"
+                })
+            }
+
+            // @author 雾晚: sniff must run before Root's configured probe/domain routes.
             // This keeps local CONNECT measurements on the same selected proxy as core tests.
             if (isRootTun) {
                 val probeHost = runCatching { java.net.URI(DataStore.connectionTestURL).host }.getOrNull()
@@ -1873,13 +1880,6 @@ fun buildConfig(
                     inbound = listOf(TAG_MIXED)
                     domain = listOf(probeHost)
                     outbound = mainProxyTag
-                })
-            }
-
-            // 1. sing-box 1.13：sniff（须位于规则最前）
-            if (needSniff) {
-                topRouteRules.add(Rule_DefaultOptions().apply {
-                    action = "sniff"
                 })
             }
 
@@ -1944,16 +1944,6 @@ fun buildConfig(
                 })
             }
 
-            // 7. 未拦截远程 DNS 兜底保护（port 53 / protocol dns 流量强制走代理）
-            topRouteRules.add(Rule_DefaultOptions().apply {
-                port = listOf(53)
-                outbound = mainProxyTag
-            })
-            topRouteRules.add(Rule_DefaultOptions().apply {
-                protocol = listOf("dns")
-                outbound = mainProxyTag
-            })
-
             route.rules.addAll(0, topRouteRules)
 
             if (DataStore.bypassLanInCore) {
@@ -1965,7 +1955,6 @@ fun buildConfig(
             // block mcast
             route.rules.add(Rule_DefaultOptions().apply {
                 ip_cidr = listOf("224.0.0.0/3", "ff00::/8")
-                source_ip_cidr = listOf("224.0.0.0/3", "ff00::/8")
                 action = "reject"
             })
             // FakeDNS obj (sing-box 1.14: fakeip configured as a server in dns.servers)
