@@ -86,6 +86,23 @@ class PortableBackupCompatibilityTest {
         val unselected = BackupRestore.parse(JSONObject().put("version", 1).put("rules", JSONArray()))
         assertNull(unselected.settings)
     }
+    @Test fun ruleArraysMayMixReadableJsonAndLegacyParcelEntries() {
+        val readableRule = RuleEntity(id = 821, name = "readable", userOrder = 1, enabled = true,
+            domains = "full:json.invalid", outbound = -1, packages = setOf("com.example.json"))
+        val parcelRule = RuleEntity(id = 822, name = "legacy", userOrder = 2, enabled = true,
+            domains = "full:parcel.invalid", outbound = -1, packages = setOf("com.example.parcel"))
+        val portable = PortableBackup.document(PortableBackup.encode(
+            BackupRestore.Plan(null, null, listOf(readableRule), null)
+        ))
+        val jsonRule = portable.getJSONArray("rules").getJSONObject(0)
+        val mixedRules = JSONArray().put(jsonRule).put(parcel(parcelRule))
+        val legacy = JSONObject().put("version", 1).put("rules", JSONArray().put(jsonRule).put(parcel(parcelRule)))
+        portable.put("rules", mixedRules)
+
+        for (backup in listOf(legacy, portable)) {
+            assertEquals(listOf(readableRule, parcelRule), BackupRestore.parse(backup).rules)
+        }
+    }
     @Test fun cancelledOrFailedRestoreKeepsAllDatabasesIntact() {
         val original=snapshot()
         try {
