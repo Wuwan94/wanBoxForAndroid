@@ -25,7 +25,7 @@ object PortableBackup {
     private val proxyFields = setOf("id", "groupId", "type", "userOrder", "tx", "rx", "status", "ping", "uuid", "error",
         "speedTestMode", "speedTestDownloadBitsPerSecond", "speedTestUploadBitsPerSecond")
     // Versioned backup defaults mirror wanBox DataStore defaults. Root-only builds intentionally
-    // exclude the upstream TUN implementation setting; mixedPort is per-Android-user.
+    // omit TUN and migration-marker settings; mixedPort is per-Android-user.
     private val coreSettingDefaults = linkedMapOf<String, Any>(
         Key.GLOBAL_MODE to false,
         Key.TRAFFIC_SNIFFING to "1",
@@ -55,7 +55,6 @@ object PortableBackup {
         Key.WIFI_POLICY_LIST to "",
         Key.MOBILE_DATA_POLICY to "0",
         Key.ROOT_UID_POLICY to "0",
-        Key.INPUT_METHOD_DIRECT to false,
         Key.ALLOW_ACCESS to false,
     )
     internal fun withCoreSettingDefaults(settings: List<KeyValuePair>): List<KeyValuePair> {
