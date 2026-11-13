@@ -97,6 +97,10 @@ object PortableBackup {
         fields(obj, names(type))
         return gson.fromJson(obj.toString(), type)
     }
+    internal fun parseRuleObject(obj: JSONObject): RuleEntity = model(obj, RuleEntity::class.java).apply {
+        require(listOf(name, config, domains, ip, port, sourcePort, network, source, protocol, ruleset).all { it != null })
+        require(packages != null && packages.all { it != null })
+    }
     fun encode(plan: BackupRestore.Plan): ByteArray {
         BackupRestore.validate(plan)
         val root = JSONObject().put("format", FORMAT).put("schemaVersion", VERSION)
@@ -142,10 +146,7 @@ object PortableBackup {
             if (obj.has("subscription") && !obj.isNull("subscription")) fields(obj.getJSONObject("subscription"), names(SubscriptionBean::class.java))
             subscription?.initializeDefaultValues()
         } }
-        val rules = section("rules") { obj -> model(obj, RuleEntity::class.java).apply {
-            require(listOf(name, config, domains, ip, port, sourcePort, network, source, protocol, ruleset).all { it != null })
-            require(packages != null && packages.all { it != null })
-        } }
+        val rules = BackupRestore.decodeMixedRules(root)
         val parsedSettings = section("settings") { obj ->
             fields(obj, setOf("key", "valueType", "valueBase64"))
             KeyValuePair(obj.getString("key")).apply {

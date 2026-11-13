@@ -33,6 +33,36 @@ object BackupRestore {
         }
     }
 
+    private fun decodeRuleParcel(encoded: String): RuleEntity {
+        val bytes = PortableBackup.strictBase64(encoded)
+        require(bytes.size >= 4 && bytes.size % 4 == 0) { "备份记录长度无效" }
+        val parcel = Parcel.obtain()
+        try {
+            parcel.unmarshall(bytes, 0, bytes.size)
+            parcel.setDataPosition(0)
+            ParcelizeBridge.createRule(parcel).also { require(parcel.dataAvail() == 0) { "备份记录包含无效数据" } }
+        } finally {
+            parcel.recycle()
+        }
+    }
+
+    internal fun decodeMixedRules(content: JSONObject): List<RuleEntity>? {
+        if (!content.has("rules")) return null
+        val array = content.getJSONArray("rules")
+        require(array.length() <= PortableBackup.RECORDS) { "备份记录数量超过限制" }
+        return (0 until array.length()).map { index ->
+            try {
+                when (val entry = array.get(index)) {
+                    is JSONObject -> PortableBackup.parseRuleObject(entry)
+                    is String -> decodeRuleParcel(entry)
+                    else -> throw IllegalArgumentException("规则记录格式无效")
+                }
+            } catch (error: Exception) {
+                throw IllegalArgumentException("备份 rules 第 ${index + 1} 条记录无效，请重新导出或使用原版本迁移", error)
+            }
+        }
+    }
+
     /** Decode all sections before any destructive statement, including unselected sections. */
     fun parse(content: JSONObject): Plan {
         if (content.has("schemaVersion") || content.has("format")) return PortableBackup.parse(content)
@@ -45,7 +75,7 @@ object BackupRestore {
         val groups = decode(content, "groups") { parcel ->
             io.nekohasekai.sagernet.fmt.KryoConverters.deserializeStrict(ProxyGroup(), parcel.createByteArray())
         }
-        val rules = decode(content, "rules", ParcelizeBridge::createRule)
+        val rules = decodeMixedRules(content)
         val decodedSettings = decode(content, "settings", KeyValuePair.CREATOR::createFromParcel)
         val settings = decodedSettings?.let { PortableBackup.withCoreSettingDefaults(it) }
         return Plan(profiles, groups, rules, settings).also(::validate)
