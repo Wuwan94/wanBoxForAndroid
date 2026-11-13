@@ -61,18 +61,18 @@ class GroupUrlTestSnapshotTest {
                 }?.asJsonObject ?: throw AssertionError("Root mixed-inbound app-level probe route rule is absent")
 
             DataStore.connectionTestURL = "https://global-one.example/204"
-            assertEquals(DataStore.connectionTestURL, UrlTest().resolveLink(main))
+            assertEquals(DataStore.connectionTestURL, UrlTest(null).resolveLink(main))
             val globalOneOutbound = proxyOutbound(config(snapshotBundle()))
             assertEquals("urltest", globalOneOutbound["type"]?.asString)
             assertEquals(DataStore.connectionTestURL, globalOneOutbound["url"].asString)
             DataStore.connectionTestURL = "https://global-two.example/204"
-            assertEquals(DataStore.connectionTestURL, UrlTest().resolveLink(main))
+            assertEquals(DataStore.connectionTestURL, UrlTest(null).resolveLink(main))
             val globalTwoOutbound = proxyOutbound(config(snapshotBundle()))
             assertEquals("urltest", globalTwoOutbound["type"]?.asString)
             assertEquals(DataStore.connectionTestURL, globalTwoOutbound["url"].asString)
 
             DataStore.setGroupUrlTestUrl(groupId, "https://group.example/204")
-            assertEquals("https://group.example/204", UrlTest().resolveLink(main))
+            assertEquals("https://group.example/204", UrlTest(null).resolveLink(main))
             val groupUrlBundle = snapshotBundle()
             val groupUrlSnapshot = config(groupUrlBundle)
             val groupUrlOutbound = proxyOutbound(groupUrlSnapshot)
@@ -86,13 +86,13 @@ class GroupUrlTestSnapshotTest {
 
             val secondGroupProfile = ProxyEntity(id = peerId + 1, groupId = secondGroupId)
             DataStore.setGroupUrlTestUrl(groupId, SagerNet.application.getString(R.string.default_group_test_url))
-            assertEquals("https://global-two.example/204", UrlTest().resolveLink(main))
+            assertEquals("https://global-two.example/204", UrlTest(null).resolveLink(main))
             assertEquals("", DataStore.readAndMigrateGroupUrlTestUrlOverride(groupId))
             DataStore.setGroupUrlTestUrl(secondGroupId, "https://second-group.example/204")
-            assertEquals("https://second-group.example/204", UrlTest().resolveLink(secondGroupProfile))
+            assertEquals("https://second-group.example/204", UrlTest(null).resolveLink(secondGroupProfile))
             DataStore.connectionTestURL = "https://global-migrated.example/204"
-            assertEquals("https://global-migrated.example/204", UrlTest().resolveLink(main))
-            assertEquals("https://second-group.example/204", UrlTest().resolveLink(secondGroupProfile))
+            assertEquals("https://global-migrated.example/204", UrlTest(null).resolveLink(main))
+            assertEquals("https://second-group.example/204", UrlTest(null).resolveLink(secondGroupProfile))
 
             DataStore.setGroupUrlTestUrl(editorId, SagerNet.application.getString(R.string.default_group_test_url))
             DataStore.groupUrlTestUrlOverride = DataStore.readAndMigrateGroupUrlTestUrlOverride(editorId)
