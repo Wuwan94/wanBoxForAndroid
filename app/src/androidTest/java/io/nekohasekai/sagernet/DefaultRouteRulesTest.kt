@@ -1,15 +1,13 @@
 // @author 雾晚
 package io.nekohasekai.sagernet
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.nekohasekai.sagernet.database.*
+import io.nekohasekai.sagernet.database.preference.*
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
-import org.junit.runner.RunWith
 
-@RunWith(AndroidJUnit4::class)
 class DefaultRouteRulesTest {
     private fun snapshot() = BackupRestore.Plan(
         SagerDatabase.proxyDao.getAll(),
