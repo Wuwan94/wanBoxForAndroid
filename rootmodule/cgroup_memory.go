@@ -42,8 +42,8 @@ const (
 	// throttles and reclaims — it never OOM-kills like memory.max) long
 	// before LMK territory on high-throughput bursts.
 	memoryHighDivisor = 4
-	// memoryHighMin floors the divisor result: below this the computed
-	// limit would squeeze normal operation, so governance disables.
+	// memoryHighMin floors the divisor result to the specified safe
+	// lower bound, including on devices with less than 1 GiB of RAM.
 	memoryHighMin = 256 << 20
 	// memoryHighMax caps the limit on very large devices.
 	memoryHighMax = 4 << 30
@@ -74,14 +74,14 @@ func parseMemTotal(text string) (uint64, bool) {
 }
 
 // memoryHighFor computes the soft limit for a MemTotal; 0 disables
-// governance (unknown total, or the computed limit would be a squeeze).
+// governance only when the total is unknown.
 func memoryHighFor(memTotal uint64) uint64 {
 	if memTotal == 0 {
 		return 0
 	}
 	high := memTotal / memoryHighDivisor
 	if high < memoryHighMin {
-		return 0
+		high = memoryHighMin
 	}
 	if high > memoryHighMax {
 		return memoryHighMax

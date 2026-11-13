@@ -63,17 +63,32 @@ done
 # 热更新瞬态黑洞守护占 pref 9001，规则行不含 wanbox 字样，须显式清除，
 # 否则卸载后可能残留永久黑洞导致断网。
 # ip rule del 一次只删一条同 pref 规则，重复安装守护会堆叠多条，须循环
-# 删到内核报 No such file 为止才算净空（与 hot_update.go 的 drain 语义
-# 一致）；del 返回非零即退出循环，卸载流程保持尽力而为不中断。循环设
-# 128 次上限（同 Go 侧 guardDrainMaxAttempts），防止异常的 ip 实现恒报
-# 成功时死循环卡住卸载。
+# 删到内核明确报告 No such file / No such process 才算净空（与
+# hot_update.go 的 drain 语义一致）；其他错误或触及 128 次上限都不能
+# 证明规则已清空。卸载仍继续完成其他清理并 exit 0，但不得误报网络已恢复。
 guard_drain=0
-while ip rule del pref 9001 2>/dev/null; do
-    guard_drain=$((guard_drain + 1))
-    if [ "$guard_drain" -ge 128 ]; then
-        break
+guard_drain_complete=false
+while [ "$guard_drain" -lt 128 ]; do
+    guard_output=$(ip rule del pref 9001 2>&1)
+    guard_status=$?
+    if [ "$guard_status" -eq 0 ]; then
+        guard_drain=$((guard_drain + 1))
+        continue
     fi
+    case "$guard_output" in
+        *"No such file"*|*"No such process"*)
+            guard_drain_complete=true
+            break
+            ;;
+        *)
+            log "pref 9001 清理失败，无法确认规则已清空: $guard_output"
+            break
+            ;;
+    esac
 done
+if [ "$guard_drain_complete" != "true" ] && [ "$guard_drain" -ge 128 ]; then
+    log "pref 9001 清理达到 128 次上限，规则未获明确清空确认"
+fi
 
 # 轨 4：运行时垃圾与临时挂载清理
 log "清理运行时锁文件与 IPC 套接字..."
@@ -90,5 +105,9 @@ else
     log "保留用户配置资产 (/data/adb/wanbox/config/)，便于重装后无缝恢复"
 fi
 
-log "wanBox 卸载流程执行完毕，网络已恢复物理直连"
+if [ "$guard_drain_complete" = "true" ]; then
+    log "wanBox 卸载流程执行完毕，pref 9001 规则已确认清空，网络恢复已确认"
+else
+    log "wanBox 卸载流程执行完毕，但 pref 9001 规则清理未确认，网络恢复状态未知"
+fi
 exit 0

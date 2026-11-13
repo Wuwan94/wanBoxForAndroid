@@ -68,7 +68,7 @@ class UninstallScriptTest(unittest.TestCase):
     """uninstall.sh must exit 0 and clean the network stack even when the
     module binary is missing or broken (fail-safe uninstall, v3.0.15)."""
 
-    def run_uninstall(self, ctl_mode):
+    def run_uninstall(self, ctl_mode, guard_successes=0, guard_failure="absent"):
         """Run uninstall.sh with stubbed ip/pgrep on PATH. The pgrep stub
         reports a real sleeper process as the orphan rootbox, so the script's
         own (builtin) kill is verified by the sleeper actually dying — a PATH
@@ -76,12 +76,20 @@ class UninstallScriptTest(unittest.TestCase):
         temp = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, temp, True)
         sleeper = subprocess.Popen(["sleep", "60"])
-        self.addCleanup(sleeper.kill)
+        def reap_sleeper():
+            if sleeper.poll() is None:
+                sleeper.kill()
+            sleeper.wait()
+        self.addCleanup(reap_sleeper)
         moddir = temp / "mod"
         (moddir / "bin").mkdir(parents=True)
         script_src = pathlib.Path(__file__).parent / "package" / "uninstall.sh"
         script = moddir / "uninstall.sh"
-        script.write_bytes(script_src.read_bytes())
+        self.last_log_file = temp / "uninstall.log"
+        script_text = script_src.read_text().replace(
+            'LOG_FILE="/data/adb/wanbox/uninstall.log"',
+            f'LOG_FILE="{self.last_log_file}"')
+        script.write_text(script_text)
         if ctl_mode != "missing":
             ctl = moddir / "bin" / "wanboxctl"
             ctl.write_text("#!/bin/sh\necho \"wanboxctl $*\" >> \"$CALLS\"\n"
@@ -96,6 +104,18 @@ class UninstallScriptTest(unittest.TestCase):
 echo "ip $*" >> "$CALLS"
 case "$*" in
   "link show wanbox-tun") exit 0 ;;
+  "rule del pref 9001")
+    n=0; [ -f "$GUARD_STATE" ] && n=$(cat "$GUARD_STATE")
+    if [ "$n" -lt "$GUARD_SUCCESS_COUNT" ]; then
+      n=$((n+1)); echo "$n" > "$GUARD_STATE"; exit 0
+    fi
+    case "$GUARD_FAILURE" in
+      absent) echo "RTNETLINK answers: No such file or directory" >&2; exit 2 ;;
+      absent_process) echo "RTNETLINK answers: No such process" >&2; exit 2 ;;
+      unexpected) echo "RTNETLINK answers: Operation not permitted" >&2; exit 2 ;;
+      *) exit 0 ;;
+    esac
+    ;;
   "rule show") printf '0:\\tfrom all lookup main\\n9000:\\tfrom all lookup wanbox\\n' ;;
 esac
 exit 0
@@ -117,6 +137,9 @@ exit 0
         env["CALLS"] = str(calls)
         env["PGREP_STATE"] = str(state)
         env["ORPHAN_PID"] = str(sleeper.pid)
+        env["GUARD_STATE"] = str(temp / "guard_state")
+        env["GUARD_SUCCESS_COUNT"] = str(guard_successes)
+        env["GUARD_FAILURE"] = guard_failure
         result = subprocess.run([SHELL, str(script)], text=True, encoding="utf-8",
                                 capture_output=True, timeout=15, env=env)
         recorded = calls.read_text() if calls.exists() else ""
@@ -145,6 +168,33 @@ exit 0
         self.assertFalse(fallback_used)                    # no pgrep fallback
         self.assertIsNone(sleeper.poll())                  # orphan left alone
         self.assertIn("ip link delete wanbox-tun", calls)
+
+    def test_guard_cleanup_is_confirmed_only_after_kernel_reports_absent(self):
+        for absence in ("absent", "absent_process"):
+            result, calls, _, _ = self.run_uninstall(
+                "ok", guard_successes=2, guard_failure=absence)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(3, calls.count("ip rule del pref 9001"))
+            log = self.last_log_file.read_text()
+            self.assertIn("pref 9001 规则已确认清空，网络恢复已确认", log)
+
+    def test_guard_cleanup_unexpected_error_does_not_claim_network_recovery(self):
+        result, calls, _, _ = self.run_uninstall("ok", guard_failure="unexpected")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(1, calls.count("ip rule del pref 9001"))
+        log = self.last_log_file.read_text()
+        self.assertIn("pref 9001 清理失败", log)
+        self.assertIn("网络恢复状态未知", log)
+        self.assertNotIn("网络恢复已确认", log)
+
+    def test_guard_cleanup_cap_does_not_claim_rules_are_gone(self):
+        result, calls, _, _ = self.run_uninstall("ok", guard_successes=999, guard_failure="success")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(128, calls.count("ip rule del pref 9001"))
+        log = self.last_log_file.read_text()
+        self.assertIn("pref 9001 清理达到 128 次上限", log)
+        self.assertIn("网络恢复状态未知", log)
+        self.assertNotIn("网络恢复已确认", log)
 
     def test_user_data_preserved_unless_purge_flag(self):
         text = (pathlib.Path(__file__).parent / "package" / "uninstall.sh").read_text()

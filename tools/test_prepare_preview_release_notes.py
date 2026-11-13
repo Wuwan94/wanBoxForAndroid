@@ -28,11 +28,11 @@ class PreparePreviewReleaseNotesTest(unittest.TestCase):
     def test_current_candidate_notes_are_valid_candidate_input(self):
         root = SCRIPT.parents[1]
         source = (root / "PREVIEW_NOTES.md").read_text(encoding="utf-8")
-        self.assertTrue(source.startswith("# v3.0.15-preview.2 发行说明（候选）\n"))
+        self.assertTrue(source.startswith("# v3.0.15-preview.3 发行说明（候选）\n"))
         self.assertTrue(source.splitlines()[0].endswith(module.CANDIDATE_SUFFIX))
         self.assertIn(module.STATUS_PREFIX, source)
         result = module.render_release_notes(source)
-        self.assertTrue(result.startswith("# v3.0.15-preview.2 发行说明\n"))
+        self.assertTrue(result.startswith("# v3.0.15-preview.3 发行说明\n"))
         self.assertNotIn(module.STATUS_PREFIX, result)
 
     def test_rejects_notes_without_source_candidate_marker(self):
