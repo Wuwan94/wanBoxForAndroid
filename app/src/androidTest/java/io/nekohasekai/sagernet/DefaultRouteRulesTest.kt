@@ -42,4 +42,60 @@ class DefaultRouteRulesTest {
             DataStore.rulesFirstCreate = oldRulesFirstCreate
         }
     }
+
+    @Test
+    fun historicalPlayRulesDropOnlyInjectedDownloadsPackages() = runBlocking {
+        val original = snapshot()
+        val playDomains = "domain:googleapis.cn\ndomain:gvt1.com"
+        val downloadsPackages = setOf(
+            "com.android.providers.downloads",
+            "com.android.providers.downloads.ui"
+        )
+        val playPackages = setOf(
+            "com.android.vending",
+            "com.google.android.gms"
+        ) + downloadsPackages + "org.example.keep"
+        val enabledPlay = RuleEntity(
+            id = 101L,
+            userOrder = 1L,
+            domains = playDomains,
+            packages = playPackages,
+            enabled = true
+        )
+        val disabledPlay = RuleEntity(
+            id = 102L,
+            userOrder = 2L,
+            domains = playDomains,
+            packages = playPackages,
+            enabled = false
+        )
+        val unrelated = RuleEntity(
+            id = 103L,
+            userOrder = 3L,
+            domains = "domain:example.org",
+            packages = setOf("com.android.providers.downloads", "org.example.keep"),
+            enabled = true
+        )
+        try {
+            BackupRestore.apply(
+                BackupRestore.Plan(null, null, listOf(enabledPlay, disabledPlay, unrelated), null),
+                false, true, false
+            )
+
+            val rules = ProfileManager.getRules().associateBy { it.id }
+            val expectedPlayPackages = setOf(
+                "com.android.vending",
+                "com.google.android.gms",
+                "org.example.keep"
+            )
+            assertEquals(expectedPlayPackages, rules.getValue(enabledPlay.id).packages)
+            assertEquals(expectedPlayPackages, rules.getValue(disabledPlay.id).packages)
+            assertEquals(true, rules.getValue(enabledPlay.id).enabled)
+            assertEquals(false, rules.getValue(disabledPlay.id).enabled)
+            assertEquals(unrelated.packages, rules.getValue(unrelated.id).packages)
+            assertEquals(unrelated.enabled, rules.getValue(unrelated.id).enabled)
+        } finally {
+            BackupRestore.apply(original, true, true, true)
+        }
+    }
 }
