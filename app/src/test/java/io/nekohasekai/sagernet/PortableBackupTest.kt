@@ -40,6 +40,40 @@ class PortableBackupTest {
         assertEquals(sample().rules,parsed.rules)
         assertEquals("中文设置",parsed.settings!![0].string); assertEquals(1234567890123L,parsed.settings[1].long)
     }
+    private fun exportedSettings(root: JSONObject): Map<String, KeyValuePair> {
+        val array = root.getJSONArray("settings")
+        return (0 until array.length()).associate { index ->
+            val item = array.getJSONObject(index)
+            KeyValuePair(item.getString("key")).apply {
+                valueType = item.getInt("valueType")
+                value = PortableBackup.strictBase64(item.getString("valueBase64"))
+            }.let { it.key to it }
+        }
+    }
+    @Test fun portableExportMaterializesCoreDefaultsAndPreservesExplicitSettings() {
+        val defaultRoot = PortableBackup.document(PortableBackup.encode(sample()))
+        assertTrue(defaultRoot.has("profiles")); assertFalse(defaultRoot.has("proxies"))
+        assertTrue(defaultRoot.getJSONArray("rules").get(0) is JSONObject)
+        val defaults = exportedSettings(defaultRoot)
+        assertEquals("9000", defaults[Key.MTU]?.string)
+        assertEquals("1", defaults[Key.TRAFFIC_SNIFFING]?.string)
+        assertEquals(true, defaults[Key.ENABLE_DNS_ROUTING]?.boolean)
+        assertEquals(true, defaults[Key.ENABLE_FAKEDNS]?.boolean)
+        assertEquals("https://dns.google/dns-query", defaults[Key.REMOTE_DNS]?.string)
+        assertEquals("https://223.5.5.5/dns-query", defaults[Key.DIRECT_DNS]?.string)
+        assertEquals("0", defaults[Key.IPV6_MODE]?.string)
+        assertEquals(true, defaults[Key.STRICT_ROUTE]?.boolean)
+        assertEquals("root", defaults[Key.SERVICE_MODE]?.string)
+
+        val plan = sample()
+        val explicitPlan = plan.copy(settings = plan.settings!! + listOf(
+            KeyValuePair(Key.MTU).put("1400"),
+            KeyValuePair(Key.REMOTE_DNS).put("https://backup.example/dns-query"),
+        ))
+        val explicit = exportedSettings(PortableBackup.document(PortableBackup.encode(explicitPlan)))
+        assertEquals("1400", explicit[Key.MTU]?.string)
+        assertEquals("https://backup.example/dns-query", explicit[Key.REMOTE_DNS]?.string)
+    }
     private fun reject(block:()->Unit) { try { block(); fail("invalid backup accepted") } catch (_:Exception) {} }
     @Test fun schemaAndReferencesAreCheckedBeforeWrites() {
         val root=PortableBackup.document(PortableBackup.encode(sample()))
