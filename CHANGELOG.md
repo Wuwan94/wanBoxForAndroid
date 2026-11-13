@@ -4,14 +4,20 @@
 
 ## wanBox 3.0.x 发布记录
 
-### v3.0.15-preview.2（已发布预览）
+### v3.0.15-preview.3（已发布预览）
 
-- 由官方 `Preview Build` run `43393988473` 发布；Release/tag `v3.0.15-preview.2` 指向 PR #38 合并提交 `2a57973623db59cb635a869b5d552dd971f8235c`（优化由 PR #37 合入）。稳定版 v3.0.14 未变。
+- 由官方 `Preview Build` run `43404430362` 发布；Release/tag `v3.0.15-preview.3` 指向 PR #39 合并提交 `fe193f1134a80ff38fb0cb3ed4677eb2b79c1dce`。稳定版 v3.0.14 未变。
+- 修正已知内存下限：`MemTotal/4` 钳制至 `[256 MiB, 4 GiB]`；修正卸载脚本在 `pref 9001` 清理错误或 128 次触顶时错误报告网络恢复的问题，规则未确认时明确标记状态未知。
+- 发布 Root 模块码 `2028`、APK `versionCode=10143` 和四件套；下载后的 `SHA256SUMS` 校验通过，资产名称、字节数和 SHA-256 见[版本对照](docs/current-version.zh-CN.md)。Root 真机矩阵未执行。
+
+### v3.0.15-preview.2（历史预览，已清理）
+
+- 曾由官方 `Preview Build` run `43393988473` 发布；tag 原指向 PR #38 合并提交 `2a57973623db59cb635a869b5d552dd971f8235c`（优化由 PR #37 合入）。preview.3 验证发布后，preview.2 Release/tag 已按单预览保留规则清理；稳定版 v3.0.14 未变。
 - 新增仅监听回环的长轮询状态通道、专属子 cgroup 与内存软限制，并收敛热更新守护和卸载流程中的 `pref 9001` 规则清理；另含健康迁移阈值及管理器读取聚合优化。
 - 发布 Root 模块码 `2027`、APK `versionCode=10137`，四件套包含瘦管理器 APK、普通模块 ZIP、带管理器模块 ZIP 和 `SHA256SUMS`。API 回读资产共低于 26 MiB 包体预算；未做 Magisk / KernelSU / APatch 真机矩阵。
-- preview.2 发布后复审发现：低于 1 GiB 内存时 `MemTotal/4` 被错误地变为 0；卸载 Shell 在规则删除触顶或异常时仍报告网络恢复。修复随 preview.3 候选推进，不能把 preview.2 资产视为已含这些修复。
+- preview.2 发布后复审发现：低于 1 GiB 内存时 `MemTotal/4` 被错误地变为 0；卸载 Shell 在规则删除触顶或异常时仍报告网络恢复。这两项修复已由 preview.3 发布版承载，preview.2 历史资产不含修复。
 
-### v3.0.15-preview.1（已发布预览）
+### v3.0.15-preview.1（历史预览，已删除）
 
 - 由仓库正式 `Preview Build` run `43203156796` 发布；Release/tag `v3.0.15-preview.1` 指向 PR #34 合并提交 `5aca93bee39a9d07a56d750908e0d9c88ad5f90c`（功能由 PR #33 合入）。稳定版 v3.0.14 未变。
 - 模块免重启热更新加固：新核心 5 秒 Canary 健康观察与自动回滚、提交后清除 Magisk `update` 标记并广播 `module_hot_update_committed:<versionCode>`、切换间隙 pref 9001 黑洞守护（严格 Fail-Closed）；App 侧 `RootModuleClient` 新增版本跃迁感知，设置页免重启刷新模块版本码。

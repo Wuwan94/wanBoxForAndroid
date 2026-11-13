@@ -14,8 +14,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 STABLE_TAG = "v3.0.14"
-PUBLISHED_PREVIEW = "v3.0.15-preview.2"
-PUBLISHED_PREVIEW_COMMIT = "2a57973623db59cb635a869b5d552dd971f8235c"
+PUBLISHED_PREVIEW = "v3.0.15-preview.3"
+PUBLISHED_PREVIEW_COMMIT = "fe193f1134a80ff38fb0cb3ed4677eb2b79c1dce"
 SOURCE_PREVIEW = "v3.0.15-preview.3"
 SOURCE_PREVIEW_CODE = "2028"
 ARCHIVED_PREVIEW = "v3.0.14-preview.1"
@@ -70,7 +70,7 @@ def failures(root: Path = ROOT) -> list[str]:
     except (FileNotFoundError, UnicodeDecodeError) as exc:
         return [f"读取当前版本文档失败: {exc}"]
 
-    # 1. 源码元数据：正式线保持已发布的 3.0.14，预览线为当前修复候选。
+    # 1. 源码元数据：正式线保持已发布的 3.0.14，预览线与最新已发布预览同线。
     if props.get("VERSION_NAME") != "3.0.14":
         errors.append(f"nb4a.properties: VERSION_NAME 应为 3.0.14，实际 {props.get('VERSION_NAME')!r}")
     if props.get("VERSION_CODE") != "2026":

@@ -25,15 +25,28 @@ class PreparePreviewReleaseNotesTest(unittest.TestCase):
         self.assertIn("稳定性预览版，不替换稳定版 `v3.0.11`。", result)
         self.assertIn("## 更新", result)
 
-    def test_current_candidate_notes_are_valid_candidate_input(self):
+    def test_current_notes_match_published_or_candidate_source_state(self):
         root = SCRIPT.parents[1]
         source = (root / "PREVIEW_NOTES.md").read_text(encoding="utf-8")
-        self.assertTrue(source.startswith("# v3.0.15-preview.3 发行说明（候选）\n"))
-        self.assertTrue(source.splitlines()[0].endswith(module.CANDIDATE_SUFFIX))
-        self.assertIn(module.STATUS_PREFIX, source)
-        result = module.render_release_notes(source)
-        self.assertTrue(result.startswith("# v3.0.15-preview.3 发行说明\n"))
-        self.assertNotIn(module.STATUS_PREFIX, result)
+        properties: dict[str, str] = {}
+        for line in (root / "nb4a.properties").read_text(encoding="utf-8").splitlines():
+            if "=" not in line or line.lstrip().startswith("#"):
+                continue
+            key, value = line.split("=", 1)
+            properties[key.strip()] = value.strip()
+        version = properties["PRE_VERSION_NAME"]
+        title = source.splitlines()[0]
+
+        if title == f"# v{version} 发行说明{module.CANDIDATE_SUFFIX}":
+            self.assertIn(module.STATUS_PREFIX, source)
+            result = module.render_release_notes(source)
+            self.assertTrue(result.startswith(f"# v{version} 发行说明\n"))
+            self.assertNotIn(module.STATUS_PREFIX, result)
+        elif title == f"# v{version} 发行说明":
+            self.assertNotIn(module.STATUS_PREFIX, source)
+            self.assertIn("**状态：已发布的稳定性预览版。**", source)
+        else:
+            self.fail(f"发行说明标题与 PRE_VERSION_NAME 不一致: {title!r}")
 
     def test_rejects_notes_without_source_candidate_marker(self):
         source = "# v3.0.13-preview.4 发行说明\n\n## 更新\n\n- 内容\n"
