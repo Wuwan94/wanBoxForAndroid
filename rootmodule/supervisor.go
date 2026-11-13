@@ -57,6 +57,13 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 		persist()
 		return e
 	}
+	// Best-effort cgroup v2 memory governance (cgroup.go): soft-limit the
+	// group and GC under memory pressure. Unlike the cgroup move above,
+	// unavailability is never an error — supervision runs the same with
+	// or without it.
+	if guard := setupMemoryGuard(); guard != nil {
+		go guard.run(ctx, memoryCheckInterval)
+	}
 	defer func() {
 		mu.Lock()
 		defer mu.Unlock()

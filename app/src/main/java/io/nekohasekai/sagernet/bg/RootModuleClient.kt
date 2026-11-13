@@ -36,9 +36,16 @@ object RootModuleClient {
         "config apply", "config validate", "autostart on", "autostart off", "data prepare", "data finish", "data rollback",
         "node failover", "node tags")
     private val changes = Mutex()
-    // @author 雾晚: 2s TTL status cache. The home observer, service tiles and node
-    // dialogs all poll status; without this each poll is a `su` round-trip.
-    private const val STATUS_TTL_MS = 2000L
+    // @author 雾晚: status cache TTL. The foreground observer samples every
+    // 2s, but its effective period is the 2s delay plus the sample itself
+    // (one su spawn costs 100-300ms), so a 2s TTL had already expired before
+    // nearly every sample and the observer still paid a su spawn per cycle.
+    // 4s keeps the freshness bound tight while letting the cache actually
+    // serve the poller: observer spawns drop to roughly one per two cycles.
+    // Decision paths never trust this cache (toggle/enable read fresh via
+    // callFreshStatus, urlTest invalidates first, and every mutation
+    // invalidates before and after), so only passive views age by <= TTL.
+    private const val STATUS_TTL_MS = 4000L
     // Status and dashboard are distinct protocol views; never serve one in place of the other.
     private val statusCache = RootModuleStatusCache(STATUS_TTL_MS) { SystemClock.elapsedRealtime() }
     // @author 雾晚: coalesce concurrent status fetches; each su spawn costs 100-300ms.
@@ -163,9 +170,11 @@ object RootModuleClient {
                 // A mutation can invalidate while doCall is in flight; only cache the result if
                 // no invalidation occurred since this read started.
                 return@withContext statusMutex.withLock {
-                    statusCache.get(query) ?: doCall(command, input).also {
+                    val value = statusCache.get(query) ?: doCall(command, input).also {
                         statusCache.putIfGeneration(query, it, cacheGeneration)
                     }
+                    refreshStaleSiblingLocked(query, cacheGeneration)
+                    value
                 }
             }
             return@withContext doCall(command, input)
@@ -183,6 +192,42 @@ object RootModuleClient {
                 statusCache.putIfGeneration(RootModuleReadQuery.STATUS, it, cacheGeneration)
             }
         }
+    }
+
+    /**
+     * Aggregated polling for the two read views. Status and dashboard stay
+     * distinct protocol views (one is never served in place of the other),
+     * but their consumers poll in the same foreground cycles, so when a read
+     * already paid for [statusMutex] it also refreshes the sibling view if a
+     * previous consumer left a stale entry behind; the sibling's next read
+     * is then a cache hit instead of a second su spawn moments later. A view
+     * nobody ever requested is never fetched speculatively. Sibling failures
+     * are swallowed: the requested read keeps its own result and error
+     * contract, and the sibling's own read will spawn and surface its own
+     * error, so every actual read stays fail-closed. The value is cached
+     * under the caller's generation, so a mutation that invalidated while
+     * the sibling fetch was in flight still wins. Caller must hold
+     * [statusMutex]; [callFreshStatus] deliberately skips this aggregation
+     * because decision paths must not wait on an unrelated view.
+     */
+    private suspend fun refreshStaleSiblingLocked(fetched: RootModuleReadQuery, cacheGeneration: Long) {
+        val sibling = when (fetched) {
+            RootModuleReadQuery.STATUS -> RootModuleReadQuery.DASHBOARD
+            RootModuleReadQuery.DASHBOARD -> RootModuleReadQuery.STATUS
+        }
+        if (!statusCache.hasStaleEntry(sibling)) return
+        val siblingCommand = when (sibling) {
+            RootModuleReadQuery.STATUS -> "status"
+            RootModuleReadQuery.DASHBOARD -> "dashboard"
+        }
+        val value = try {
+            doCall(siblingCommand)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            return
+        }
+        statusCache.putIfGeneration(sibling, value, cacheGeneration)
     }
 
     private suspend fun doCall(command: String, input: File? = null): Status {

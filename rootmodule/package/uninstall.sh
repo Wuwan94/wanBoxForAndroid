@@ -61,8 +61,19 @@ ip rule show 2>/dev/null | grep -E "wanbox|9000" | while read -r line; do
     fi
 done
 # 热更新瞬态黑洞守护占 pref 9001，规则行不含 wanbox 字样，须显式清除，
-# 否则卸载后可能残留永久黑洞导致断网
-ip rule del pref 9001 2>/dev/null
+# 否则卸载后可能残留永久黑洞导致断网。
+# ip rule del 一次只删一条同 pref 规则，重复安装守护会堆叠多条，须循环
+# 删到内核报 No such file 为止才算净空（与 hot_update.go 的 drain 语义
+# 一致）；del 返回非零即退出循环，卸载流程保持尽力而为不中断。循环设
+# 128 次上限（同 Go 侧 guardDrainMaxAttempts），防止异常的 ip 实现恒报
+# 成功时死循环卡住卸载。
+guard_drain=0
+while ip rule del pref 9001 2>/dev/null; do
+    guard_drain=$((guard_drain + 1))
+    if [ "$guard_drain" -ge 128 ]; then
+        break
+    fi
+done
 
 # 轨 4：运行时垃圾与临时挂载清理
 log "清理运行时锁文件与 IPC 套接字..."

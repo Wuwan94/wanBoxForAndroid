@@ -123,6 +123,108 @@ func TestHotInstallGuardFailureAbortsBeforeStop(t *testing.T) {
 	}
 }
 
+// guardStep is one scripted ip(8) outcome for the guardRun seam.
+type guardStep struct {
+	out string
+	err error
+}
+
+// scriptGuardRun replaces guardRun with a scripted fake and returns the
+// call counter. Calls beyond the script fail loudly.
+func scriptGuardRun(t *testing.T, steps []guardStep) *int {
+	t.Helper()
+	calls := new(int)
+	old := guardRun
+	t.Cleanup(func() { guardRun = old })
+	guardRun = func(_ context.Context, args ...string) (string, error) {
+		i := *calls
+		*calls++
+		if len(args) != 4 && len(args) != 5 {
+			t.Errorf("unexpected ip args %v", args)
+		}
+		if i >= len(steps) {
+			return "", errors.New("unexpected guard invocation")
+		}
+		return steps[i].out, steps[i].err
+	}
+	return calls
+}
+
+func TestRouteGuardDrainDeletesDuplicatesUntilAbsent(t *testing.T) {
+	boom := errors.New("exit status 2")
+	calls := scriptGuardRun(t, []guardStep{
+		{"", nil}, // first copy removed
+		{"", nil}, // stacked duplicate removed
+		{"RTNETLINK answers: No such file or directory", boom},
+	})
+	if e := defaultRouteGuard(context.Background(), false); e != nil {
+		t.Fatal(e)
+	}
+	if *calls != 3 {
+		t.Fatal("drain calls =", *calls)
+	}
+}
+
+func TestRouteGuardDrainAlreadyAbsentIsIdempotent(t *testing.T) {
+	calls := scriptGuardRun(t, []guardStep{
+		{"RTNETLINK answers: No such process", errors.New("exit status 2")},
+	})
+	if e := defaultRouteGuard(context.Background(), false); e != nil {
+		t.Fatal(e)
+	}
+	if *calls != 1 {
+		t.Fatal("calls =", *calls)
+	}
+}
+
+func TestRouteGuardDrainUnexpectedErrorFailsClosed(t *testing.T) {
+	calls := scriptGuardRun(t, []guardStep{
+		{"", nil},
+		{"RTNETLINK answers: Operation not permitted", errors.New("exit status 2")},
+		{"", nil}, // must never be reached
+	})
+	if e := defaultRouteGuard(context.Background(), false); e == nil || e.Error() != "hot_update_guard_failed" {
+		t.Fatal(e)
+	}
+	if *calls != 2 {
+		t.Fatal("drain continued after a hard error, calls =", *calls)
+	}
+}
+
+func TestRouteGuardDrainCapFailsClosed(t *testing.T) {
+	old := guardRun
+	t.Cleanup(func() { guardRun = old })
+	calls := new(int)
+	guardRun = func(context.Context, ...string) (string, error) {
+		*calls++
+		return "", nil // claims success forever without deleting
+	}
+	if e := defaultRouteGuard(context.Background(), false); e == nil || e.Error() != "hot_update_guard_failed" {
+		t.Fatal(e)
+	}
+	if *calls != guardDrainMaxAttempts {
+		t.Fatal("calls =", *calls)
+	}
+}
+
+func TestRouteGuardEnableSemanticsUnchanged(t *testing.T) {
+	calls := scriptGuardRun(t, []guardStep{{"", nil}})
+	if e := defaultRouteGuard(context.Background(), true); e != nil {
+		t.Fatal(e)
+	}
+	if *calls != 1 {
+		t.Fatal("enable must stay single-shot, calls =", *calls)
+	}
+	scriptGuardRun(t, []guardStep{{"RTNETLINK answers: File exists", errors.New("exit status 2")}})
+	if e := defaultRouteGuard(context.Background(), true); e != nil {
+		t.Fatal("File exists must stay idempotent:", e)
+	}
+	scriptGuardRun(t, []guardStep{{"RTNETLINK answers: Operation not permitted", errors.New("exit status 2")}})
+	if e := defaultRouteGuard(context.Background(), true); e == nil || e.Error() != "hot_update_guard_failed" {
+		t.Fatal(e)
+	}
+}
+
 func TestModuleVersionCodeAndMarkerHelpers(t *testing.T) {
 	dir := t.TempDir()
 	if e := os.WriteFile(filepath.Join(dir, "module.prop"), []byte("id=wanbox\nversionCode= 77 \n"), 0600); e != nil {
