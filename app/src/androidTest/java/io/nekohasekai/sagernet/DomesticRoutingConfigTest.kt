@@ -19,6 +19,8 @@ class DomesticRoutingConfigTest {
         val original = BackupRestore.parse(JSONObject(io.nekohasekai.sagernet.utils.BackupHelper.doBackup().toString(Charsets.UTF_8)))
         val oldDashboardMode = DataStore.dashboardMode
         val oldGlobalMode = DataStore.globalMode
+        val oldTrafficSniffing = DataStore.trafficSniffing
+        val oldConnectionTestURL = DataStore.connectionTestURL
         val main = ProxyEntity(id = 99201, groupId = 99200).putBean(SOCKSBean().apply {
             initializeDefaultValues(); serverAddress = "192.0.2.1"; serverPort = 1080
         })
@@ -26,19 +28,24 @@ class DomesticRoutingConfigTest {
         val oldDomain = RuleEntity(id = 99202, name = "old name", userOrder = 1, domains = "geosite-cn", outbound = -1)
         val selectedApp = RuleEntity(id = 99203, userOrder = 3, enabled = true, packages = setOf(appPackage), outbound = 0)
         val explicit = RuleEntity(id = 99204, userOrder = 4, enabled = true, domains = "domain:fixture.invalid", outbound = 0)
+        val adsReject = RuleEntity(id = 99205, userOrder = 5, enabled = true,
+            domains = "geosite-category-ads-all", outbound = -2)
         try {
             BackupRestore.apply(BackupRestore.Plan(listOf(main), listOf(ProxyGroup(id = 99200, name = "fixture")),
-                listOf(oldDomain, selectedApp, explicit), null), true, true, false)
+                listOf(oldDomain, selectedApp, explicit, adsReject), null), true, true, false)
             DomesticRoutingPreset.apply("domestic", "IPs")
             val once = SagerDatabase.rulesDao.allRules()
             DomesticRoutingPreset.apply("domestic", "IPs")
             assertEquals(once, SagerDatabase.rulesDao.allRules())
-            assertEquals(4, once.size)
+            assertEquals(5, once.size)
             assertEquals(oldDomain.copy(enabled = true), once.first { it.id == oldDomain.id })
             assertEquals(selectedApp, once.first { it.id == selectedApp.id })
+            assertEquals(adsReject, once.first { it.id == adsReject.id })
             DataStore.globalCustomConfig = ""; DataStore.globalMode = false
             DataStore.enableDnsRouting = true; DataStore.proxyApps = false
             DataStore.enableClashAPI = false; DataStore.resolveDestination = false
+            DataStore.trafficSniffing = 1
+            DataStore.connectionTestURL = "https://probe.fixture.invalid/"
             for (fakeIp in listOf(false, true)) {
                 DataStore.enableFakeDns = fakeIp
                 val instance = ProxyInstance(main)
@@ -131,11 +138,37 @@ class DomesticRoutingConfigTest {
                 val directModeIndex = ruleObjects.indexOfFirst { it.optString("clash_mode") == "direct" }
                 val userGeositeIndex = ruleObjects.indexOfFirst { it.optJSONArray("rule_set")?.toString()?.contains("geosite-cn") == true }
                 val userExplicitIndex = ruleObjects.indexOfFirst { it.optJSONArray("domain_suffix")?.toString()?.contains("fixture.invalid") == true }
+                val sniffIndex = ruleObjects.indexOfFirst { it.optString("action") == "sniff" }
+                val probeIndex = ruleObjects.indexOfFirst {
+                    it.optJSONArray("domain")?.toString()?.contains("probe.fixture.invalid") == true
+                }
+                val adsRejectIndex = ruleObjects.indexOfFirst {
+                    it.optJSONArray("rule_set")?.toString()?.contains("geosite-category-ads-all") == true &&
+                        it.optString("action") == "reject"
+                }
+                val dnsProxyFallbackExists = ruleObjects.any { rule ->
+                    val port53 = rule.optJSONArray("port")?.let { ports ->
+                        (0 until ports.length()).any { ports.optInt(it) == 53 }
+                    } == true
+                    val protocolDns = rule.optJSONArray("protocol")?.let { protocols ->
+                        (0 until protocols.length()).any { protocols.optString(it) == "dns" }
+                    } == true
+                    rule.optString("outbound") == "proxy" && (port53 || protocolDns)
+                }
+                val multicastReject = ruleObjects.firstOrNull { rule ->
+                    rule.optString("action") == "reject" &&
+                        rule.optJSONArray("ip_cidr")?.toString()?.contains("224.0.0.0/3") == true
+                }
 
                 assertTrue("clash_mode=global rule must exist", globalModeIndex >= 0)
                 assertTrue("clash_mode=direct rule must exist", directModeIndex >= 0)
                 assertTrue("User geosite-cn rule must remain in runtime config regardless of globalMode", userGeositeIndex >= 0)
                 assertTrue("User explicit domain rule must remain in runtime config", userExplicitIndex >= 0)
+                assertTrue("sniff must precede the Root mixed probe domain", sniffIndex >= 0 && probeIndex > sniffIndex)
+                assertTrue("custom geosite reject must precede domestic direct fallback", adsRejectIndex >= 0 && userGeositeIndex > adsRejectIndex)
+                assertFalse("hijacked DNS must not have a redundant proxy fallback", dnsProxyFallbackExists)
+                assertNotNull("Runtime must contain multicast reject", multicastReject)
+                assertFalse("Multicast reject must not constrain source_ip_cidr", multicastReject!!.has("source_ip_cidr"))
 
                 assertEquals("proxy", ruleObjects[globalModeIndex].getString("outbound"))
                 assertEquals("direct", ruleObjects[directModeIndex].getString("outbound"))
@@ -195,6 +228,8 @@ class DomesticRoutingConfigTest {
         } finally {
             DataStore.dashboardMode = oldDashboardMode
             DataStore.globalMode = oldGlobalMode
+            DataStore.trafficSniffing = oldTrafficSniffing
+            DataStore.connectionTestURL = oldConnectionTestURL
             BackupRestore.apply(original, true, true, true)
         }
     }
