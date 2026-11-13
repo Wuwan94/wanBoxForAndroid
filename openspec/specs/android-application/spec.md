@@ -120,6 +120,24 @@ Android 后台服务 MUST 将配置无效、依赖缺失或内核启动失败报
 - **AND** DNS detour 指向当前节点
 - **AND** 用户收到修改设置的提示
 
+### Requirement: 未设置组级测速 URL 动态继承全局 URL
+
+组级测速 URL 未显式设置时 MUST 保持空 override，并在每次生成配置或解析单节点测速链接时动态使用当前全局 `connectionTestURL`；显式组 URL MUST 优先。编辑页加载与保存 MUST NOT 固化全局/默认 URL。旧版自动写入且精确等于 `default_group_test_url` 的 fallback MUST 迁移为空 override，其他非空值 MUST 保留。URLTest 与 LoadBalance outbound MUST 使用同一解析结果。
+
+#### Scenario: 空或旧 fallback override 跟随当前全局值
+
+- **GIVEN** 一个组未设置测速 URL，或只存有旧版固定 `default_group_test_url`
+- **WHEN** 全局 `connectionTestURL` 改变并重新生成 Root 配置
+- **THEN** 该组使用最新全局 URL，旧 fallback 被迁移为空 override
+- **AND** 再次修改全局 URL 后，空 override 继续跟随新值
+
+#### Scenario: 显式组 URL 保持优先
+
+- **GIVEN** 某组保存了不同于旧 fallback 的明确测速 URL
+- **WHEN** URLTest 或 LoadBalance outbound 生成且全局 URL 改变
+- **THEN** 该组仍使用自己的显式 URL
+- **AND** 未配置组 URL 的其他分组使用新的全局 URL
+
 ### Requirement: 测速与正式连接保持语义一致且实例隔离
 
 URL 延迟测试 MUST 使用不注册 PlatformLogWriter 的测试实例，从而不创建或共享 `cache.db`。延迟与速度测试 MUST 沿用用户的 IPv6 模式和 outbound `domain_strategy`，并经受测节点对应的默认 outbound 建立连接。URL 延迟测试 MUST 预热后复用连接测量 RTT；速度测试 MUST 按用户选择执行下载+上传、仅下载、仅上传或简单下载，并持续提供每个节点的进度、最终吞吐量、错误和取消状态。成功完成的速度测试结果 MUST 按 profile 持久落地，在节点卡片右下角现有测速信息区域以灰色辅助文字显示；结果 MUST 在进度对话框或通知关闭、列表重绑/刷新及重新进入配置列表后继续可见，直到用户清除测试结果或后续速度测试覆盖该节点结果。吞吐量 MUST 使用专用结果字段或模型，MUST NOT 写入毫秒语义的 `ProxyEntity.ping` 字段。每个 box MUST 拥有独立的平台接口 wrapper，默认接口监视器 MUST 在首拨前同步注册，fd protect 对非 VPN 未运行类故障 MUST fail-fast。配置列表 MUST 提供“URL 测试本组”和“速度测试本组”操作，并 MUST NOT 提供批量直连 TCP Ping 或 ICMP Ping 操作。新安装或尚未持久化对应设置时，延迟测试 URL MUST 默认为 `http://cp.cloudflare.com/`，URL 延迟测试并发数 MUST 默认为 10；Throne 速度测试 MUST 沿用参考版本自己的节点调度和单节点连接并发策略，MUST NOT 使用 URL 延迟并发值 10。下载、上传及简单下载测速默认值 MUST 与采用的 Throne 桌面参考版本一致，并由测试设置和执行路径共同使用。应用升级 MUST 保留用户已持久化的自定义测试 URL、URL 延迟并发数及速度测试设置。

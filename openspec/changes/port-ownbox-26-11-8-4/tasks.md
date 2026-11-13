@@ -9,8 +9,8 @@
 
 ## 2. 批次 2：修复分组测速 URL 动态继承
 
-- [ ] 2.1 先写空 override 继承全局 URL、显式组 URL 覆盖、修改全局值后空组随之更新的回归测试。
-- [ ] 2.2 调整 `GroupSettingsActivity` 初始化为 raw per-group override；未设置保持为空；统一 resolver 顺序为组 URL > `connectionTestURL` > 安全默认，并供 URLTest/LoadBalance/Root snapshot 共用。
+- [ ] 2.1 先写可复现测试：空/旧 fallback override 跟随变化的全局 URL、显式组 URL 优先、编辑页读写 raw override，并以真实 Root snapshot 覆盖 URLTest 与 LoadBalance。
+- [ ] 2.2 调整 `GroupSettingsActivity` 初始化为 raw per-group override；仅将精确等于旧 `default_group_test_url` 的固定 fallback 迁移为空，保留其他非空值；统一 resolver 顺序为组 URL > `connectionTestURL` > 安全默认，并供 URLTest/LoadBalance/Root snapshot/resolveLink 共用。
 - [ ] 2.3 同步 `openspec/specs/android-application/spec.md`；做静态检查、自审、语义提交并仅推送授权分支。
 - [ ] 2.4 批次 2 CI 门：运行 `verify-android.yml` unit/build/instrumentation；预期 group URL 和 Root snapshot 测试通过、显式地址未改变。回传 run URL、SHA、job 结果。真机场景（不阻塞）：修改全局地址、重建 Root 配置，确认未设组 URL 的组跟随、显式组保持覆盖；如未执行须报告。
 

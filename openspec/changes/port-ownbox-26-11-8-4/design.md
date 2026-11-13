@@ -32,7 +32,9 @@ wanBox 的 RootModuleClient 将 Android ConfigBuilder 生成的 sing-box 配置�
 
 ### 2. 批次 2：分组测速 URL 继承
 
-每组未设置 URL 保持空 raw override，编辑页不得以当前全局值初始化并回写。运行时解析顺序为显式组 URL > 全局 `connectionTestURL` > 安全默认。URLTest、LoadBalance（适用时）、Root snapshot 与 resolveLink 使用一致的 resolver。全局地址更新后，空 override 的组自动使用新值。
+每组未设置 URL 保持空 raw override，编辑页不得以当前全局值初始化并回写。运行时解析顺序为显式组 URL > 全局 `connectionTestURL` > 安全默认；URLTest、LoadBalance、Root snapshot 与 `resolveLink` 必须共用这一有效值。
+
+旧编辑流程会把 `default_group_test_url` 的固定 fallback 写入组配置；本 change 将仅对精确匹配该旧 fallback 的存值执行一次性“清空为未设置”迁移，以恢复动态继承。其他非空组 URL 一律保留为显式 override。当前 `group_preferences.xml` 没有单独测速 URL 输入，因此该精确值来自旧自动初始化；若某个外部工具曾有意存入同一精确 URL，它也会被视为旧占位清空，这一边界由迁移测试和本条决策显式覆盖。
 
 ### 3. 批次 3：用户备份兼容
 

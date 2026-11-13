@@ -45,7 +45,7 @@ Android 配置生成器 MUST 在启用流量嗅探时，把 `sniff` action 放�
 
 ### Requirement: Unset per-group URL tests dynamically inherit the global URL
 
-未显式设置组级测速 URL 的分组 MUST 保持空的 raw override，并 MUST 在配置生成时动态使用全局 `connectionTestURL`；只有明确的组级 URL 才能覆盖全局值。编辑页初始化或保存 MUST NOT 把当时的全局/默认 URL 固化为组级配置。全局值变化后，未设组级 URL 的分组在下次生成 Root 配置时 MUST 使用新值。
+未显式设置组级测速 URL 的分组 MUST 保持空的 raw override，并 MUST 在配置生成时动态使用全局 `connectionTestURL`；只有明确的组级 URL 才能覆盖全局值。编辑页初始化或保存 MUST NOT 把当时的全局/默认 URL 固化为组级配置。URLTest、LoadBalance、Root snapshot 与单节点 `resolveLink` MUST 使用一致的解析结果。旧版自动写入且精确等于 `default_group_test_url` 的固定 fallback MUST 迁移为空 override；其他非空组 URL MUST 保留。全局值变化后，未设组级 URL 的分组在下次生成 Root 配置时 MUST 使用新值。
 
 #### Scenario: 空组级 override 继承全局 URL
 
@@ -59,6 +59,13 @@ Android 配置生成器 MUST 在启用流量嗅探时，把 `sniff` action 放�
 - **WHEN** 全局 connection test URL 改变并重新生成配置
 - **THEN** 该组继续使用自己的显式 URL
 - **AND** 其他空 override 分组改用新的全局 URL
+
+#### Scenario: 迁移旧固定 fallback 并保留其他显式 URL
+
+- **GIVEN** 某组仅存有旧版本编辑页自动写入且精确等于 `default_group_test_url` 的 fallback，另一个组保存了不同的非空 URL
+- **WHEN** 新版本解析两组的测速地址
+- **THEN** 旧 fallback 被视为空 override 并动态使用当前全局 URL
+- **AND** 另一个组的显式 URL 保持不变
 
 ### Requirement: User backup export is readable and imports legacy wanBox backups
 

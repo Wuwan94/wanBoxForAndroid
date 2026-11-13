@@ -273,5 +273,14 @@ class SpeedTestAndroidContractTest {
         assertTrue(actions.contains("ProfileManager.deleteProfile2("))
     }
 
+    @Test
+    fun groupSettingsUsesRawGroupUrlOverrideForEditingCache() {
+        val source = source("main/java/io/nekohasekai/sagernet/ui/GroupSettingsActivity.kt")
+        val init = source.substringAfter("fun ProxyGroup.init()").substringBefore("fun ProxyGroup.serialize()")
+        val serialize = source.substringAfter("fun ProxyGroup.serialize()").substringBefore("private")
+        assertTrue(init.contains("DataStore.groupUrlTestUrl = DataStore.groupUrlTestUrlOverride(id)"))
+        assertTrue(serialize.contains("DataStore.setGroupUrlTestUrl(id, DataStore.groupUrlTestUrl)"))
+    }
+
     private fun source(relativePath: String): String = File("src/$relativePath").readText()
 }
