@@ -16,7 +16,7 @@ import java.util.Base64
 
 class GroupUrlTestSnapshotTest {
     @Test
-    fun groupUrlInheritanceAndLoadBalanceUseCurrentGlobalUrl() = runBlocking {
+    fun groupUrlResolutionAcrossEditorRootAndSingleNode() = runBlocking {
         val original = BackupRestore.parse(
             org.json.JSONObject(io.nekohasekai.sagernet.utils.BackupHelper.doBackup().toString(Charsets.UTF_8))
         )
@@ -87,7 +87,7 @@ class GroupUrlTestSnapshotTest {
             val secondGroupProfile = ProxyEntity(id = peerId + 1, groupId = secondGroupId)
             DataStore.setGroupUrlTestUrl(groupId, SagerNet.application.getString(R.string.default_group_test_url))
             assertEquals("https://global-two.example/204", UrlTest().resolveLink(main))
-            assertEquals("", DataStore.groupUrlTestUrlOverride(groupId))
+            assertEquals("", DataStore.readAndMigrateGroupUrlTestUrlOverride(groupId))
             DataStore.setGroupUrlTestUrl(secondGroupId, "https://second-group.example/204")
             assertEquals("https://second-group.example/204", UrlTest().resolveLink(secondGroupProfile))
             DataStore.connectionTestURL = "https://global-migrated.example/204"
@@ -95,10 +95,10 @@ class GroupUrlTestSnapshotTest {
             assertEquals("https://second-group.example/204", UrlTest().resolveLink(secondGroupProfile))
 
             DataStore.setGroupUrlTestUrl(editorId, SagerNet.application.getString(R.string.default_group_test_url))
-            DataStore.groupUrlTestUrl = DataStore.groupUrlTestUrlOverride(editorId)
+            DataStore.groupUrlTestUrl = DataStore.readAndMigrateGroupUrlTestUrlOverride(editorId)
             assertEquals("", DataStore.groupUrlTestUrl)
             DataStore.setGroupUrlTestUrl(editorId, DataStore.groupUrlTestUrl)
-            assertEquals("", DataStore.groupUrlTestUrlOverride(editorId))
+            assertEquals("", DataStore.readAndMigrateGroupUrlTestUrlOverride(editorId))
 
             DataStore.setGroupUrlTest(groupId, false)
             DataStore.setGroupLoadBalance(groupId, true)

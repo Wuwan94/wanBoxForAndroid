@@ -406,7 +406,7 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     }
     fun groupIsLoadBalance(groupId: Long): Boolean = isGroupLoadBalance(groupId)
     fun setGroupIsLoadBalance(groupId: Long, value: Boolean) = setGroupLoadBalance(groupId, value)
-    fun groupUrlTestUrlOverride(groupId: Long): String {
+    fun readAndMigrateGroupUrlTestUrlOverride(groupId: Long): String {
         val key = "group_${groupId}_urlTestUrl"
         val stored = configurationStore.getString(key, "") ?: ""
         if (stored == SagerNet.application.getString(R.string.default_group_test_url)) {
@@ -416,7 +416,7 @@ object DataStore : OnPreferenceDataStoreChangeListener {
         return stored
     }
     fun groupUrlTestUrl(groupId: Long): String =
-        groupUrlTestUrlOverride(groupId).trim().takeIf { it.isNotBlank() } ?: connectionTestURL
+        readAndMigrateGroupUrlTestUrlOverride(groupId).trim().takeIf { it.isNotBlank() } ?: connectionTestURL
     fun setGroupUrlTestUrl(groupId: Long, value: String) {
         configurationStore.putString("group_${groupId}_urlTestUrl", value)
     }
