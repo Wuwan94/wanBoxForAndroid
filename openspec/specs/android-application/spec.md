@@ -122,21 +122,28 @@ Android 后台服务 MUST 将配置无效、依赖缺失或内核启动失败报
 
 ### Requirement: 未设置组级测速 URL 动态继承全局 URL
 
-组级测速 URL 未显式设置时 MUST 保持空 override，并在每次生成配置或解析单节点测速链接时动态使用当前全局 `connectionTestURL`；显式组 URL MUST 优先。编辑页加载与保存 MUST NOT 固化全局/默认 URL。旧版自动写入且精确等于 `default_group_test_url` 的 fallback MUST 迁移为空 override，其他非空值 MUST 保留。URLTest 与 LoadBalance outbound MUST 使用同一解析结果。
+组级测速 URL 未显式设置时 MUST 保持空 override，并在每次生成组级 URLTest/LoadBalance outbound 或解析单节点测速链接时动态使用当前全局 `connectionTestURL`；显式组 URL MUST 优先。编辑页加载与保存 MUST NOT 固化全局/默认 URL。旧版自动写入且精确等于 `default_group_test_url` 的 fallback MUST 迁移为空 override，其他非空值 MUST 保留。Root snapshot 中组级 URLTest/LoadBalance outbound 与单节点解析 MUST 使用同一组级解析结果；Root mixed-inbound 的应用级连接测试探测规则及 Root health-check policy MUST 继续使用全局 `connectionTestURL`，不得继承组级 override。
 
 #### Scenario: 空或旧 fallback override 跟随当前全局值
 
 - **GIVEN** 一个组未设置测速 URL，或只存有旧版固定 `default_group_test_url`
-- **WHEN** 全局 `connectionTestURL` 改变并重新生成 Root 配置
+- **WHEN** 全局 `connectionTestURL` 改变并重新生成组级 Root URLTest/LoadBalance outbound
 - **THEN** 该组使用最新全局 URL，旧 fallback 被迁移为空 override
 - **AND** 再次修改全局 URL 后，空 override 继续跟随新值
 
-#### Scenario: 显式组 URL 保持优先
+#### Scenario: 显式组 URL 保持组级测速优先
 
 - **GIVEN** 某组保存了不同于旧 fallback 的明确测速 URL
 - **WHEN** URLTest 或 LoadBalance outbound 生成且全局 URL 改变
 - **THEN** 该组仍使用自己的显式 URL
 - **AND** 未配置组 URL 的其他分组使用新的全局 URL
+
+#### Scenario: 应用级 Root probe 仍保持全局 URL
+
+- **GIVEN** 某组显式测速 URL 与全局 `connectionTestURL` 不同
+- **WHEN** Root 配置生成应用级 mixed-inbound 探测规则和组级测速 outbound
+- **THEN** 组级 URLTest/LoadBalance outbound 使用显式组 URL
+- **AND** mixed-inbound 探测规则与 health-check policy 仍使用全局 URL
 
 ### Requirement: 测速与正式连接保持语义一致且实例隔离
 

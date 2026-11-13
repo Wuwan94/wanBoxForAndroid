@@ -45,18 +45,18 @@ Android 配置生成器 MUST 在启用流量嗅探时，把 `sniff` action 放�
 
 ### Requirement: Unset per-group URL tests dynamically inherit the global URL
 
-未显式设置组级测速 URL 的分组 MUST 保持空的 raw override，并 MUST 在配置生成时动态使用全局 `connectionTestURL`；只有明确的组级 URL 才能覆盖全局值。编辑页初始化或保存 MUST NOT 把当时的全局/默认 URL 固化为组级配置。URLTest、LoadBalance、Root snapshot 与单节点 `resolveLink` MUST 使用一致的解析结果。旧版自动写入且精确等于 `default_group_test_url` 的固定 fallback MUST 迁移为空 override；其他非空组 URL MUST 保留。全局值变化后，未设组级 URL 的分组在下次生成 Root 配置时 MUST 使用新值。
+未显式设置组级测速 URL 的分组 MUST 保持空的 raw override，并 MUST 在生成组级测速配置时动态使用全局 `connectionTestURL`；只有明确的组级 URL 才能覆盖组级测速目标。编辑页初始化或保存 MUST NOT 把当时的全局/默认 URL 固化为组级配置。Root snapshot 中的组级 URLTest/LoadBalance outbound 与单节点 `resolveLink` MUST 使用一致的组级解析结果。Root mixed-inbound 的应用级全局连接测试探测规则与 Root health-check policy MUST 继续使用全局 `connectionTestURL`，不得被组级 override 改写。旧版自动写入且精确等于 `default_group_test_url` 的固定 fallback MUST 迁移为空 override；其他非空组 URL MUST 保留。全局值变化后，未设组级 URL 的分组在下次生成组级测速配置时 MUST 使用新值。
 
 #### Scenario: 空组级 override 继承全局 URL
 
 - **GIVEN** 一个组没有显式测速 URL，且全局连接测试 URL 已设置
-- **WHEN** 用户打开该组设置或应用生成 Root selector/URLTest 配置
+- **WHEN** 用户打开该组设置，或应用生成组级 Root URLTest/LoadBalance outbound
 - **THEN** 组设置仍保留空 override，生成配置使用全局 URL
 
-#### Scenario: 显式组 URL 覆盖全局 URL
+#### Scenario: 显式组 URL 覆盖组级测速目标
 
 - **GIVEN** 某组保存了明确测速 URL
-- **WHEN** 全局 connection test URL 改变并重新生成配置
+- **WHEN** 全局 connection test URL 改变并重新生成该组 URLTest/LoadBalance outbound 或执行单节点 `resolveLink`
 - **THEN** 该组继续使用自己的显式 URL
 - **AND** 其他空 override 分组改用新的全局 URL
 
@@ -66,6 +66,13 @@ Android 配置生成器 MUST 在启用流量嗅探时，把 `sniff` action 放�
 - **WHEN** 新版本解析两组的测速地址
 - **THEN** 旧 fallback 被视为空 override 并动态使用当前全局 URL
 - **AND** 另一个组的显式 URL 保持不变
+
+#### Scenario: Root 应用级 mixed probe 仍使用全局 URL
+
+- **GIVEN** 某组显式测速 URL 与全局 `connectionTestURL` 不同
+- **WHEN** 应用生成 Root 配置
+- **THEN** 组级 URLTest/LoadBalance outbound 使用显式组 URL
+- **AND** mixed-inbound 的应用级连接测试探测规则与 Root health-check policy 仍基于全局 URL
 
 ### Requirement: User backup export is readable and imports legacy wanBox backups
 
