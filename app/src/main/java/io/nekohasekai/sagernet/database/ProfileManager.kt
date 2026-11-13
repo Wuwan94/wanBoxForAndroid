@@ -270,6 +270,7 @@ object ProfileManager {
             // Auto-enrich existing Play Store rules for existing users without resetting DB
             var needReload = false
             rules.forEach { rule ->
+                var changed = false
                 if (rule.domains.contains("googleapis.cn") && !rule.domains.contains("gvt1.com")) {
                     val currentDomains = rule.domains.split("\n").map { it.trim() }.filter { it.isNotBlank() }
                     val newDomains = listOf(
@@ -293,6 +294,18 @@ object ProfileManager {
                     )
                     rule.domains = (currentDomains + newDomains).distinct().joinToString("\n")
                     rule.packages = rule.packages + setOf("com.android.vending", "com.google.android.gms")
+                    changed = true
+                }
+                if (rule.domains.contains("googleapis.cn") && rule.packages.any {
+                        it == "com.android.providers.downloads" || it == "com.android.providers.downloads.ui"
+                    }) {
+                    rule.packages = rule.packages - setOf(
+                        "com.android.providers.downloads",
+                        "com.android.providers.downloads.ui"
+                    )
+                    changed = true
+                }
+                if (changed) {
                     SagerDatabase.rulesDao.updateRule(rule)
                     needReload = true
                 }

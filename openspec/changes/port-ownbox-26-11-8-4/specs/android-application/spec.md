@@ -27,7 +27,7 @@ Android 配置生成器 MUST 在启用流量嗅探时，把 `sniff` action 放�
 
 ### Requirement: Default ad and Play routes do not hijack system downloads
 
-新建默认广告规则 MUST 使用可由 wanBox 本地 geosite 转换链生成的 `geosite-category-ads-all` 标签。Play Store route MUST NOT 自动注入 Android Download Manager/Downloads Provider 作为代理路由包名。升级时识别出的历史 Play Store route MUST 删除遗留注入包名 `com.android.providers.downloads` 与 `com.android.providers.downloads.ui`，同时 MUST 保留原有 `enabled` 状态，不得因清理而强制启用或禁用该规则。
+新建默认广告规则 MUST 使用可由 wanBox 本地 geosite 转换链生成的 `geosite-category-ads-all` 标签。Play Store route MUST NOT 自动注入 Android Download Manager/Downloads Provider 作为代理路由包名。升级时仅当已保存规则 domains 含 `googleapis.cn` 且 packages 至少含一个旧注入包名时，才将其识别为待迁移的历史 Play route；MUST 从该规则删除 `com.android.providers.downloads` 与 `com.android.providers.downloads.ui`，同时 MUST 保留原有 `enabled` 状态和其他包名，不得因清理而强制启用或禁用该规则。
 
 #### Scenario: 创建默认规则
 
@@ -38,7 +38,7 @@ Android 配置生成器 MUST 在启用流量嗅探时，把 `sniff` action 放�
 
 #### Scenario: 升级含旧 Play 下载注入的规则
 
-- **GIVEN** 已保存的 Play Store route 包含旧版强制注入的 Android Download Manager/Downloads Provider 包名
+- **GIVEN** 已保存规则 domains 含 `googleapis.cn`，且 packages 含一个或两个旧版强制注入的 Android Download Manager/Downloads Provider 包名
 - **WHEN** ProfileManager 读取并迁移既有 route
 - **THEN** 两个旧注入包名被移除，且 Root 配置不再将这些下载请求强制路由到 Play proxy
 - **AND** 原有规则 enabled 状态及其他用户选择保持不变

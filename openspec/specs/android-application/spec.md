@@ -35,6 +35,49 @@
 - **THEN** 输出可被目标官方内核 schema 接受
 - **AND** 不包含已移除的入站 sniff、legacy TUN 地址或 `route.concurrent_dial` 字段
 
+### Requirement: Root 路由顺序保持域名命中与拒绝优先级
+
+Android 配置生成器 MUST 在启用嗅探时将 `sniff` action 放在所有基于域名的路由规则之前，包括 Root mixed 入站探测规则。显式用户规则 MUST 位于 geographic fallback 前并保持彼此的相对顺序；fallback 重排 MUST 将拒绝型 geographic fallback 放在内置国内 geosite/geoip 直连 fallback 之前，且 MUST NOT 改写数据库中的用户顺序。Root DNS 的 port 53 与 protocol dns 流量 MUST 由 `hijack-dns` 处理，MUST NOT 生成重复的 53 端口代理兜底。组播 reject MUST 只匹配目的地址，MUST NOT 包含 `source_ip_cidr`。
+
+#### Scenario: sniff 先于 Root 探测和业务域名规则
+
+- **GIVEN** 用户启用流量嗅探，Root 配置包含 mixed 入站探测域名和用户域名分流规则
+- **WHEN** Android 生成 sing-box route rules
+- **THEN** `action=sniff` 位于探测域名及其他域名路由之前
+- **AND** 用户域名规则仍按显式规则语义参与路由
+
+#### Scenario: 自定义 reject 优先于国内 direct fallback
+
+- **GIVEN** 启用规则中同时存在用户自定义 reject geographic fallback 与内置国内 direct fallback
+- **WHEN** wanBox 排序并生成普通规则路由
+- **THEN** reject fallback 位于国内 direct fallback 之前
+- **AND** Room 中原始用户顺序保持不变
+
+#### Scenario: DNS 与组播规则保持目的流量语义
+
+- **GIVEN** Android 为 Root 模式生成 DNS 与组播 route rules
+- **WHEN** 配置生成 port 53/protocol dns 的 hijack 及组播 reject
+- **THEN** DNS 流量由 `hijack-dns` 处理且不存在冗余的 53 端口代理兜底
+- **AND** 组播 reject 匹配目标 CIDR，且没有 `source_ip_cidr`
+
+### Requirement: 默认广告与 Play 规则不劫持系统下载
+
+默认广告规则和广告规则快捷/预设入口 MUST 使用本地 geosite 转换链支持的 `geosite-category-ads-all` 标签。新建的默认 Play Store 规则 MUST NOT 被应用强制启用，且 MUST NOT 注入 `com.android.providers.downloads` 或 `com.android.providers.downloads.ui`。迁移既有规则时，仅当规则 domains 含 `googleapis.cn` 且包名集合含任一上述旧注入包时，MUST 从该规则移除这两个包；MUST 保留规则原有 `enabled` 状态、其他包名及不符合该特征的规则。
+
+#### Scenario: 创建默认广告与 Play 规则
+
+- **GIVEN** 新安装触发默认路由规则创建，或用户使用广告规则快捷/预设入口
+- **WHEN** 应用生成默认 route rule
+- **THEN** 广告规则使用 `geosite-category-ads-all` 本地标签
+- **AND** 默认 Play 规则不被强制启用且不包含 Downloads Provider/Download Manager 包名
+
+#### Scenario: 升级已有 Play 下载注入规则
+
+- **GIVEN** 已保存的 Play 规则 domains 含 `googleapis.cn`，且包名含一个或两个旧 Downloads 注入项
+- **WHEN** `ProfileManager` 读取并迁移路由规则
+- **THEN** 两个旧注入包名均从该 Play 规则移除
+- **AND** 原有 enabled 状态与其他包名保持不变，非 Play 规则不受影响
+
 ### Requirement: 链式配置引用必须解析到最终出站标签
 
 Android 配置生成器 MUST 在写入链式 detour、selector 成员或最终路由引用前确定被引用节点的最终标签。当同一节点既作为独立规则出站又作为另一条链的成员时，生成配置中的全部引用 MUST 指向实际存在的 endpoint 或 outbound 标签；构建顺序 MUST NOT 产生悬空引用。

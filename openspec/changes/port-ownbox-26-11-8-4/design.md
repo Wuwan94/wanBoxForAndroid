@@ -28,7 +28,7 @@ wanBox 的 RootModuleClient 将 Android ConfigBuilder 生成的 sing-box 配置�
 
 `RouteRulePriority.order` 继续保留显式规则的相对次序；拒绝型 geographic fallback 先于其余地理 fallback，防止后添加的广告/reject rule 被国内 direct geosite 先匹配。仅改变生成顺序，不改写 Room `userOrder`。启用嗅探时，`action=sniff` 必须在 Root mixed 探测域名和业务域名规则之前。移除 `hijack-dns` 后重复的 port/protocol 53 代理 fallback。组播 reject 保留当前目的地址 `ip_cidr` 范围，但删除误加的 `source_ip_cidr`。
 
-默认广告规则需使用 `domains="geosite-category-ads-all"`。虽然 OwnBox 将同一标签存入 `ruleset` 字段，wanBox 的 `processRulesetUrl` 只接受 `rsip:`/`rssite:` 远程 URL，故内置 geosite 必须走 `domains` 的 `makeSingBoxRule`/本地 rule-set 转换链。升级时只对已识别的 Play Store route 清理历史注入包名 `com.android.providers.downloads`、`com.android.providers.downloads.ui`；保留 enabled 状态和其他用户选择。当前 ConfigBuilder 已没有构建时自动注入，不再新增此类代码。
+默认广告规则需使用 `domains="geosite-category-ads-all"`。虽然 OwnBox 将同一标签存入 `ruleset` 字段，wanBox 的 `processRulesetUrl` 只接受 `rsip:`/`rssite:` 远程 URL，故内置 geosite 必须走 `domains` 的 `makeSingBoxRule`/本地 rule-set 转换链。升级时仅迁移 domains 含 `googleapis.cn` 且 packages 含至少一个旧注入包的 Play Store route；从该规则移除 `com.android.providers.downloads` 与 `com.android.providers.downloads.ui` 两个历史包名，同时保留 enabled 状态和其他用户选择，不触及不满足该特征的规则。当前 ConfigBuilder 已没有构建时自动注入，不再新增此类代码。
 
 ### 2. 批次 2：分组测速 URL 继承
 
