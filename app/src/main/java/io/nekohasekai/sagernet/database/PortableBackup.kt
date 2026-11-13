@@ -4,6 +4,7 @@ package io.nekohasekai.sagernet.database
 import com.google.gson.GsonBuilder
 import com.google.gson.stream.JsonReader
 import com.google.gson.stream.JsonToken
+import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.database.preference.KeyValuePair
 import io.nekohasekai.sagernet.fmt.AbstractBean
 import org.json.JSONArray
@@ -23,6 +24,57 @@ object PortableBackup {
     private val gson = GsonBuilder().serializeNulls().create()
     private val proxyFields = setOf("id", "groupId", "type", "userOrder", "tx", "rx", "status", "ping", "uuid", "error",
         "speedTestMode", "speedTestDownloadBitsPerSecond", "speedTestUploadBitsPerSecond")
+    // Versioned backup defaults mirror wanBox DataStore defaults. Root-only builds intentionally
+    // exclude the upstream TUN implementation setting; mixedPort is per-Android-user.
+    private val coreSettingDefaults = linkedMapOf<String, Any>(
+        Key.GLOBAL_MODE to false,
+        Key.TRAFFIC_SNIFFING to "1",
+        Key.RESOLVE_DESTINATION to false,
+        Key.BYPASS_LAN to false,
+        Key.BYPASS_LAN_IN_CORE to false,
+        Key.STRICT_ROUTE to true,
+        Key.DUAL_NETWORK_ACCELERATION to false,
+        Key.CONCURRENT_DIAL to false,
+        Key.ENABLE_DNS_ROUTING to true,
+        Key.ENABLE_FAKEDNS to true,
+        Key.IPV6_MODE to "0",
+        Key.SERVICE_MODE to Key.MODE_ROOT,
+        Key.MTU to "9000",
+        Key.RULES_PROVIDER to "0",
+        Key.REMOTE_DNS to "https://dns.google/dns-query",
+        Key.DIRECT_DNS to "https://223.5.5.5/dns-query",
+        Key.CONNECTION_TEST_URL to "https://www.gstatic.com/generate_204",
+        Key.GLOBAL_ALLOW_INSECURE to false,
+        Key.PROXY_APPS to false,
+        Key.BYPASS_MODE to true,
+        Key.DNS_HOSTS to "",
+        Key.RULES_GEOSITE_URL to "https://github.com/SagerNet/sing-geosite/releases/latest/download/geosite.db",
+        Key.RULES_GEOIP_URL to "https://github.com/SagerNet/sing-geoip/releases/latest/download/geoip.db",
+        Key.RULES_UPDATE_INTERVAL to "0",
+        Key.WIFI_POLICY_MODE to "0",
+        Key.WIFI_POLICY_LIST to "",
+        Key.MOBILE_DATA_POLICY to "0",
+        Key.ROOT_UID_POLICY to "0",
+        Key.INPUT_METHOD_DIRECT to false,
+        Key.ALLOW_ACCESS to false,
+    )
+    internal fun withCoreSettingDefaults(settings: List<KeyValuePair>): List<KeyValuePair> {
+        require(settings.map { it.key }.distinct().size == settings.size) { "设置键重复" }
+        val merged = LinkedHashMap<String, KeyValuePair>(settings.size + coreSettingDefaults.size)
+        settings.forEach { merged[it.key] = it }
+        for ((key, value) in coreSettingDefaults) {
+            if (key !in merged) {
+                merged[key] = KeyValuePair(key).apply {
+                    when (value) {
+                        is Boolean -> put(value)
+                        is String -> put(value)
+                        else -> error("Unsupported core backup default for $key")
+                    }
+                }
+            }
+        }
+        return merged.values.toList()
+    }
     // Classes are selected only from the application's fixed bean registry, never from input.
     private val beanClasses by lazy {
         ProxyEntity::class.java.declaredFields.filter { AbstractBean::class.java.isAssignableFrom(it.type) }.associate { field ->
@@ -54,7 +106,7 @@ object PortableBackup {
         })) }
         plan.groups?.let { root.put("groups", JSONArray(it.map(::tree))) }
         plan.rules?.let { root.put("rules", JSONArray(it.map(::tree))) }
-        plan.settings?.let { root.put("settings", JSONArray(it.map { kv ->
+        plan.settings?.let { settings -> root.put("settings", JSONArray(withCoreSettingDefaults(settings).map { kv ->
             JSONObject().put("key", kv.key).put("valueType", kv.valueType)
                 .put("valueBase64", kv.value.toByteString().base64())
         })) }
