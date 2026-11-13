@@ -73,6 +73,19 @@ class PortableBackupCompatibilityTest {
             assertEquals(plan.rules,migrated.rules)
         }
     }
+    @Test fun historicalSettingsImportCompletesMissingCoreDefaults() {
+        val root = JSONObject().put("version", 1)
+            .put("settings", JSONArray().put(parcel(KeyValuePair(Key.MTU).put("1450"))))
+        val settings = BackupRestore.parse(root).settings!!.associateBy { it.key }
+        assertEquals("1450", settings[Key.MTU]?.string)
+        assertEquals("https://dns.google/dns-query", settings[Key.REMOTE_DNS]?.string)
+        assertEquals("https://223.5.5.5/dns-query", settings[Key.DIRECT_DNS]?.string)
+        assertEquals(true, settings[Key.ENABLE_DNS_ROUTING]?.boolean)
+        assertNull(settings[Key.INPUT_METHOD_DIRECT])
+
+        val unselected = BackupRestore.parse(JSONObject().put("version", 1).put("rules", JSONArray()))
+        assertNull(unselected.settings)
+    }
     @Test fun cancelledOrFailedRestoreKeepsAllDatabasesIntact() {
         val original=snapshot()
         try {

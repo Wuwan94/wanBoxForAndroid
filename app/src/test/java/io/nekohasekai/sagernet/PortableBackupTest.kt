@@ -78,6 +78,27 @@ class PortableBackupTest {
         assertEquals("https://backup.example/dns-query", explicit[Key.REMOTE_DNS]?.string)
         assertEquals(false, explicit[Key.INPUT_METHOD_DIRECT]?.boolean)
     }
+    @Test fun portableImportCompletesMissingCoreDefaultsButPreservesExplicitSettings() {
+        val root = PortableBackup.document(PortableBackup.encode(
+            BackupRestore.Plan(null, null, null, listOf(KeyValuePair(Key.MTU).put("1450")))
+        ))
+        val allSettings = root.getJSONArray("settings")
+        val mtu = (0 until allSettings.length()).map { allSettings.getJSONObject(it) }
+            .single { it.getString("key") == Key.MTU }
+        root.put("settings", org.json.JSONArray().put(mtu)) // Simulate a pre-default v2 export.
+
+        val settings = BackupRestore.parse(root).settings!!.associateBy { it.key }
+        assertEquals("1450", settings[Key.MTU]?.string)
+        assertEquals("https://dns.google/dns-query", settings[Key.REMOTE_DNS]?.string)
+        assertEquals("https://223.5.5.5/dns-query", settings[Key.DIRECT_DNS]?.string)
+        assertEquals(true, settings[Key.ENABLE_DNS_ROUTING]?.boolean)
+        assertNull(settings[Key.INPUT_METHOD_DIRECT])
+    }
+    @Test fun portableImportWithoutSettingsSectionLeavesItUnselected() {
+        val root = PortableBackup.document(PortableBackup.encode(BackupRestore.Plan(null, null, emptyList(), null)))
+        assertFalse(root.has("settings"))
+        assertNull(BackupRestore.parse(root).settings)
+    }
     private fun reject(block:()->Unit) { try { block(); fail("invalid backup accepted") } catch (_:Exception) {} }
     @Test fun schemaAndReferencesAreCheckedBeforeWrites() {
         val root=PortableBackup.document(PortableBackup.encode(sample()))
