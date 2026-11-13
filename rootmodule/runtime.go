@@ -70,6 +70,10 @@ type State struct {
 	// ProfileTags is populated only by the read-only `node tags` CLI response.
 	// It is copied from the active generation and never contains controller secrets.
 	ProfileTags map[string]string `json:"profileTags,omitempty"`
+	// Channel is populated only by the read-only `channel` CLI response
+	// (channel.go): the supervisor's loopback long-poll endpoint. It is read
+	// from channel.json at request time and never persisted into state.json.
+	Channel *ChannelEndpoint `json:"channel,omitempty"`
 	// @author 雾晚 (phase 2): data-plane health ("ok" / "degraded"), last core exit
 	// reason and its class. Optional fields: older managers ignore them.
 	Health     string `json:"health,omitempty"`
@@ -81,6 +85,14 @@ type State struct {
 type Event struct {
 	Time int64  `json:"time"`
 	Code string `json:"code"`
+}
+
+// ChannelEndpoint locates the supervisor's loopback long-poll channel
+// (channel.go). The token is a per-supervisor random secret shared only via
+// the 0600 channel.json file and the `channel` CLI response to root.
+type ChannelEndpoint struct {
+	Port  int    `json:"port"`
+	Token string `json:"token"`
 }
 
 // @author 雾晚：模块端遥测字段，可选。
@@ -130,6 +142,10 @@ type Runtime struct {
 	installStart      func(context.Context) error
 	installRunning    func() bool
 	independentCgroup func() error
+	// changes fans supervisor state writes out to loopback long-poll
+	// waiters (channel.go). Initialized in New; nil for Runtime values built
+	// as bare literals, where notify/wait degrade to no-op/deadline-only.
+	changes *changeNotifier
 	// Hot-update seams (v3.0.15): route guard, canary health probe and its
 	// timing. Zero values select the production defaults in hot_update.go.
 	installRouteGuard   func(context.Context, bool) error
@@ -139,7 +155,7 @@ type Runtime struct {
 }
 
 func New(root, moduleDir string) *Runtime {
-	r := &Runtime{Root: root, ModuleDir: moduleDir, independentCgroup: IndependentCgroup}
+	r := &Runtime{Root: root, ModuleDir: moduleDir, independentCgroup: IndependentCgroup, changes: newChangeNotifier()}
 	r.Validate = func(ctx context.Context, config, assets string) error {
 		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
@@ -1112,6 +1128,26 @@ func Response(w io.Writer, state State, err error) {
 		}
 	}
 	_ = json.NewEncoder(w).Encode(payload)
+}
+
+// CommandResponse renders the exact bytes the wanboxctl CLI prints for a
+// read-only command: dashboard binds the full dashboard snapshot, logs adds
+// the event tail to the plain status, everything else is the plain status.
+// The CLI's final render and the loopback channel (channel.go) both go
+// through here so their bytes can never drift apart.
+func (r *Runtime) CommandResponse(command string, err error) []byte {
+	var state State
+	if command == "dashboard" {
+		state = r.DashboardState()
+	} else {
+		state = r.Status()
+	}
+	if command == "logs" {
+		state.Events = r.Events()
+	}
+	var buf bytes.Buffer
+	Response(&buf, state, err)
+	return buf.Bytes()
 }
 func (r *Runtime) ValidateSnapshot(ctx context.Context, s Snapshot) error {
 	return r.withLock(func() error {

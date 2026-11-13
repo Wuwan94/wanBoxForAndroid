@@ -49,21 +49,33 @@ func main() {
 		}
 		return
 	}
+	if len(args) == 1 && args[0] == "channel" {
+		state, err := readChannel(r, os.Geteuid())
+		module.Response(os.Stdout, state, err)
+		if err != nil {
+			os.Exit(1)
+		}
+		return
+	}
 	err := runAuthorized(ctx, r, args, os.Geteuid())
-	// @author 雾晚：dashboard 返回绑定同一快照的完整状态，不拼接两代次
-	var state module.State
-	if len(os.Args) == 2 && os.Args[1] == "dashboard" {
-		state = r.DashboardState()
-	} else {
-		state = r.Status()
+	// @author 雾晚：dashboard 返回绑定同一快照的完整状态，不拼接两代次。
+	// 渲染统一走 module 包的 CommandResponse，与回环长轮询通道共用同一
+	// 路径，保证 CLI 输出与 HTTP 响应逐字节一致。
+	command := ""
+	if len(args) == 1 {
+		command = args[0]
 	}
-	if len(os.Args) == 2 && os.Args[1] == "logs" {
-		state.Events = r.Events()
-	}
-	module.Response(os.Stdout, state, err)
+	_, _ = os.Stdout.Write(r.CommandResponse(command, err))
 	if err != nil {
 		os.Exit(1)
 	}
+}
+
+func readChannel(r *module.Runtime, euid int) (module.State, error) {
+	if euid != 0 {
+		return r.Status(), errors.New("root_required")
+	}
+	return r.ChannelEndpoint()
 }
 
 func readProfileTags(r *module.Runtime, euid int) (module.State, error) {

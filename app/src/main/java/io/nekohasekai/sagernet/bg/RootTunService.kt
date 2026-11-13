@@ -105,7 +105,25 @@ class RootTunService : Service(), BaseService.Interface {
                         ))
                     }
                 }
-            }, isInteractive = { SagerNet.power.isInteractive }, failures = { failures })
+            }, isInteractive = { SagerNet.power.isInteractive }, failures = { failures },
+            awaitChange = {
+                // @author 雾晚: long-poll the status view from the last seen
+                // snapshot; only a genuine revision/phase/profile change
+                // wakes the observer early. A null result (channel down)
+                // reports false so the loop keeps its plain cadence, and an
+                // unchanged status returned early by a misbehaving server
+                // does the same instead of spinning the sampler.
+                val armed = snapshot
+                val next = try {
+                    RootModuleClient.awaitStatusChange(armed?.revision.orEmpty(), 25)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    null
+                }
+                next != null && (next.revision != armed?.revision || next.phase != armed?.phase ||
+                    next.profileId != armed?.profileId)
+            })
             // Bound UI/tile only, never an App background watchdog.
         }
         return super<BaseService.Interface>.onBind(intent)

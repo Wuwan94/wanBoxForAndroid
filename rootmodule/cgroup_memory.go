@@ -23,12 +23,15 @@ import (
 // files were missing, read-only, or shaped unexpectedly: every error in
 // this section degrades silently to "no memory governance".
 //
-// Scope guard: the limit is written only when the supervisor lives in a
-// dedicated (non-root) v2 group. After IndependentCgroup the process sits
-// in init's group, which on Android is the hierarchy root shared with the
-// whole system — a module must never throttle the entire phone, so the
-// root group is skipped (monitor and GC stay off as well: root-wide
-// memory.current says nothing about this module's own pressure).
+// Scope guard: the limit is written only to the module's own dedicated
+// child group, which cgroup_child.go establishes before this setup runs.
+// After IndependentCgroup the process sits in init's group, which on
+// Android is the hierarchy root shared with the whole system — a module
+// must never throttle the entire phone, so limits are never written to
+// the root group or to any group the module does not own. If the child
+// group cannot be established, governance stays off entirely (monitor
+// and GC included: a foreign group's memory.current says nothing about
+// this module's own pressure).
 // ---------------------------------------------------------------------------
 
 const (
@@ -114,22 +117,34 @@ func parseMemoryEvents(text string) memoryEvents {
 	return ev
 }
 
-// ownV2CgroupDir resolves the filesystem directory of the unified (v2)
-// cgroup this process belongs to, from /proc/self/cgroup and
-// /proc/self/mountinfo contents. ok is false when there is no v2 entry,
-// no cgroup2 mount, or the group is the hierarchy root (see scope guard
-// above).
-func ownV2CgroupDir(selfCgroup, mountinfo string) (string, bool) {
-	ownPath := ""
+// v2Layout locates this process in the unified (v2) hierarchy: the
+// hierarchy path reported by /proc/self/cgroup and the filesystem
+// directory it maps to under the cgroup2 mount.
+type v2Layout struct {
+	hierPath string // own path within the hierarchy ("/", "/apps", ...)
+	dir      string // filesystem directory of own group
+}
+
+// v2PathOf extracts this process's unified-hierarchy (v2) path from
+// /proc/self/cgroup content.
+func v2PathOf(selfCgroup string) (string, bool) {
 	for _, line := range strings.Split(strings.TrimSpace(selfCgroup), "\n") {
 		parts := strings.SplitN(line, ":", 3)
 		if len(parts) == 3 && parts[1] == "" && strings.HasPrefix(parts[2], "/") {
-			ownPath = parts[2]
-			break
+			return parts[2], true
 		}
 	}
-	if ownPath == "" || ownPath == "/" {
-		return "", false
+	return "", false
+}
+
+// resolveV2Layout maps the process's v2 membership to a filesystem
+// directory using the first visible cgroup2 mount. ok is false when
+// there is no v2 entry, no cgroup2 mount, or the group lies outside the
+// mounted subtree.
+func resolveV2Layout(selfCgroup, mountinfo string) (v2Layout, bool) {
+	ownPath, ok := v2PathOf(selfCgroup)
+	if !ok {
+		return v2Layout{}, false
 	}
 	for _, line := range strings.Split(mountinfo, "\n") {
 		halves := strings.SplitN(line, " - ", 2)
@@ -148,9 +163,21 @@ func ownV2CgroupDir(selfCgroup, mountinfo string) (string, bool) {
 		if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 			continue
 		}
-		return filepath.Join(mount, relative), true
+		return v2Layout{hierPath: ownPath, dir: filepath.Join(mount, relative)}, true
 	}
-	return "", false
+	return v2Layout{}, false
+}
+
+// ownV2CgroupDir resolves the filesystem directory of the unified (v2)
+// cgroup this process belongs to. ok is false when the layout cannot be
+// resolved, or the group is the hierarchy root (see scope guard above):
+// callers that only resolve — and never migrate — must not govern root.
+func ownV2CgroupDir(selfCgroup, mountinfo string) (string, bool) {
+	layout, ok := resolveV2Layout(selfCgroup, mountinfo)
+	if !ok || layout.hierPath == "/" {
+		return "", false
+	}
+	return layout.dir, true
 }
 
 // memoryGuard is the pressure state machine. observe is pure (all inputs
@@ -216,21 +243,49 @@ func (g *memoryGuard) run(ctx context.Context, tick time.Duration) {
 	}
 }
 
-// setupMemoryGuard resolves this process's v2 group, computes the soft
-// limit from /proc/meminfo and writes memory.high. It returns nil when
+// memoryGovernanceDir resolves the one v2 group governance may touch:
+// on Android, the dedicated child group established (and migrated into)
+// by ensureMemoryChildGroup; a child-group failure is reported as a
+// memory_child_degraded:<n> event so field diagnosis can tell "device
+// refused the child group" apart from a healthy setup. On non-Android
+// hosts (development machines, CI) the supervisor is never migrated —
+// the same stance IndependentCgroup takes — and only an already
+// dedicated non-root group is governed, as before.
+func (r *Runtime) memoryGovernanceDir() string {
+	if runtime.GOOS != "android" {
+		self, err := os.ReadFile("/proc/self/cgroup")
+		if err != nil {
+			return ""
+		}
+		mounts, err := os.ReadFile("/proc/self/mountinfo")
+		if err != nil {
+			return ""
+		}
+		dir, ok := ownV2CgroupDir(string(self), string(mounts))
+		if !ok {
+			return ""
+		}
+		return dir
+	}
+	dir, reason, ok := ensureMemoryChildGroup(procMemoryChildFS())
+	if !ok {
+		if r != nil {
+			r.recordEvent("memory_child_degraded:" + strconv.Itoa(reason.eventCode()))
+		}
+		return ""
+	}
+	return dir
+}
+
+// setupMemoryGuard resolves the group to govern, computes the soft limit
+// from /proc/meminfo and writes memory.high — re-asserted on every
+// start, because the child group directory is reused across restarts
+// and its previous contents cannot be trusted. It returns nil when
 // governance is unavailable for any reason (see the section comment):
 // setup failure must never fail supervision.
-func setupMemoryGuard() *memoryGuard {
-	self, err := os.ReadFile("/proc/self/cgroup")
-	if err != nil {
-		return nil
-	}
-	mounts, err := os.ReadFile("/proc/self/mountinfo")
-	if err != nil {
-		return nil
-	}
-	dir, ok := ownV2CgroupDir(string(self), string(mounts))
-	if !ok {
+func (r *Runtime) setupMemoryGuard() *memoryGuard {
+	dir := r.memoryGovernanceDir()
+	if dir == "" {
 		return nil
 	}
 	meminfo, err := os.ReadFile("/proc/meminfo")

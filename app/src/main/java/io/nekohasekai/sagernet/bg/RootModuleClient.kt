@@ -52,8 +52,19 @@ object RootModuleClient {
     private val statusMutex = Mutex()
     private val readOnlyCommands = setOf("status", "module", "logs", "dashboard", "config validate", "node tags")
     internal fun mutatesModule(command: String): Boolean = command !in readOnlyCommands
+    // @author 雾晚: loopback read channel (see RootModuleChannel.kt). Status
+    // and dashboard reads prefer it over a fresh `su` spawn; any failure
+    // drops back to the bridge and cools discovery down for 30s, so modules
+    // without channel support pay at most one extra spawn per window.
+    private const val CHANNEL_COOLDOWN_MS = 30_000L
+    private val channelGate = RootModuleChannelGate(CHANNEL_COOLDOWN_MS) { SystemClock.elapsedRealtime() }
     /** Drop every cached protocol view before and after state-changing calls. */
-    fun invalidateStatusCache() { statusCache.invalidate() }
+    fun invalidateStatusCache() {
+        statusCache.invalidate()
+        // The supervisor may have been replaced alongside the views; force
+        // channel rediscovery instead of trusting a stale port/token.
+        channelGate.dropInfo()
+    }
 
     // v3.0.15 hot-update awareness: the module broadcasts
     // "module_hot_update_committed:<versionCode>" on the status event
@@ -170,7 +181,7 @@ object RootModuleClient {
                 // A mutation can invalidate while doCall is in flight; only cache the result if
                 // no invalidation occurred since this read started.
                 return@withContext statusMutex.withLock {
-                    val value = statusCache.get(query) ?: doCall(command, input).also {
+                    val value = statusCache.get(query) ?: fetchReadLocked(query).also {
                         statusCache.putIfGeneration(query, it, cacheGeneration)
                     }
                     refreshStaleSiblingLocked(query, cacheGeneration)
@@ -183,16 +194,112 @@ object RootModuleClient {
         }
     }
 
-    /** Read the module's current status without trusting the UI polling TTL cache. */
+    /**
+     * Read the module's current status without trusting the UI polling TTL cache.
+     * Freshness is about bypassing the cache, not about the transport: the
+     * loopback channel is a live round-trip to the same supervisor that owns
+     * the state the su bridge reads, so a channel GET satisfies the decision
+     * paths (toggle/enable) exactly like a bridge read, and any channel
+     * failure falls back to the bridge before a decision is made.
+     */
     suspend fun callFreshStatus(): Status = withContext(Dispatchers.IO) {
         statusMutex.withLock {
             statusCache.invalidate()
             val cacheGeneration = statusCache.generation()
-            doCall("status").also {
+            fetchReadLocked(RootModuleReadQuery.STATUS).also {
                 statusCache.putIfGeneration(RootModuleReadQuery.STATUS, it, cacheGeneration)
             }
         }
     }
+
+    /**
+     * Fetch one read view: loopback channel first, su bridge on any channel
+     * failure. Caller must hold [statusMutex]; channel discovery may spawn
+     * one bridge call inside the lock, the same cost profile the bridge-only
+     * read always had. Mutations never pass through here.
+     */
+    private suspend fun fetchReadLocked(query: RootModuleReadQuery): Status =
+        channelRead(query) ?: doCall(readCommand(query))
+
+    private fun readCommand(query: RootModuleReadQuery): String = when (query) {
+        RootModuleReadQuery.STATUS -> "status"
+        RootModuleReadQuery.DASHBOARD -> "dashboard"
+    }
+
+    /**
+     * One read over the loopback channel, or null when the channel is
+     * unavailable or fails (the gate has then dropped it into cooldown and
+     * the caller falls back to the bridge, whose result or error is the one
+     * surfaced — a channel error never reaches a caller directly).
+     */
+    private suspend fun channelRead(query: RootModuleReadQuery): Status? {
+        val info = channelInfoLocked() ?: return null
+        return try {
+            parseModuleResponse(RootModuleChannelTransport.get(info, query))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            channelGate.fail()
+            null
+        }
+    }
+
+    /**
+     * Discover the channel coordinates through the bridge's `channel`
+     * command and cache them process-wide. Discovery failure (an older
+     * module without the command, malformed output) enters the same
+     * cooldown as a channel failure. Caller must hold [statusMutex].
+     */
+    private suspend fun channelInfoLocked(): RootModuleChannelInfo? {
+        channelGate.info()?.let { return it }
+        if (!channelGate.attemptAllowed()) return null
+        val info = try {
+            parseChannelInfo(doCallRaw("channel"))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+        if (info == null) {
+            channelGate.fail()
+            return null
+        }
+        channelGate.store(info)
+        return info
+    }
+
+    /**
+     * Long-poll the status view over the loopback channel: the supervisor
+     * holds the request until the module revision leaves [sinceRevision]
+     * or [waitSeconds] elapse, then answers with the current view, which is
+     * also published into the read cache so passive readers reuse it
+     * instead of issuing their own request. Returns null when the channel
+     * is unavailable or fails; callers then keep their normal cadence.
+     * Caller cancellation never trips the channel gate — a cancelled poll
+     * says nothing about channel health.
+     */
+    suspend fun awaitStatusChange(sinceRevision: String, waitSeconds: Int = 25): Status? =
+        withContext(Dispatchers.IO) {
+            require(waitSeconds in 1..30)
+            // Captured before the wait: any invalidation during the poll
+            // (a mutation landed meanwhile) must veto the cache refill.
+            val cacheGeneration = statusCache.generation()
+            val info = statusMutex.withLock { channelInfoLocked() } ?: return@withContext null
+            val status = try {
+                parseModuleResponse(RootModuleChannelTransport.get(
+                    info, RootModuleReadQuery.STATUS,
+                    waitSeconds = waitSeconds, sinceRevision = sinceRevision))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                channelGate.fail()
+                return@withContext null
+            }
+            statusMutex.withLock {
+                statusCache.putIfGeneration(RootModuleReadQuery.STATUS, status, cacheGeneration)
+            }
+            status
+        }
 
     /**
      * Aggregated polling for the two read views. Status and dashboard stay
@@ -216,12 +323,8 @@ object RootModuleClient {
             RootModuleReadQuery.DASHBOARD -> RootModuleReadQuery.STATUS
         }
         if (!statusCache.hasStaleEntry(sibling)) return
-        val siblingCommand = when (sibling) {
-            RootModuleReadQuery.STATUS -> "status"
-            RootModuleReadQuery.DASHBOARD -> "dashboard"
-        }
         val value = try {
-            doCall(siblingCommand)
+            fetchReadLocked(sibling)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -230,7 +333,26 @@ object RootModuleClient {
         statusCache.putIfGeneration(sibling, value, cacheGeneration)
     }
 
-    private suspend fun doCall(command: String, input: File? = null): Status {
+    private suspend fun doCall(command: String, input: File? = null): Status =
+        parseModuleResponse(doCallRaw(command, input))
+
+    /**
+     * The one validation path for module responses: bridge output and
+     * loopback-channel output are byte-identical by contract and both land
+     * here, so the channel never relaxes a check the bridge enforces.
+     */
+    private fun parseModuleResponse(response: String): Status = try {
+        parseResponse(response)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: IOException) {
+        throw e
+    } catch (_: Exception) {
+        throw IOException("root_or_module_unavailable")
+    }
+
+    /** Run one bridge command and return its raw stdout, unparsed. */
+    private suspend fun doCallRaw(command: String, input: File? = null): String {
         val process = try { ProcessBuilder("su", "-c", "exec $CLI $command").start() }
             catch (_: IOException) { throw IOException("root_required") }
         try {
@@ -252,17 +374,11 @@ object RootModuleClient {
                 val errors = launch(Dispatchers.IO) { process.errorStream.use { it.copyTo(object : java.io.OutputStream() { override fun write(value: Int) = Unit; override fun write(data: ByteArray, offset: Int, length: Int) = Unit }) } }
                 val writer = launch(Dispatchers.IO) { process.outputStream.use { pipe -> input?.inputStream()?.use { it.copyTo(pipe) } } }
                 try {
-                    val response = withCallTimeout(command) {
+                    withCallTimeout(command) {
                         runInterruptible(Dispatchers.IO) { process.waitFor() }
                         writer.join(); errors.join()
                         output.await()
                     }
-                    try {
-                        parseResponse(response)
-                    }
-                    catch (e: CancellationException) { throw e }
-                    catch (e: IOException) { throw e }
-                    catch (_: Exception) { throw IOException("root_or_module_unavailable") }
                 } finally {
                     process.destroy()
                     runCatching { process.inputStream.close() }; runCatching { process.errorStream.close() }; runCatching { process.outputStream.close() }
@@ -273,7 +389,7 @@ object RootModuleClient {
     }
     internal suspend fun <T> withCallTimeout(command: String, block: suspend () -> T): T {
         val timeoutMs = when {
-            command in setOf("status", "dashboard", "module", "logs", "node tags") || command.startsWith("node select ") -> 15_000L
+            command in setOf("status", "dashboard", "module", "logs", "channel", "node tags") || command.startsWith("node select ") -> 15_000L
             command == "node failover" -> 60_000L
             else -> 720_000L
         }
