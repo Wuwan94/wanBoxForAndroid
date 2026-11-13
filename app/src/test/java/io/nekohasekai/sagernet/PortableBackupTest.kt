@@ -64,15 +64,19 @@ class PortableBackupTest {
         assertEquals("0", defaults[Key.IPV6_MODE]?.string)
         assertEquals(true, defaults[Key.STRICT_ROUTE]?.boolean)
         assertEquals("root", defaults[Key.SERVICE_MODE]?.string)
+        // Presence is a one-time migration marker; defaulting false would create a disabled route.
+        assertNull(defaults[Key.INPUT_METHOD_DIRECT])
 
         val plan = sample()
         val explicitPlan = plan.copy(settings = plan.settings!! + listOf(
             KeyValuePair(Key.MTU).put("1400"),
             KeyValuePair(Key.REMOTE_DNS).put("https://backup.example/dns-query"),
+            KeyValuePair(Key.INPUT_METHOD_DIRECT).put(false),
         ))
         val explicit = exportedSettings(PortableBackup.document(PortableBackup.encode(explicitPlan)))
         assertEquals("1400", explicit[Key.MTU]?.string)
         assertEquals("https://backup.example/dns-query", explicit[Key.REMOTE_DNS]?.string)
+        assertEquals(false, explicit[Key.INPUT_METHOD_DIRECT]?.boolean)
     }
     private fun reject(block:()->Unit) { try { block(); fail("invalid backup accepted") } catch (_:Exception) {} }
     @Test fun schemaAndReferencesAreCheckedBeforeWrites() {
