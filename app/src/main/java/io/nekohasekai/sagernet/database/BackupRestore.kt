@@ -37,7 +37,7 @@ object BackupRestore {
         val bytes = PortableBackup.strictBase64(encoded)
         require(bytes.size >= 4 && bytes.size % 4 == 0) { "备份记录长度无效" }
         val parcel = Parcel.obtain()
-        try {
+        return try {
             parcel.unmarshall(bytes, 0, bytes.size)
             parcel.setDataPosition(0)
             ParcelizeBridge.createRule(parcel).also { require(parcel.dataAvail() == 0) { "备份记录包含无效数据" } }
