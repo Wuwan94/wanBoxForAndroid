@@ -62,66 +62,15 @@ SHA256SUMS                                               上述资产校验和
 
 **状态：曾发布的稳定性预览版；Release/tag 已在 preview.2 发布后按单预览保留策略清理。** 当时仓库 `Preview Build` tag 指向合并提交 `5aca93bee39a9d07a56d750908e0d9c88ad5f90c`。本版不替换稳定版 `v3.0.14`。
 
-本版重点攻克 Root 模块在 Magisk / KernelSU / APatch 环境下的**免重启热更新加固**与**卸载纯净治理**。均为底层稳定性、数据安全与网络连续性修复，无界面功能增减。
+本版重点攻克 Root 模块在 Magisk / KernelSU / APatch 环境下的**免重启热更新加固**与**卸载纯净治理**：
+- **热更新 5 秒 Canary 观察与自动回滚**：新核心启动后经 5 秒健康期双重核验（底层进程存活 + Clash 控制器 `/version` 探活）；秒退或未响应立即触发 Fail-Safe 回滚。
+- **切换间隙瞬态黑洞守护（Fail-Closed）**：旧核心停止前注入 `pref 9001 blackhole`，杜绝切换毫秒隙真实 IP 外溢。
+- **Magisk / KernelSU 更新标记自动收口**：清除模块目录 `update` 标志，事件通道广播 `module_hot_update_committed:<versionCode>`，前台 App 实时刷新模块版本码。
+- **卸载脚本五轨纯净收尾**：优雅停机 → 原生信号强退 → 注销 TUN 并强清 pref 9000/9001 路由 → 清理运行时锁与 IPC → 默认保护用户配置资产，始终 `exit 0`。
+- **版本对齐**：Root 模块码 `2027`、APK `versionCode=10136`；历史资产摘要见 [版本对照](docs/current-version.zh-CN.md)。
 
 ---
 
-## ✦ 核心演进
+## 历史归档：v3.0.14-preview.1 已发布说明（已由正式版承接）
 
-### 1. 热更新 5 秒 Canary 观察与自动回滚
-新核心启动后进入 5 秒健康观察期（以 500ms 为周期双重核验：底层进程存活 + Clash 控制器 `/version` 回环探活）。若新核心在观察期内秒退或控制器未响应，系统立即触发 Fail-Safe 回滚恢复旧版模块并记录审计事件 `module_update_canary_failed_rolled_back`；只有健康核验全绿通过，才安全销毁旧备份并提交热更新。
-
-### 2. 切换间隙瞬态黑洞守护（Fail-Closed）
-为防止旧核心退出至新核心接管 TUN 的毫秒级窗口发生直连外溢，旧核心停止前先注入 `pref 9001 blackhole` 策略路由（TUN 自动路由为 `pref 9000`）。切换间隙流量严格落入黑洞而非物理网卡，杜绝真实 IP 泄漏；新核心就绪或回滚完成后自动解除。若热更新与回滚均失败，黑洞保持开启以维持 Fail-Closed 边界。
-
-### 3. Magisk / KernelSU 更新标记自动收口
-热更新提交后，主动清理模块目录下的 `update` 标志文件，Root 管理器不再误报“重启后生效”；同时通过事件通道广播 `module_hot_update_committed:<versionCode>`，已在前台运行的管理器 App 无需杀进程重启即可在设置页实时刷新模块版本码。
-
-### 4. 卸载脚本五轨纯净收尾（防断网黑洞）
-重构 `uninstall.sh` 为五轨防御机制：
-- **轨 1**：优先调用 `wanboxctl stop` 优雅停机；
-- **轨 2**：二进制损坏或死锁时，原生 Shell 梯级信号强退（`SIGTERM` → 2s 超时 → `SIGKILL`），杜绝孤儿进程卡死；
-- **轨 3**：强制注销 `wanbox-tun` 虚拟网卡，清理 `pref 9000` 与 `pref 9001` 专有策略路由，网络彻底恢复物理直连；
-- **轨 4**：清理 `/data/adb/wanbox/run/*` 锁文件与临时 IPC 资产；
-- **轨 5**：用户数据安全隔离。任一步骤失败均不中断后续清理，脚本恒定以 `exit 0` 退出。
-
-### 5. 用户数据默认保护
-卸载时默认保留 `/data/adb/wanbox/config/` 下的用户节点与订阅配置，避免误点卸载丢失数据；仅在检测到显式全清标记 `/data/adb/wanbox/.purge_user_data` 时才彻底清除目录。
-
----
-
-## 📦 资产清单与运行环境
-
-- **运行要求**：Android 12+ (API 31+) · arm64-v8a · Magisk / KernelSU / APatch 已 Root 设备。
-- **管理器形态**：纯瘦管理器（APK 约 5.91 MiB），核心仅随 Root 模块分发，不提供普通 VPN 回退。
-- **版本对齐**：模块码 `2027`，APK `versionCode=10136`（高于正式版 3.0.14 的 10130，可直接覆盖安装）。
-
-本 Release 提供 4 个资产，必须**成套配对使用**：
-
-```
-wanBoxForAndroid-3.0.15-preview.1-arm64-v8a-release.apk  瘦身管理器
-wanbox-root-module-arm64-v8a.zip                         Root 核心模块（内核 + wanboxctl）
-wanbox-root-module-with-manager-arm64-v8a.zip             模块 + 管理器合一刷机包
-SHA256SUMS                                               上述资产校验和
-```
-
----
-
-## 🛡️ 升级、回退与验证边界
-
-1. **升级与热更新**：直接覆盖安装新版 APK，并在 Root 管理器或关于页刷入模块 ZIP；生效后核心自动热重启，无需重启手机系统。
-2. **回退方案**：卸载预览版 APK，安装稳定版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 与配套模块（码 `2026`）。
-3. **验证边界**：本版已全量通过 Go 单测、Python 工具套件（108 项）与版本快照校验。未做全量真机矩阵，日常主力使用建议留在稳定版 v3.0.14。
-
----
-
-## 历史归档：v3.0.14-preview.1 已发布说明
-
-> 以下为 preview.1 当时发布说明原文；该预览的六项复查修复已由 v3.0.14 正式版全量承接，正式说明见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。稳定版现为 v3.0.14。
-
-### v3.0.14-preview.1 更新摘要
-- **版本规则漂移守卫**：`tools/version_code.py --check-app-tag` 纳入三端同源漂移校验。
-- **更新包版本戳绑定**：`UpdateDownload` 引入版本戳强绑定，彻底杜绝错版模块导出。
-- **导出任务独立守卫**：关于页导出脱离下载单飞锁，避免静默吞并。
-- **状态码判定发布 Tag**：`check_release_tag.sh` 改用 HTTP 状态行判定，消除报错文本正则误判。
-- **代理错误脱敏与源头判定**：仅认 `UpdateProxyUnavailable` 专属标记，不暴露凭据明文。
+> v3.0.14-preview.1 当时发布说明原文及六项复查修复（版本规则漂移守卫、更新包版本戳绑定、导出任务独立守卫、状态码判定发布 Tag、代理错误脱敏）已由 v3.0.14 正式版全量承接，正式说明见 [RELEASE_NOTES.md](RELEASE_NOTES.md)；历史发布脉络见 [CHANGELOG.md](CHANGELOG.md)。稳定版现为 v3.0.14。
