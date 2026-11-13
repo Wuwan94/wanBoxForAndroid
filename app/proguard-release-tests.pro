@@ -171,6 +171,10 @@
 # @author 雾晚: ThinManagerTest calls these APIs from the separate test APK.
 # Thin release R8 folds/inlines CoreRuntime, so retain only the exercised facades
 # in verification builds; shipping builds never include this file.
+# Preserve this cross-APK test entry's original name and signature while R8 stays enabled.
+-keep class io.nekohasekai.sagernet.bg.proto.UrlTest {
+    public java.lang.String resolveLink(io.nekohasekai.sagernet.database.ProxyEntity);
+}
 -keep,allowobfuscation class io.nekohasekai.sagernet.core.CoreRuntime {
     public static final io.nekohasekai.sagernet.core.CoreRuntime INSTANCE;
     public boolean getAvailable();
