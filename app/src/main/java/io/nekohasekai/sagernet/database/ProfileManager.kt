@@ -210,7 +210,7 @@ object ProfileManager {
             createRule(
                 RuleEntity(
                     name = app.getString(R.string.route_opt_block_ads),
-                    domains = "geosite:category-ads-all",
+                    domains = "geosite-category-ads-all",
                     outbound = -2
                 )
             )
@@ -246,7 +246,8 @@ object ProfileManager {
                             "domain:xn--ngstr-lra8j.com",
                             "domain:xn--ngstr-cn-8za9o.com"
                         ).joinToString("\n"),
-                        packages = setOf("com.android.vending", "com.google.android.gms")
+                        packages = setOf("com.android.vending", "com.google.android.gms"),
+                        enabled = false
                     ), false
                 )
                 createRule(
