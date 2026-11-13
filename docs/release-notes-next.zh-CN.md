@@ -1,6 +1,6 @@
-# v3.0.15-preview.3 发行说明（候选）
+# v3.0.15-preview.3 发行说明
 
-**状态：未发布的稳定性预览版候选。** 本版为源码候选，尚未发布；本版不替换稳定版 `v3.0.14`，接续已发布预览版 `v3.0.15-preview.2`，Root 模块码递增至 `2028`。
+**状态：已发布的稳定性预览版。** [Release 页面](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.3) 的 tag 指向合并提交 `fe193f1134a80ff38fb0cb3ed4677eb2b79c1dce`，由 [Preview Build run `43404430362`](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/43404430362) 发布；本版不替换稳定版 `v3.0.14`，Root 模块码为 `2028`。
 
 本版承接 preview.2 的底层优化，修正两项复审发现：低内存设备的 `memory.high` 必须钳制到 256 MiB，而不是关闭治理；卸载脚本必须与热更新路径使用相同的 pref 9001 清理契约，规则状态未确认时不得报告网络已恢复。无界面功能增减。
 
@@ -28,7 +28,7 @@ supervisor 启动时（核心与插件拉起之前）建立专属 `wanbox` 子 c
 ## 📦 资产清单与运行环境
 
 - **运行要求**：Android 12+ (API 31+) · arm64-v8a · Magisk / KernelSU / APatch 已 Root 设备。
-- **管理器形态**：纯瘦管理器（APK 约 6.19 MiB），核心仅随 Root 模块分发，不提供普通 VPN 回退。
+- **管理器形态**：纯瘦管理器（APK 约 5.91 MiB），核心仅随 Root 模块分发，不提供普通 VPN 回退。
 - **版本对齐**：模块码 `2028`，APK `versionCode=10143`（高于 preview.2 的 10137 与正式版 3.0.14 的 10130，可直接覆盖安装）。
 
 本 Release 提供 4 个资产，必须**成套配对使用**：
@@ -46,21 +46,21 @@ SHA256SUMS                                               上述资产校验和
 
 1. **升级与热更新**：直接覆盖安装新版 APK，并在 Root 管理器或关于页刷入模块 ZIP；生效后核心自动热重启，无需重启手机系统。
 2. **回退方案**：卸载预览版 APK，安装稳定版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 与配套模块（码 `2026`）。
-3. **验证边界**：本地 Go、POSIX Shell 回归与 Python 工具套件均纳入验收；最终构建、签名和资产以仓库正式 `Preview Build` 运行记录为准。未做全量 Root 真机矩阵，日常主力使用建议留在稳定版 v3.0.14。
+3. **验证边界**：本地 Go、POSIX Shell 与 Python 工具测试通过；官方 [Preview Build run `43404430362`](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/43404430362) 通过 Root 模块与 APK 构建、模拟器冷启动、候选资产校验、发布后回读及 SHA256SUMS 校验。未做全量 Root 真机矩阵，日常主力使用建议留在稳定版 v3.0.14。
 
 ---
 
-## 历史归档：v3.0.15-preview.2 已发布说明
+## 历史归档：v3.0.15-preview.2 已发布说明（Release/tag 已清理）
 
-**状态：已发布的稳定性预览版。** [Release 页面](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.2) 的 tag 指向合并提交 `2a57973623db59cb635a869b5d552dd971f8235c`，由 `Preview Build` run `43393988473` 发布；稳定版 `v3.0.14` 未变。该版包含回环长轮询 IPC、热更新守护与卸载清理、故障迁移阈值、独立子 cgroup 和内存软限制等底层优化。
+**状态：曾发布的稳定性预览版；Release/tag 已在 preview.3 发布并验证后按单预览保留策略清理。** 当时 tag 指向合并提交 `2a57973623db59cb635a869b5d552dd971f8235c`，由 `Preview Build` run `43393988473` 发布；稳定版 `v3.0.14` 未变。该版包含回环长轮询 IPC、热更新守护与卸载清理、故障迁移阈值、独立子 cgroup 和内存软限制等底层优化。
 
-该版 Root 模块码为 `2027`、APK `versionCode=10137`，发布瘦身 APK、普通 Root 模块、带管理器模块及 `SHA256SUMS` 四件套。低于 256 MiB 的计算值与卸载侧清理触顶状态处理问题由后续 preview.3 修正；preview.2 的发布记录和资产摘要见 [版本对照](docs/current-version.zh-CN.md)。
+该版 Root 模块码为 `2027`、APK `versionCode=10137`，发布瘦身 APK、普通 Root 模块、带管理器模块及 `SHA256SUMS` 四件套。低于 256 MiB 的计算值与卸载侧清理触顶状态处理问题已由 preview.3 修正；preview.2 的历史资产摘要见 [版本对照](docs/current-version.zh-CN.md)。
 
 ---
 
-## 历史归档：v3.0.15-preview.1 已发布说明
+## 历史归档：v3.0.15-preview.1 已发布说明（Release/tag 已清理）
 
-**状态：已发布的稳定性预览版。** 本版由仓库 `Preview Build` 正式发布；[Release 页面](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.1) tag 指向合并提交 `5aca93bee39a9d07a56d750908e0d9c88ad5f90c`。本版不替换稳定版 `v3.0.14`。
+**状态：曾发布的稳定性预览版；Release/tag 已在 preview.2 发布后按单预览保留策略清理。** 当时仓库 `Preview Build` tag 指向合并提交 `5aca93bee39a9d07a56d750908e0d9c88ad5f90c`。本版不替换稳定版 `v3.0.14`。
 
 本版重点攻克 Root 模块在 Magisk / KernelSU / APatch 环境下的**免重启热更新加固**与**卸载纯净治理**。均为底层稳定性、数据安全与网络连续性修复，无界面功能增减。
 
@@ -93,7 +93,7 @@ SHA256SUMS                                               上述资产校验和
 ## 📦 资产清单与运行环境
 
 - **运行要求**：Android 12+ (API 31+) · arm64-v8a · Magisk / KernelSU / APatch 已 Root 设备。
-- **管理器形态**：纯瘦管理器（APK 约 6.19 MiB），核心仅随 Root 模块分发，不提供普通 VPN 回退。
+- **管理器形态**：纯瘦管理器（APK 约 5.91 MiB），核心仅随 Root 模块分发，不提供普通 VPN 回退。
 - **版本对齐**：模块码 `2027`，APK `versionCode=10136`（高于正式版 3.0.14 的 10130，可直接覆盖安装）。
 
 本 Release 提供 4 个资产，必须**成套配对使用**：
