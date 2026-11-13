@@ -9,10 +9,10 @@
 
 ## 2. 批次 2：修复分组测速 URL 动态继承
 
-- [ ] 2.1 先写可复现测试：空/旧 fallback override 跟随变化的全局 URL、显式组 URL 优先、编辑页读写 raw override，并以真实 Root snapshot 覆盖组级 URLTest 与 LoadBalance outbound。
-- [ ] 2.2 调整 `GroupSettingsActivity` 初始化为 raw per-group override；仅将精确等于旧 `default_group_test_url` 的固定 fallback 迁移为空，保留其他非空值；组级 URLTest/LoadBalance outbound 与 `resolveLink` 共用组 URL > `connectionTestURL` > 安全默认的 resolver，Root mixed probe/health-check 仍使用全局 URL。
-- [ ] 2.3 同步 `openspec/specs/android-application/spec.md`；做静态检查、自审、语义提交并仅推送授权分支。
-- [ ] 2.4 批次 2 CI 门：运行 `verify-android.yml` unit/build/instrumentation；预期 group URL 和 Root snapshot 测试通过、显式地址未改变。回传 run URL、SHA、job 结果。真机场景（不阻塞）：修改全局地址、重建 Root 配置，确认未设组 URL 的组跟随、显式组保持覆盖；如未执行须报告。
+- [x] 2.1 先写可复现测试：空/旧 fallback override 跟随全局 URL、显式组 URL 优先、编辑页 raw override 读写及迁移隔离；Root snapshot 覆盖组级 URLTest/LoadBalance、全局 mixed probe/health-check，并验证单节点 `resolveLink` 使用同一 resolver。最终 CI 均通过。
+- [x] 2.2 `GroupSettingsActivity` 初始化/保存 raw per-group override；仅将精确等于旧 `default_group_test_url` 的值迁移为空，保留其他非空 URL；组级 URLTest、LoadBalance、单节点 UI 共用组 URL > 全局 `connectionTestURL` resolver；Root mixed probe/health-check 保持全局 URL。
+- [x] 2.3 同步主规范、change delta/design；`git diff --check` 通过；完成自审、规格/标准复审和 Codex 只读检查；只改并推送授权分支，未改版本/内核。
+- [x] 2.4 批次 2 CI 门：[`verify-android.yml` run 43507809775](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/43507809775) 成功，验证提交 `3b0ff40f4daab581408d7e7f9c5ef869fb81e350`；Build LibCore、Build Android Debug APK（含单元、安全、debug/release instrumentation）全部通过。此前两个 release instrumentation 失败只涉及跨 APK 测试入口被 R8 裁剪/内联，已用显式构造和 release-test-only 精确 keep 修复，并由此最终 run 验证。未等待真机验证（按用户指示不阻塞），真机场景未执行。
 
 ## 3. 批次 3：修复/核验备份格式与旧 wanBox 兼容
 
