@@ -4,6 +4,13 @@
 
 ## wanBox 3.0.x 发布记录
 
+### v3.0.15-preview.2（已发布预览）
+
+- 由官方 `Preview Build` run `43393988473` 发布；Release/tag `v3.0.15-preview.2` 指向 PR #38 合并提交 `2a57973623db59cb635a869b5d552dd971f8235c`（优化由 PR #37 合入）。稳定版 v3.0.14 未变。
+- 新增仅监听回环的长轮询状态通道、专属子 cgroup 与内存软限制，并收敛热更新守护和卸载流程中的 `pref 9001` 规则清理；另含健康迁移阈值及管理器读取聚合优化。
+- 发布 Root 模块码 `2027`、APK `versionCode=10137`，四件套包含瘦管理器 APK、普通模块 ZIP、带管理器模块 ZIP 和 `SHA256SUMS`。API 回读资产共低于 26 MiB 包体预算；未做 Magisk / KernelSU / APatch 真机矩阵。
+- preview.2 发布后复审发现：低于 1 GiB 内存时 `MemTotal/4` 被错误地变为 0；卸载 Shell 在规则删除触顶或异常时仍报告网络恢复。修复随 preview.3 候选推进，不能把 preview.2 资产视为已含这些修复。
+
 ### v3.0.15-preview.1（已发布预览）
 
 - 由仓库正式 `Preview Build` run `43203156796` 发布；Release/tag `v3.0.15-preview.1` 指向 PR #34 合并提交 `5aca93bee39a9d07a56d750908e0d9c88ad5f90c`（功能由 PR #33 合入）。稳定版 v3.0.14 未变。

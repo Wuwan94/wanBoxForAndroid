@@ -21,14 +21,14 @@ func TestParseMemTotal(t *testing.T) {
 func TestMemoryHighFor(t *testing.T) {
 	const gib = 1 << 30
 	cases := []struct{ total, want uint64 }{
-		{0, 0},               // unknown total disables governance
-		{512 << 20, 0},       // computed 128 MiB < floor: would squeeze
-		{1 * gib, 256 << 20}, // exactly at the floor
-		{2 * gib, 512 << 20}, // plain quarter
-		{8 * gib, 2 * gib},   // typical phone
-		{16 * gib, 4 * gib},  // at the cap
-		{32 * gib, 4 * gib},  // capped
-		{3 * gib, 768 << 20}, // non-power-of-two total
+		{0, 0},                 // unknown total disables governance
+		{512 << 20, 256 << 20}, // computed 128 MiB is clamped to the floor
+		{1 * gib, 256 << 20},   // exactly at the floor
+		{2 * gib, 512 << 20},   // plain quarter
+		{8 * gib, 2 * gib},     // typical phone
+		{16 * gib, 4 * gib},    // at the cap
+		{32 * gib, 4 * gib},    // capped
+		{3 * gib, 768 << 20},   // non-power-of-two total
 	}
 	for _, tc := range cases {
 		if got := memoryHighFor(tc.total); got != tc.want {
