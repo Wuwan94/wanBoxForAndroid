@@ -51,7 +51,7 @@ class GroupSettingsActivity(
         DataStore.groupIsSelector = isSelector
         DataStore.groupIsUrlTest = DataStore.groupIsUrlTest(id)
         DataStore.groupIsLoadBalance = DataStore.groupIsLoadBalance(id)
-        DataStore.groupUrlTestUrl = DataStore.groupUrlTestUrl(id)
+        DataStore.groupUrlTestUrl = DataStore.groupUrlTestUrlOverride(id)
         DataStore.groupUrlTestInterval = DataStore.groupUrlTestInterval(id).toInt()
         DataStore.groupUrlTestTolerance = DataStore.groupUrlTestTolerance(id)
         DataStore.groupUrlTestIdleTimeout = DataStore.groupUrlTestIdleTimeout(id)

@@ -1352,7 +1352,14 @@ fun buildConfig(
                     )
                 )
             } else if (useLoadBalance && tagMap.isNotEmpty()) {
-                outbounds.add(0, buildLoadBalanceOutbound(tagMap.values.toList(), customTag = TAG_PROXY))
+                outbounds.add(
+                    0,
+                    buildLoadBalanceOutbound(
+                        tagMap.values.toList(),
+                        testUrl = group?.let { DataStore.groupUrlTestUrl(it.id) },
+                        customTag = TAG_PROXY
+                    )
+                )
                 balancerMemberMap[proxy.id] = list.mapNotNull { it.id.takeIf { id -> id != proxy.id } }
             } else {
                 outbounds.add(0, buildSelectorOutbound(tagMap[proxy.id], tagMap.values.toList(), customTag = TAG_PROXY))
