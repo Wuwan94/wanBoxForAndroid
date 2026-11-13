@@ -146,13 +146,14 @@ object PortableBackup {
             require(listOf(name, config, domains, ip, port, sourcePort, network, source, protocol, ruleset).all { it != null })
             require(packages != null && packages.all { it != null })
         } }
-        val settings = section("settings") { obj ->
+        val parsedSettings = section("settings") { obj ->
             fields(obj, setOf("key", "valueType", "valueBase64"))
             KeyValuePair(obj.getString("key")).apply {
                 valueType = obj.getInt("valueType")
                 value = strictBase64(obj.getString("valueBase64"))
             }
         }
+        val settings = parsedSettings?.let { withCoreSettingDefaults(it) }
         return BackupRestore.Plan(profiles, groups, rules, settings).also(BackupRestore::validate)
     }
     fun strictBase64(text: String): ByteArray {

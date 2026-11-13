@@ -46,7 +46,8 @@ object BackupRestore {
             io.nekohasekai.sagernet.fmt.KryoConverters.deserializeStrict(ProxyGroup(), parcel.createByteArray())
         }
         val rules = decode(content, "rules", ParcelizeBridge::createRule)
-        val settings = decode(content, "settings", KeyValuePair.CREATOR::createFromParcel)
+        val decodedSettings = decode(content, "settings", KeyValuePair.CREATOR::createFromParcel)
+        val settings = decodedSettings?.let { PortableBackup.withCoreSettingDefaults(it) }
         return Plan(profiles, groups, rules, settings).also(::validate)
     }
 
