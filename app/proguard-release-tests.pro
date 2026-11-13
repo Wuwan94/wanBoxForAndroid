@@ -94,6 +94,7 @@
     public static final io.nekohasekai.sagernet.database.ProfileManager INSTANCE;
     public java.lang.Object createProfile(long, io.nekohasekai.sagernet.fmt.AbstractBean, kotlin.coroutines.Continuation);
     public java.lang.Object updateProfile(io.nekohasekai.sagernet.database.ProxyEntity, kotlin.coroutines.Continuation);
+    public java.lang.Object getRules(kotlin.coroutines.Continuation);
 }
 
 # -----------------------------------------------------------------------------
