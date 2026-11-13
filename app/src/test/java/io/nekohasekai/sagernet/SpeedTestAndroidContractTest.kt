@@ -278,7 +278,7 @@ class SpeedTestAndroidContractTest {
         val source = source("main/java/io/nekohasekai/sagernet/ui/GroupSettingsActivity.kt")
         val init = source.substringAfter("fun ProxyGroup.init()").substringBefore("fun ProxyGroup.serialize()")
         val serialize = source.substringAfter("fun ProxyGroup.serialize()").substringBefore("private")
-        assertTrue(init.contains("DataStore.groupUrlTestUrl = DataStore.groupUrlTestUrlOverride(id)"))
+        assertTrue(init.contains("DataStore.groupUrlTestUrl = DataStore.readAndMigrateGroupUrlTestUrlOverride(id)"))
         assertTrue(serialize.contains("DataStore.setGroupUrlTestUrl(id, DataStore.groupUrlTestUrl)"))
     }
 

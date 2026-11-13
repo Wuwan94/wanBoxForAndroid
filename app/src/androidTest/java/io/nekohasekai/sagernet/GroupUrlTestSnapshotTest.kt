@@ -6,6 +6,7 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import io.nekohasekai.sagernet.bg.RootModuleSnapshot
 import io.nekohasekai.sagernet.bg.proto.ProxyInstance
+import io.nekohasekai.sagernet.bg.proto.UrlTest
 import io.nekohasekai.sagernet.database.*
 import io.nekohasekai.sagernet.fmt.socks.SOCKSBean
 import kotlinx.coroutines.runBlocking
@@ -23,6 +24,9 @@ class GroupUrlTestSnapshotTest {
         val groupId = 99120L
         val mainId = 99121L
         val peerId = 99122L
+        val secondGroupId = 99123L
+        val editorId = 99124L
+        val originalEditorCache = DataStore.groupUrlTestUrl
         fun node(id: Long, host: String) = ProxyEntity(id = id, groupId = groupId).putBean(
             SOCKSBean().apply { initializeDefaultValues(); serverAddress = host; serverPort = 1080 }
         )
@@ -37,7 +41,7 @@ class GroupUrlTestSnapshotTest {
             DataStore.setGroupUrlTestUrl(groupId, SagerNet.application.getString(R.string.default_group_test_url))
             DataStore.setGroupUrlTest(groupId, true)
 
-            suspend fun snapshot(): JsonObject {
+            suspend fun snapshotBundle(): JsonObject {
                 val instance = ProxyInstance(main)
                 return try { instance.init(); RootModuleSnapshot(instance, "group-url-fixture").build() }
                 finally { instance.close() }
@@ -57,16 +61,19 @@ class GroupUrlTestSnapshotTest {
                 }?.asJsonObject ?: throw AssertionError("Root mixed-inbound app-level probe route rule is absent")
 
             DataStore.connectionTestURL = "https://global-one.example/204"
-            val globalOneOutbound = proxyOutbound(config(snapshot()))
+            assertEquals(DataStore.connectionTestURL, UrlTest().resolveLink(main))
+            val globalOneOutbound = proxyOutbound(config(snapshotBundle()))
             assertEquals("urltest", globalOneOutbound["type"]?.asString)
             assertEquals(DataStore.connectionTestURL, globalOneOutbound["url"].asString)
             DataStore.connectionTestURL = "https://global-two.example/204"
-            val globalTwoOutbound = proxyOutbound(config(snapshot()))
+            assertEquals(DataStore.connectionTestURL, UrlTest().resolveLink(main))
+            val globalTwoOutbound = proxyOutbound(config(snapshotBundle()))
             assertEquals("urltest", globalTwoOutbound["type"]?.asString)
             assertEquals(DataStore.connectionTestURL, globalTwoOutbound["url"].asString)
 
             DataStore.setGroupUrlTestUrl(groupId, "https://group.example/204")
-            val groupUrlBundle = snapshot()
+            assertEquals("https://group.example/204", UrlTest().resolveLink(main))
+            val groupUrlBundle = snapshotBundle()
             val groupUrlSnapshot = config(groupUrlBundle)
             val groupUrlOutbound = proxyOutbound(groupUrlSnapshot)
             assertEquals("urltest", groupUrlOutbound["type"]?.asString)
@@ -77,21 +84,40 @@ class GroupUrlTestSnapshotTest {
             )
             assertEquals("https://global-two.example/204", healthCheckUrl(groupUrlBundle))
 
+            val secondGroupProfile = ProxyEntity(id = peerId + 1, groupId = secondGroupId)
+            DataStore.setGroupUrlTestUrl(groupId, SagerNet.application.getString(R.string.default_group_test_url))
+            assertEquals("https://global-two.example/204", UrlTest().resolveLink(main))
+            assertEquals("", DataStore.groupUrlTestUrlOverride(groupId))
+            DataStore.setGroupUrlTestUrl(secondGroupId, "https://second-group.example/204")
+            assertEquals("https://second-group.example/204", UrlTest().resolveLink(secondGroupProfile))
+            DataStore.connectionTestURL = "https://global-migrated.example/204"
+            assertEquals("https://global-migrated.example/204", UrlTest().resolveLink(main))
+            assertEquals("https://second-group.example/204", UrlTest().resolveLink(secondGroupProfile))
+
+            DataStore.setGroupUrlTestUrl(editorId, SagerNet.application.getString(R.string.default_group_test_url))
+            DataStore.groupUrlTestUrl = DataStore.groupUrlTestUrlOverride(editorId)
+            assertEquals("", DataStore.groupUrlTestUrl)
+            DataStore.setGroupUrlTestUrl(editorId, DataStore.groupUrlTestUrl)
+            assertEquals("", DataStore.groupUrlTestUrlOverride(editorId))
+
             DataStore.setGroupUrlTest(groupId, false)
             DataStore.setGroupLoadBalance(groupId, true)
             DataStore.setGroupUrlTestUrl(groupId, SagerNet.application.getString(R.string.default_group_test_url))
             DataStore.connectionTestURL = "https://global-three.example/204"
-            val globalThreeOutbound = proxyOutbound(config(snapshot()))
+            val globalThreeOutbound = proxyOutbound(config(snapshotBundle()))
             assertEquals("loadbalance", globalThreeOutbound["type"]?.asString)
             assertEquals(DataStore.connectionTestURL, globalThreeOutbound["url"].asString)
             DataStore.setGroupUrlTestUrl(groupId, "https://group-lb.example/204")
-            val groupLoadBalanceOutbound = proxyOutbound(config(snapshot()))
+            val groupLoadBalanceOutbound = proxyOutbound(config(snapshotBundle()))
             assertEquals("loadbalance", groupLoadBalanceOutbound["type"]?.asString)
             assertEquals("https://group-lb.example/204", groupLoadBalanceOutbound["url"].asString)
         } finally {
             DataStore.setGroupUrlTest(groupId, false)
             DataStore.setGroupLoadBalance(groupId, false)
             DataStore.setGroupUrlTestUrl(groupId, "")
+            DataStore.setGroupUrlTestUrl(secondGroupId, "")
+            DataStore.setGroupUrlTestUrl(editorId, "")
+            DataStore.groupUrlTestUrl = originalEditorCache
             DataStore.connectionTestURL = originalConnectionTestURL
             BackupRestore.apply(original, true, true, true)
         }
