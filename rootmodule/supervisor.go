@@ -45,6 +45,10 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 	persist := func() {
 		if jsonWrite(r.path("state.json"), s) != nil {
 			cancel()
+		} else {
+			// Wake loopback long polls (channel.go) so they can re-render
+			// and return early if the state revision advanced.
+			r.notifyStateChanged()
 		}
 	}
 	if e = jsonWrite(r.path("state.json"), s); e != nil {
@@ -56,6 +60,25 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 		s.Supervisor = ProcessIdentity{}
 		persist()
 		return e
+	}
+	// Best-effort cgroup v2 memory governance (cgroup_memory.go): first
+	// carve out the module's dedicated child group and move into it
+	// (cgroup_child.go) — this still runs before the first generation
+	// below, so the core and plugins are born inside the governed
+	// group — then soft-limit that group and GC under memory pressure.
+	// Unlike the cgroup move above, unavailability is never an error —
+	// supervision runs the same with or without it.
+	if guard := r.setupMemoryGuard(); guard != nil {
+		go guard.run(ctx, memoryCheckInterval)
+	}
+	// Best-effort loopback long-poll channel (channel.go): lets the manager
+	// subscribe to status/dashboard over 127.0.0.1 HTTP instead of spawning
+	// a `su` bridge per poll. Like the memory guard, unavailability is never
+	// an error — a failed channel only loses an optimization and the
+	// manager keeps using the su/stdio bridge — so startChannelServer
+	// reports failure by returning nil, never by erroring Supervise.
+	if loopback := r.startChannelServer(ctx); loopback != nil {
+		defer loopback.stop()
 	}
 	defer func() {
 		mu.Lock()
@@ -405,6 +428,8 @@ func (r *Runtime) runGeneration(ctx context.Context, rev string, snapshot Snapsh
 						s.Phase = "failed"
 						startupFailed = true
 						cancel()
+					} else {
+						r.notifyStateChanged()
 					}
 					probe.stop()
 				}

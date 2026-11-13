@@ -35,31 +35,56 @@ func (r *Runtime) routeGuard(ctx context.Context, enable bool) error {
 	return defaultRouteGuard(ctx, enable)
 }
 
+// guardRun executes one iproute2 invocation for the route guard. It is a
+// package-level seam so tests can script ip(8) outcomes without root or
+// iproute2 installed; production behavior is unchanged (LookPath +
+// CombinedOutput, like the rest of the module's fixed system commands).
+var guardRun = func(ctx context.Context, args ...string) (string, error) {
+	ip, err := exec.LookPath("ip")
+	if err != nil {
+		return "", err
+	}
+	out, err := exec.CommandContext(ctx, ip, args...).CombinedOutput()
+	return string(out), err
+}
+
 // defaultRouteGuard is strictly fail-closed (CONTRIBUTING §1.3): any
 // failure to install the guard — missing binary, missing capability, kernel
 // refusal — aborts the switch before the old core stops. There is no
 // degraded mode; test environments seam installRouteGuard instead.
 func defaultRouteGuard(ctx context.Context, enable bool) error {
-	ip, err := exec.LookPath("ip")
-	if err != nil {
+	if enable {
+		out, err := guardRun(ctx, "rule", "add", "pref", guardRulePref, "blackhole")
+		if err == nil || strings.Contains(out, "File exists") {
+			return nil // installed, or already installed (idempotent)
+		}
 		return errors.New("hot_update_guard_failed")
 	}
-	var args []string
-	if enable {
-		args = []string{"rule", "add", "pref", guardRulePref, "blackhole"}
-	} else {
-		args = []string{"rule", "del", "pref", guardRulePref}
-	}
-	out, err := exec.CommandContext(ctx, ip, args...).CombinedOutput()
-	if err == nil {
-		return nil
-	}
-	text := string(out)
-	switch {
-	case enable && strings.Contains(text, "File exists"):
-		return nil // already installed (idempotent)
-	case !enable && (strings.Contains(text, "No such file") || strings.Contains(text, "No such process")):
-		return nil // already gone (idempotent)
+	return drainGuardRules(ctx)
+}
+
+// guardDrainMaxAttempts bounds the pref-9001 drain loop below. Identical
+// rules stack: every "ip rule add" appends another copy and a single
+// "ip rule del" removes only one, so teardown must keep deleting until the
+// kernel reports the rule absent — a leftover copy keeps blackholing all
+// traffic with no core up (orphan outage). The cap only guards against a
+// pathological ip(8) that reports success without deleting; hitting it is
+// an error, never silent success (Fail-Closed).
+const guardDrainMaxAttempts = 128
+
+// drainGuardRules deletes pref-9001 rules until none remain. Only the
+// kernel's explicit "No such file / No such process" proves the drain is
+// complete; any other failure aborts (Fail-Closed).
+func drainGuardRules(ctx context.Context) error {
+	for attempt := 0; attempt < guardDrainMaxAttempts; attempt++ {
+		out, err := guardRun(ctx, "rule", "del", "pref", guardRulePref)
+		if err == nil {
+			continue // one copy removed; duplicates may remain
+		}
+		if strings.Contains(out, "No such file") || strings.Contains(out, "No such process") {
+			return nil // drained: no pref-9001 rule remains
+		}
+		return errors.New("hot_update_guard_failed")
 	}
 	return errors.New("hot_update_guard_failed")
 }

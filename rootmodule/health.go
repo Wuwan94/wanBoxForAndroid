@@ -45,8 +45,22 @@ type HealthCheck struct {
 	URL             string `json:"url"`
 }
 
+// Consecutive-failure ("连击") thresholds for the failover trigger. The
+// monitor counts consecutive data-plane probe failures against the current
+// node; only when the streak reaches the threshold does it declare the
+// node unhealthy and — in HealthModeAuto only — attempt one failover. A
+// single timeout never switches: transient loss must not thrash the
+// selector, and one success resets the streak to zero. The manager may
+// override the threshold via health_check.json, clamped to
+// [failoverThresholdMin, failoverThresholdMax] by normalize.
+const (
+	failoverThresholdDefault = 3
+	failoverThresholdMin     = 2
+	failoverThresholdMax     = 10
+)
+
 func defaultHealthCheck() HealthCheck {
-	return HealthCheck{Mode: HealthModeNotify, IntervalSeconds: 300, Threshold: 3, URL: "https://www.gstatic.com/generate_204"}
+	return HealthCheck{Mode: HealthModeNotify, IntervalSeconds: 300, Threshold: failoverThresholdDefault, URL: "https://www.gstatic.com/generate_204"}
 }
 
 // normalize clamps every field into a safe range; unknown modes fall back to notify.
@@ -60,7 +74,7 @@ func (h HealthCheck) normalize() HealthCheck {
 	if h.IntervalSeconds < 60 || h.IntervalSeconds > 3600 {
 		h.IntervalSeconds = d.IntervalSeconds
 	}
-	if h.Threshold < 2 || h.Threshold > 10 {
+	if h.Threshold < failoverThresholdMin || h.Threshold > failoverThresholdMax {
 		h.Threshold = d.Threshold
 	}
 	if u, e := url.Parse(h.URL); e != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || len(h.URL) > 512 {
@@ -479,6 +493,16 @@ func runMonitor(ctx context.Context, hc HealthCheck, d monitorDeps) error {
 		d.record("node_unhealthy")
 		d.record(ReasonNodeFail)
 		d.setHealth("degraded")
+		// Auto failover contract: the switch is issued only through the
+		// loopback Clash API selector (see monitorGeneration's failover:
+		// selector read + best same-group candidate + SelectNode with
+		// read-back confirmation). It never rebuilds the TUN and never
+		// restarts the core — errNetworkRebuild is reserved for network
+		// changes that fail validation. A failed or budget-denied attempt
+		// latches `degraded`, so the monitor does not keep switching
+		// blindly; it retries only after the node recovers and a fresh
+		// failure streak builds up (Fail-Closed: stay on the known node
+		// rather than thrash the selector).
 		if hc.Mode == HealthModeAuto {
 			if failoverBudget.allow(d.now()) && d.failover(ctx) {
 				d.record("node_failover")

@@ -10,7 +10,8 @@ internal object RootModuleObservation {
         if (failures <= 0) intervalMs else minOf(30_000L, intervalMs * (1L shl minOf(failures, 4)))
 
     suspend fun run(network: suspend () -> Unit, sample: suspend () -> Unit, intervalMs: Long = 2000,
-                    isInteractive: () -> Boolean = { true }, failures: () -> Int = { 0 }) = coroutineScope {
+                    isInteractive: () -> Boolean = { true }, failures: () -> Int = { 0 },
+                    awaitChange: (suspend () -> Boolean)? = null) = coroutineScope {
         require(intervalMs > 0)
         val networkJob = launch(Dispatchers.IO) {
             try { network() }
@@ -25,7 +26,25 @@ internal object RootModuleObservation {
                 // phase2: consecutive status-read failures back off (2s→4s→8s→16s→30s) instead of
                 // hammering su; a success resets to the normal cadence.
                 val base = if (isInteractive()) intervalMs else 10000L
-                delay(maxOf(base, backoffMs(failures(), intervalMs)))
+                val waitMs = maxOf(base, backoffMs(failures(), intervalMs))
+                if (awaitChange == null) {
+                    delay(waitMs)
+                } else {
+                    // @author 雾晚: arm a loopback long poll for the length of
+                    // the cadence window. It can only shorten the wait — a
+                    // module state change wakes the sample immediately, most
+                    // visibly when failure backoff stretched the window and
+                    // the module recovers — while the plain delay remains
+                    // the upper bound, so the sampling cadence never slows.
+                    // A hook that reports "unavailable" answered cheaply, so
+                    // the full cadence is still owed before the next sample.
+                    val woke = try {
+                        withTimeoutOrNull(waitMs) { awaitChange() }
+                    } catch (e: CancellationException) {
+                        throw e
+                    }
+                    if (woke == false) delay(waitMs)
+                }
             }
         } finally { networkJob.cancelAndJoin() }
     }
