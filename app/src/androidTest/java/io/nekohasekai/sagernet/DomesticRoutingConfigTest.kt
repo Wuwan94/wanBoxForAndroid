@@ -157,7 +157,9 @@ class DomesticRoutingConfigTest {
                 }
                 val multicastReject = ruleObjects.firstOrNull { rule ->
                     rule.optString("action") == "reject" &&
-                        rule.optJSONArray("ip_cidr")?.toString()?.contains("224.0.0.0/3") == true
+                        rule.optJSONArray("ip_cidr")?.let { cidrs ->
+                            (0 until cidrs.length()).any { cidrs.optString(it) == "224.0.0.0/3" }
+                        } == true
                 }
 
                 assertTrue("clash_mode=global rule must exist", globalModeIndex >= 0)
