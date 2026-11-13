@@ -43,7 +43,7 @@ Published releases: stable v3.0.14 and preview v3.0.15-preview.3.
   <tr>
     <td width="50%" valign="top">
       <h3>🪶 瘦身架构与零常驻</h3>
-      <p>管理器 APK 仅约 6.1 MiB，彻底剥离 JNI 核心二进制（无 <code>libgojni.so</code> 常驻内存），消除内存泄漏与系统低内存（LMK）连带查杀，毫秒级冷启动。</p>
+      <p>管理器 APK 仅约 5.9 MiB，彻底剥离 JNI 核心二进制（无 <code>libgojni.so</code> 常驻内存），消除内存泄漏与系统低内存（LMK）连带查杀，毫秒级冷启动。</p>
     </td>
     <td width="50%" valign="top">
       <h3>⚡ 原生 Root 系统级承载</h3>
@@ -52,18 +52,18 @@ Published releases: stable v3.0.14 and preview v3.0.15-preview.3.
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <h3>🔒 严苛 Fail-Closed 安全边界</h3>
-      <p>更新检查与延迟探测严格经由 <code>127.0.0.1</code> 走本地 mixed 代理，核心未启动时确定性阻断，坚决不回退直连，杜绝真实 IP 泄漏。</p>
+      <h3>🔒 严苛 Fail-Closed 与黑洞循环净空</h3>
+      <p>网络探测严格经由 <code>127.0.0.1</code>；免重启热更新 5 秒 Canary 自动回滚，切换间隙注入 <code>pref 9001</code> 瞬态黑洞，卸载与退出循环净空杜绝断网孤儿。</p>
     </td>
     <td width="50%" valign="top">
-      <h3>🏎️ 智能分应用与 LruCache 缓存</h3>
-      <p>应用图标与标签后台协程异步解析，搭配 120 项原生内存 <code>LruCache</code>，快速滑动零白块、零掉帧，杜绝主线程阻塞与重复 IPC 调用。</p>
+      <h3>🏎️ 毫秒级长轮询通道与 4s 读聚合</h3>
+      <p>supervisor 内嵌 <code>127.0.0.1</code> 只读 HTTP 通道，前台状态观察告别高频 <code>su</code> 进程开销，往返降至毫秒级；搭配 120 项原生内存 <code>LruCache</code> 丝滑无阻。</p>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <h3>🎛️ 原子化 QS Tile 快捷磁贴</h3>
-      <p>通知栏快捷磁贴引入防抖状态机，过滤 Connecting / Stopping 过渡态；状态切换前强读物理真值，并发调用加锁保护。</p>
+      <h3>🧬 专属子 cgroup 与内存软限制</h3>
+      <p>内核守护进程驻入专属 <code>wanbox</code> 子 cgroup，<code>MemTotal/4</code> 动态钳制于 [256 MiB, 4 GiB]；用量触碰高水位主动触发 GC，防止被系统 LMK 查杀闪退。</p>
     </td>
     <td width="50%" valign="top">
       <h3>🛡️ 25 MiB 预算与严谨工程</h3>
@@ -78,32 +78,38 @@ wanBox 采用**“界面与核心解耦、三层架构划分、Root 原生承载
 
 ```mermaid
 graph TD
-    subgraph UI["Thin Manager · 极致瘦身管理器 APK (~6.1 MiB)"]
+    subgraph UI["Thin Manager · 极致瘦身管理器 APK (~5.9 MiB)"]
         Activity["Material 3 原生界面 · 毫秒级冷启动"]
         AppList["分应用代理 · 120项 原生 LruCache 缓存"]
-        Controller["ThinControllerDelayClient · 协程异步通信"]
+        ChannelClient["RootModuleChannel · 4s 读聚合与事件 Flow"]
     end
 
-    subgraph Loopback["本地回环鉴权总线 · Fail-Closed"]
+    subgraph Loopback["本地回环鉴权总线 · 毫秒级 IPC (Fail-Closed)"]
         REST["127.0.0.1:9090 (REST API / Bearer Token)"]
-        Wanboxctl["wanboxctl node tags (只读探测)"]
+        Channel["127.0.0.1 本地只读 HTTP 通道 (0600 Token)"]
+        Wanboxctl["wanboxctl (su 桥接变更操作与通道发现)"]
     end
 
     subgraph CoreDaemon["Root 模块系统守护 · Magisk / KSU / APatch"]
+        Cgroup["专属子 cgroup (256MB~4GB 内存自适应 GC)"]
         Daemon["sing-box v1.15.0-alpha 内核 (reF1nd)"]
-        Route["TUN 接口 / 系统级 iptables 透明转发规则"]
+        Guard["5s Canary 看门狗 & pref 9001 瞬态黑洞循环守护"]
+        Route["TUN 接口 / 系统级策略路由与透明转发规则"]
     end
 
     subgraph Traffic["全局网络流量"]
         SystemTraffic["系统与三方 App 流量"]
     end
 
-    Activity --> Controller
-    AppList --> Controller
-    Controller -->|严格绑定回环·禁直连回退| REST
+    Activity --> ChannelClient
+    AppList --> ChannelClient
+    ChannelClient -->|毫秒级高频只读轮询| Channel
+    ChannelClient -->|写操作与配置变更| Wanboxctl
+    Channel --> Cgroup
     Wanboxctl --> REST
     REST --> Daemon
     Daemon --> Route
+    Guard --> Route
     SystemTraffic -->|按分应用规则精准出站| Route
 ```
 
