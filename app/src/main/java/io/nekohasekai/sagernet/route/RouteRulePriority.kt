@@ -24,6 +24,9 @@ internal object RouteRulePriority {
 
     fun order(rules: List<RuleEntity>): List<RuleEntity> {
         val (fallback, explicit) = rules.partition(::isFallback)
-        return explicit + fallback
+        val (rejectFallback, otherFallback) = fallback.partition {
+            RouteRuleEditor.action(it.config, it.outbound) == "reject"
+        }
+        return explicit + rejectFallback + otherFallback
     }
 }
