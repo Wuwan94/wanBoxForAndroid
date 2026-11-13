@@ -1,11 +1,11 @@
 ## 1. 批次 1：修复路由优先级、默认广告与 Play 下载规则
 
-- [ ] 1.1 先扩展 `RouteRulePriorityTest`：构造先出现的国内 geosite 直连 fallback 和后出现的 reject fallback，要求排序结果让 reject 先匹配，同时验证规则实体及 Room 顺序不变。
-- [ ] 1.2 增加实际 `ConfigBuilder` 输出测试，覆盖启用 sniff 时先于 Root mixed 探测域名与业务域名规则；自定义 reject 在国内 direct fallback 前；组播 reject 不含 `source_ip_cidr`；`hijack-dns` 后无 port 53/protocol dns 代理兜底。只在测试能复现后修复排序和配置生成。
-- [ ] 1.3 增加 ProfileManager/Root 配置测试：默认广告规则用可执行的 `geosite-category-ads-all`；旧 Play route 中 `com.android.providers.downloads` 与 `.ui` 被清理；原 enabled 状态保持；生成配置不强制注入下载包名。测试先于迁移实现。
-- [ ] 1.4 更新 `openspec/specs/android-application/spec.md`；执行静态校验、版本/SINGBOX_VERSION 未变检查、diff 自审，不在本地运行 Gradle/Android/Go 编译或测试。
-- [ ] 1.5 以语义清晰提交并说明上游 commit `aa93dfb2563e3b2b4dff35d2ca40c86942842ae8`；仅推送 `port/ownbox-26.11.8.4`。运行 `.github/workflows/verify-android.yml` workflow_dispatch，检查 Build LibCore、Build Android Debug APK、unit/instrumentation 与 Root module 测试结果；不运行 release workflow。
-- [ ] 1.6 批次 1 CI 门：预期新增路由/默认规则测试、预览调试包构建通过且没有 Release/tag 操作。回传 run URL、SHA、相关 job 与静态校验结果；失败只修本批，绿灯前不开始批次 2。真机场景（不阻塞）：Root 模式应用广告 reject/国内直连，观察国内应用下载与 DNS；标注未真机验证。
+- [x] 1.1 扩展 `RouteRulePriorityTest`：构造先出现的国内 geosite 直连 fallback 和后出现的 reject fallback，要求排序结果让 reject 先匹配，同时验证规则实体及 Room 顺序不变；CI 已通过。
+- [x] 1.2 增加实际 `ConfigBuilder` 输出测试，覆盖启用 sniff 时先于 Root mixed 探测域名与业务域名规则；自定义 reject 在国内 direct fallback 前；组播 reject 不含 `source_ip_cidr`；`hijack-dns` 后无 port 53/protocol dns 代理兜底；CI 已通过。
+- [x] 1.3 增加 ProfileManager/Root 配置测试：默认广告规则用可执行的 `geosite-category-ads-all`；旧 Play route 中 `com.android.providers.downloads` 与 `.ui` 被清理；原 enabled 状态保持；无关 route 不变；迁移实现已通过 CI。
+- [x] 1.4 更新 `openspec/specs/android-application/spec.md` 和 change delta/design；`git diff --check` 通过；确认版本文件、`tools/version_code.py`、`buildSrc`、`SINGBOX_VERSION` 未变；未在本地运行 Gradle/Android/Go 编译或测试。
+- [x] 1.5 以语义清晰提交并标注上游 commit `aa93dfb2563e3b2b4dff35d2ca40c86942842ae8`；只推送 `port/ownbox-26.11.8.4`；运行 `.github/workflows/verify-android.yml` workflow_dispatch。最终验证提交：`3ac480c40a42447d8013a566d089f785d60b9a65`。
+- [x] 1.6 批次 1 CI 门：[`verify-android.yml` run 43487311081](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/43487311081) 成功；Build LibCore/Root module tests、Android build/unit/security、debug instrumentation、release database migrations、manifest 与下载预算检查均通过。此批不创建 PR、GitHub Release 或 tag。真机场景（不阻塞）：未真机验证（按用户明确指示不等待回传）。
 
 ## 2. 批次 2：修复分组测速 URL 动态继承
 
