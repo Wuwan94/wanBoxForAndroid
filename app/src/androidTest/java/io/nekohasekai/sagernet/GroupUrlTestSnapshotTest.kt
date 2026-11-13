@@ -26,7 +26,7 @@ class GroupUrlTestSnapshotTest {
         val peerId = 99122L
         val secondGroupId = 99123L
         val editorId = 99124L
-        val originalEditorCache = DataStore.groupUrlTestUrl
+        val originalEditorCache = DataStore.groupUrlTestUrlOverride
         fun node(id: Long, host: String) = ProxyEntity(id = id, groupId = groupId).putBean(
             SOCKSBean().apply { initializeDefaultValues(); serverAddress = host; serverPort = 1080 }
         )
@@ -95,9 +95,9 @@ class GroupUrlTestSnapshotTest {
             assertEquals("https://second-group.example/204", UrlTest().resolveLink(secondGroupProfile))
 
             DataStore.setGroupUrlTestUrl(editorId, SagerNet.application.getString(R.string.default_group_test_url))
-            DataStore.groupUrlTestUrl = DataStore.readAndMigrateGroupUrlTestUrlOverride(editorId)
-            assertEquals("", DataStore.groupUrlTestUrl)
-            DataStore.setGroupUrlTestUrl(editorId, DataStore.groupUrlTestUrl)
+            DataStore.groupUrlTestUrlOverride = DataStore.readAndMigrateGroupUrlTestUrlOverride(editorId)
+            assertEquals("", DataStore.groupUrlTestUrlOverride)
+            DataStore.setGroupUrlTestUrl(editorId, DataStore.groupUrlTestUrlOverride)
             assertEquals("", DataStore.readAndMigrateGroupUrlTestUrlOverride(editorId))
 
             DataStore.setGroupUrlTest(groupId, false)
@@ -117,7 +117,7 @@ class GroupUrlTestSnapshotTest {
             DataStore.setGroupUrlTestUrl(groupId, "")
             DataStore.setGroupUrlTestUrl(secondGroupId, "")
             DataStore.setGroupUrlTestUrl(editorId, "")
-            DataStore.groupUrlTestUrl = originalEditorCache
+            DataStore.groupUrlTestUrlOverride = originalEditorCache
             DataStore.connectionTestURL = originalConnectionTestURL
             BackupRestore.apply(original, true, true, true)
         }

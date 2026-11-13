@@ -39,6 +39,9 @@ class SpeedTestAndroidContractTest {
         val formatter = source
             .substringAfter("private fun formatSpeedTestSnapshot")
             .substringBefore("inner class TestDialog")
+        val urlTestSingle = source
+            .substringAfter("fun urlTestSingle(profile: ProxyEntity)")
+            .substringBefore("fun ", "")
         assertTrue(source.contains("confirmSpeedTest()"))
         assertTrue(source.contains("sessionFactory = ::AndroidSpeedTestSession"))
         val cleanup = source.substringAfter("private fun cancelViewTests()").substringBefore("override fun onDestroy()")
@@ -80,6 +83,8 @@ class SpeedTestAndroidContractTest {
         assertTrue(source.contains("SpeedTestDirection.DOWNLOAD -> \"↓\""))
         assertTrue(source.contains("SpeedTestDirection.UPLOAD -> \"↑\""))
         assertFalse(speedTest.contains(".ping ="))
+        assertTrue(urlTestSingle.contains("val targetUrl = DataStore.resolvedGroupUrlTestUrl(profile.groupId)"))
+        assertFalse(urlTestSingle.contains("DataStore.groupUrlTestUrl(profile.groupId).takeIf"))
     }
 
     @Test
@@ -278,8 +283,8 @@ class SpeedTestAndroidContractTest {
         val source = source("main/java/io/nekohasekai/sagernet/ui/GroupSettingsActivity.kt")
         val init = source.substringAfter("fun ProxyGroup.init()").substringBefore("fun ProxyGroup.serialize()")
         val serialize = source.substringAfter("fun ProxyGroup.serialize()").substringBefore("private")
-        assertTrue(init.contains("DataStore.groupUrlTestUrl = DataStore.readAndMigrateGroupUrlTestUrlOverride(id)"))
-        assertTrue(serialize.contains("DataStore.setGroupUrlTestUrl(id, DataStore.groupUrlTestUrl)"))
+        assertTrue(init.contains("DataStore.groupUrlTestUrlOverride = DataStore.readAndMigrateGroupUrlTestUrlOverride(id)"))
+        assertTrue(serialize.contains("DataStore.setGroupUrlTestUrl(id, DataStore.groupUrlTestUrlOverride)"))
     }
 
     private fun source(relativePath: String): String = File("src/$relativePath").readText()
