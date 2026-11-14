@@ -60,6 +60,24 @@ Android 配置生成器 MUST 在启用嗅探时将 `sniff` action 放在所有�
 - **THEN** DNS 流量由 `hijack-dns` 处理且不存在冗余的 53 端口代理兜底
 - **AND** 组播 reject 匹配目标 CIDR，且没有 `source_ip_cidr`
 
+### Requirement: 缺失的路由出站引用必须显式告警
+
+Android MUST 对规则实际使用的出站引用检查节点与策略组是否存在；内置 proxy/direct/block 目标 MUST 被识别为有效引用。引用缺失的规则 MUST 在路由列表显示红色错误状态，且核心启动或应用新配置前 MUST 显示列出规则与缺失引用类型/ID 的提醒。提醒 MUST 提供返回路由列表修复或明确继续的选项；继续时 MUST 保留未应用规则的可见提醒，不得静默忽略。脱敏 issue MUST NOT 包含凭据、代理地址或原始核心 stderr，也 MUST NOT 持久化到规则实体。
+
+#### Scenario: 路由列表标记悬空引用
+
+- **GIVEN** 一条规则引用的节点或策略组已被删除
+- **WHEN** 用户打开路由规则列表
+- **THEN** 对应规则显示红色错误状态及安全的缺失引用摘要
+- **AND** 有效节点、策略组及内置出站不会被误标
+
+#### Scenario: 启动前提醒且仅由用户决定继续
+
+- **GIVEN** 当前启用规则含一个或多个不存在的出站引用
+- **WHEN** 用户启动核心或应用新的 Root 配置
+- **THEN** 配置应用前出现包含规则名称/ID 与缺失引用类型/ID 的提醒
+- **AND** 用户可返回路由列表修复或明确继续；取消不得启动/应用，继续后未应用规则仍列在提醒结果中
+
 ### Requirement: Core settings provide an independent QUIC UDP 443 switch
 
 核心设置 MUST 提供独立的“拦截 QUIC (UDP 443)”开关，默认 MUST 开启。开启时，Root 配置 MUST 在普通用户路由规则之前产生只匹配 `network=udp`、`port=443` 的 `action=reject` 规则；该自动规则 MUST NOT 匹配 TCP 443 或 UDP 非 443。关闭时 MUST NOT 产生该自动规则，UDP 443/HTTP/3/QUIC MUST 继续按剩余有效路由规则处理，且 MUST 保留用户显式保存的规则。设置文案 MUST 在默认语言与简体中文资源中可见。导出包含 settings 区段的便携备份时，MUST 将缺失的 `blockQuic` 默认物化为 `true`，并 MUST 在导入/导出往返中保留显式值。

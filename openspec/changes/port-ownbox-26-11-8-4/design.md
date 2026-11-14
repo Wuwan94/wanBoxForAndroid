@@ -48,7 +48,9 @@ wanBox 的 RootModuleClient 将 Android ConfigBuilder 生成的 sing-box 配置�
 
 ### 5. 批次 5：无效出站显式呈现
 
-当路由规则的正向 outbound ID 找不到节点或策略组时，数据层/配置生成层产生稳定、脱敏的 issue（规则 ID/name、缺失类型/ID），而不是仅 toast 或静默跳过。规则列表通过状态绑定标红相应规则。服务启动前读取本次 ConfigBuildResult 的 issues，向用户显示可定位的 warning modal；用户可以返回规则列表修复或明确继续，确保继续时 invalid rule 被显式列为未应用。规则名缺失时退回安全的 `Rule <id>`，不得输出凭据、地址或原始 core stderr。Root/Core 仍是最终 schema 校验权威，不在 UI 另建完整 outbound validator。
+App 层新增纯规则引用校验：对实际需要出站的规则识别内置 proxy/direct/block，并检查正数 `RuleEntity.outbound` 是否指向现存 `ProxyEntity`（普通节点或策略组）。不需要 outbound 的动作不参与此项检查。校验只负责规则到目标实体的引用存在性，不重复 sing-box schema/字段校验，也不扩展为对现存策略组内部成员的配置审计。路由列表对全部规则绑定 issue 并标红；启动/配置应用前对启用规则复用同一校验结果。
+
+RootModuleClient 必须在生成并应用新快照前检查引用；发现 issue 时以固定错误码和结构化脱敏 issue 中止该次 apply，不能只 toast 或静默跳过。SagerNet 将待处理 warning 暴露为应用级状态，MainActivity 显示可滚动 modal：返回规则列表取消本次操作，或明确继续并仅对本次 start/apply 允许已列明的未解析规则。issue 包含规则 ID/name、缺失引用类型/ID；缺少规则名时回退 `Rule <id>`，不包含凭据、代理地址、核心 stderr，也不写入 Room/备份。Root/Core 仍是最终 schema 校验权威。
 
 ### 6. 批次 6：Root 网络智能挂起/恢复
 
