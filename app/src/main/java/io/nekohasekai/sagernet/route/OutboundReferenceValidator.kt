@@ -19,9 +19,17 @@ object OutboundReferenceValidator {
      * Checks only each rule's own outbound ID, without inspecting nested group references.
      * Rule action semantics come from RuleEntity.config, with a default route action.
      */
-    @Suppress("UNUSED_PARAMETER")
     fun validate(
         rules: List<RuleEntity>,
         existingOutboundIds: Set<Long>,
-    ): List<Issue> = emptyList() // Intentional Batch 5 red slice; behavior is not implemented yet.
+    ): List<Issue> = rules.mapNotNull { rule ->
+        if (rule.outbound <= 0L || rule.outbound in existingOutboundIds) return@mapNotNull null
+        val needsOutbound = try {
+            RouteRuleEditor.needsOutbound(rule.config, rule.outbound)
+        } catch (_: Exception) {
+            true
+        }
+        if (!needsOutbound) return@mapNotNull null
+        Issue(rule.id, rule.displayName(), ReferenceKind.NODE_OR_STRATEGY_GROUP, rule.outbound)
+    }
 }
