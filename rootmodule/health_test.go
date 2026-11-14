@@ -95,7 +95,7 @@ type fakeMonitor struct {
 
 func (f *fakeMonitor) deps() monitorDeps {
 	return monitorDeps{
-		fingerprint: func() string { f.mu.Lock(); defer f.mu.Unlock(); return f.fp },
+		fingerprint: func() networkDecision { f.mu.Lock(); defer f.mu.Unlock(); return networkDecision{Fingerprint: f.fp} },
 		probe:       func(context.Context) bool { f.mu.Lock(); defer f.mu.Unlock(); return f.probeOK },
 		failover: func(context.Context) bool {
 			f.mu.Lock()

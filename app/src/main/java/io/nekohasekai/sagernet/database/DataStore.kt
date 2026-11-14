@@ -113,6 +113,8 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     /** phase2: one-shot flag for the LIGHT_GRAY → MILK_TEA migration (see SagerNet.onCreate). */
     /** phase2: node health check policy sent to the module (off / notify / auto). Default notify-only. */
     var healthCheckMode by configurationStore.string("healthCheckMode") { "notify" }
+    var smartAutoStopEnabled by configurationStore.boolean(Key.SMART_AUTO_STOP_ENABLED) { false }
+    var smartAutoStopRules by configurationStore.string(Key.SMART_AUTO_STOP_RULES) { "" }
     var themeMilkTeaMigrated by configurationStore.boolean("themeMilkTeaMigrated") { false }
     val useSystemTheme: Boolean get() = false
     var nightTheme by configurationStore.stringToInt(Key.NIGHT_THEME)

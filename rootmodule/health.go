@@ -365,7 +365,7 @@ func (r *Runtime) Failover(ctx context.Context) error {
 // when a network change could not be validated after bounded retries and the
 // rebuild budget allows it; otherwise it runs until ctx is done.
 type monitorDeps struct {
-	fingerprint func() string
+	fingerprint func() networkDecision
 	probe       func(ctx context.Context) bool
 	failover    func(ctx context.Context) bool
 	record      func(code string)
@@ -405,6 +405,9 @@ var failoverBudget = &budget{window: time.Hour, max: 3}
 
 func runMonitor(ctx context.Context, hc HealthCheck, d monitorDeps) error {
 	last := d.fingerprint()
+	if last.Suspend {
+		return errAutoStop
+	}
 	interval := time.Duration(hc.IntervalSeconds) * time.Second
 	nextHealth := d.now().Add(interval)
 	failures := 0
@@ -425,7 +428,9 @@ func runMonitor(ctx context.Context, hc HealthCheck, d monitorDeps) error {
 			return nil
 		case <-t.C:
 		}
-		if fp := d.fingerprint(); fp != "" && fp != last {
+		if fp := d.fingerprint(); fp.Suspend {
+			return errAutoStop
+		} else if fp.Fingerprint != "" && fp.Fingerprint != last.Fingerprint {
 			last = fp
 			d.record("network_changed")
 			validated := false
@@ -493,7 +498,8 @@ func runMonitor(ctx context.Context, hc HealthCheck, d monitorDeps) error {
 }
 
 // monitorGeneration wires runMonitor to the live generation and supervisor state.
-func (r *Runtime) monitorGeneration(ctx context.Context, rev string, s *State, mu *sync.Mutex, persist func()) error {
+func (r *Runtime) monitorGeneration(ctx context.Context, rev string, s *State, mu *sync.Mutex, persist func(), suppressed *string) error {
+	policy, _ := readAutoStop(r.path("generations", rev, "files", autoStopFile))
 	hc := r.loadHealthCheck(rev)
 	c, e := r.clashClientFor(rev)
 	if e != nil {
@@ -537,10 +543,12 @@ func (r *Runtime) monitorGeneration(ctx context.Context, rev string, s *State, m
 		return true
 	}
 	return runMonitor(ctx, hc, monitorDeps{
-		fingerprint: networkFingerprint,
-		probe:       probe,
-		failover:    failover,
-		record:      r.recordEvent,
+		fingerprint: func() networkDecision {
+			return r.autoStopDecision(policy, r.physicalObservation(), suppressed)
+		},
+		probe:    probe,
+		failover: failover,
+		record:   r.recordEvent,
 		setHealth: func(health string) {
 			mu.Lock()
 			if s.Health != health {

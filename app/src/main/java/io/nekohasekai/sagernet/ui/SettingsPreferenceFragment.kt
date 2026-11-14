@@ -12,6 +12,8 @@ import androidx.core.app.ActivityCompat
 import androidx.core.graphics.drawable.DrawableCompat
 import androidx.preference.*
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import io.nekohasekai.sagernet.bg.NotificationGate
+import io.nekohasekai.sagernet.bg.SmartAutoStopNotifications
 import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
@@ -34,6 +36,37 @@ import libcore.Libcore
 
 class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataStoreChangeListener {
 
+
+    private val notificationPermission = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
+        val available = granted && SmartAutoStopNotifications.availability(requireContext()) == NotificationGate.AVAILABLE
+        setAutoStopEnabled(available)
+        if (!available) {
+            Toast.makeText(requireContext(), R.string.smart_auto_stop_permission_denied, Toast.LENGTH_LONG).show()
+        }
+        updateAutoStopPermission()
+    }
+
+    private fun setAutoStopEnabled(enabled: Boolean) {
+        findPreference<SwitchPreference>(Key.SMART_AUTO_STOP_ENABLED)?.let { preference ->
+            // Update the switch before publishing settings, without persisting a second time.
+            val wasPersistent = preference.isPersistent
+            preference.isPersistent = false
+            try {
+                preference.isChecked = enabled
+            } finally {
+                preference.isPersistent = wasPersistent
+            }
+        }
+        if (DataStore.smartAutoStopEnabled != enabled) {
+            DataStore.smartAutoStopEnabled = enabled
+        }
+    }
+
+    private fun updateAutoStopPermission() {
+        val available = SmartAutoStopNotifications.availability(requireContext()) == NotificationGate.AVAILABLE
+        if (!available) setAutoStopEnabled(false)
+        findPreference<Preference>("smartAutoStopPermission")?.isVisible = !available || DataStore.smartAutoStopEnabled
+    }
 
     private lateinit var globalCustomConfig: EditConfigPreference
 
@@ -72,6 +105,19 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
         if (key == Key.MTU && DataStore.serviceState.started) {
             // The persisted MTU needs a new module snapshot, without recreating MainActivity.
             SagerNet.reloadService()
+        }
+        if (key == Key.SMART_AUTO_STOP_RULES || key == Key.SMART_AUTO_STOP_ENABLED) {
+            updateAutoStopPermission()
+            viewLifecycleOwner.lifecycleScope.launch {
+                try { io.nekohasekai.sagernet.bg.RootModuleClient.startOrReload(startIfStopped = false) }
+                catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                catch (e: Exception) {
+                    val activity = activity
+                    if (activity != null && !activity.isFinishing && !activity.isDestroyed) {
+                        activity.alert(io.nekohasekai.sagernet.bg.RootModuleErrors.message(activity, e)).tryToShow()
+                    }
+                }
+            }
         }
         if (key == Key.PROFILE_CARD_STYLE) {
             runOnMainDispatcher {
@@ -112,7 +158,42 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
         val speedTestMode = findPreference<SimpleMenuPreference>(Key.SPEED_TEST_MODE)!!
         val speedTestTimeout = findPreference<EditTextPreference>(Key.SPEED_TEST_TIMEOUT_MS)!!
         val simpleDownloadURL = findPreference<EditTextPreference>(Key.SIMPLE_DOWNLOAD_URL)!!
+        findPreference<EditTextPreference>(Key.SMART_AUTO_STOP_RULES)?.setOnPreferenceChangeListener { _, value ->
+            val result = io.nekohasekai.sagernet.bg.SmartAutoStopRuleParser.parse(value as String)
+            if (result.isFailure) {
+                val message = if (result.exceptionOrNull()?.message == "too_many_rules") R.string.smart_auto_stop_too_many else R.string.smart_auto_stop_invalid
+                Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
+            }
+            result.isSuccess
+        }
 
+        findPreference<EditTextPreference>(Key.SMART_AUTO_STOP_RULES)?.setOnBindEditTextListener {
+            it.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            it.setSingleLine(false)
+            it.minLines = 4
+        }
+        findPreference<SwitchPreference>(Key.SMART_AUTO_STOP_ENABLED)?.setOnPreferenceChangeListener { _, enabled ->
+            if (enabled == true) {
+                when (SmartAutoStopNotifications.availability(requireContext())) {
+                    NotificationGate.REQUEST_PERMISSION -> {
+                        notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                        return@setOnPreferenceChangeListener false
+                    }
+                    NotificationGate.OPEN_SETTINGS -> {
+                        setAutoStopEnabled(false)
+                        updateAutoStopPermission()
+                        Toast.makeText(requireContext(), R.string.smart_auto_stop_permission_denied, Toast.LENGTH_LONG).show()
+                        return@setOnPreferenceChangeListener false
+                    }
+                    NotificationGate.AVAILABLE -> Unit
+                }
+            }
+            true
+        }
+        findPreference<Preference>("smartAutoStopPermission")?.setOnPreferenceClickListener {
+            startActivity(SmartAutoStopNotifications.settingsIntent(requireContext()))
+            true
+        }
         val ipv6Mode = findPreference<Preference>(Key.IPV6_MODE)!!
         val trafficSniffing = findPreference<Preference>(Key.TRAFFIC_SNIFFING)!!
         val blockQuic = findPreference<SwitchPreference>(Key.BLOCK_QUIC)!!
@@ -452,6 +533,7 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
 
     override fun onResume() {
         super.onResume()
+        updateAutoStopPermission()
 
         if (::globalCustomConfig.isInitialized) {
             globalCustomConfig.notifyChanged()

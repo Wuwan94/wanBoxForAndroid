@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -135,7 +136,7 @@ func TestAlignClashModeNetworkEdgeCases(t *testing.T) {
 	callCount := 0
 	onGetHook := func() {}
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	ts := newIPv4ModeTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		mu.Lock()
 		callCount++
 		delay := patchDelay
@@ -399,7 +400,7 @@ func TestAlignClashModeNetworkEdgeCases(t *testing.T) {
 
 	// 12. 307 重定向拦截并断言目标服务 0 命中
 	var targetHitCount int
-	targetTs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	targetTs := newIPv4ModeTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		mu.Lock()
 		targetHitCount++
 		mu.Unlock()
@@ -407,7 +408,7 @@ func TestAlignClashModeNetworkEdgeCases(t *testing.T) {
 	}))
 	defer targetTs.Close()
 
-	redirectTs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	redirectTs := newIPv4ModeTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		http.Redirect(w, req, targetTs.URL, http.StatusTemporaryRedirect)
 	}))
 	defer redirectTs.Close()
@@ -429,4 +430,18 @@ func TestAlignClashModeNetworkEdgeCases(t *testing.T) {
 	if hitSnapshot != 0 {
 		t.Fatalf("redirect target must receive 0 hits, got: %d", hitSnapshot)
 	}
+}
+
+// Pin IPv4 rather than relying on httptest's automatic IPv6 fallback.
+func newIPv4ModeTestServer(t *testing.T, handler http.Handler) *httptest.Server {
+	t.Helper()
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("IPv4 loopback listener: %v", err)
+	}
+	server := httptest.NewUnstartedServer(handler)
+	_ = server.Listener.Close()
+	server.Listener = listener
+	server.Start()
+	return server
 }

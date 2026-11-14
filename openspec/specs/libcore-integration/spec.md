@@ -151,3 +151,102 @@ libcore MUST 提供可由 Android 调用的速度测试接口，经指定节点�
 - **WHEN** libcore 执行对应速度测试阶段
 - **THEN** 网络请求使用已提供的 URL
 - **AND** 未提供自定义值时使用与选定 Throne 参考版本一致的默认值
+
+### Requirement: Root 网络自动暂停与恢复不得泄漏内核自有路由
+
+Root 模块 MUST 接收最多五条本地 IP/CIDR/`gateway:` 规则，并在不使用定位数据的情况下匹配当前物理网络。规则命中时，supervisor MUST 保留用户运行意图，仅请求当前内核进程优雅退出；内核 MUST 关闭自身 sing-box 实例、TUN 和 `auto_route` 资源，确认进程退出后模块才可报告 `suspended`。模块 MUST NOT 全局清空 iptables/nftables 或修改非本内核实例拥有的路由。离开匹配网络后，模块 MUST 恢复原运行意图，最多启动一个替代内核。同一网络指纹上的手动恢复 MUST 抑制再次自动暂停，直到物理网络指纹变化；显式手动停止 MUST NOT 被自动恢复撤销。清理超时 MUST 报告失败，不得声称暂停成功或启动重复内核，并 MUST 允许重试显式停止而不影响其他进程或路由。
+
+可选快照文件 `files/smart_auto_stop.json` MUST 包含开关与规则；启用时 MUST 包含经过验证的应用包名，模块 MUST 在应用快照前拒绝无效包名。固定生命周期转换 MUST 仅通过显式 Android 广播通知该包名，action MUST 为 `<appPackage>.AUTO_STOP_STATE`，唯一 phase extra MUST 为 `suspended`、`connected`、`stopped`、`failed` 或 `disabled`。广播和日志 MUST NOT 包含接口名、地址、网关、SSID 或规则文本；模块 MUST NOT 将快照文本传入 shell。
+
+IPv4 与 IPv6 默认网关发现 MUST 通过固定参数、短超时的系统 `ip route show table all` 接口读取策略路由表，并保留 `/proc` 回退；`ip` 不可用时 MUST 安全继续。仅带有有效 `via` IP 和 `dev` 接口的默认路由可被解析，网关 MUST 按接口关联以保留忽略接口过滤。启动请求 MUST 将同一 RunningRevision 的 `suspended` 视为保留运行意图的成功确认，但 MUST NOT 将其记录为 `core_started`；不同修订或其他未成功状态 MUST NOT 被误认为启动成功。
+
+位于 active、non-ignored physical interface 的 IPv4/IPv6 link-local unicast 地址 MUST NOT 仅因 link-local scope 被过滤；这些地址 MUST 可由精确 IP 和 CIDR 规则匹配，该接口关联的 link-local 默认网关 MUST 可由 `gateway:` 规则匹配。
+
+#### Scenario: Link-local unicast participates in physical network matching
+
+- **GIVEN** active、non-ignored physical interface 上存在 IPv4/IPv6 link-local unicast 地址，且默认网关通过该接口关联
+- **WHEN** Root supervisor 分别评估匹配该地址的精确 IP、CIDR 规则以及匹配该接口 link-local 默认网关的 `gateway:` 规则
+- **THEN** 每种规则均可命中，不会仅因 link-local scope 过滤地址或网关
+- **AND** ignored-interface 过滤仍然生效
+
+#### Scenario: 当前网关命中网络规则
+
+- **GIVEN** 有效持久化 `gateway:` 规则命中活动物理网络
+- **WHEN** Root supervisor 观察当前网络指纹
+- **THEN** 仅请求当前内核优雅退出，并在进程退出后转换为 `suspended`
+- **AND** 状态仅暴露固定自动暂停原因，不泄漏本地 IP、网关或命中规则文本
+
+#### Scenario: 离开匹配网络
+
+- **GIVEN** 内核自动暂停且其 TUN/`auto_route` 资源已释放
+- **WHEN** 新物理网络不再匹配任何规则
+- **THEN** supervisor 恢复原运行意图并为当前修订启动一个内核
+- **AND** 无关系统路由与 iptables/nftables 规则保持不变
+
+#### Scenario: 手动恢复抑制重复暂停
+
+- **GIVEN** 用户在网络指纹仍命中规则时手动恢复内核
+- **WHEN** 同一指纹再次进行周期网络评估
+- **THEN** 内核继续运行且不再次自动暂停
+- **AND** 物理网络指纹变化后清除抑制
+
+#### Scenario: Manual suppression survives configuration reload
+
+- **GIVEN** manual resume suppressed automatic suspension on the current physical fingerprint
+- **WHEN** config Apply replaces the supervisor
+- **THEN** the replacement restores the suppression from a bounded private runtime marker and remains running on that fingerprint
+- **AND** observing a different physical fingerprint clears the marker through the same decision used by active and suspended monitoring
+
+#### Scenario: Abnormal auto-stop exit fails closed
+
+- **GIVEN** automatic suspension requested graceful core cleanup
+- **WHEN** the core exits abnormally or its sing-box instance Close fails
+- **THEN** the supervisor reports failed with cleanup_required, never suspended, and does not automatically start another core
+- **AND** the standalone core returns a nonzero result with fixed safe output, retaining close diagnostics only at the controlled error boundary
+- **AND** explicit stop remains safe to retry
+
+#### Scenario: 内核清理超时可见且可重试
+
+- **GIVEN** 内核未在优雅退出期限内退出
+- **WHEN** Root supervisor 处理清理超时
+- **THEN** 状态包含失败且不声称暂停成功或启动重复内核
+- **AND** 调用方可重试显式停止而不影响其他进程或路由
+
+#### Scenario: Root 仅向配置应用发布固定生命周期阶段
+
+- **GIVEN** 快照包含有效应用包名且自动暂停生命周期阶段变化
+- **WHEN** 模块报告 `suspended`、`connected`、`stopped`、`failed` 或 `disabled`
+- **THEN** 仅向配置应用发送 action 为 `<appPackage>.AUTO_STOP_STATE` 的显式广播及对应固定 phase
+- **AND** 广播不包含物理网络标识、命中规则文本或内核错误输出
+
+#### Scenario: 启动后立即命中自动暂停规则
+
+- **GIVEN** 启动请求对应的修订在完成内核清理后报告 `suspended`
+- **WHEN** 启动调用方轮询到相同 RunningRevision 的确认状态
+- **THEN** 启动请求成功并保留用户运行意图
+- **AND** 不记录 `core_started`，也不接受不同修订的暂停状态
+
+Broadcast delivery MUST be independent of the supervisor lifecycle: enqueueing MUST NOT wait for Android `am broadcast`. A detached dispatcher MUST serialize/coalesce pending phases across supervisor replacements, bound every command with a short timeout, and prevent a stale `suspended` notification from being delivered after a newer `connected`, `stopped`, `failed`, or `disabled` phase. Arguments MUST be passed as argv, never shell-interpolated.
+
+Enabled `files/smart_auto_stop.json` MUST include `userId`, the current Android user/profile identifier, as an integer in the supported Android UID range (0–21474), as well as `appPackage`. Missing, null, fractional, negative, or out-of-range identities MUST be rejected before Apply; no enabled snapshot may silently default to user 0. Disabled/legacy snapshots MAY omit user identity; without one the module MUST NOT dispatch notifications. `am broadcast --user` MUST use the validated identifier as a separate argv value.
+
+#### Scenario: Apply preserves the cleanup failure barrier
+
+- **GIVEN** a newly applied generation fails startup with `cleanup_required`
+- **WHEN** Apply considers automatic rollback
+- **THEN** it preserves and returns `cleanup_required` without automatically stopping away the failure or restarting the old generation
+- **AND** subsequent Start remains blocked until explicit Stop recovery
+
+#### Scenario: Slow lifecycle delivery does not block networking
+
+- **GIVEN** Android broadcast delivery stalls during suspension
+- **WHEN** the supervisor transitions to connected or stopped
+- **THEN** the transition proceeds without waiting for delivery and the stalled command times out
+- **AND** serialized/coalesced delivery leaves the latest phase, never a stale suspended notification
+
+#### Scenario: Notifications target a work profile
+
+- **GIVEN** an enabled snapshot contains a validated nonzero Android `userId`
+- **WHEN** a lifecycle notification is dispatched
+- **THEN** the explicit broadcast targets that user/profile and application package only
+- **AND** an enabled snapshot without user identity is rejected while disabled legacy snapshots remain compatible

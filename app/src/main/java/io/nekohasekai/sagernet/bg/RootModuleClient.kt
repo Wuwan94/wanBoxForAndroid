@@ -71,7 +71,7 @@ object RootModuleClient {
     // @author 雾晚: this is the manager-owned root module, never App private storage.
     @android.annotation.SuppressLint("SdCardPath")
     const val CLI = "/data/adb/modules/wanbox/bin/wanboxctl"
-    private val commands = setOf("status", "module", "logs", "dashboard", "start", "stop", "restart", "reload",
+    private val commands = setOf("status", "module", "logs", "dashboard", "start", "stop", "resume", "restart", "reload",
         "config apply", "config validate", "autostart on", "autostart off", "data prepare", "data finish", "data rollback",
         "node failover", "node tags")
     private val changes = Mutex()
@@ -101,6 +101,7 @@ object RootModuleClient {
         val connected get() = phase == "connected" && installData == null
         val state get() = if (installData != null) BaseService.State.Stopped else when (phase) {
             "connected" -> BaseService.State.Connected
+            "suspended" -> BaseService.State.Suspended
             "starting" -> BaseService.State.Connecting
             else -> BaseService.State.Stopped
         }
@@ -118,7 +119,7 @@ object RootModuleClient {
         }
         val state = json.getAsJsonObject("state") ?: throw IOException("module_status_invalid")
         val phase = state["phase"]?.asString ?: throw IOException("module_status_invalid")
-        if (phase !in setOf("connected", "starting", "stopped", "failed", "disabled", "cleanup_required")) throw IOException("module_status_invalid")
+        if (phase !in setOf("connected", "starting", "suspended", "stopped", "failed", "disabled", "cleanup_required")) throw IOException("module_status_invalid")
         val selection = state["installData"]?.takeUnless { it.isJsonNull }?.let {
             if (!it.isJsonObject) throw IOException("install_data_selection_invalid")
             val entry = it.asJsonObject
@@ -291,6 +292,7 @@ object RootModuleClient {
                     call("stop")
                     action
                 }
+                ServiceToggleAction.RESUME -> { call("resume"); action }
                 ServiceToggleAction.START -> {
                     if (profileId >= 0L) DataStore.selectedProxy = profileId
                     startOrReloadLocked(startIfStopped = true, beforeStatus = status)
@@ -304,7 +306,8 @@ object RootModuleClient {
         RootModuleDataUpdate.applyInstallerSelection()
         tryWithChangesLock {
             val status = callFreshStatus()
-            if (!status.state.canStop) startOrReloadLocked(startIfStopped = true, beforeStatus = status)
+            if (status.state == BaseService.State.Suspended) call("resume")
+            else if (!status.state.canStop) startOrReloadLocked(startIfStopped = true, beforeStatus = status)
         }
     }
 
@@ -335,7 +338,7 @@ object RootModuleClient {
                 // Apply owns active-core restart/rollback; passive edits never start a stopped module.
                 if (startIfStopped) {
                     call("autostart ${if (DataStore.persistAcrossReboot) "on" else "off"}")
-                    if (!applied.state.canStop) call("start")
+                    if (!applied.state.canStop && applied.state != BaseService.State.Suspended) call("start")
                 }
                 return applied
             } finally { file.delete(); instance.close() }
@@ -353,6 +356,7 @@ object RootModuleClient {
     }
 
     suspend fun stop() = changes.withLock { call("stop") }
+    suspend fun resume() = changes.withLock { call("resume") }
     /**
      * Hot-switch the running core to another node without restart.
      * Serialized with config applies; any failure must make the caller fall back
@@ -479,6 +483,13 @@ internal class RootModuleSnapshot(private val instance: ProxyInstance, private v
             }
             addBytes("files/health_check.json", policy.toString().toByteArray())
         }
+        val autoStop = JsonObject().apply {
+            addProperty("enabled", DataStore.smartAutoStopEnabled)
+            add("rules", com.google.gson.JsonArray().apply { SmartAutoStopRuleParser.parse(DataStore.smartAutoStopRules).getOrThrow().forEach { add(it) } })
+            addProperty("appPackage", io.nekohasekai.sagernet.BuildConfig.APPLICATION_ID)
+            addProperty("userId", SmartAutoStopAndroidUser.fromUid(android.os.Process.myUid()))
+        }
+        addBytes("files/smart_auto_stop.json", autoStop.toString().toByteArray())
         val encoded = JsonObject(); files.forEach { (name, bytes) -> encoded.addProperty(name, Base64.getEncoder().encodeToString(bytes)) }
         return JsonObject().apply {
             addProperty("schemaVersion", 1); addProperty("expectedRevision", revision); add("config", config); add("files", encoded); add("plugins", plugins)

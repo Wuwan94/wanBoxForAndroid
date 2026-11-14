@@ -383,3 +383,55 @@ Android 应用在前台页面操作失败且已有可用宿主 Activity 时，MU
 - **WHEN** 应用请求显示该配置项的错误详情
 - **THEN** 应用显示含该错误详情的提示对话框
 - **AND** 主题包装 Context 不影响显示结果
+
+#### Scenario: Smart Auto-stop Root snapshot Apply 失败安全处理
+
+- **GIVEN** 用户在 Smart Auto-stop 设置中发起 Root snapshot Apply
+- **WHEN** Apply 发生普通失败且宿主 Activity 仍可用
+- **THEN** 应用通过现有安全宿主处理入口显示包含原始可读错误消息的对话框，主题包装 Context 不影响宿主解析
+- **AND** 若显示时宿主 Activity 正在结束、已销毁或不存在，应用安全跳过显示，不产生新的未处理异常或无效窗口
+- **AND** 若 Apply 抛出 `CancellationException`，异常继续传播，MUST NOT 被当成普通错误显示
+
+### Requirement: Smart network auto-stop is bounded, location-permission-free, and user-controllable
+
+高级设置 MUST 提供默认关闭的网络自动挂起开关与规则编辑，最多允许 5 条规则，支持逗号、分号、中文逗号和换行分隔的本地 IPv4/IPv6、CIDR 与 `gateway:` 网关匹配。功能 MUST NOT 请求定位权限。Android 13 及以上 MUST 在启用功能时请求通知权限；若权限被拒绝，MUST 保持功能关闭并明确提示用户。启用功能时，Android MUST 在 Root snapshot 中附带经校验的应用 `appPackage`。应用 MUST 只接受面向该应用的固定 `AUTO_STOP_STATE` action 和 `suspended`、`connected`、`stopped`、`failed`、`disabled` phase 值；phase event MUST NOT 携带网络标识、匹配规则或核心输出。命中规则后，Root supervisor MUST 优雅停止当前核心，只有核心确认退出并释放自己的 TUN/auto-route 后才可报告挂起；MUST NOT 全局 flush iptables/nftables 或操作其他实例路由。挂起时 MUST 保留显示“已挂起”及“恢复”“停止”按钮的通知；两个 action 分别调用 Root resume 与 stop。离开匹配网络后 MUST 自动恢复此前自动挂起的核心；用户在同一网络手动恢复后 MUST 抑制该 fingerprint 下的重复挂起，网络变化后才重新匹配；用户手动停止不得被自动恢复覆盖。
+
+#### Scenario: 匹配网络后只在核心退出时显示挂起
+
+- **GIVEN** 用户配置至多 5 条有效 IP/CIDR/`gateway:` 规则且当前物理网络匹配
+- **WHEN** Root supervisor 请求核心优雅退出
+- **THEN** 只有确认核心退出并释放本实例 TUN/auto-route 后，Android 才显示已挂起 phase 和可操作通知
+- **AND** 不请求定位权限，phase event 不包含网络地址、gateway、SSID 或规则文本
+
+#### Scenario: 离开网络与同网手动恢复
+
+- **GIVEN** 核心因当前 network fingerprint 自动挂起
+- **WHEN** 设备离开匹配网络，或用户在同一网络手动恢复
+- **THEN** 离开网络时原运行意图自动恢复一次；同网手动恢复抑制该 fingerprint 的再次挂起
+- **AND** 通知的恢复/停止按钮分别执行 Root resume/stop，手动停止不会被自动恢复覆盖
+
+Android MUST reconcile notifications only for the fixed phases `suspended`, `connected`, `stopped`, `failed`, and `disabled`; unknown actions or phases MUST be ignored. After a notification Resume or Stop action, Android MUST query Root status even if the command fails, and MUST use a recognized returned phase as authoritative. If notification delivery or status communication fails, or the queried phase is unknown, Android MUST preserve the last successfully displayed suspended notification rather than dismissing it based on the action alone. Coroutine cancellation MUST propagate.
+
+#### Scenario: Notification action loses its reply or status is unavailable
+
+- **GIVEN** Android last successfully displayed the actionable suspended notification
+- **WHEN** the user selects Resume or Stop and the command reply fails
+- **THEN** Android MUST still query authoritative Root status and reconcile a recognized phase
+- **AND** if the status query fails or returns an unknown phase, Android MUST retain the last suspended notification and its actions
+- **AND** a failed notification delivery MUST NOT dismiss the last successfully displayed suspended notification
+
+Before enabling Smart Auto-stop on every supported Android version, Android MUST create/inspect the `smart_auto_stop` notification channel and verify both app-level notification availability and channel importance other than `IMPORTANCE_NONE`. On API 33+ it MUST request missing runtime notification permission first and recheck app/channel availability after the result. If any gate remains blocked, the feature MUST remain disabled with actionable app/channel notification settings. Notification settings MUST remain available while the feature is enabled. Snapshot generation MUST derive the current Android user/profile through a supported Android API and include its integer `userId` alongside `appPackage`.
+
+#### Scenario: App or channel notifications are blocked
+
+- **GIVEN** app notifications are disabled on API 31–32, or the Smart Auto-stop channel has `IMPORTANCE_NONE` on any supported Android version
+- **WHEN** the user tries to enable Smart Auto-stop
+- **THEN** the feature remains disabled and an actionable notification-settings entry is available
+- **AND** granting API 33+ runtime permission alone cannot bypass a blocked channel
+
+#### Scenario: Notification controls remain discoverable
+
+- **GIVEN** Smart Auto-stop is enabled with app and channel notifications available
+- **WHEN** the user opens advanced settings
+- **THEN** notification settings remain accessible
+- **AND** returning from notification settings rechecks availability before retaining the enabled setting

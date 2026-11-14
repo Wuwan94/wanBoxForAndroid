@@ -38,6 +38,7 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 	// Do not keep up to 128 MiB of decoded Base64 resources alive in the supervisor.
 	snapshot.Files = nil
 	snapshot.Config = nil
+	policy, _ := readAutoStop(r.path("generations", rev, "files", autoStopFile))
 	s := State{SchemaVersion: Version, Phase: "starting", Revision: rev, RunningRevision: rev, ProfileID: snapshot.ProfileID, ProfileName: snapshot.ProfileName, Supervisor: identity}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -49,13 +50,6 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 	}
 	if e = jsonWrite(r.path("state.json"), s); e != nil {
 		return errors.New("state_write_failed")
-	}
-	if e = r.independentCgroup(); e != nil {
-		s.Phase = "failed"
-		s.Error = "cgroup_move_failed"
-		s.Supervisor = ProcessIdentity{}
-		persist()
-		return e
 	}
 	defer func() {
 		mu.Lock()
@@ -69,8 +63,22 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 			s.Phase = "stopped"
 		}
 		persist()
+		if policy.AppPackage != "" {
+			phase := s.Phase
+			if !r.Enabled() {
+				phase = "disabled"
+			}
+			r.QueueAutoStopBroadcast(policy, phase)
+		}
 		_ = os.Remove(r.path("runtime", "ready"))
 	}()
+	if e = r.independentCgroup(); e != nil {
+		s.Phase = "failed"
+		s.Error = "cgroup_move_failed"
+		s.Supervisor = ProcessIdentity{}
+		persist()
+		return e
+	}
 	// Stop on module disable/remove even when the management APK has been removed.
 	done := make(chan struct{})
 	defer func() { cancel(); <-done }()
@@ -98,6 +106,7 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 	// can explain the drop. A generation that stayed connected ≥5 min resets the
 	// budget; a validated-network rebuild never consumes it. No infinite restarts.
 	recovering := false
+	suppressed := r.readSuppression()
 	for attempt := 0; attempt < maxCoreAttempts; attempt++ {
 		if ctx.Err() != nil {
 			return nil
@@ -114,7 +123,10 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 		persist()
 		mu.Unlock()
 		generationStart := time.Now()
-		err := r.runGeneration(ctx, rev, snapshot, &s, &mu, persist, func() {
+		err := r.runGeneration(ctx, rev, snapshot, &s, &mu, persist, &suppressed, func() {
+			if policy.AppPackage != "" {
+				r.QueueAutoStopBroadcast(policy, "connected")
+			}
 			if recovering {
 				recovering = false
 				r.recordEvent("reconnect_ok")
@@ -126,6 +138,14 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 		// accumulate into a permanent retry_limit_reached.
 		stableRun := s.Phase == "connected" && time.Since(generationStart) >= stableRunReset
 		mu.Unlock()
+		if err != nil && err.Error() == "cleanup_timeout_no_restart" {
+			mu.Lock()
+			s.Phase = "failed"
+			s.Error = "cleanup_required"
+			persist()
+			mu.Unlock()
+			return err
+		}
 		if ctx.Err() != nil {
 			return nil
 		}
@@ -134,6 +154,43 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 		}
 		if err == nil {
 			return nil
+		}
+		if errors.Is(err, errAutoStop) {
+			mu.Lock()
+			s.Phase = "suspended"
+			s.Error = "auto_stop"
+			s.Core = ProcessIdentity{}
+			s.Stats = nil
+			s.Telemetry = nil
+			persist()
+			mu.Unlock()
+			r.recordEvent("auto_stop")
+			if policy.AppPackage != "" {
+				r.QueueAutoStopBroadcast(policy, "suspended")
+			}
+			for {
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(2 * time.Second):
+				}
+				if _, e := os.Stat(r.path("runtime", "stop")); e == nil {
+					return nil
+				}
+				o := r.physicalObservation()
+				if b, e := os.ReadFile(r.path("runtime", "resume")); e == nil {
+					if len(b) <= 128 {
+						suppressed = strings.TrimSpace(string(b))
+						_ = os.Remove(r.path("runtime", "resume"))
+						break
+					}
+				}
+				if !r.autoStopDecision(policy, o, &suppressed).Suspend {
+					break
+				}
+			}
+			attempt-- // Intentional suspension/resume does not consume the crash budget.
+			continue
 		}
 		reason := classifyExit(err)
 		mu.Lock()
@@ -147,14 +204,7 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 			r.recordEvent(reason)
 		}
 		recovering = true
-		if err.Error() == "cleanup_timeout_no_restart" {
-			mu.Lock()
-			s.Phase = "failed"
-			s.Error = "cleanup_required"
-			persist()
-			mu.Unlock()
-			return err
-		}
+
 		mu.Lock()
 		s.Phase = "starting"
 		s.Error = "core_retry"
@@ -200,34 +250,26 @@ func retryBackoff(attempt int) time.Duration {
 	return d
 }
 
-func (r *Runtime) runGeneration(ctx context.Context, rev string, snapshot Snapshot, s *State, mu *sync.Mutex, persist func(), onConnected func()) error {
+func (r *Runtime) runGeneration(ctx context.Context, rev string, snapshot Snapshot, s *State, mu *sync.Mutex, persist func(), suppressed *string, onConnected func()) (result error) {
 	dir := r.path("generations", rev)
 	childCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	identities := make([]ProcessIdentity, 0, len(snapshot.Plugins))
 	waiters := make([]chan error, 0, len(snapshot.Plugins))
+
 	defer func() {
-		for _, identity := range identities {
-			_ = terminate(identity)
+		result = finishGeneration(result, identities, waiters, terminate, forceTerminate, 2*time.Second)
+		if result != nil && result.Error() == "cleanup_timeout_no_restart" {
+			// Keep identities private so explicit stop can retry and start cannot
+			// duplicate helpers after this supervisor exits.
+			_ = jsonWrite(r.path("runtime", "cleanup.json"), identities)
+			mu.Lock()
+			s.Phase, s.Error = "failed", "cleanup_required"
+			persist()
+			mu.Unlock()
 		}
-		var cleanup sync.WaitGroup
-		for i, wait := range waiters {
-			cleanup.Add(1)
-			go func() {
-				defer cleanup.Done()
-				select {
-				case <-wait:
-				case <-time.After(2 * time.Second):
-					_ = forceTerminate(identities[i])
-					select {
-					case <-wait:
-					case <-time.After(2 * time.Second):
-					}
-				}
-			}()
-		}
-		cleanup.Wait()
 	}()
+
 	for _, plugin := range snapshot.Plugins {
 		binary := filepath.Join(dir, plugin.Binary)
 		config := filepath.Join(dir, plugin.Config)
@@ -343,7 +385,15 @@ func (r *Runtime) runGeneration(ctx context.Context, rev string, snapshot Snapsh
 	defer probe.stop()
 	startupFailed := false
 	monitorDone := make(chan error, 1)
+	var monitorAutoStop bool
 	monitorStarted := false
+	monitorExited := make(chan struct{})
+	defer func() {
+		cancel()
+		if monitorStarted {
+			<-monitorExited
+		}
+	}()
 	networkRebuild := false
 	for {
 		select {
@@ -351,9 +401,21 @@ func (r *Runtime) runGeneration(ctx context.Context, rev string, snapshot Snapsh
 			if errors.Is(me, errNetworkRebuild) {
 				networkRebuild = true
 				cancel()
+			} else if errors.Is(me, errAutoStop) {
+				monitorAutoStop = true
+				cancel()
 			}
 		case err := <-wait:
 			<-readerDone
+			if monitorAutoStop {
+				return autoStopExitResult(err)
+			}
+			if ctx.Err() != nil {
+				return nil
+			}
+			if networkRebuild {
+				return errNetworkRebuild
+			}
 			if err == nil {
 				err = errors.New("core_exited")
 			}
@@ -361,8 +423,11 @@ func (r *Runtime) runGeneration(ctx context.Context, rev string, snapshot Snapsh
 		case <-childCtx.Done():
 			_ = terminate(p)
 			select {
-			case <-wait:
+			case err := <-wait:
 				<-readerDone
+				if monitorAutoStop {
+					return autoStopExitResult(err)
+				}
 				if ctx.Err() != nil {
 					return nil
 				}
@@ -380,6 +445,9 @@ func (r *Runtime) runGeneration(ctx context.Context, rev string, snapshot Snapsh
 				select {
 				case <-wait:
 					<-readerDone
+					if monitorAutoStop {
+						return errors.New("cleanup_timeout_no_restart")
+					}
 					if ctx.Err() != nil {
 						return nil
 					}
@@ -414,9 +482,53 @@ func (r *Runtime) runGeneration(ctx context.Context, rev string, snapshot Snapsh
 					if onConnected != nil {
 						onConnected()
 					}
-					go func() { monitorDone <- r.monitorGeneration(childCtx, rev, s, mu, persist) }()
+					go func() {
+						defer close(monitorExited)
+						monitorDone <- r.monitorGeneration(childCtx, rev, s, mu, persist, suppressed)
+					}()
 				}
 			}
 		}
 	}
+}
+
+var errAutoStop = errors.New("auto_stop")
+
+// A waiter receiving any result confirms exit; a signal alone does not.
+func finishGeneration(result error, identities []ProcessIdentity, waiters []chan error, stop, kill func(ProcessIdentity) error, timeout time.Duration) error {
+	for _, identity := range identities {
+		_ = stop(identity)
+	}
+	failed := make(chan bool, len(waiters))
+	var cleanup sync.WaitGroup
+	for i, wait := range waiters {
+		cleanup.Add(1)
+		go func(i int, wait chan error) {
+			defer cleanup.Done()
+			select {
+			case <-wait:
+				return
+			case <-time.After(timeout):
+			}
+			_ = kill(identities[i])
+			select {
+			case <-wait:
+			case <-time.After(timeout):
+				failed <- true
+			}
+		}(i, wait)
+	}
+	cleanup.Wait()
+	if len(failed) != 0 {
+		return errors.New("cleanup_timeout_no_restart")
+	}
+	return result
+}
+
+// Successful process exit is the core's acknowledgement that Close succeeded.
+func autoStopExitResult(err error) error {
+	if err != nil {
+		return errors.New("cleanup_timeout_no_restart")
+	}
+	return errAutoStop
 }

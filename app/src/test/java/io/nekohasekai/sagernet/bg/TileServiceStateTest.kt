@@ -21,6 +21,7 @@ class TileServiceStateTest {
     fun displayStatePreciselyRepresentsServiceLifecycle() {
         assertEquals(Tile.STATE_INACTIVE, TileService.displayState(BaseService.State.Idle))
         assertEquals(Tile.STATE_INACTIVE, TileService.displayState(BaseService.State.Stopped))
+        assertEquals(Tile.STATE_INACTIVE, TileService.displayState(BaseService.State.Suspended))
         assertEquals(Tile.STATE_ACTIVE, TileService.displayState(BaseService.State.Connecting))
         assertEquals(Tile.STATE_ACTIVE, TileService.displayState(BaseService.State.Connected))
         assertEquals(Tile.STATE_UNAVAILABLE, TileService.displayState(BaseService.State.Stopping))

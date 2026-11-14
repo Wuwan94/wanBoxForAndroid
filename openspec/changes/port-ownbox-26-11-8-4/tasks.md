@@ -30,21 +30,35 @@
 
 ## 5. 批次 5：无效出站规则定位与启动告警
 
-- [ ] 5.1 先增加纯规则引用检查测试，覆盖不存在节点、策略组、有效引用与内置 direct/proxy/block；再增加规则列表错误绑定与 startup modal 的 Android 测试。
-- [ ] 5.2 由 App 配置/数据边界产生脱敏 issue，覆盖 rule ID/name、缺失出站类型/ID；无效行标红；核心启动前 modal 汇总提醒并允许返回修复或明确继续；不得只静默跳过。不得将凭据、地址或原始 stderr 放入 issue/日志。
-- [ ] 5.3 更新默认语言与简体中文必要文案及 `openspec/specs/android-application/spec.md`；自审有效引用、空名称、多个错误及继续/取消边界，提交并仅推送授权分支。
-- [ ] 5.4 批次 5 CI 门：运行 unit/build/instrumentation 和 ConfigBuilder/Root snapshot checks；预期 missing node/group 标红并在启动前呈现，合法 route 不误报。回传 run URL、SHA、报告。真机场景（不阻塞）：故意删除被引用节点后打开路由页/启动，确认红色条目、提醒内容与修复路径；未执行须报告。
+- [x] 5.1 先增加纯规则引用检查测试，覆盖不存在节点、策略组、有效引用与内置 direct/proxy/block；再增加规则列表错误绑定与 startup modal 的 Android 测试。
+- [x] 5.2 由 App 配置/数据边界产生脱敏 issue，覆盖 rule ID/name、缺失出站类型/ID；无效行标红；核心启动前 modal 汇总提醒并允许返回修复或明确继续；不得只静默跳过。不得将凭据、地址或原始 stderr 放入 issue/日志。
+- [x] 5.3 更新默认语言与简体中文必要文案及 `openspec/specs/android-application/spec.md`；自审有效引用、空名称、多个错误及继续/取消边界，提交并仅推送授权分支。
+- [x] 5.4 批次 5 CI 门：[`verify-android.yml` run 43586600129](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/43586600129) 在 SHA `e579cba6d015f4d2f0dc81f993113d38f96e731c` 全绿。Build LibCore、Release build/tests、debug instrumentation 及 API 35 x86_64/KVM 的 `connectedOssReleaseAndroidTest -PwanboxReleaseTests` 均通过；Release instrumentation 步骤 `Validate release database migrations` 成功。推送前本地 Release app/test APK 构建及 JVM 单测通过；本地模拟器 instrumentation 未能启动用例（Sandbox 无 KVM且 PackageManager/system_server 不稳定），不计为通过，由上述 CI runner 完成验证。未真机验证；真机场景为删除被引用节点后查看红色规则及启动提醒/修复路径。
 
 ## 6. 批次 6：Root 网络智能挂起/恢复代理
 
-- [ ] 6.1 先为最多 5 条 IP/CIDR/`gateway:` 规则解析/匹配、无定位权限、挂起/恢复状态机、同网络手动恢复抑制与切网重置写纯 Go 测试；为 RootModulePort/client/通知交互写契约测试。
-- [ ] 6.2 在高级设置实现规则编辑/校验与持久化；不请求位置权限。Root module 增加网络匹配状态机：命中挂起核心并清理仅本模块拥有的 iptables/路由；离开匹配网络自动恢复；手动恢复对同 fingerprint 抑制重复挂起；手动停止不自动重启。
-- [ ] 6.3 通过 RootModulePort/RootModuleClient/wanboxctl 暴露配置、状态、事件与恢复/停止操作；挂起通知保持“恢复”“停止”按钮；清理与恢复必须幂等，失败不得谎报成功，不得残留断网规则。
-- [ ] 6.4 同步 `openspec/specs/android-application/spec.md` 与 `openspec/specs/libcore-integration/spec.md`；同步默认语言和简体中文文案；自审短暂断网、同网恢复、网络切换、服务手动停止、Root重启、iptables 部分失败和并发按钮边界。禁止本地 Go/Android 编译。
+- [x] 6.1 先逐片增加并执行红测：IPv4/IPv6/CIDR/`gateway:` 解析、分隔符与 5 条上限、主机名/非法前缀/appPackage/userId 拒绝、Apply cleanup_required 失败屏障、异步有序广播及命令超时、应用/渠道通知可用性门禁、无物理网络不命中、IPv4/IPv6 默认路由解析、同 fingerprint 手动恢复抑制及切网重置、挂起状态/stop/resume 语义、固定 phase broadcast 参数和 Android 通知契约。Root/Android 本地全测通过；link-local 修复、通知 controller 与设置失败弹窗均有真实红→绿记录。
+- [x] 6.2 在高级设置实现规则编辑/校验与持久化；不请求位置权限。Root module 增加网络匹配状态机：命中时优雅停止当前实例核心并确认核心拥有的 TUN/auto-route 清理；离开匹配网络自动恢复；手动恢复对同 fingerprint 抑制重复挂起；手动停止不自动重启。不得全局 flush iptables/nftables 或改动其他实例路由。
+- [x] 6.3 通过 RootModulePort/RootModuleClient/wanboxctl 暴露配置、状态、事件与恢复/停止操作；挂起通知保持“恢复”“停止”按钮。Root 只向快照中校验过的应用包名发送固定 phase 广播，App 通过显式 receiver 更新通知；核心退出未确认时报告清理失败，不得谎报已挂起。
+- [x] 6.4 同步 `openspec/specs/android-application/spec.md` 与 `openspec/specs/libcore-integration/spec.md`；同步默认语言和简体中文文案；自审短暂断网、同网恢复、网络切换、服务手动停止、Root 重启、核心退出超时和并发按钮边界。按用户最新要求，推送前必须用 Sandbox 系统 Go 1.26.10 通过 Go 单测，并用本地已安装 Android SDK 通过相关 Android build/unit tests。若本地模拟器无法启动 instrumentation，须记录环境阻塞，且远程 CI instrumentation 通过后才可完成批次门禁。Python 辅助脚本仅放 `tools/diagnostics/` 并通过 `uv run` 执行。
 - [ ] 6.5 语义提交、仅推送授权分支，运行 `verify-android.yml` 的 Root module tests、libcore/AAR build、Android unit/build/instrumentation 与通知/Root 契约测试。
 - [ ] 6.6 批次 6 CI 门：预期状态机、命令、清理、权限和 Android 契约测试全部通过；回传 run URL、SHA、Go/Android CI 报告。真机场景（不阻塞）：配置本地 IP/CIDR/gateway 规则，验证匹配时挂起通知和恢复/停止按钮、离开网络自动恢复、手动恢复同网不再挂起、iptables/route 清理不影响其他网络；未执行必须标明“未真机验证”。
 
 ## 7. 最终边界检查
 
 - [ ] 7.1 确认六批均有真实 CI 结果且失败只在对应批次修复；未运行或未通过的 CI 验证项不得勾选。
-- [ ] 7.2 确认未改 main、版本号、`SINGBOX_VERSION`、正式版 `v3.0.11`；未创建 PR、Release 或 tag；列出未真机验证项及用户后续可选的验证证据。
+- [ ] 7.2 最终双轴复审和全部验证通过后，按用户授权准备新预览版 PR/合并/发布；保护稳定版 `v3.0.11`、`SINGBOX_VERSION` 与预览号范围，不删改无关 tag。若新预览版要求超出既有版本限制，先向用户说明冲突并取得明确版本授权；列出未真机验证项及证据。
+
+### Batch 6 Astra scoped remediation validation (local gate only)
+
+User authorization is the scoped exception to the default remote-build policy in `repository-governance`: this task MUST run local Go/Android validation before pushing. The local-remediation substep remains uncommitted and unpushed until those gates pass; afterward, Batch 6 follows task 6.5 for a semantic commit and push to the existing feature branch. This task MUST NOT publish or change versions or `SINGBOX_VERSION`. Fixed-point review baseline: `e579cba6d015f4d2f0dc81f993113d38f96e731c`. Broader Batch 6 and remote/CI gates remain unchecked.
+
+- Notification cleanup contract: red on broad `cancelAll`, green after canceling only `ServiceNotification.notificationId`; legacy channels remain unchanged, smart ID 1041/channel `smart_auto_stop` are preserved.
+- Suspended Apply contract: red before excluding `Suspended` from the extra start, green afterward; stopped/other applicable states retain existing behavior.
+- Broadcast delivery behavior: red for retry count, stale failed acknowledgement, and swallowed exhaustion error; green for failure-then-success, latest-phase coalescing, and three-attempt exhaustion followed by a future successful worker. New tests use a per-runtime command seam, without mutating global hooks. Retry delay is 10 ms and context-cancelable.
+- Latest Android local gate in the ordinary Sandbox: `GRADLE_USER_HOME=/tmp/wanbox-batch6-gradle-home ./gradlew --offline :core-domain:test :app:testOssDebugUnitTest :app:assembleOssDebug` passed (`BUILD SUCCESSFUL`, 31s, 53 actionable tasks). An earlier attempt inside the isolated Codex environment failed before tasks because Gradle could not select a wildcard IP; rerunning in the ordinary Sandbox passed, so that isolation-only failure is not a remaining local Android build/test blocker.
+- Final Android gate after rebuilding the native AAR: `GRADLE_USER_HOME=/tmp/wanbox-batch6-gradle-home ./gradlew --offline :core-domain:test :app:testOssDebugUnitTest :app:assembleOssDebug` passed (`BUILD SUCCESSFUL`, 27s, 53 actionable tasks). The targeted `SmartAutoStopControllerTest` and `SmartAutoStopSettingsContractTest` run also passed (8s); XML reports confirm four controller behavior tests and one settings failure-dialog contract test executed.
+- RootModule with Go 1.26.10: `go test -race ./...` and `go vet ./...` passed on the final source tree (`wanbox/module` and `wanbox/module/cmd/wanboxctl`).
+- `libcore` CI test matrix passed with the pinned local sing-box source: tagged package tests, internal/urltest/loadbalance tests, and race tests for urltest/loadbalance, protect, log, and tun_source. `./run lib core` passed after adding the already-installed `$GOPATH/bin` to `PATH`, producing `app/libs/libcore.aar` and Rootbox libraries for all four ABIs. `bash rootmodule/build.sh` passed, producing the 6.8 MB arm64 CLI and 17 MB module ZIP.
+- Static gates passed via `uv run`: 11 RootModule Python tests, 103 tools tests, 4 CI-probe tests, `check_android_security.py ossDebug previewDebug`, `check_core_gate.py`, and `tools/diagnostics/roo_check_repo_governance.py` (31 Python tools/layout); `git diff --check` passed. Version metadata and `SINGBOX_VERSION` are unchanged.
+- Local API 35 instrumentation was not run: `/dev/kvm` is unavailable and `emulator -accel-check` reports VT/KVM is unavailable. This is an environment limitation, not a test pass or code failure; remote `verify-android` instrumentation remains required before closing Batch 6.

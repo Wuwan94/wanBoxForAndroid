@@ -12,6 +12,8 @@ object Key {
     const val APP_LANGUAGE = "appLanguage"
     const val SERVICE_MODE = "serviceMode"
     const val MODE_ROOT = "root"
+    const val SMART_AUTO_STOP_ENABLED = "smartAutoStopEnabled"
+    const val SMART_AUTO_STOP_RULES = "smartAutoStopRules"
     const val GLOBAL_CUSTOM_CONFIG = "globalCustomConfig"
     const val REMOTE_DNS = "remoteDns"
     const val DIRECT_DNS = "directDns"

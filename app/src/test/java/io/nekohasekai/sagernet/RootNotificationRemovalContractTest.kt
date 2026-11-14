@@ -8,6 +8,13 @@ import java.io.File
 /** Root module notifications must not reappear through secondary App paths. @author 雾晚 */
 class RootNotificationRemovalContractTest {
     private fun source(path: String) = File("src/main/java/io/nekohasekai/sagernet/$path").readText()
+    @Test fun applyPreservesSuspendedIntentWhileStillStartingStoppedResults() {
+        val apply = source("bg/RootModuleClient.kt").substringAfter("suspend fun applyBackend(")
+            .substringBefore("return applied")
+        assertTrue(apply.contains("if (startIfStopped)"))
+        assertTrue(apply.contains("if (!applied.state.canStop && applied.state != BaseService.State.Suspended) call(\"start\")"))
+    }
+
     @Test fun notificationOnlyPreferencesAreAbsentButTrafficStatisticsRemainIndependent() {
         val settings = File("src/main/res/xml/global_preferences.xml").readText()
         for (key in listOf("showDirectSpeed", "speedInterval", "showGroupInNotification")) {
@@ -39,16 +46,31 @@ class RootNotificationRemovalContractTest {
         assertTrue(screen.contains("speedTestDialog?.show()"))
     }
 
-    @Test fun upgradeClearsLegacyTrayEntriesWithoutNotificationPermissionPrompt() {
+    @Test fun upgradeClearsLegacyTrayEntriesAndSmartAutoStopOwnsPermissionRequest() {
         val app = source("SagerNet.kt")
         val clear = app.substringAfter("fun clearLegacyNotifications()").substringBefore("private fun moduleCommand")
-        assertTrue(clear.contains("notification.cancelAll()"))
+        assertFalse(clear.contains("cancelAll("))
+        assertTrue(clear.contains("notification.cancel(ServiceNotification.notificationId)"))
+        assertFalse(clear.contains("1041"))
+        assertFalse(clear.contains("smart_auto_stop"))
         assertTrue(clear.contains("notification.deleteNotificationChannel(channel)"))
         for (id in listOf("service-vpn", "service-proxy", "service-subscription", "connection-test")) {
             assertTrue(clear.contains("\"$id\""))
         }
         assertFalse(app.contains("createNotificationChannels("))
         assertFalse(source("ui/MainActivity.kt").contains("POST_NOTIFICATIONS"))
-        assertFalse(File("src/main/AndroidManifest.xml").readText().contains("POST_NOTIFICATIONS"))
+        assertFalse(app.contains("POST_NOTIFICATIONS"))
+        assertTrue(File("src/main/AndroidManifest.xml").readText().contains("android.permission.POST_NOTIFICATIONS"))
+        val settings = source("ui/SettingsPreferenceFragment.kt")
+        val enableListener = settings.substringAfter("findPreference<SwitchPreference>(Key.SMART_AUTO_STOP_ENABLED)?.setOnPreferenceChangeListener")
+            .substringBefore("findPreference<Preference>(\"smartAutoStopPermission\")")
+        assertTrue(enableListener.contains("if (enabled == true)"))
+        assertTrue(enableListener.contains("SmartAutoStopNotifications.availability(requireContext())"))
+        assertTrue(enableListener.contains("NotificationGate.REQUEST_PERMISSION"))
+        assertTrue(enableListener.contains("NotificationGate.OPEN_SETTINGS"))
+        assertTrue(enableListener.contains("notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)"))
+        val notifications = source("bg/SmartAutoStopNotifications.kt")
+        assertTrue(notifications.contains("Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission"))
+        assertEquals(1, Regex("notificationPermission\\.launch\\(").findAll(settings).count())
     }
 }
