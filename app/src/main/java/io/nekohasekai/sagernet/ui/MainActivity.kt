@@ -86,6 +86,8 @@ class MainActivity : ThemedActivity(),
     lateinit var binding: LayoutMainBinding
     private var currentMainFragment: ToolbarFragment? = null
     private var installerDataJob: Job? = null
+    private var installerSelectionReady = false
+    private var installerSelectionGeneration = 0L
     private var installerDataDialog: android.app.Dialog? = null
 
     // preview.18 UI 改造：仪表盘支持与遥测会话
@@ -325,36 +327,72 @@ class MainActivity : ThemedActivity(),
     private var livePendingReview: io.nekohasekai.sagernet.bg.OutboundReferenceWarning.PendingReview? = null
     private var discoveringOutboundWarning = false
     private var retryOutboundDiscovery = false
+    // Ordering: restoration gate -> controller reservation -> marker lock (IO).
+    // Restoration holds the gate through application and readiness/result handling.
+    private val outboundReviewRestoreGate = kotlinx.coroutines.sync.Mutex()
 
     private fun discoverOutboundWarning() {
+        // onStart owns restoration; completion retries discovery using the latest request.
+        if (!installerSelectionReady) return
         if (discoveringOutboundWarning) {
             retryOutboundDiscovery = true
             return
         }
         discoveringOutboundWarning = true
+        val generation = installerSelectionGeneration
         lifecycleScope.launch {
             val controller = SagerNet.commandController
+            fun canDiscover() = installerSelectionReady &&
+                generation == installerSelectionGeneration && !controller.isBusy()
             try {
-                if (controller.isBusy()) return@launch
+                if (!canDiscover()) return@launch
                 val persisted = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     try { io.nekohasekai.sagernet.bg.OutboundReferenceWarning.peekPendingReview(SagerNet.application) }
                     catch (_: Exception) { null }
                 }
+                if (!canDiscover()) return@launch
                 val pending = persisted ?: livePendingReview ?: return@launch
                 // A durable latest-wins value supersedes an older broadcast fallback.
                 if (persisted != null) livePendingReview = null
                 val warning = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     io.nekohasekai.sagernet.bg.RootModuleClient.prepareOutboundWarning(pending.startIfStopped)
                 }
+                if (!canDiscover()) {
+                    val active = controller.state.value as?
+                        io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.ConfirmationRequired
+                    warning?.takeIf { it.requestToken != active?.warning?.requestToken }?.let {
+                        io.nekohasekai.sagernet.bg.RootModuleClient.cancelOutboundWarning(it.requestToken)
+                    }
+                    return@launch
+                }
                 if (warning == null) {
-                    acknowledgeOutboundReview(pending.requestId)
+                    var cleared = false
+                    val reserved: Boolean
+                    outboundReviewRestoreGate.lock()
+                    try {
+                        if (!canDiscover()) return@launch
+                        reserved = controller.tryRunWhileIdle {
+                            cleared = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                io.nekohasekai.sagernet.bg.OutboundReferenceWarning.clearPendingReview(
+                                    SagerNet.application, pending.requestId,
+                                )
+                            }
+                        }
+                    } finally {
+                        outboundReviewRestoreGate.unlock()
+                    }
+                    if (cleared && livePendingReview?.requestId == pending.requestId) livePendingReview = null
+                    if (!reserved && controller.state.value == io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.Idle) {
+                        kotlinx.coroutines.delay(50)
+                        if (canDiscover()) retryOutboundDiscovery = true
+                    }
                 } else {
                     if (!controller.requestOutboundConfirmation(warning, pending.requestId)) {
                         // Idle can be published just before the previous command releases its mutex.
                         // Do not strand this request waiting for an Idle emission that already happened.
                         if (controller.state.value == io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.Idle) {
                             kotlinx.coroutines.delay(50)
-                            retryOutboundDiscovery = true
+                            if (canDiscover()) retryOutboundDiscovery = true
                         }
                     }
                 }
@@ -778,11 +816,25 @@ class MainActivity : ThemedActivity(),
         if (SagerNet.databaseFailure != null) { super.onStart(); return }
         connection.updateConnectionId(SagerConnection.CONNECTION_ID_MAIN_ACTIVITY_FOREGROUND)
         connection.connect(this, this)
+        val startInstallerJob = installerDataJob?.isActive != true
+        if (startInstallerJob) {
+            installerSelectionReady = false
+            installerSelectionGeneration++
+        }
         super.onStart()
-        if (installerDataJob?.isActive != true) installerDataJob = lifecycleScope.launch {
+        if (startInstallerJob) installerDataJob = lifecycleScope.launch {
             try {
-                if (io.nekohasekai.sagernet.bg.RootModuleDataUpdate.applyInstallerSelection() && !isFinishing)
-                    recreate()
+                outboundReviewRestoreGate.lock()
+                try {
+                    if (io.nekohasekai.sagernet.bg.RootModuleDataUpdate.applyInstallerSelection()) {
+                        if (!isFinishing) recreate()
+                    } else {
+                        installerSelectionReady = true
+                    }
+                } finally {
+                    outboundReviewRestoreGate.unlock()
+                }
+                if (installerSelectionReady) discoverOutboundWarning()
             } catch (error: CancellationException) { throw error }
               catch (error: Exception) {
                 // Stage/type/code are safe diagnostics; exception text may contain credentials.

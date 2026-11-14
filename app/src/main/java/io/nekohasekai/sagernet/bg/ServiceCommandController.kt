@@ -330,6 +330,18 @@ class ServiceCommandController(
         }
     }
 
+    /** Reserve an idle controller through a suspending acknowledgment; commands never queue behind it. */
+    suspend fun tryRunWhileIdle(action: suspend () -> Unit): Boolean {
+        if (!mutex.tryLock()) return false
+        try {
+            if (isBusy()) return false
+            action()
+            return true
+        } finally {
+            mutex.unlock()
+        }
+    }
+
     fun isBusy(): Boolean = when (_state.value) {
         is CommandState.Pending, is CommandState.ConfirmationRequired -> true
         else -> false

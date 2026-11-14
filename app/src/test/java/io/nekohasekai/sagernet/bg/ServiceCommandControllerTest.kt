@@ -19,6 +19,37 @@ import org.junit.Test
 class ServiceCommandControllerTest {
 
     @Test
+    fun `idle acknowledgment excludes commands and releases its reservation on failure`() = runTest {
+        val controller = ServiceCommandController(this)
+        val entered = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val release = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val acknowledgment = launch {
+            try {
+                controller.tryRunWhileIdle {
+                    entered.complete(Unit)
+                    release.await()
+                    throw java.io.IOException("clear failed")
+                }
+                fail("Expected clear failure")
+            } catch (_: java.io.IOException) { }
+        }
+        entered.await()
+        assertFalse(controller.requestStop())
+        assertFalse(controller.tryRunWhileIdle { fail("Must not overlap acknowledgment") })
+        release.complete(Unit)
+        acknowledgment.join()
+        assertTrue(controller.tryRunWhileIdle { })
+
+        val warning = OutboundReferenceWarning("busy", false, listOf(
+            OutboundReferenceValidator.Issue(12L, "Video",
+                OutboundReferenceValidator.ReferenceKind.NODE_OR_STRATEGY_GROUP, 99L),
+        ))
+        assertTrue(controller.requestOutboundConfirmation(warning))
+        assertFalse(controller.tryRunWhileIdle { fail("Must retain review while busy") })
+        assertTrue(controller.cancelOutboundConfirmation(warning.requestToken))
+    }
+
+    @Test
     fun `initial start warning blocks commands until cancelled`() = runTest {
         val warning = OutboundReferenceWarning("start-warning", true, listOf(
             OutboundReferenceValidator.Issue(12L, "Video",

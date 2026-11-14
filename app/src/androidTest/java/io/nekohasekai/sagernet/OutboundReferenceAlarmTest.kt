@@ -393,6 +393,8 @@ class OutboundReferenceAlarmTest {
                 }
                 Thread.sleep(50)
             }
+            val latest = OutboundReferenceWarning.queuePendingReview(context, startIfStopped = false)
+            pending = latest
             releaseStatusRead.countDown()
             awaitMain("Installer completion must show the warning message and confirmation actions") {
                 val dialog = (host.supportFragmentManager.findFragmentByTag("outbound_reference_warning")
@@ -412,8 +414,13 @@ class OutboundReferenceAlarmTest {
                         it.isShown && it.text.toString() == host.getString(android.R.string.cancel)
                     } == true
             }
-            awaitMain("Presentation must acknowledge the matching pending request") {
-                OutboundReferenceWarning.peekPendingReview(context)?.requestId != queued.requestId
+            instrumentation.runOnMainSync {
+                val waiting = SagerNet.commandController.state.value as ServiceCommandController.CommandState.ConfirmationRequired
+                assertEquals(latest.requestId, waiting.pendingReviewId)
+                assertFalse(waiting.warning.startIfStopped)
+            }
+            awaitMain("Presentation must acknowledge the latest pending request") {
+                OutboundReferenceWarning.peekPendingReview(context) == null
             }
             assertTrue("Fake status I/O must finish before restoring the launcher or database",
                 statusCallFinished.await(5, java.util.concurrent.TimeUnit.SECONDS))
@@ -458,6 +465,71 @@ class OutboundReferenceAlarmTest {
     }
 
     @Test
+    fun failedInstallerRestorationLeavesReviewPendingWithoutWarning() {
+        val context = instrumentation.targetContext
+        val original = SagerDatabase.rulesDao.allRules()
+        val oldPreview = DataStore.previewHintDismissedVersion
+        val folder = java.io.File(context.filesDir, "module-update-backups")
+        val journalFiles = listOf("pending.json", "pending.json.bak", "pending.json.new")
+            .map { java.io.File(folder, it) }
+        val saved = journalFiles.associateWith { if (it.exists()) it.readBytes() else null }
+        val hadFolder = folder.exists()
+        var activity: MainActivity? = null
+        try {
+            clearController()
+            replaceRules(fixtures())
+            DataStore.previewHintDismissedVersion = BuildConfig.PRE_VERSION_NAME
+            check(folder.isDirectory || folder.mkdirs())
+            journalFiles.forEach { check(!it.exists() || it.delete()) }
+            journalFiles.first().writeText("{corrupt-installer-journal")
+            val pending = OutboundReferenceWarning.queuePendingReview(context, true)
+            activity = launch()
+            val host = checkNotNull(activity)
+            val errorMessage = io.nekohasekai.sagernet.bg.RootModuleErrors.message(context, "installer_journal_corrupt")
+            // The visible error is the completion signal: no timing delay or private job hook.
+            fun containsError(node: android.view.accessibility.AccessibilityNodeInfo?): Boolean {
+                if (node == null) return false
+                try {
+                    if (node.text?.toString() == errorMessage) return true
+                    return (0 until node.childCount).any { containsError(node.getChild(it)) }
+                } finally { node.recycle() }
+            }
+            // Accessibility queries stay off the app main thread that serves them.
+            var reported = false
+            for (attempt in 0 until 100) {
+                if (containsError(instrumentation.uiAutomation.rootInActiveWindow)) {
+                    reported = true
+                    break
+                }
+                Thread.sleep(100)
+            }
+            assertTrue("Installer restoration must report the corrupt journal", reported)
+            instrumentation.runOnMainSync {
+                assertEquals(ServiceCommandController.CommandState.Idle, SagerNet.commandController.state.value)
+                assertNull(host.supportFragmentManager.findFragmentByTag("outbound_reference_warning"))
+                assertEquals(pending, OutboundReferenceWarning.peekPendingReview(context))
+            }
+        } finally {
+            try {
+                activity?.let { host -> instrumentation.runOnMainSync { host.finish() } }
+                instrumentation.waitForIdleSync()
+            } finally {
+                try {
+                    journalFiles.forEach { file ->
+                        val bytes = saved[file]
+                        if (bytes == null) check(!file.exists() || file.delete()) else file.writeBytes(bytes)
+                    }
+                    if (!hadFolder) folder.delete()
+                } finally {
+                    try { clearController() } finally {
+                        try { replaceRules(original) } finally { DataStore.previewHintDismissedVersion = oldPreview }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     fun queuedReviewSurvivesBusyControllerAndRetriesWhenIdle() {
         val original = SagerDatabase.rulesDao.allRules()
         val oldPreview = DataStore.previewHintDismissedVersion
@@ -469,21 +541,29 @@ class OutboundReferenceAlarmTest {
             DataStore.previewHintDismissedVersion = BuildConfig.PRE_VERSION_NAME
             val busy = runBlocking { checkNotNull(RootModuleClient.prepareOutboundWarning(false)) }
             assertTrue(controller.requestOutboundConfirmation(busy))
-            val pending = OutboundReferenceWarning.queuePendingReview(instrumentation.targetContext, true)
+            OutboundReferenceWarning.queuePendingReview(instrumentation.targetContext, true)
             activity = launch()
             val host = checkNotNull(activity)
             awaitMain("The existing confirmation must be presented") {
                 (host.supportFragmentManager.findFragmentByTag("outbound_reference_warning") as? DialogFragment)
                     ?.dialog?.isShowing == true
             }
-            assertEquals("An unrelated confirmation must not acknowledge the queued review", pending,
-                OutboundReferenceWarning.peekPendingReview(instrumentation.targetContext))
-            instrumentation.runOnMainSync { assertTrue(controller.cancelOutboundConfirmation(busy.requestToken)) }
+            // Capture latest-wins intent at the same main-thread observation that releases
+            // the unrelated confirmation; no discovery can run between these operations.
+            var pending: OutboundReferenceWarning.PendingReview? = null
+            instrumentation.runOnMainSync {
+                pending = checkNotNull(OutboundReferenceWarning.peekPendingReview(instrumentation.targetContext))
+                assertTrue(controller.cancelOutboundConfirmation(busy.requestToken))
+            }
+            val expected = checkNotNull(pending)
             awaitMain("Idle must retry and present the queued review without another broadcast") {
                 val waiting = controller.state.value as? ServiceCommandController.CommandState.ConfirmationRequired
-                waiting?.warning?.startIfStopped == true &&
-                    (host.supportFragmentManager.findFragmentByTag("outbound_reference_warning") as? DialogFragment)
-                        ?.dialog?.isShowing == true
+                val dialog = host.supportFragmentManager.findFragmentByTag("outbound_reference_warning")
+                    as? io.nekohasekai.sagernet.ui.OutboundReferenceWarningDialog
+                waiting != null && waiting.pendingReviewId == expected.requestId &&
+                    waiting.warning.startIfStopped == expected.startIfStopped &&
+                    waiting.warning.requestToken != busy.requestToken &&
+                    dialog?.requestToken == waiting.warning.requestToken && dialog?.dialog?.isShowing == true
             }
             awaitMain("Presentation must acknowledge the queued review") {
                 OutboundReferenceWarning.peekPendingReview(instrumentation.targetContext) == null
