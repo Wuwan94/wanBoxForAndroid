@@ -30,6 +30,20 @@ internal class RootModuleStatusCache(
         return entry.value
     }
 
+    /**
+     * True when an entry exists but is past its TTL. Unlike [get] this never
+     * evicts: a surviving stale entry is the demand signal the read aggregator
+     * in RootModuleClient uses to decide that refreshing this view alongside
+     * its sibling is worthwhile. A backwards clock step counts as stale,
+     * matching [get].
+     */
+    @Synchronized
+    fun hasStaleEntry(query: RootModuleReadQuery): Boolean {
+        val entry = entries[query] ?: return false
+        val age = nowMs() - entry.storedAtMs
+        return age < 0 || age >= ttlMs
+    }
+
     @Synchronized
     fun generation(): Long = generation
 

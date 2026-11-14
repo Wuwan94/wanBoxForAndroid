@@ -235,6 +235,30 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 		if r.installStart != nil {
 			start = r.installStart
 		}
+		// Transient fail-closed guard (v3.0.15): cover the switch gap with a
+		// blackhole rule before the old core stops, so no packet can leak onto
+		// the physical route while neither core owns the TUN. Released only
+		// once a core (new, or the rolled-back old one) is running again; if
+		// rollback cannot restart anything the guard stays on (fail-closed).
+		needGuard := wasRunning && !disabled && mode == "preserve"
+		guardOn := false
+		releaseGuard := func() {
+			if !guardOn {
+				return
+			}
+			guardOn = false
+			if e := r.routeGuard(context.Background(), false); e != nil {
+				r.recordEvent("module_hot_update_guard_release_failed")
+			}
+		}
+		if needGuard {
+			// Fail-closed: a guard that cannot be installed aborts the
+			// switch before the old core stops (CONTRIBUTING §1.3).
+			if e := r.routeGuard(ctx, true); e != nil {
+				return errors.New("hot_update_guard_failed")
+			}
+			guardOn = true
+		}
 		backup, e := os.MkdirTemp(parent, ".wanbox-previous-")
 		if e != nil {
 			return e
@@ -243,6 +267,7 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 			return e
 		}
 		if e = old.stop(ctx); e != nil {
+			releaseGuard()
 			return e
 		}
 		hadOld := false
@@ -251,6 +276,7 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 				if wasRunning {
 					_ = start(context.Background())
 				}
+				releaseGuard()
 				return errors.New("module_replace_failed")
 			}
 			hadOld = true
@@ -269,9 +295,13 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 			}
 			if wasRunning && hadOld {
 				if e = start(context.Background()); e != nil {
+					// Nothing is running: keep the blackhole guard on so the
+					// device stays fail-closed instead of leaking direct.
+					r.recordEvent("module_hot_update_guard_retained")
 					return errors.New("install_rollback_start_failed")
 				}
 			}
+			releaseGuard()
 			return errors.New("module_update_failed_rolled_back")
 		}
 		if e = os.Rename(stage, target); e != nil {
@@ -283,6 +313,7 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 			if wasRunning && hadOld {
 				_ = start(context.Background())
 			}
+			releaseGuard()
 			return errors.New("module_replace_failed")
 		}
 		if e = syncDir(parent); e != nil {
@@ -304,8 +335,24 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 			if e = start(ctx); e != nil {
 				return rollback()
 			}
+			// Canary window (v3.0.15): the backup still exists here. If the
+			// new core dies or its controller never answers within the
+			// window, roll back instead of committing a broken update.
+			if hadOld && !r.runCanary(ctx, target) {
+				r.recordEvent("module_update_canary_failed_rolled_back")
+				return rollback()
+			}
+			releaseGuard()
+			// Broadcast only on a live commit: the new core started and
+			// passed its canary, so the App may jump its version display.
+			if code, ok := moduleVersionCode(target); ok {
+				r.recordEvent("module_hot_update_committed:" + strconv.Itoa(code))
+			}
 		}
 		if hadOld {
+			// The switch is committed: the installed code IS the update,
+			// so drop the manager's pending-update flag unconditionally.
+			clearUpdateMarker(target)
 			if e = os.RemoveAll(backup); e != nil {
 				// The new module is already running; retaining the private old-code
 				// directory is safer than reporting a failed update or deleting data.

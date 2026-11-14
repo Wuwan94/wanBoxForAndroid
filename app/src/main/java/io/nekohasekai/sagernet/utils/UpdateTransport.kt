@@ -10,6 +10,7 @@ import okhttp3.Request
 import okhttp3.Response
 import java.io.File
 import java.io.IOException
+import java.net.ConnectException
 import java.net.InetSocketAddress
 import java.net.Proxy
 import java.util.concurrent.TimeUnit
@@ -48,6 +49,11 @@ internal class UpdateTransport(port: Int, username: String?, password: String?, 
                 job.ensureActive()
                 consume(it).also { job.ensureActive() }
             }
+        } catch (e: ConnectException) {
+            // 本传输的唯一对端就是本地 mixed 代理：连接被拒只可能是代理没起来，
+            // 不可能是目标主机的问题。打上标记，让 UI 能如实提示，而不是靠异常
+            // 类型猜测（裸 ConnectException 也可能从别处冒出来，不算数的）。
+            throw UpdateProxyUnavailable().apply { initCause(e) }
         } finally { cancellation.dispose() }
     }
 

@@ -107,6 +107,9 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
 
     class AboutContent : MaterialAboutFragment() {
         private val updateTask = UpdateTask()
+
+        // 导出与检查/下载分开守卫：导出只读已校验的缓存，不该被在途的检查或下载静默吞掉。
+        private val exportTask = UpdateTask()
         private var updateDialog: androidx.appcompat.app.AlertDialog? = null
         private var updateProgressDialog: androidx.appcompat.app.AlertDialog? = null
         private var pendingUpdateUi: (() -> Unit)? = null
@@ -121,7 +124,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                 pendingReady = null // ownership is handed to the queued UI action
                 dismissUpdateProgress()
                 pending()
-            } else if (updateTask.isRunning) {
+            } else if (updateTask.isRunning || exportTask.isRunning) {
                 showUpdateProgress()
             }
         }
@@ -135,6 +138,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
 
         override fun onDestroyView() {
             updateTask.cancel()
+            exportTask.cancel()
             pendingUpdateUi = null
             pendingReady?.let(UpdateDownload::release)
             pendingReady = null
@@ -497,7 +501,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                     } else {
                         dialog.setMessage(baseMessage)
                             .setPositiveButton(R.string.update_download_verify) { _, _ ->
-                                downloadBundle(record.assets)
+                                downloadBundle(record.tagName, record.assets)
                             }
                     }
                     updateDialog = dialog.show()
@@ -509,7 +513,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
          * 下载同一 Release 的 APK、Root 模块与 SHA256SUMS，校验通过后才交给用户；
          * 不静默安装，模块 ZIP 通过受限 FileProvider + 系统分享交给用户保存/刷入。 @author 雾晚
          */
-        private fun downloadBundle(assets: List<UpdateArtifacts.ReleaseAsset>) {
+        private fun downloadBundle(releaseTag: String, assets: List<UpdateArtifacts.ReleaseAsset>) {
             val owner = viewLifecycleOwnerLiveData.value ?: return
             val dir = File((context ?: return).applicationContext.cacheDir, "updates")
             val started = updateTask.launch(owner.lifecycleScope) {
@@ -517,7 +521,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                 try {
                     notHandedOff = withContext(Dispatchers.IO) {
                         transport(coroutineContext.job).use { client ->
-                            UpdateDownload.prepare(assets, dir) { asset, target ->
+                            UpdateDownload.prepare(assets, releaseTag, dir) { asset, target ->
                                 client.download(asset.downloadUrl, target)
                             }
                         }
@@ -591,12 +595,15 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                 .show()
         }
 
-        /** 升级重启后仍可导出最近一次已校验的模块：只授予单个 ZIP 的读取 URI 权限。 */
+        /** 升级重启后仍可导出与当前已装版本同版的已校验模块：只授予单个 ZIP 的读取 URI 权限。 */
         private fun exportRecentModule() {
             val owner = viewLifecycleOwnerLiveData.value ?: return
             val cache = File((context ?: return).applicationContext.cacheDir, "updates")
-            val started = updateTask.launch(owner.lifecycleScope) {
-                val ready = withContext(Dispatchers.IO) { UpdateDownload.recentReady(cache) }
+            val started = exportTask.launch(owner.lifecycleScope) {
+                val ready = withContext(Dispatchers.IO) {
+                    UpdateRelease.parseVersion(BuildConfig.VERSION_NAME)
+                        ?.let { UpdateDownload.recentReady(cache, it) }
+                }
                 ensureActive()
                 dispatchUpdateUi {
                     val context = context ?: return@dispatchUpdateUi

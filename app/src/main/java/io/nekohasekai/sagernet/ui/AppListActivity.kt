@@ -5,6 +5,7 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import android.os.Bundle
+import android.util.LruCache
 import android.util.SparseBooleanArray
 import android.view.KeyEvent
 import android.view.Menu
@@ -75,6 +76,8 @@ class AppListActivity : ThemedActivity() {
             }
     }
 
+    private val iconCache = object : LruCache<String, Drawable>(120) {}
+
     private class ProxiedApp(
         private val pm: PackageManager, private val appInfo: ApplicationInfo,
         val packageName: String,
@@ -100,12 +103,22 @@ class AppListActivity : ThemedActivity() {
         fun bind(app: ProxiedApp) {
             iconJob?.cancel()
             item = app
-            binding.itemicon.setImageResource(R.drawable.ic_baseline_android_24)
             binding.title.text = app.name
             binding.desc.text = "${app.packageName} (${app.uid})"
             handlePayload(listOf(SWITCH))
+
+            val cached = iconCache.get(app.packageName)
+            if (cached != null) {
+                binding.itemicon.setImageDrawable(cached)
+                return
+            }
+
+            binding.itemicon.setImageResource(R.drawable.ic_baseline_android_24)
             iconJob = lifecycleScope.launch(Dispatchers.IO) {
                 val icon = app.loadIconOrNull()
+                if (icon != null) {
+                    iconCache.put(app.packageName, icon)
+                }
                 withContext(Dispatchers.Main) {
                     if (item === app) binding.itemicon.setImageDrawable(
                         icon ?: binding.itemicon.drawable
@@ -404,6 +417,7 @@ class AppListActivity : ThemedActivity() {
 
     override fun onDestroy() {
         loader?.cancel()
+        iconCache.evictAll()
         super.onDestroy()
     }
 }

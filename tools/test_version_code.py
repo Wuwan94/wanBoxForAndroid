@@ -14,6 +14,7 @@ from version_code import (
     APK_MULTIPLIER,
     VersionError,
     apk_version_code,
+    check_app_tag_rule,
     check_kotlin_rule,
     check_upgrade,
     main,
@@ -184,6 +185,40 @@ class KotlinRuleConsistencyTest(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertEqual(1, main(["--check-kotlin", str(drifted)]))
+
+
+class AppTagRuleConsistencyTest(unittest.TestCase):
+    """App 侧第三份复刻 UpdateRelease.TAG_REGEX 必须与规则一致，漂移要在 CI 直接失败。"""
+
+    UPDATE_RELEASE = (
+        Path(__file__).resolve().parents[1]
+        / "app/src/main/java/io/nekohasekai/sagernet/utils/UpdateRelease.kt"
+    )
+
+    def test_repo_update_release_matches_the_rule(self):
+        text = self.UPDATE_RELEASE.read_text(encoding="utf-8")
+        self.assertEqual([], check_app_tag_rule(text))
+
+    def test_app_tag_range_drift_is_reported(self):
+        text = (
+            r'private val TAG_REGEX = Regex("^v?([0-9]{1,9})\\.([0-9]{1,9})\\.([0-9]{1,9})'
+            r'(?:-preview\\.([1-9]))?$")'
+        )
+        reasons = check_app_tag_rule(text)
+        self.assertTrue(any("预览序号范围" in reason for reason in reasons), reasons)
+
+    def test_missing_app_tag_rule_is_reported(self):
+        self.assertEqual(1, len(check_app_tag_rule("object Unrelated {}")))
+
+    def test_cli_check_app_tag_exit_codes(self):
+        self.assertEqual(0, main(["--check-app-tag", str(self.UPDATE_RELEASE)]))
+        with tempfile.TemporaryDirectory() as tmp:
+            drifted = Path(tmp) / "UpdateRelease.kt"
+            drifted.write_text(
+                self.UPDATE_RELEASE.read_text(encoding="utf-8").replace("([1-4])", "([1-9])"),
+                encoding="utf-8",
+            )
+            self.assertEqual(1, main(["--check-app-tag", str(drifted)]))
 
 
 class SharedVectorTest(unittest.TestCase):

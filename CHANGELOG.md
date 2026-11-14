@@ -4,11 +4,53 @@
 
 ## wanBox 3.0.x 发布记录
 
-### v3.0.13-preview.3（已发布预览）
+### v3.0.15-preview.3（已发布预览）
 
-- 已发布 tag `v3.0.13-preview.3` 指向 main 基线 `77e291a150819a70d87c0af8458f1c603088e432`；版本映射为 Root 模块码 `2023`、APK `versionCode=10118`。正式版 v3.0.11 不变。
+- 由官方 `Preview Build` run `43404430362` 发布；Release/tag `v3.0.15-preview.3` 指向 PR #39 合并提交 `fe193f1134a80ff38fb0cb3ed4677eb2b79c1dce`。稳定版 v3.0.14 未变。
+- 修正已知内存下限：`MemTotal/4` 钳制至 `[256 MiB, 4 GiB]`；修正卸载脚本在 `pref 9001` 清理错误或 128 次触顶时错误报告网络恢复的问题，规则未确认时明确标记状态未知。
+- 发布 Root 模块码 `2028`、APK `versionCode=10143` 和四件套；下载后的 `SHA256SUMS` 校验通过，资产名称、字节数和 SHA-256 见[版本对照](docs/current-version.zh-CN.md)。Root 真机矩阵未执行。
+
+### v3.0.15-preview.2（历史预览，已清理）
+
+- 曾由官方 `Preview Build` run `43393988473` 发布；tag 原指向 PR #38 合并提交 `2a57973623db59cb635a869b5d552dd971f8235c`（优化由 PR #37 合入）。preview.3 验证发布后，preview.2 Release/tag 已按单预览保留规则清理；稳定版 v3.0.14 未变。
+- 新增仅监听回环的长轮询状态通道、专属子 cgroup 与内存软限制，并收敛热更新守护和卸载流程中的 `pref 9001` 规则清理；另含健康迁移阈值及管理器读取聚合优化。
+- 发布 Root 模块码 `2027`、APK `versionCode=10137`，四件套包含瘦管理器 APK、普通模块 ZIP、带管理器模块 ZIP 和 `SHA256SUMS`。API 回读资产共低于 26 MiB 包体预算；未做 Magisk / KernelSU / APatch 真机矩阵。
+- preview.2 发布后复审发现：低于 1 GiB 内存时 `MemTotal/4` 被错误地变为 0；卸载 Shell 在规则删除触顶或异常时仍报告网络恢复。这两项修复已由 preview.3 发布版承载，preview.2 历史资产不含修复。
+
+### v3.0.15-preview.1（历史预览，已删除）
+
+- 由仓库正式 `Preview Build` run `43203156796` 发布；Release/tag `v3.0.15-preview.1` 指向 PR #34 合并提交 `5aca93bee39a9d07a56d750908e0d9c88ad5f90c`（功能由 PR #33 合入）。稳定版 v3.0.14 未变。
+- 模块免重启热更新加固：新核心 5 秒 Canary 健康观察与自动回滚、提交后清除 Magisk `update` 标记并广播 `module_hot_update_committed:<versionCode>`、切换间隙 pref 9001 黑洞守护（严格 Fail-Closed）；App 侧 `RootModuleClient` 新增版本跃迁感知，设置页免重启刷新模块版本码。
+- 卸载纯净治理：`uninstall.sh` 五轨兜底（优雅停止、原生信号强退、强清 TUN 与 pref 9000/9001 策略路由、运行时清理、用户数据默认保留，仅 `.purge_user_data` 标志全清），始终 exit 0。
+- 版本映射为 Root 模块码 `2027`、APK `versionCode=10136`。正式签名 APK、普通 Root 模块、带管理器模块与 `SHA256SUMS` 四件套均由正式 workflow 生成；下载文件与 GitHub API digest、SHA256SUMS 相符。APK+普通模块为 22.84 MiB，低于 26 MiB。
+- 发布前经 code-review 双轴自审并落实三项修复（守护 Fail-Closed 收紧、广播仅限活提交、卸载补清 pref 9001）；上一预览 v3.0.14-preview.1 的 Release/tag 已按单预览保留策略删除；未做 Magisk / KernelSU / APatch 真机矩阵；v3.0.14 稳定版保留。
+
+### v3.0.14（正式版）
+
+- **晋升说明**：3.0.14 由预览线晋升为正式版，聚合 3.0.12 ~ 3.0.14 预览线的全量稳定性成果（瘦架构、分应用 LruCache、Controller 延时探测、生命周期后台下载、更新器同版导出）；v3.0.13-preview.4 代码复查的六项修复已随 v3.0.14-preview.1 先行发布，本版全量承接，正式说明见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。
+- **稳定性演进要点**：分应用代理列表新增 120 项原生 `LruCache` 与协程异步化，消除滑动掉帧；瘦管理器 Controller 支持 REST 回环探测与鉴权、解耦核心测速；代理切换在 fresh 状态与共享变更锁内原子决策，消除状态翻转竞态；更新器后台稳定下载、`release-tag.txt` 版本戳同版强校验导出、代理状态脱敏与版本规则漂移守卫收口。
+- 版本映射为 Root 模块码 `2026`、APK `versionCode=10130`，可在 v3.0.11（`10065 / 2013`）上覆盖安装；设置、节点、订阅备份与 v3.0.11 双向兼容。正式发布走 `release.yml` 两阶段（候选构建→核对→正式上架），不执行 prune，v3.0.11 正式版保留。
+- 未做 Magisk / KernelSU / APatch 真机矩阵；自动化结果不等于 Root 真机签核。
+
+### v3.0.14-preview.1（已发布预览）
+
+- 由仓库正式 `Preview Build` run `43003022425` 发布；Release/tag `v3.0.14-preview.1` 指向 PR #26 合并提交 `8b4e60893dc4d783caeab1b0f5ddb6667aa0549d`。稳定版 v3.0.11 未变。
+- 落实 v3.0.13-preview.4 代码复查确认的剩余六项修复：版本规则漂移守卫补齐（`--check-app-tag`）、更新包按版本戳绑定同版、导出独立守卫、发布 tag 检查按 HTTP 状态码判定、代理不可用只认源头标记、清理 14 个已提交 `.pyc`；无功能增减，preview.4 的功能内容保持不变。修复由 PR #25 合入（合并提交 `1d769fad65768029374134a37bcb67d163deb42f`，Verify CI run `42976607018` 全绿）。
+- 版本映射为 Root 模块码 `2025`、APK `versionCode=10126`。正式签名 APK、普通 Root 模块、带管理器模块与 `SHA256SUMS` 四件套均由正式 workflow 生成；下载文件与 GitHub API digest、SHA256SUMS 相符，APK 证书匹配固定发布签名，带管理器 ZIP 内 APK 与独立 APK 字节一致。APK+普通模块为 22.83 MiB，低于 26 MiB。
+- preview.4 的同版覆盖重发被发布说明状态机拒绝，其 Release/tag 已删除并由本版取代；未做 Magisk / KernelSU / APatch 真机矩阵；v3.0.11 稳定版保留。
+
+### v3.0.13-preview.4（历史发布预览，已删除）
+
+- 由仓库正式 `Preview Build` run `42962314460` 发布；Release/tag `v3.0.13-preview.4` 指向 PR #23 合并提交 `e7a6411e03c30ec4bcf4a8a00244362664d070a6`。其同版覆盖重发被发布说明状态机拒绝后，Release/tag 已删除并由 v3.0.14-preview.1 取代。稳定版 v3.0.11 未变。
+- 修正更新器页面生命周期和代理失败提示；新增瘦模式节点延迟探测；QS Tile 对 Connecting/Stopping 状态拒绝切换，并在 fresh Root 状态与共享锁内原子决策；分应用列表查询/图标加载移至后台。
+- 版本映射为 Root 模块码 `2024`、APK `versionCode=10124`。正式签名 APK、普通 Root 模块、带管理器模块与 `SHA256SUMS` 四件套均由正式 workflow 生成；下载文件与 GitHub API digest、SHA256SUMS 相符，APK 证书匹配固定发布签名，带管理器 ZIP 内 APK 与独立 APK 字节一致。APK+普通模块为 22.83 MiB，低于 26 MiB。
+- preview.3 的备份导出/导入与 preview.4 双向互通在 Android 35 x86_64 模拟器通过；未做 Magisk / KernelSU / APatch 真机矩阵。preview.3 Release/tag 在 .4 完整核验后按单预览偏好清理；v3.0.11 稳定版保留。
+
+### v3.0.13-preview.3（历史发布预览，已清理）
+
+- preview.3 曾发布，tag `v3.0.13-preview.3` 指向 `77e291a150819a70d87c0af8458f1c603088e432`；在 preview.4 正式资产和哈希核验后，其 Release/tag 已清理。版本映射为 Root 模块码 `2023`、APK `versionCode=10118`；正式版 v3.0.11 不变。
 - 本版更新器通过本地 mixed 代理检查与下载、保持失败关闭；同步收紧 Release tag、最终 packaged Manifest 安全检查，并固定 GeoIP / GeoSite 来源与 SHA-256。完整历史说明归档于 [PREVIEW_NOTES.md](PREVIEW_NOTES.md)。
-- **历史边界**：preview.3 的旧构建统计和 22.76 MiB 记录不作为 preview.4 构建或体积证据；本轮候选必须重新实测。
+- **历史边界**：preview.3 的旧构建统计和 22.76 MiB 记录不作为 preview.4 构建或体积证据；preview.4 体积与正式资产已由本轮工作流和发布后回读另行核验。
 
 ### v3.0.13-preview.2（已发布预览）
 

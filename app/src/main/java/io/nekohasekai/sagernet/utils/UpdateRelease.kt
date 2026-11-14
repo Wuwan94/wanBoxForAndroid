@@ -61,7 +61,11 @@ object UpdateRelease {
             get() = "$major.$minor.$patch" + (preview?.let { "-preview.$it" } ?: "")
     }
 
-    /** 只接受 `v?X.Y.Z` 或 `v?X.Y.Z-preview.N`；其余一律视为无效 tag。 */
+    /**
+     * 只接受 `v?X.Y.Z` 或 `v?X.Y.Z-preview.N`；其余一律视为无效 tag。
+     * 预览序号范围是 tools/version_code.py 版本规则的 App 侧复刻，由
+     * `version_code.py --check-app-tag` 守卫：改范围必须先改规则单源。
+     */
     private val TAG_REGEX =
         Regex("^v?([0-9]{1,9})\\.([0-9]{1,9})\\.([0-9]{1,9})(?:-preview\\.([1-4]))?$")
 

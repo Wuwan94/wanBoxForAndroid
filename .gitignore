@@ -24,3 +24,7 @@ jniLibs/
 
 # arch/core-proof 的编译产物
 /arch/core-proof/out/
+
+# Python 工具的解释器缓存，不进版本树
+__pycache__/
+*.pyc

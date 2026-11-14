@@ -9,12 +9,16 @@
 Kotlin 复刻（构建期不能依赖 Python 解释器），`check_kotlin_rule` 与
 `--check-kotlin` 负责校验复刻的乘数与预览序号范围同本规则一致：任一边改动
 而另一边未同步时校验直接失败，不允许静默打出错误的 versionCode。
+App 侧还有第三份复刻：更新检查解析 Release tag 用的 UpdateRelease.kt
+`TAG_REGEX`。构建期向量校验管不到它，由 `check_app_tag_rule` 与
+`--check-app-tag` 守卫其预览序号范围，锚点丢失同样判失败。
 
 CLI:
     python3 tools/version_code.py --properties nb4a.properties --channel formal
     python3 tools/version_code.py --properties nb4a.properties --channel formal \
         --baseline-apk-code 10050 --baseline-module-code 2010 --enforce
     python3 tools/version_code.py --check-kotlin
+    python3 tools/version_code.py --check-app-tag
 """
 from __future__ import annotations
 
@@ -107,6 +111,30 @@ def check_kotlin_rule(helpers_text: str) -> list[str]:
     return reasons
 
 
+def check_app_tag_rule(update_release_text: str) -> list[str]:
+    """校验 UpdateRelease.kt 的 TAG_REGEX 与本规则的预览序号范围一致。
+
+    TAG_REGEX 是版本规则在 App 侧的第三份复刻（更新检查靠它解析 Release tag），
+    与 Helpers.kt 一样只锚定预览序号范围这一规则要素。锚点找不到同样判失败——
+    复刻被改名或改写时必须先更新这里的校验，而不是绕过校验继续发版。
+    """
+    reasons: list[str] = []
+    anchor = re.search(r'TAG_REGEX\s*=\s*Regex\("([^"]*)"\)', update_release_text)
+    if anchor is None:
+        reasons.append("无法在 UpdateRelease.kt 中定位 TAG_REGEX，App 侧复刻可能已改名或改写")
+        return reasons
+    suffix = re.search(r"-preview\\\\\.\(\[(\d+)-(\d+)\]\)", anchor.group(1))
+    expected = re.search(r"\[(\d+)-(\d+)\]", PREVIEW_SUFFIX.pattern)
+    if suffix is None or expected is None:
+        reasons.append("无法在 UpdateRelease.kt 的 TAG_REGEX 中定位预览序号范围，App 侧复刻可能已改写")
+    elif suffix.groups() != expected.groups():
+        reasons.append(
+            f"UpdateRelease 预览序号范围 [{suffix.group(1)}-{suffix.group(2)}] "
+            f"与规则 [{expected.group(1)}-{expected.group(2)}] 不一致"
+        )
+    return reasons
+
+
 def resolve(properties: Mapping[str, str], channel: str) -> dict[str, object]:
     """按渠道给出 versionName / 元数据码 / APK 码 / 模块码。"""
     if channel not in VALID_CHANNELS:
@@ -168,6 +196,13 @@ def main(argv: list[str] | None = None) -> int:
         metavar="HELPERS_KT",
         help="校验 buildSrc 的 Kotlin 版本码复刻与本规则一致，不一致时非零退出",
     )
+    parser.add_argument(
+        "--check-app-tag",
+        nargs="?",
+        const="app/src/main/java/io/nekohasekai/sagernet/utils/UpdateRelease.kt",
+        metavar="UPDATE_RELEASE_KT",
+        help="校验 UpdateRelease.kt 的 TAG_REGEX 预览序号范围与本规则一致，不一致时非零退出",
+    )
     args = parser.parse_args(argv)
 
     if args.check_kotlin is not None:
@@ -182,6 +217,20 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"version_code: {reason}", file=sys.stderr)
             return 1
         print("Kotlin apkVersionCode 与本规则一致")
+        return 0
+
+    if args.check_app_tag is not None:
+        try:
+            update_release_text = Path(args.check_app_tag).read_text(encoding="utf-8")
+        except OSError as exc:
+            print(f"version_code: {exc}", file=sys.stderr)
+            return 2
+        reasons = check_app_tag_rule(update_release_text)
+        if reasons:
+            for reason in reasons:
+                print(f"version_code: {reason}", file=sys.stderr)
+            return 1
+        print("UpdateRelease TAG_REGEX 与本规则一致")
         return 0
 
     try:

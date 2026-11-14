@@ -45,7 +45,15 @@ class PackageTest(unittest.TestCase):
             text = file.read_text()
             self.assertNotIn('iptables -F', text)
             self.assertNotIn('ip rule flush', text)
-            self.assertNotIn('rm -rf /data/adb/wanbox', text)
+            if file.name != 'uninstall.sh':
+                self.assertNotIn('rm -rf /data/adb/wanbox', text)
+        # v3.0.15: uninstall.sh may wipe the data root ONLY behind the
+        # explicit .purge_user_data flag (user data is otherwise preserved).
+        uninstall = (source / 'uninstall.sh').read_text()
+        # Exact data-root wipe (the run/* cleanup line does not count).
+        self.assertEqual(1, uninstall.count('rm -rf /data/adb/wanbox 2>'))
+        flag = uninstall.index('.purge_user_data')
+        self.assertLess(flag, uninstall.index('rm -rf /data/adb/wanbox 2>'))
         self.assertIn('ARCH" = arm64', (source / 'customize.sh').read_text())
         installer = (source / 'customize.sh').read_text()
         self.assertIn('__internal schedule-install "$$"', installer)
