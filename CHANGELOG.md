@@ -4,9 +4,16 @@
 
 ## wanBox 3.0.x 发布记录
 
-### v3.0.15-preview.3（已发布预览）
+### v3.0.15-preview.4（已发布预览）
 
-- 由官方 `Preview Build` run `43404430362` 发布；Release/tag `v3.0.15-preview.3` 指向 PR #39 合并提交 `fe193f1134a80ff38fb0cb3ed4677eb2b79c1dce`。稳定版 v3.0.14 未变。
+- [GitHub Release v3.0.15-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.4) 由 `Preview Build` run `43628453020` 在 main commit/tag `d6914e70d730c63ee3c3cbb2b00fe2e754b6737e` 发布，四个 job 全部成功；`verify-android` run `43625363368` 在集成提交 `69de6eac6a23d0af65525991c6fff3cbf1a6e620` 成功。
+- 六项更新：Root 网络智能挂起/恢复、QUIC UDP 443 独立开关、无效出站规则提醒、路由与默认规则修正、分组测速地址动态继承、备份格式兼容。稳定版仍为 v3.0.14，正式元数据 `3.0.14 / 2026` 与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未变；preview.4 元数据为模块 `2028` / APK `10144`。
+- 发布下载的 APK、普通 Root ZIP 和合一 ZIP 均通过公开 `SHA256SUMS` 校验；APK + 普通 Root ZIP 为 `24184170` 字节（23.06 MiB），合一 ZIP 为 `23490404` 字节，均低于 25 MiB。四件套逐项字节数和 SHA-256 见[版本对照](docs/current-version.zh-CN.md)。
+- `verify-android` 的 instrumentation、迁移、manifest 和体积门禁通过；Root Magisk / KernelSU / APatch 真机矩阵未执行，仍未验证。
+
+### v3.0.15-preview.3（历史预览，Release/tag 已清理）
+
+- 曾由官方 `Preview Build` run `43404430362` 发布；preview.4 发布后其 Release/tag 按单预览策略清理。历史 commit 为 `fe193f1134a80ff38fb0cb3ed4677eb2b79c1dce`。稳定版 v3.0.14 未变。
 - 修正已知内存下限：`MemTotal/4` 钳制至 `[256 MiB, 4 GiB]`；修正卸载脚本在 `pref 9001` 清理错误或 128 次触顶时错误报告网络恢复的问题，规则未确认时明确标记状态未知。
 - 发布 Root 模块码 `2028`、APK `versionCode=10143` 和四件套；下载后的 `SHA256SUMS` 校验通过，资产名称、字节数和 SHA-256 见[版本对照](docs/current-version.zh-CN.md)。Root 真机矩阵未执行。
 

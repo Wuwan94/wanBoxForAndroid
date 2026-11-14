@@ -1,6 +1,6 @@
-# v3.0.15-preview.4 发行说明（候选）
+# v3.0.15-preview.4 发行说明
 
-**状态：未发布的稳定性预览版候选。**
+**状态：已发布的稳定性预览版。**
 
 本版在 Root-only 架构中适配六项功能与修复，面向已 Root 的 Android 12+ arm64 设备。稳定版 `v3.0.14` / Root 模块码 `2026` 与 sing-box pin `v1.15.0-alpha.13-reF1nd` 均保持不变；预览名为 `3.0.15-preview.4`，APK `versionCode=10144`，Root 模块码仍为 `2028`。
 
@@ -15,13 +15,13 @@
 
 ## 升级与验证边界
 
-同一 Release 的瘦管理器 APK 与 Root 模块必须成套安装。回退时使用正式版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 和配套模块。本地 Go race/vet、Root arm64 构建、libcore Go 测试、Android JVM 测试与 APK/AndroidTest APK 编译通过；Sandbox 无 KVM，本地模拟器 instrumentation 未执行。Preview Build 发布门禁仍须通过精确 SHA、资产与 CI 模拟器检查；未做真实 Magisk / KernelSU / APatch 设备矩阵。
+同一 Release 的瘦管理器 APK 与 Root 模块必须成套安装。回退时使用正式版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 和配套模块。已发布：[GitHub Release v3.0.15-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.4)，`Preview Build` run `43628453020` 在提交/tag `d6914e70d730c63ee3c3cbb2b00fe2e754b6737e` 四个 job 全部成功；`verify-android` run `43625363368` 在集成提交 `69de6eac6a23d0af65525991c6fff3cbf1a6e620` 的 instrumentation、迁移、manifest 与体积门禁通过。已下载资产通过 SHA256SUMS 校验，详见[版本对照](current-version.zh-CN.md)。未执行 Magisk / KernelSU / APatch 真机矩阵，仍未验证。
 
 ---
 
-## 历史归档：v3.0.15-preview.3 已发布说明
+## 历史归档：v3.0.15-preview.3 已发布说明（Release/tag 已清理）
 
-preview.3 由 PR #39 合并提交 `fe193f1134a80ff38fb0cb3ed4677eb2b79c1dce` 发布，官方 `Preview Build` run `43404430362` 成功，稳定版 `v3.0.14` 未变。该版修正低内存设备 `memory.high` 下限与卸载时 `pref 9001` 规则清理状态误报；Root 模块码为 `2028`、APK `versionCode=10143`。其资产摘要见[版本对照](current-version.zh-CN.md)。
+preview.3 Release/tag 已在 preview.4 发布后按单预览策略清理；历史证据为官方 `Preview Build` run `43404430362` 与原 commit `fe193f1134a80ff38fb0cb3ed4677eb2b79c1dce`，稳定版 `v3.0.14` 未变。该版修正低内存设备 `memory.high` 下限与卸载时 `pref 9001` 规则清理状态误报；Root 模块码为 `2028`、APK `versionCode=10143`。其历史资产摘要见[版本对照](current-version.zh-CN.md)。
 
 ---
 

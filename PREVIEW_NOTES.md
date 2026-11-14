@@ -1,6 +1,6 @@
-# v3.0.15-preview.4 发行说明（候选）
+# v3.0.15-preview.4 发行说明
 
-**状态：未发布的稳定性预览版候选。**
+**状态：已发布的稳定性预览版。**
 
 本版在 wanBox 的 Root-only 架构中完成六项功能与修复适配。正式稳定版 `v3.0.14`（`VERSION_CODE=2026`）不变；`SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 不变。预览元数据码保持 `2028`，`3.0.15-preview.4` 按仓库规则派生 APK `versionCode=10144`，高于 preview.3 的 `10143`。
 
@@ -33,13 +33,13 @@
 
 ## 🛡️ 验证边界
 
-本地 RootModule Go race/vet、arm64 模块构建、libcore Go 测试、Android JVM 测试及 APK/AndroidTest APK 编译通过。Sandbox 缺少 KVM，因此本地 API 35 模拟器未实际执行 instrumentation；这不计为通过。预览发布门禁还要求精确 SHA、候选资产校验及 CI 模拟器检查成功。未做 Magisk / KernelSU / APatch 真机矩阵；自动化结果不等同于真实 Root 设备的网络恢复验证。
+发布证据：[GitHub Release v3.0.15-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.4)，`Preview Build` run `43628453020` 在提交/tag `d6914e70d730c63ee3c3cbb2b00fe2e754b6737e` 成功，四个 job 全部通过。`verify-android` run `43625363368` 在集成提交 `69de6eac6a23d0af65525991c6fff3cbf1a6e620` 成功，instrumentation、迁移、manifest 与体积门禁通过。下载资产的 SHA256SUMS 校验通过，精确字节数和哈希见[版本对照](docs/current-version.zh-CN.md)。未执行 Magisk / KernelSU / APatch 真机矩阵，该验证仍未完成；自动化结果不等同于真实 Root 设备的网络恢复验证。
 
 ---
 
-## 历史归档：v3.0.15-preview.3 已发布说明（preview.4 发布后按单预览策略清理）
+## 历史归档：v3.0.15-preview.3 已发布说明（Release/tag 已清理）
 
-preview.3 由 PR #39 合并提交 `fe193f1134a80ff38fb0cb3ed4677eb2b79c1dce` 发布，官方 `Preview Build` run `43404430362` 成功；稳定版 `v3.0.14` 未变。该版承接 preview.2 的底层优化，修正低内存设备 `memory.high` 下限和卸载时 `pref 9001` 规则清理状态误报。Root 模块码为 `2028`，APK `versionCode=10143`；资产快照见[版本对照](docs/current-version.zh-CN.md)。
+preview.3 Release/tag 已在 preview.4 发布后按单预览策略清理；历史证据由 `Preview Build` run `43404430362` 与原 commit `fe193f1134a80ff38fb0cb3ed4677eb2b79c1dce` 保留。该版承接 preview.2 的底层优化，修正低内存设备 `memory.high` 下限和卸载时 `pref 9001` 规则清理状态误报。Root 模块码为 `2028`，APK `versionCode=10143`；历史资产快照见[版本对照](docs/current-version.zh-CN.md)。
 
 ---
 
