@@ -30,6 +30,7 @@ object PortableBackup {
     private val coreSettingDefaults = linkedMapOf<String, Any>(
         Key.GLOBAL_MODE to false,
         Key.TRAFFIC_SNIFFING to "1",
+        Key.BLOCK_QUIC to true,
         Key.RESOLVE_DESTINATION to false,
         Key.BYPASS_LAN to false,
         Key.BYPASS_LAN_IN_CORE to false,
