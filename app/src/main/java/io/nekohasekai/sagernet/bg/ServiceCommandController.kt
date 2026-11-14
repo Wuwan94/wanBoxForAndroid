@@ -61,6 +61,7 @@ class ServiceCommandController(
             requestToken: String,
             startIfStopped: Boolean,
         ): RootModuleClient.Status = throw UnsupportedOperationException("outbound_confirmation_not_implemented")
+        fun cancelOutboundConfirmation(requestToken: String) {}
     }
 
     /** 真实后端 */
@@ -220,12 +221,56 @@ class ServiceCommandController(
         return true
     }
 
-    // Batch 5 API skeleton: confirmation behavior is intentionally not implemented yet.
-    fun requestOutboundConfirmation(warning: OutboundReferenceWarning): Boolean = false
+    fun requestOutboundConfirmation(warning: OutboundReferenceWarning): Boolean {
+        if (warning.requestToken.isBlank() || warning.issues.isEmpty()) return false
+        if (!mutex.tryLock()) return false
+        generation++
+        _state.value = CommandState.ConfirmationRequired(generation, warning)
+        return true
+    }
 
-    fun continueOutboundConfirmation(requestToken: String): Boolean = false
+    fun continueOutboundConfirmation(requestToken: String): Boolean {
+        val waiting = _state.value as? CommandState.ConfirmationRequired ?: return false
+        if (waiting.warning.requestToken != requestToken) return false
+        val gen = waiting.generation
+        val kind = CommandKind.START
+        val pending = CommandState.Pending(kind, gen)
+        if (!_state.compareAndSet(waiting, pending)) return false
 
-    fun cancelOutboundConfirmation(requestToken: String): Boolean = false
+        applicationScope.launch {
+            try {
+                val status = backend.continueOutboundConfirmation(requestToken, waiting.warning.startIfStopped)
+                if (generation == gen) {
+                    _state.compareAndSet(pending, CommandState.Confirmed(kind, gen, status))
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                if (generation == gen) {
+                    _state.compareAndSet(pending, CommandState.Error(kind, gen, "outbound_confirmation_failed"))
+                }
+            }
+        }.invokeOnCompletion { cause ->
+            // Also runs when the scope was cancelled before the coroutine body started.
+            if (cause is CancellationException && generation == gen) {
+                _state.compareAndSet(pending, CommandState.Idle)
+            }
+            mutex.unlock()
+        }
+        return true
+    }
+
+    fun cancelOutboundConfirmation(requestToken: String): Boolean {
+        val waiting = _state.value as? CommandState.ConfirmationRequired ?: return false
+        if (waiting.warning.requestToken != requestToken) return false
+        if (!_state.compareAndSet(waiting, CommandState.Idle)) return false
+        try {
+            backend.cancelOutboundConfirmation(requestToken)
+        } finally {
+            mutex.unlock()
+        }
+        return true
+    }
 
     /** UI 请求启动（不捕获 Fragment/views） */
     fun requestStart(): Boolean = trySubmit(CommandKind.START) {
@@ -260,5 +305,8 @@ class ServiceCommandController(
         }
     }
 
-    fun isBusy(): Boolean = _state.value is CommandState.Pending
+    fun isBusy(): Boolean = when (_state.value) {
+        is CommandState.Pending, is CommandState.ConfirmationRequired -> true
+        else -> false
+    }
 }
