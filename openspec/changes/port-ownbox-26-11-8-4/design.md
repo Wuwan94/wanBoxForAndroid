@@ -42,7 +42,7 @@ wanBox 的 RootModuleClient 将 Android ConfigBuilder 生成的 sing-box 配置�
 
 ### 4. 批次 4：独立 QUIC 开关
 
-新增持久化 `blockQuic` 开关，默认 `true`，放在“核心设置”。配置打开时在普通用户路由前注入一条精确的 `network=udp, port=443, action=reject` 规则；关闭时不注入该自动规则，UDP 443/HTTP/3/QUIC 可正常进入后续用户路由。TCP 443、UDP 非 443 不受此开关影响。显式用户自定义 reject 规则仍按用户意图执行，不被全局开关静默删除。设置文案进入默认语言与简体中文资源；RootModuleClient 复用配置快照，无须另写 Go 过滤器。
+新增持久化 `blockQuic` 开关，默认 `true`，放在“核心设置”。配置打开时在普通用户路由前注入一条精确的 `network=udp, port=443, action=reject` 规则；关闭时不注入该自动规则，UDP 443/HTTP/3/QUIC 可正常进入后续用户路由。TCP 443、UDP 非 443 不受此开关影响。显式用户自定义 reject 规则仍按用户意图执行，不被全局开关静默删除。设置文案进入默认语言与简体中文资源；RootModuleClient 复用配置快照，无须另写 Go 过滤器。包含 settings 区段的便携备份需物化缺省 `true` 并保留显式值，复用 Batch 3 的核心设置默认合并逻辑。
 
 测试 seam（Batch 4 任务 4.1 已明确）：通过 `RootModuleSnapshot.build()["config"].route.rules` 观察实际下发给 Root 的 sing-box 配置，覆盖无保存值时的默认开启、保存开关对生成配置的影响、UDP/443 精确匹配、自动规则优先级和自定义规则保留。该 seam 不覆盖设置控件的触摸/绘制交互；偏好键、XML 默认值、变更后需重载的绑定将由代码审查与 Android build/instrumentation 门禁检查，真实 HTTP/3 连通仍作为非阻塞真机验证项。
 

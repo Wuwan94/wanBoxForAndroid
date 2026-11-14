@@ -58,7 +58,7 @@ class RootModuleSnapshotTest {
     @Test fun quicSwitchControlsOnlyUdp443RejectInRootSnapshot() = runBlocking {
         val originalSettings = PublicDatabase.kvPairDao.all()
         val originalRules = SagerDatabase.rulesDao.allRules()
-        val quicSettingKey = "blockQuic"
+        val quicSettingKey = Key.BLOCK_QUIC
         val stableSettings = originalSettings.filterNot {
             it.key in setOf(
                 quicSettingKey,

@@ -247,6 +247,8 @@
     <string name="route_opt_block_quic">屏蔽 QUIC</string>
     <string name="domain_strategy">域名解析策略</string>
     <string name="traffic_sniffing">启用流量探测</string>
+    <string name="core_block_quic_title">拦截 QUIC (UDP 443)</string>
+    <string name="core_block_quic_summary">开启时拒绝发往 UDP 443 的流量；关闭后，HTTP/3/QUIC 按其他路由规则处理。</string>
     <string name="disable">禁用</string>
     <string name="cag_misc">杂项</string>
     <string name="enable_mux">启用多路复用</string>

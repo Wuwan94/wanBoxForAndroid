@@ -269,6 +269,8 @@
     <string name="route_opt_block_quic">Block QUIC</string>
     <string name="domain_strategy">Domain Resolution Strategy</string>
     <string name="traffic_sniffing">Enable Traffic Sniffing</string>
+    <string name="core_block_quic_title">Block QUIC (UDP 443)</string>
+    <string name="core_block_quic_summary">Reject UDP traffic to destination port 443. Turn off to let HTTP/3/QUIC follow other routing rules.</string>
     <string name="enable_mux">Enable Multiplexer</string>
     <string name="mux_sum">Mux is designed to reduce TCP handshake latency, not to increase
         connection throughput. Using Mux to watch videos, download or speed test is usually counter

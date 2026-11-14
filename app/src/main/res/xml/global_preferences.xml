@@ -249,6 +249,13 @@
             app:useSimpleSummaryProvider="true" />
 
         <SwitchPreference
+            app:defaultValue="true"
+            app:icon="@drawable/ic_line_shield"
+            app:key="blockQuic"
+            app:summary="@string/core_block_quic_summary"
+            app:title="@string/core_block_quic_title" />
+
+        <SwitchPreference
             app:icon="@drawable/ic_line_text"
             app:key="resolveDestination"
             app:summary="@string/resolve_destination_summary"

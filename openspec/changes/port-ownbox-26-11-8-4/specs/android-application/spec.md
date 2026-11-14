@@ -108,7 +108,7 @@ Android 配置生成器 MUST 在启用流量嗅探时，把 `sniff` action 放�
 
 ### Requirement: Core settings provide an independent QUIC UDP 443 switch
 
-核心设置 MUST 提供独立的“拦截 QUIC (UDP 443)”开关，默认 MUST 开启。开启时，Root 配置 MUST 在普通用户路由规则之前产生只匹配 `network=udp`、`port=443` 的 `action=reject` 规则；该自动规则 MUST NOT 匹配 TCP 443 或 UDP 非 443。关闭时 MUST NOT 产生该自动规则，使 UDP 443/HTTP/3/QUIC 可以继续按其他有效路由规则处理，且 MUST 保留用户显式保存的规则。设置文案 MUST 在默认语言与简体中文资源中可见。
+核心设置 MUST 提供独立的“拦截 QUIC (UDP 443)”开关，默认 MUST 开启。开启时，Root 配置 MUST 在普通用户路由规则之前产生只匹配 `network=udp`、`port=443` 的 `action=reject` 规则；该自动规则 MUST NOT 匹配 TCP 443 或 UDP 非 443。关闭时 MUST NOT 产生该自动规则，使 UDP 443/HTTP/3/QUIC 可以继续按其他有效路由规则处理，且 MUST 保留用户显式保存的规则。设置文案 MUST 在默认语言与简体中文资源中可见。导出包含 settings 区段的便携备份时，MUST 将缺失的 `blockQuic` 默认物化为 `true`，并 MUST 在导入/导出往返中保留显式值。
 
 #### Scenario: 默认拦截 UDP 443
 
@@ -130,6 +130,13 @@ Android 配置生成器 MUST 在启用流量嗅探时，把 `sniff` action 放�
 - **WHEN** Android 重新生成并下发 Root 配置
 - **THEN** 全局自动 UDP/443 reject 不存在
 - **AND** 用户保存的域名范围 reject 规则仍存在且保持原有匹配条件
+
+#### Scenario: 便携备份保留 QUIC 默认与显式设置
+
+- **GIVEN** 便携备份包含 settings 区段，且一个备份没有显式保存 `blockQuic`、另一个备份显式保存 `false`
+- **WHEN** Android 导出并再次导入这两份备份
+- **THEN** 缺失值在备份中物化为 `true`，导入时也补齐为 `true`
+- **AND** 显式 `false` 在导出和导入后仍为 `false`
 
 ### Requirement: Missing route outbounds are visible before users start the core
 

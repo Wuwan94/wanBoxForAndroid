@@ -122,6 +122,7 @@ object DataStore : OnPreferenceDataStoreChangeListener {
         get() = Key.MODE_ROOT
         set(@Suppress("UNUSED_PARAMETER") value) { configurationStore.putString(Key.SERVICE_MODE, Key.MODE_ROOT) }
     var trafficSniffing by configurationStore.stringToInt(Key.TRAFFIC_SNIFFING) { 1 }
+    var blockQuic by configurationStore.boolean(Key.BLOCK_QUIC) { true }
     var resolveDestination by configurationStore.boolean(Key.RESOLVE_DESTINATION)
     var mtu by configurationStore.stringToInt(Key.MTU) { 9000 }
     var bypassLan by configurationStore.boolean(Key.BYPASS_LAN)

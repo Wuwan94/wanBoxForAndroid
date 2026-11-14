@@ -57,6 +57,7 @@ class PortableBackupTest {
         val defaults = exportedSettings(defaultRoot)
         assertEquals("9000", defaults[Key.MTU]?.string)
         assertEquals("1", defaults[Key.TRAFFIC_SNIFFING]?.string)
+        assertEquals(true, defaults[Key.BLOCK_QUIC]?.boolean)
         assertEquals(true, defaults[Key.ENABLE_DNS_ROUTING]?.boolean)
         assertEquals(true, defaults[Key.ENABLE_FAKEDNS]?.boolean)
         assertEquals("https://dns.google/dns-query", defaults[Key.REMOTE_DNS]?.string)
@@ -74,18 +75,23 @@ class PortableBackupTest {
         val explicitPlan = plan.copy(settings = plan.settings!! + listOf(
             KeyValuePair(Key.MTU).put("1400"),
             KeyValuePair(Key.REMOTE_DNS).put("https://backup.example/dns-query"),
+            KeyValuePair(Key.BLOCK_QUIC).put(false),
             KeyValuePair(Key.INPUT_METHOD_DIRECT).put(false),
             KeyValuePair(Key.ENABLE_TLS_FRAGMENT).put(true),
             KeyValuePair(Key.FRAGMENT_LENGTH).put("150-250"),
             KeyValuePair(Key.FRAGMENT_INTERVAL).put("15-25"),
         ))
-        val explicit = exportedSettings(PortableBackup.document(PortableBackup.encode(explicitPlan)))
+        val explicitRoot = PortableBackup.document(PortableBackup.encode(explicitPlan))
+        val explicit = exportedSettings(explicitRoot)
         assertEquals("1400", explicit[Key.MTU]?.string)
         assertEquals("https://backup.example/dns-query", explicit[Key.REMOTE_DNS]?.string)
+        assertEquals(false, explicit[Key.BLOCK_QUIC]?.boolean)
         assertEquals(false, explicit[Key.INPUT_METHOD_DIRECT]?.boolean)
         assertEquals(true, explicit[Key.ENABLE_TLS_FRAGMENT]?.boolean)
         assertEquals("150-250", explicit[Key.FRAGMENT_LENGTH]?.string)
         assertEquals("15-25", explicit[Key.FRAGMENT_INTERVAL]?.string)
+        val restored = BackupRestore.parse(explicitRoot).settings!!.associateBy { it.key }
+        assertEquals(false, restored[Key.BLOCK_QUIC]?.boolean)
     }
     @Test fun portableImportCompletesMissingCoreDefaultsButPreservesExplicitSettings() {
         val root = PortableBackup.document(PortableBackup.encode(
@@ -101,6 +107,7 @@ class PortableBackupTest {
         assertEquals("https://dns.google/dns-query", settings[Key.REMOTE_DNS]?.string)
         assertEquals("https://223.5.5.5/dns-query", settings[Key.DIRECT_DNS]?.string)
         assertEquals(true, settings[Key.ENABLE_DNS_ROUTING]?.boolean)
+        assertEquals(true, settings[Key.BLOCK_QUIC]?.boolean)
         assertNull(settings[Key.INPUT_METHOD_DIRECT])
     }
     @Test fun portableImportWithoutSettingsSectionLeavesItUnselected() {

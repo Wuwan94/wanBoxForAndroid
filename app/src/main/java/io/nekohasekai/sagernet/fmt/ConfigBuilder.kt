@@ -1404,6 +1404,14 @@ fun buildConfig(
             }
         }
 
+        if (!forTest && !forExport && DataStore.blockQuic) {
+            route.rules.add(Rule_DefaultOptions().apply {
+                network = listOf("udp")
+                port = listOf(443)
+                action = "reject"
+            })
+        }
+
         // @author 雾晚: 仅 export 保留历史全局截断分支；runtime (!forExport) 走动态 clash_mode 规则
         if (!forTest && forExport && DataStore.globalMode) {
             // 全局模式下的规则处理
