@@ -66,17 +66,26 @@ class PortableBackupTest {
         assertEquals("root", defaults[Key.SERVICE_MODE]?.string)
         // Presence is a one-time migration marker; defaulting false would create a disabled route.
         assertNull(defaults[Key.INPUT_METHOD_DIRECT])
+        assertNull(defaults[Key.ENABLE_TLS_FRAGMENT])
+        assertNull(defaults[Key.FRAGMENT_LENGTH])
+        assertNull(defaults[Key.FRAGMENT_INTERVAL])
 
         val plan = sample()
         val explicitPlan = plan.copy(settings = plan.settings!! + listOf(
             KeyValuePair(Key.MTU).put("1400"),
             KeyValuePair(Key.REMOTE_DNS).put("https://backup.example/dns-query"),
             KeyValuePair(Key.INPUT_METHOD_DIRECT).put(false),
+            KeyValuePair(Key.ENABLE_TLS_FRAGMENT).put(true),
+            KeyValuePair(Key.FRAGMENT_LENGTH).put("150-250"),
+            KeyValuePair(Key.FRAGMENT_INTERVAL).put("15-25"),
         ))
         val explicit = exportedSettings(PortableBackup.document(PortableBackup.encode(explicitPlan)))
         assertEquals("1400", explicit[Key.MTU]?.string)
         assertEquals("https://backup.example/dns-query", explicit[Key.REMOTE_DNS]?.string)
         assertEquals(false, explicit[Key.INPUT_METHOD_DIRECT]?.boolean)
+        assertEquals(true, explicit[Key.ENABLE_TLS_FRAGMENT]?.boolean)
+        assertEquals("150-250", explicit[Key.FRAGMENT_LENGTH]?.string)
+        assertEquals("15-25", explicit[Key.FRAGMENT_INTERVAL]?.string)
     }
     @Test fun portableImportCompletesMissingCoreDefaultsButPreservesExplicitSettings() {
         val root = PortableBackup.document(PortableBackup.encode(
