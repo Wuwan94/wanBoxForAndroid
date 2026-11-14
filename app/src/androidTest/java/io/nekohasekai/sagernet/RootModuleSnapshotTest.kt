@@ -121,6 +121,10 @@ class RootModuleSnapshotTest {
         fun routeRules(config: com.google.gson.JsonObject) =
             config["route"].asJsonObject["rules"].asJsonArray.map { it.asJsonObject }
 
+        fun matchesNetworkAndPort(rule: com.google.gson.JsonObject, network: String, port: Int) =
+            (rule["network"]?.asJsonArray?.any { it.asString == network } ?: true) &&
+                (rule["port"]?.asJsonArray?.any { it.asInt == port } ?: true)
+
         fun udp443Rejects(config: com.google.gson.JsonObject) = routeRules(config).filter { rule ->
             rule["action"]?.asString == "reject" &&
                 rule["network"]?.asJsonArray?.any { it.asString == "udp" } == true &&
@@ -129,11 +133,14 @@ class RootModuleSnapshotTest {
 
         try {
             saveState(blockQuic = null, rules = listOf(ordinaryRule))
+            assertTrue("QUIC blocking defaults to enabled when no setting is saved", DataStore.blockQuic)
             val defaultConfig = config()
             val defaultRules = routeRules(defaultConfig)
             val automaticReject = udp443Rejects(defaultConfig).single()
             assertEquals(listOf("udp"), automaticReject["network"].asJsonArray.map { it.asString })
             assertEquals(listOf(443), automaticReject["port"].asJsonArray.map { it.asInt })
+            assertFalse("Automatic QUIC blocking must not match TCP/443", matchesNetworkAndPort(automaticReject, "tcp", 443))
+            assertFalse("Automatic QUIC blocking must not match UDP/80", matchesNetworkAndPort(automaticReject, "udp", 80))
             assertEquals("reject", automaticReject["action"].asString)
             val userRuleIndex = defaultRules.indexOfFirst {
                 it["domain_suffix"]?.asJsonArray?.any { value -> value.asString == "priority.invalid" } == true
@@ -141,9 +148,11 @@ class RootModuleSnapshotTest {
             assertTrue("Automatic QUIC blocking must precede user routing", userRuleIndex > defaultRules.indexOf(automaticReject))
 
             saveState(blockQuic = false, rules = emptyList())
+            assertFalse("Saved disabled QUIC blocking must be read back as false", DataStore.blockQuic)
             assertTrue("Disabling QUIC blocking must remove the automatic rule", udp443Rejects(config()).isEmpty())
 
             saveState(blockQuic = false, rules = listOf(customReject))
+            assertFalse("Saved disabled QUIC blocking must remain false with a custom rule", DataStore.blockQuic)
             val disabledWithCustomRule = udp443Rejects(config())
             assertEquals("The user's reject rule remains without a duplicate global rule", 1, disabledWithCustomRule.size)
             assertTrue(
