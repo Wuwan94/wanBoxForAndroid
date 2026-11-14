@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func fixture(t *testing.T) (*Runtime, Snapshot) {
@@ -60,6 +61,18 @@ func TestActualSnapshotRoundTripAndConflict(t *testing.T) {
 	}
 	if _, e = os.Stat(r.path("generations", rev, "snapshot.json")); e != nil {
 		t.Fatal("rollback snapshot lost")
+	}
+}
+
+func TestSnapshotValidatesAutoStopPolicy(t *testing.T) {
+	_, s := fixture(t)
+	s.Files["files/smart_auto_stop.json"] = []byte(`{"enabled":true,"rules":["2001:db8::1"],"appPackage":"io.test.app","userId":10}`)
+	if err := CheckSnapshot(s); err != nil {
+		t.Fatal(err)
+	}
+	s.Files["files/smart_auto_stop.json"] = []byte(`{"enabled":true,"rules":["gateway:host"],"appPackage":"io.test.app","userId":10}`)
+	if err := CheckSnapshot(s); err == nil {
+		t.Fatal("accepted invalid auto-stop rule")
 	}
 }
 func TestValidationFailureLeavesCommittedSnapshotUntouched(t *testing.T) {
@@ -351,5 +364,148 @@ func TestPluginBinaryAbiAndResourceContract(t *testing.T) {
 	delete(s.Files, "files/plugin.json")
 	if CheckSnapshot(s) == nil {
 		t.Fatal("accepted missing helper config")
+	}
+}
+
+func TestCleanupRequiredPreventsDuplicateStartAndExplicitStopRetries(t *testing.T) {
+	r, _ := fixture(t)
+	if err := r.init(); err != nil {
+		t.Fatal(err)
+	}
+	if err := jsonWrite(r.path("runtime", "cleanup.json"), []ProcessIdentity{{PID: 999999, Start: "gone"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Start(context.Background()); err == nil || err.Error() != "cleanup_required" {
+		t.Fatalf("start must fail closed: %v", err)
+	}
+	if err := r.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(r.path("runtime", "cleanup.json")); !os.IsNotExist(err) {
+		t.Fatalf("confirmed cleanup must clear marker: %v", err)
+	}
+}
+
+func TestResumeMarkerOnlyWhileSuspendedAndStopClears(t *testing.T) {
+	r, snapshot := fixture(t)
+	if _, err := r.Apply(context.Background(), snapshot); err != nil {
+		t.Fatal(err)
+	}
+	self, err := Identity(os.Getpid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, phase := range []string{"stopped", "starting", "failed"} {
+		if err := jsonWrite(r.path("state.json"), State{SchemaVersion: Version, Phase: phase, Supervisor: self}); err != nil {
+			t.Fatal(err)
+		}
+		if err := r.Resume(context.Background()); err == nil || err.Error() != "module_not_suspended" {
+			t.Fatalf("%s: %v", phase, err)
+		}
+		if _, err := os.Stat(r.path("runtime", "resume")); !os.IsNotExist(err) {
+			t.Fatal("unexpected marker", err)
+		}
+	}
+	if err := jsonWrite(r.path("state.json"), State{SchemaVersion: Version, Phase: "suspended", Supervisor: self}); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if err := r.Resume(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	b, err := os.ReadFile(r.path("runtime", "resume"))
+	if err != nil || len(b) == 0 || len(b) > 128 {
+		t.Fatalf("bounded marker: %q %v", b, err)
+	}
+	info, err := os.Stat(r.path("runtime", "resume"))
+	if err != nil || info.Mode().Perm() != 0600 {
+		t.Fatal("private marker", info, err)
+	}
+	if r.Status().Phase != "suspended" {
+		t.Fatal("resume must not claim connected before core startup")
+	}
+	if err := jsonWrite(r.path("state.json"), State{SchemaVersion: Version, Phase: "stopped"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(r.path("runtime", "resume")); !os.IsNotExist(err) {
+		t.Fatal("explicit stop retained marker", err)
+	}
+	if err := jsonWrite(r.path("state.json"), State{SchemaVersion: Version, Phase: "connected", Supervisor: self, Core: self}); err != nil {
+		t.Fatal(err)
+	}
+	if err := AtomicWrite(r.path("runtime", "ready"), []byte("ready"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if err := r.Resume(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := os.Stat(r.path("runtime", "resume")); !os.IsNotExist(err) {
+		t.Fatal("connected resume wrote marker", err)
+	}
+	if r.Status().Core != self || r.Status().Phase != "connected" {
+		t.Fatal("connected resume changed running core")
+	}
+}
+
+func TestSupervisorStartupFailureBroadcastsFixedPhase(t *testing.T) {
+	r, snapshot := fixture(t)
+	snapshot.Files["files/"+autoStopFile] = []byte(`{"enabled":true,"rules":[],"appPackage":"io.test.app","userId":10}`)
+	if _, err := r.Apply(context.Background(), snapshot); err != nil {
+		t.Fatal(err)
+	}
+	r.independentCgroup = func() error { return errors.New("cgroup_move_failed") }
+	previous := runAutoStopCommand
+	defer func() { runAutoStopCommand = previous }()
+	var phases []string
+	runAutoStopCommand = func(args ...string) error { phases = append(phases, args[len(args)-1]); return nil }
+	if err := r.Supervise(context.Background()); err == nil {
+		t.Fatal("expected startup failure")
+	}
+	if err := r.DispatchAutoStopBroadcasts(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(phases, ",") != "failed" {
+		t.Fatalf("startup failure broadcast: %v", phases)
+	}
+}
+
+func TestStartupConfirmsOnlyCurrentRevisionSuspension(t *testing.T) {
+	for _, tc := range []struct {
+		phase, revision string
+		want            bool
+	}{
+		{"suspended", "requested", true}, {"suspended", "stale", false},
+		{"starting", "requested", false}, {"stopped", "requested", false},
+		{"failed", "requested", false}, {"connected", "requested", true},
+	} {
+		if got := startupConfirmed(State{Phase: tc.phase, RunningRevision: tc.revision}, "requested"); got != tc.want {
+			t.Errorf("phase=%s revision=%s: confirmed=%v", tc.phase, tc.revision, got)
+		}
+	}
+}
+
+func TestSupervisorFailureDoesNotWaitForBroadcast(t *testing.T) {
+	r, snapshot := fixture(t)
+	snapshot.Files["files/"+autoStopFile] = []byte(`{"enabled":true,"appPackage":"io.test.app","userId":10}`)
+	if _, err := r.Apply(context.Background(), snapshot); err != nil {
+		t.Fatal(err)
+	}
+	r.independentCgroup = func() error { return errors.New("cgroup_move_failed") }
+	previous := runAutoStopCommand
+	release := make(chan struct{})
+	runAutoStopCommand = func(args ...string) error { <-release; return nil }
+	defer func() { close(release); runAutoStopCommand = previous }()
+	done := make(chan error, 1)
+	go func() { done <- r.Supervise(context.Background()) }()
+	select {
+	case <-done:
+	case <-time.After(200 * time.Millisecond):
+		t.Error("broadcast blocked supervisor failure transition")
 	}
 }

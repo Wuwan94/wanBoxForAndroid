@@ -35,7 +35,7 @@ class TileService : BaseTileService(), SagerConnection.Callback {
             profileName?.trim()?.takeIf { it.isNotEmpty() && !it.equals("null", ignoreCase = true) }
 
         internal fun displayState(state: BaseService.State?): Int = when (state) {
-            BaseService.State.Idle, BaseService.State.Stopped -> Tile.STATE_INACTIVE
+            BaseService.State.Idle, BaseService.State.Stopped, BaseService.State.Suspended -> Tile.STATE_INACTIVE
             BaseService.State.Connecting, BaseService.State.Connected -> Tile.STATE_ACTIVE
             BaseService.State.Stopping, null -> Tile.STATE_UNAVAILABLE
         }
@@ -158,6 +158,10 @@ class TileService : BaseTileService(), SagerConnection.Callback {
                     state = Tile.STATE_INACTIVE
                     label = getString(R.string.app_name)
                 }
+                BaseService.State.Suspended -> {
+                    state = Tile.STATE_INACTIVE
+                    label = getString(R.string.smart_auto_stop_suspended)
+                }
                 BaseService.State.Connecting -> {
                     state = Tile.STATE_ACTIVE
                     label = getString(R.string.connecting)
@@ -178,6 +182,7 @@ class TileService : BaseTileService(), SagerConnection.Callback {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
                 setSubtitle(when (serviceState) {
                     // Subtitle = connection status text (secondary row, shown on double-line devices)
+                    BaseService.State.Suspended -> getString(R.string.smart_auto_stop_resume_hint)
                     BaseService.State.Connected -> getString(R.string.tile_connected)
                     BaseService.State.Connecting -> validProfileName
                     BaseService.State.Stopping -> null

@@ -1216,4 +1216,14 @@
     <string name="tools_section_network">网络检查</string>
     <string name="tools_section_support">故障排查</string>
     <string name="tools_crash_log_summary">导出已有崩溃记录以便排查；不会自动上传日志。</string>
+    <string name="smart_auto_stop_title">智能自动暂停</string>
+    <string name="smart_auto_stop_rules">智能自动暂停规则</string>
+    <string name="smart_auto_stop_rules_hint">最多五条 IP 地址或 CIDR，可加 gateway: 前缀；使用逗号、分号或换行分隔。</string>
+    <string name="smart_auto_stop_invalid">仅支持数字 IPv4/IPv6 地址或有效 CIDR，不支持域名或 Wi-Fi 名称。</string>
+    <string name="smart_auto_stop_too_many">最多允许五条有效规则。</string>
+    <string name="smart_auto_stop_permission">智能自动暂停通知设置。请开启应用通知及“智能自动暂停”通知渠道，以使用“恢复”和“停止”操作。点击打开设置。</string>
+    <string name="smart_auto_stop_suspended">已暂停 · 智能自动暂停</string>
+    <string name="smart_auto_stop_resume_hint">代理已暂停，点击恢复以继续。</string>
+    <string name="smart_auto_stop_resume">恢复</string>
+    <string name="smart_auto_stop_permission_denied">智能自动暂停保持关闭。请在通知设置中开启应用通知及“智能自动暂停”通知渠道。</string>
 </resources>

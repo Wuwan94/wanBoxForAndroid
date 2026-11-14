@@ -45,6 +45,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
 
     /** phase2: the four home states (未连接/连接中/已连接/异常), each with its own colour, text and mascot. */
     private enum class Hero(val fill: Int, val on: Int, val mascot: Int, val title: Int) {
+        SUSPENDED(R.color.connect_idle_fill, R.color.connect_idle_on, R.drawable.ic_mascot_sleep, R.string.smart_auto_stop_suspended),
         IDLE(R.color.connect_idle_fill, R.color.connect_idle_on, R.drawable.ic_mascot_sleep, R.string.service_state_idle),
         CONNECTING(R.color.connect_busy_fill, R.color.connect_busy_on, R.drawable.ic_mascot_curious, R.string.service_state_connecting),
         CONNECTED(R.color.connect_on_fill, R.color.connect_on_on, R.drawable.ic_mascot_happy, R.string.service_state_connected),
@@ -68,6 +69,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
             val state = host.serviceState
             when {
                 state == BaseService.State.Connecting || state == BaseService.State.Stopping -> return@setOnClickListener
+                state == BaseService.State.Suspended -> SagerNet.toggleService()
                 state.canStop -> SagerNet.stopService()
                 else -> SagerNet.startService() // 未连接 → 连接；异常(未运行) → 重试
             }
@@ -345,12 +347,14 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         val degraded = state == BaseService.State.Connected && health?.moduleHealth == "degraded"
         val hero = when {
             unreachable || failed || degraded -> Hero.ERROR
+            state == BaseService.State.Suspended -> Hero.SUSPENDED
             state == BaseService.State.Connected -> Hero.CONNECTED
             state == BaseService.State.Connecting || state == BaseService.State.Stopping -> Hero.CONNECTING
             else -> Hero.IDLE
         }
         val ctx = requireContext()
         val detail: CharSequence = when {
+            state == BaseService.State.Suspended -> getString(R.string.smart_auto_stop_resume_hint)
             unreachable -> getString(R.string.home_hint_unreachable, comm)
             degraded -> getString(R.string.home_hint_degraded)
             failed -> io.nekohasekai.sagernet.bg.RootModuleErrors.message(ctx,
@@ -378,6 +382,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         root.findViewById<TextView>(R.id.connectLabel).apply {
             setTextColor(on)
             setText(when {
+                hero == Hero.SUSPENDED -> R.string.smart_auto_stop_resume
                 hero == Hero.CONNECTING -> R.string.home_action_connecting
                 state.canStop -> R.string.home_action_disconnect
                 hero == Hero.ERROR -> R.string.home_action_retry

@@ -18,6 +18,7 @@ import android.os.UserManager
 import androidx.core.content.getSystemService
 import go.Seq
 import io.nekohasekai.sagernet.bg.SagerConnection
+import io.nekohasekai.sagernet.bg.ServiceNotification
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.isOss
@@ -235,7 +236,7 @@ class SagerNet : Application(),
 
         /** The module owns the core; the manager no longer posts tray notifications. @author 雾晚 */
         fun clearLegacyNotifications() {
-            notification.cancelAll()
+            notification.cancel(ServiceNotification.notificationId)
             for (channel in listOf("service-vpn", "service-proxy", "service-subscription", "connection-test")) {
                 notification.deleteNotificationChannel(channel)
             }

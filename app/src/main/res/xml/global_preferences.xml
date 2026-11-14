@@ -178,6 +178,9 @@
     <moe.matsuri.nb4a.ui.ExpandablePreferenceCategory
         app:key="categoryAdvancedGroup"
         app:title="@string/settings_group_advanced">
+        <SwitchPreference app:key="smartAutoStopEnabled" app:defaultValue="false" app:title="@string/smart_auto_stop_title" />
+        <EditTextPreference app:key="smartAutoStopRules" app:defaultValue="" app:title="@string/smart_auto_stop_rules" app:summary="@string/smart_auto_stop_rules_hint" />
+        <Preference app:key="smartAutoStopPermission" app:title="@string/smart_auto_stop_permission" app:persistent="false" />
 
         <EditTextPreference
             app:defaultValue="https://dns.google/dns-query"

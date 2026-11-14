@@ -130,6 +130,8 @@ type Runtime struct {
 	installStart      func(context.Context) error
 	installRunning    func() bool
 	independentCgroup func() error
+	observeNetwork    func() NetworkObservation
+	autoStopCommand   func(...string) error
 }
 
 func New(root, moduleDir string) *Runtime {
@@ -230,6 +232,11 @@ func CheckSnapshot(s Snapshot) error {
 	}
 	if len(s.Files) > MaxFiles || len(s.Plugins) > 32 {
 		return errors.New("too_many_files")
+	}
+	if b, ok := s.Files["files/"+autoStopFile]; ok {
+		if _, err := CheckSmartAutoStop(b); err != nil {
+			return err
+		}
 	}
 	var size int
 	for name, data := range s.Files {
@@ -740,6 +747,10 @@ func (r *Runtime) Status() State {
 		} else if s.Phase != "disabled" && s.Phase != "failed" {
 			s.Phase = "stopped"
 		}
+	} else if s.Phase == "suspended" {
+		s.Stats = nil
+		s.Telemetry = nil
+		s.Health = ""
 	} else if s.Phase == "connected" {
 		if !SameProcess(s.Core) {
 			s.Phase = "failed"
@@ -853,6 +864,11 @@ func (r *Runtime) Apply(ctx context.Context, s Snapshot) (State, error) {
 		}
 		if active {
 			if e = r.start(ctx); e != nil {
+				// Cleanup uncertainty requires explicit recovery; automatic stop would
+				// acknowledge the failure and permit an unsafe rollback restart.
+				if e.Error() == "cleanup_required" || r.Status().Error == "cleanup_required" {
+					return errors.New("cleanup_required")
+				}
 				// Fully tear down a rejected generation before restoring the last working one.
 				if clean := r.stop(context.Background()); clean != nil {
 					return errors.New("rollback_cleanup_failed")
@@ -881,7 +897,36 @@ func (r *Runtime) Start(ctx context.Context) error {
 func (r *Runtime) Stop(ctx context.Context) error {
 	return r.withLock(func() error { return r.stop(ctx) })
 }
+func (r *Runtime) Resume(ctx context.Context) error {
+	return r.withLock(func() error {
+		s := r.Status()
+		if !SameProcess(s.Supervisor) {
+			if s.Phase == "connected" {
+				return nil
+			}
+			return errors.New("module_not_suspended")
+		}
+		if s.Phase != "suspended" {
+			if s.Phase == "connected" {
+				return nil
+			}
+			return errors.New("module_not_suspended")
+		}
+		o := r.physicalObservation()
+		fp := NetworkFingerprint(o)
+		if len(fp) > 128 {
+			return errors.New("network_fingerprint_invalid")
+		}
+		if err := AtomicWrite(r.path("runtime", suppressionFile), []byte(fp), 0600); err != nil {
+			return err
+		}
+		return AtomicWrite(r.path("runtime", "resume"), []byte(fp), 0600)
+	})
+}
 func (r *Runtime) start(ctx context.Context) error {
+	if _, err := os.Lstat(r.path("runtime", "cleanup.json")); !os.IsNotExist(err) {
+		return errors.New("cleanup_required")
+	}
 	if _, e := os.Lstat(r.path("install-data.json")); e == nil {
 		return errors.New("install_data_update_pending")
 	} else if !os.IsNotExist(e) {
@@ -900,7 +945,7 @@ func (r *Runtime) start(ctx context.Context) error {
 		}
 		return errors.New("module_busy")
 	}
-	if SameProcess(s.Core) {
+	if SameProcess(s.Core) || s.Error == "cleanup_required" {
 		return errors.New("cleanup_required")
 	}
 	rev, _, e := r.Current()
@@ -940,8 +985,10 @@ func (r *Runtime) start(ctx context.Context) error {
 			return errors.New("startup_timeout")
 		case <-ticker.C:
 			state := r.Status()
-			if state.RunningRevision == rev && state.Phase == "connected" {
-				r.recordEvent("core_started")
+			if startupConfirmed(state, rev) {
+				if state.Phase == "connected" {
+					r.recordEvent("core_started")
+				}
 				return nil
 			}
 			if state.RunningRevision == rev && state.Phase == "failed" && !SameProcess(state.Supervisor) {
@@ -956,9 +1003,11 @@ func (r *Runtime) start(ctx context.Context) error {
 	}
 }
 func (r *Runtime) stop(ctx context.Context) error {
+	_ = os.Remove(r.path("runtime", "resume"))
 	s := r.Status()
+
 	if !SameProcess(s.Supervisor) && !SameProcess(s.Core) {
-		return nil
+		return r.finishStop(ctx, s)
 	}
 	if e := AtomicWrite(r.path("runtime", "stop"), []byte("stop"), 0600); e != nil {
 		return e
@@ -982,7 +1031,7 @@ func (r *Runtime) stop(ctx context.Context) error {
 		if !SameProcess(s.Supervisor) && !SameProcess(s.Core) {
 			_ = os.Remove(r.path("runtime", "ready"))
 			r.recordEvent("core_stopped")
-			return nil
+			return r.finishStop(ctx, r.Status())
 		}
 		select {
 		case <-ctx.Done():
@@ -1140,3 +1189,53 @@ func (r *Runtime) pruneGenerations() {
 	}
 }
 func (r *Runtime) String() string { return fmt.Sprintf("wanbox module protocol %d", Version) }
+
+// Retry only identities retained by our generation; never enumerate or signal
+// unrelated processes. The private record also blocks a duplicate start.
+func (r *Runtime) finishStop(ctx context.Context, s State) error {
+	var helpers []ProcessIdentity
+	err := readJSON(r.path("runtime", "cleanup.json"), &helpers, 64<<10)
+	if err != nil && !os.IsNotExist(err) {
+		return errors.New("cleanup_required")
+	}
+	if err == nil {
+		for _, helper := range helpers {
+			_ = terminate(helper)
+		}
+		deadline := time.Now().Add(4 * time.Second)
+		for {
+			alive := false
+			for _, helper := range helpers {
+				if SameProcess(helper) {
+					alive = true
+					_ = forceTerminate(helper)
+				}
+			}
+			if !alive {
+				break
+			}
+			if time.Now().After(deadline) {
+				return errors.New("cleanup_required")
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(50 * time.Millisecond):
+			}
+		}
+		if err := os.Remove(r.path("runtime", "cleanup.json")); err != nil {
+			return errors.New("cleanup_required")
+		}
+	}
+	if s.Error == "cleanup_required" {
+		s.Phase, s.Error = "stopped", ""
+		s.Core, s.Supervisor = ProcessIdentity{}, ProcessIdentity{}
+		return jsonWrite(r.path("state.json"), s)
+	}
+	return nil
+}
+
+// startupConfirmed accepts suspension only for this requested generation.
+func startupConfirmed(state State, revision string) bool {
+	return state.RunningRevision == revision && (state.Phase == "connected" || state.Phase == "suspended")
+}

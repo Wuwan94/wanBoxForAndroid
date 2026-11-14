@@ -156,15 +156,15 @@ Android 配置生成器 MUST 在启用流量嗅探时，把 `sniff` action 放�
 - **THEN** 核心启动前出现列明规则和缺失引用的 modal
 - **AND** 用户可返回修复或明确继续，继续时仍可见该规则未应用
 
-### Requirement: Smart network auto-stop is bounded, permission-free, and user-controllable
+### Requirement: Smart network auto-stop is bounded, location-permission-free, and user-controllable
 
-高级设置 MUST 允许最多 5 条网络自动挂起规则，支持匹配本地 IP、CIDR 和 `gateway:` 网关，不得请求定位权限。规则命中时 MUST 自动挂起 Root 核心连接，并显示保持可操作的“已挂起”通知及“恢复”“停止”按钮。离开匹配网络后 MUST 自动恢复此前自动挂起的核心。用户在同一网络手动恢复后，MUST NOT 因同一 network fingerprint 再次自动挂起；网络变化后可重新匹配。用户手动停止必须按停止意图处理，不得被自动恢复覆盖。
+高级设置 MUST 提供默认关闭的网络自动挂起开关与规则编辑，最多允许 5 条规则，支持逗号、分号、中文逗号和换行分隔的本地 IPv4/IPv6、CIDR 与 `gateway:` 网关匹配。功能 MUST NOT 请求定位权限。Android 13 及以上 MUST 在启用功能时请求通知权限；若权限被拒绝，MUST 保持功能关闭并明确提示用户，不得静默启用无可操作通知的自动挂起。启用时 Android MUST 在 Root snapshot 中附带经校验的应用 `appPackage`。Android MUST 只接受面向该应用的固定 `AUTO_STOP_STATE` action 和 `suspended`、`connected`、`stopped`、`failed`、`disabled` phase 值；事件 MUST NOT 携带网络标识、规则文本或核心输出。规则命中时 MUST 要求 Root supervisor 优雅停止当前核心实例；只有核心确认退出并由其释放自己的 TUN/auto-route 后，状态才能报告为“已挂起”。MUST NOT 全局 flush iptables/nftables 或操作其他实例的路由。挂起时 MUST 显示保持可操作的“已挂起”通知及“恢复”“停止”按钮，两个 action MUST 分别调用 Root resume/stop。离开匹配网络后 MUST 自动恢复此前自动挂起的核心。用户在同一网络手动恢复后，MUST NOT 因同一 network fingerprint 再次自动挂起；网络变化后可重新匹配。用户手动停止必须按停止意图处理，不得被自动恢复覆盖。
 
 #### Scenario: 匹配网络自动挂起
 
 - **GIVEN** 用户配置至多 5 条 IP/CIDR/`gateway:` 规则且当前网络匹配
 - **WHEN** Root 网络观察器确认该 network fingerprint
-- **THEN** 核心连接挂起，状态通知保留“恢复”“停止”操作
+- **THEN** 当前核心优雅退出并释放其 TUN/auto-route 后才进入挂起状态，通知保留“恢复”“停止”操作
 - **AND** 应用没有请求定位权限
 
 #### Scenario: 离开网络与手动恢复
@@ -174,20 +174,88 @@ Android 配置生成器 MUST 在启用流量嗅探时，把 `sniff` action 放�
 - **THEN** 离开网络时核心自动恢复
 - **AND** 同一网络的手动恢复在网络变化前抑制重复挂起
 
-### Requirement: Root suspension cleans only owned iptables and routes
+#### Scenario: Root phase event updates the actionable notification
 
-Root 网络策略在挂起、恢复、停止和失败回滚时 MUST 幂等清理仅由当前 wanBox 实例拥有的 iptables 规则、路由和核心资源。恢复时 MUST 只添加一次所需规则；离开自动挂起网络后 MUST 恢复原用户运行意图。清理或恢复失败时 MUST 报告真实错误和状态，MUST NOT 留下阻断设备网络的规则或谎报已恢复。
+- **GIVEN** Root supervisor sends a phase event to the validated application package
+- **WHEN** Android receives the explicit `AUTO_STOP_STATE` action
+- **THEN** only a recognized fixed phase updates or dismisses the suspended notification
+- **AND** the notification's Restore and Stop actions call Root resume and stop respectively without accepting network identifiers or rule text from the event
+
+### Requirement: Root suspension releases only core-owned TUN and routes
+
+Root 网络策略在挂起、恢复、停止和失败回滚时 MUST 仅向当前 supervisor 启动的核心发送优雅停止并确认退出，由核心释放自身 TUN/auto-route。MUST NOT 执行全局 iptables/nftables flush 或修改非本实例路由。离开自动挂起网络后 MUST 只恢复原用户运行意图一次；清理超时或恢复失败时 MUST 报告真实错误和状态，MUST NOT 谎报已挂起/已恢复或启动重复核心。
 
 #### Scenario: 自动挂起后切换网络
 
-- **GIVEN** Root 核心已在匹配网络挂起且清理了 wanBox 自有转发规则
+- **GIVEN** Root 核心已在匹配网络通过优雅退出释放其 TUN/auto-route
 - **WHEN** 网络变为不匹配状态
-- **THEN** 原运行意图恢复且仅重建一次 wanBox 规则
-- **AND** 非 wanBox iptables/route 条目保持不变
+- **THEN** 原运行意图恢复且仅启动一次本实例核心
+- **AND** 非本实例路由与系统防火墙规则保持不变
 
 #### Scenario: 部分清理失败
 
-- **GIVEN** 挂起过程中有 wanBox 路由或 iptables 删除失败
-- **WHEN** Root 状态机回滚或继续清理
+- **GIVEN** 挂起期间核心未能在优雅退出时限内结束
+- **WHEN** Root supervisor 处理核心清理超时
 - **THEN** 状态报告保留失败原因并允许幂等重试
-- **AND** 不报告虚假的已挂起/已恢复成功状态
+- **AND** 不报告虚假的已挂起/已恢复成功状态，也不启动重复核心
+
+Android MUST reconcile notifications only for the fixed phases `suspended`, `connected`, `stopped`, `failed`, and `disabled`; unknown actions or phases MUST be ignored. After a notification Resume or Stop action, Android MUST query Root status even if the command fails, and MUST use a recognized returned phase as authoritative. If notification delivery or status communication fails, or the queried phase is unknown, Android MUST preserve the last successfully displayed suspended notification rather than dismissing it based on the action alone. Coroutine cancellation MUST propagate.
+
+#### Scenario: Notification action loses its reply or status is unavailable
+
+- **GIVEN** Android last successfully displayed the actionable suspended notification
+- **WHEN** the user selects Resume or Stop and the command reply fails
+- **THEN** Android MUST still query authoritative Root status and reconcile a recognized phase
+- **AND** if the status query fails or returns an unknown phase, Android MUST retain the last suspended notification and its actions
+- **AND** a failed notification delivery MUST NOT dismiss the last successfully displayed suspended notification
+
+Before enabling Smart Auto-stop on every supported Android version, Android MUST create/inspect the `smart_auto_stop` notification channel and verify both app-level notification availability and channel importance other than `IMPORTANCE_NONE`. On API 33+ it MUST request missing runtime notification permission first and recheck app/channel availability after the result. If any gate remains blocked, the feature MUST remain disabled with actionable app/channel notification settings. Notification settings MUST remain available while the feature is enabled. Snapshot generation MUST derive the current Android user/profile through a supported Android API and include its integer `userId` alongside `appPackage`.
+
+#### Scenario: App or channel notifications are blocked
+
+- **GIVEN** app notifications are disabled on API 31–32, or the Smart Auto-stop channel has `IMPORTANCE_NONE` on any supported Android version
+- **WHEN** the user tries to enable Smart Auto-stop
+- **THEN** the feature remains disabled and an actionable notification-settings entry is available
+- **AND** granting API 33+ runtime permission alone cannot bypass a blocked channel
+
+#### Scenario: Notification controls remain discoverable
+
+- **GIVEN** Smart Auto-stop is enabled with app and channel notifications available
+- **WHEN** the user opens advanced settings
+- **THEN** notification settings remain accessible
+- **AND** returning from notification settings rechecks availability before retaining the enabled setting
+
+## MODIFIED Requirements
+
+### Requirement: 用户可见错误对话框安全显示
+
+Android 应用在前台页面操作失败且已有可用宿主 Activity 时，MUST 显示包含原始可读错误消息的提示对话框。对话框使用主题包装 Context 时 MUST 正常解析其宿主，MUST NOT 因 Context 类型转换失败而丢失提示；宿主不存在、正在结束或已销毁时 MUST 安全跳过显示，且 MUST NOT 产生新的未处理异常。
+
+#### Scenario: 规则资源更新失败且页面仍有效
+
+- **GIVEN** 用户在规则资源页面发起更新，页面 Activity 仍处于可显示窗口的状态
+- **WHEN** 更新操作失败并生成可读错误消息，且对话框 Context 被主题 wrapper 包装
+- **THEN** 应用显示含原始错误消息的错误提示对话框
+- **AND** 不产生 Context 到 Activity 的类型转换异常
+
+#### Scenario: 显示错误前宿主页面已退出
+
+- **GIVEN** 后台操作失败后，对话框准备返回主线程显示
+- **WHEN** 宿主 Activity 不存在、正在结束或已经销毁
+- **THEN** 应用安全跳过错误对话框显示
+- **AND** 不产生新的未处理异常或无效窗口
+
+#### Scenario: 配置状态错误提示复用安全显示入口
+
+- **GIVEN** 用户点击处于错误状态的配置项，且宿主页面仍有效
+- **WHEN** 应用请求显示该配置项的错误详情
+- **THEN** 应用显示含该错误详情的提示对话框
+- **AND** 主题包装 Context 不影响显示结果
+
+#### Scenario: Smart Auto-stop Root snapshot Apply 失败安全处理
+
+- **GIVEN** 用户在 Smart Auto-stop 设置中发起 Root snapshot Apply
+- **WHEN** Apply 发生普通失败且宿主 Activity 仍可用
+- **THEN** 应用通过现有安全宿主处理入口显示包含原始可读错误消息的对话框，主题包装 Context 不影响宿主解析
+- **AND** 若显示时宿主 Activity 正在结束、已销毁或不存在，应用安全跳过显示，不产生新的未处理异常或无效窗口
+- **AND** 若 Apply 抛出 `CancellationException`，异常继续传播，MUST NOT 被当成普通错误显示

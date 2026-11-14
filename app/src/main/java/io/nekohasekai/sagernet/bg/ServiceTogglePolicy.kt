@@ -5,7 +5,7 @@ package io.nekohasekai.sagernet.bg
 internal fun isTransitionalServiceState(state: BaseService.State?): Boolean =
     state == BaseService.State.Connecting || state == BaseService.State.Stopping
 
-internal enum class ServiceToggleAction { START, STOP, IGNORE }
+internal enum class ServiceToggleAction { START, STOP, RESUME, IGNORE }
 
 /** Preserve profile-target behavior while refusing to invert an in-flight transition. */
 internal fun serviceToggleAction(
@@ -14,6 +14,7 @@ internal fun serviceToggleAction(
     currentProfileId: Long,
 ): ServiceToggleAction = when {
     isTransitionalServiceState(state) -> ServiceToggleAction.IGNORE
+    state == BaseService.State.Suspended -> ServiceToggleAction.RESUME
     state.canStop && (requestedProfileId == -1L || requestedProfileId == currentProfileId) ->
         ServiceToggleAction.STOP
     else -> ServiceToggleAction.START

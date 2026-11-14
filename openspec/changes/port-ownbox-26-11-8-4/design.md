@@ -4,7 +4,7 @@ OwnBox v26.11.8.4-preview 的参考差异集中在一条提交 `aa93dfb2563e3b2b
 
 本 change 的基线为 `port/ownbox-26.11.8.4` 分支起点 `ffdfc8e96bbf851558bb81d0b669e8055b79765a`。`nb4a.properties` 当前 `VERSION_NAME=3.0.11`、`PRE_VERSION_NAME=3.0.13-preview.4`、`SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd`；不改变这些值。
 
-wanBox 的 RootModuleClient 将 Android ConfigBuilder 生成的 sing-box 配置快照交给独立 Root 模块。配置规则/QUIC 修复集中在 App 生成器；智能挂起则因 Root 模块拥有 TUN、核心进程、iptables/路由和物理网络观察而必须进入 Root 模块，Android 只提供规则、状态与操作入口。
+wanBox 的 RootModuleClient 将 Android ConfigBuilder 生成的 sing-box 配置快照交给独立 Root 模块。配置规则/QUIC 修复集中在 App 生成器；智能挂起则因 Root 模块拥有 TUN、核心进程和物理网络观察而必须进入 Root 模块，Android 只提供规则、状态与操作入口。仓库卸载规范确认路由由当前核心实例优雅关闭时自行释放；本模块不创建全局 iptables 规则，禁止全局 flush 或触碰其他实例路由。
 
 ## Goals / Non-Goals
 
@@ -19,8 +19,8 @@ wanBox 的 RootModuleClient 将 Android ConfigBuilder 生成的 sing-box 配置�
 **Non-Goals:**
 
 - 不重写 Root 模块整体网络栈，不创建 Android VPN/TUN 实现，也不复制 OwnBox 的 TUN package whitelist。
-- 不升级 sing-box，不改版本号、版本编码或正式发布流程；不创建 PR/Release/tag。
-- 不在本地安装 Go 或编译 Android/Go；GitHub Actions 负责编译与测试。
+- 不升级 sing-box，不修改稳定版 `v3.0.11`。中间批次不创建 PR/Release/tag；六批实现、必要 CI 与最终双轴复审全部通过后，按用户最新授权完成新预览版所需的 PR、合并与发布。若发布要求与现有版本号/预览号限制冲突，必须暂停并向用户报告，不得自行更改版本号或内核。
+- 按用户最新明确授权，在 Sandbox 系统路径 `/usr/local/go` 安装并保留官方 Go 1.26.10，原 Go 1.26.8 备份在 `/usr/local/go-1.26.8`。推送前必须先通过适用的本地 Go/Android 构建与测试。CI/真机验证仍是独立门禁，不允许用本地结果代替。此授权是主治理规范默认远程构建政策的任务范围例外，仅适用于 Batch 6 本地验证门禁；本轮 Astra 修复 MUST 使用 `/tmp/go1.26.10` 执行 Root module race tests/vet，并执行离线 Android core-domain/app unit tests 与 OSS debug assemble。MUST 记录结果及环境阻塞；本轮 MUST NOT 提交、推送、发布、改版本或修改 `SINGBOX_VERSION`。
 
 ## Decisions
 
@@ -54,15 +54,15 @@ RootModuleClient 必须在生成并应用新快照前检查引用；发现 issue
 
 ### 6. 批次 6：Root 网络智能挂起/恢复
 
-设置页最多接受 5 条网络匹配规则：本地接口 IP、CIDR 和 `gateway:` 网关地址；读取 `ConnectivityManager`/Root 物理网络信息，不请求 location/SSID 权限。Root 模块用有界状态机保存用户原始运行意图与 network fingerprint：规则命中时仅挂起核心/清理本次代理拥有的 iptables 与路由；网络离开匹配条件时一次性恢复；相同 fingerprint 下用户手动恢复会抑制重复挂起，换网后清除抑制；用户点“停止”则按手动停止语义不自动重启。
+设置页最多接受 5 条网络匹配规则：本地接口 IP、CIDR 和 `gateway:` 网关地址；由 Root 读取物理网络地址/网关，不请求 location/SSID 权限。Root 模块用有界状态机保存用户原始运行意图与不可逆 network fingerprint：规则命中时优雅停止仅由当前 supervisor 启动的核心，让核心释放自己的 TUN/auto-route；不得全局 flush iptables/nftables 或改动其他实例路由。网络离开匹配条件时一次性恢复；相同 fingerprint 下用户手动恢复会抑制重复挂起，换网后清除抑制；用户点“停止”则按手动停止语义不自动重启。
 
-状态/事件经受限 RootModulePort、RootModuleClient 和通知 action 往返。挂起状态通知保留“恢复”“停止”按钮。清理/恢复操作必须幂等、只删除本模块拥有的规则，不可残留阻断整机网络的 route/iptables 条目；失败时状态报告不能伪称已恢复。Root package 应有纯 Go matcher/state-machine 测试，Android/契约测试验证配置、通知和 command 行为。
+状态/事件经受限 RootModulePort、RootModuleClient 和通知 action 往返。挂起状态通知保留“恢复”“停止”按钮。Supervisor 必须等核心优雅退出确认后才报告已挂起；退出超时进入 cleanup-required/failed，不得声称清理成功。自动恢复只重启本模块原有 supervisor/core，不新增全局路由；Root package 应有纯 Go matcher/state-machine/process lifecycle 测试，Android/契约测试验证配置、通知和 command 行为。
 
 ### 7. 测试 seam 与批次门控
 
 - 纯逻辑：`RouteRulePriority`、group URL resolver、backup codecs、network-rule parser/matcher/state transitions。
 - 最高可行集成 seam：实际 `ConfigBuilder` JSON、RootModuleSnapshot、`ProfileManager` Room 数据、RootModulePort/wanboxctl command/state。
-- 每个 bugfix 先写可复现测试再修；不得本地执行 Android/Go 编译。每批同步对应主规范、自审、提交到 feature branch、执行 `verify-android.yml` 非发布 workflow_dispatch，并等该批 CI 完成后才开启下一批。
+- 每个 bugfix 先写可复现测试再修；推送前必须在本地通过适用 Go/Android 构建和测试，随后提交到 feature branch、执行 `verify-android.yml` 非发布 workflow_dispatch，并等该批 CI 完成后才开启下一批。
 - 真实设备用于观察 Root route/iptables、通知权限和网络切换行为；用户已指示不等回传，因此最终报告须标明未验证项。
 
 ## Risks / Trade-offs
@@ -73,13 +73,22 @@ RootModuleClient 必须在生成并应用新快照前检查引用；发现 issue
 - 分组 URL 的动态继承改变缺省行为，但显式组级地址保持不变。
 - QUIC 开关关闭只撤除自动 UDP/443 rule；明确自定义 reject 仍生效，UI/测试需区分两者。
 - 缺失出站告警不能暴露 endpoint credentials；modal 允许继续必须清楚列出未应用规则。
-- Root 自动挂起/恢复涉及 iptables、路由和核心生命周期，错误清理可能造成断网；必须通过 Go 状态机/command 测试及 CI 静态审查，并在报告中注明未真机验证。
-- `Verify Android Build` 通过 workflow_dispatch 在 feature branch 运行，不创建 Release/tag；它会构建并上传未发布的 release-variant workflow artifacts。不得调用独立 release workflow。
+- Root 自动挂起/恢复涉及核心生命周期和由核心拥有的自动路由；只允许优雅退出当前核心、不全局触碰 iptables/其他路由。若核心未按时退出，则停止自动重试并报告清理错误。Go 测试可验证本模块命令/状态及身份限定，真实 sing-box TUN/route teardown 仍须真机观察，报告中必须注明未真机验证。
+- `Verify Android Build` 通过 workflow_dispatch 在 feature branch 运行，不创建 Release/tag；它会构建并上传未发布的 release-variant workflow artifacts。中间批次不得调用 release workflow；最终若所有门槛通过，仅按用户授权的预览发布路径操作，不调用稳定版 release workflow。
 
 ## Migration Plan
 
 1. 先完成所有七项适用性评估与本 change，然后只实现批次 1。
 2. 对每批执行测试先行、实现、对应主规范、自审和语义提交；仅推送 `port/ownbox-26.11.8.4` 并运行非发布 `verify-android.yml` workflow_dispatch。
 3. 收到当前批 CI 绿灯前不得开始下一批；失败时仅修当前批。真机结果不作为推进条件。
-4. 若 workflow_dispatch 不可用而只能由 PR 触发，完成当前批后停下，报告需要用户决定是否开 PR。
-5. 六批结束前不创建 PR、不运行 release workflow、不修改正式版或任何 tag。
+4. 若 workflow_dispatch 不可用而只能由 PR 触发，不得在中间批次提前开 PR；报告该批 CI 门受阻，并按最终授权边界处理。
+5. 六批及最终复审全部通过前不创建 PR、不运行 release workflow、不发布版本。
+
+
+## Final preview release authorization
+
+六批实现、每批必要 CI 与最终双轴复审全部通过后，按用户最新授权完成新预览版所需的 PR、合并和发布；稳定版 `v3.0.11` 与 `SINGBOX_VERSION` 必须保持不变。若新预览版需要超出既有 preview.1–4 范围的版本号变更，须先报告冲突并取得用户明确授权。不得删除或改写无关 Release/tag。
+
+### Batch 6 Astra remediation boundaries
+
+Application startup MUST cancel only the legacy service notification (ID 1) and delete only the existing legacy channels; it MUST preserve smart notification ID 1041 and channel `smart_auto_stop`. A successful suspended Apply MUST preserve running intent without issuing an extra `start`. Broadcast delivery MUST acknowledge only successful sends, retry at most three consecutive failed attempts with a 10 ms context-cancelable delay, and reread the persisted latest phase before retrying. Exhaustion MUST return the delivery error and leave the latest payload pending for a future worker. Local authorization, commands, evidence and the Android sandbox blocker are recorded in `tasks.md`; these results MUST NOT complete Batch 6 or remote/CI gates.

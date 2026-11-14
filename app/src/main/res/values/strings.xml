@@ -1330,4 +1330,14 @@
     <string name="tools_section_network">Network checks</string>
     <string name="tools_section_support">Troubleshooting</string>
     <string name="tools_crash_log_summary">Export available crash records for troubleshooting. No logs are uploaded automatically.</string>
+    <string name="smart_auto_stop_title">Smart Auto-stop</string>
+    <string name="smart_auto_stop_rules">Smart Auto-stop rules</string>
+    <string name="smart_auto_stop_rules_hint">Up to five numeric IP addresses or CIDRs; optional gateway: prefix. Separate with commas, semicolons or newlines.</string>
+    <string name="smart_auto_stop_invalid">Enter numeric IPv4/IPv6 addresses or valid CIDRs only. Hostnames and Wi-Fi names are unsupported.</string>
+    <string name="smart_auto_stop_too_many">At most five rules are allowed.</string>
+    <string name="smart_auto_stop_permission">Notification settings for Smart Auto-stop. Enable app notifications and the Smart Auto-stop channel to use Resume and Stop controls. Tap to open settings.</string>
+    <string name="smart_auto_stop_suspended">Suspended · Smart Auto-stop</string>
+    <string name="smart_auto_stop_resume_hint">Proxy is suspended. Tap Resume to continue.</string>
+    <string name="smart_auto_stop_resume">Resume</string>
+    <string name="smart_auto_stop_permission_denied">Smart Auto-stop remains disabled. Enable app notifications and the Smart Auto-stop channel in notification settings.</string>
 </resources>

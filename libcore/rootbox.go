@@ -20,7 +20,7 @@ import (
 
 // RunRootBox is owned by the module supervisor, never by an Android App PID.
 // @author 雾晚
-func RunRootBox(configPath, assetsPath, pidPath, readyPath, stopPath string, supervisorPID int) error {
+func RunRootBox(configPath, assetsPath, pidPath, readyPath, stopPath string, supervisorPID int) (result error) {
 	if os.Geteuid() != 0 {
 		return fmt.Errorf("Root TUN requires UID 0")
 	}
@@ -121,7 +121,7 @@ func RunRootBox(configPath, assetsPath, pidPath, readyPath, stopPath string, sup
 		return err
 	}
 	// @author 雾晚: join the reader before closing stats/router resources.
-	defer func() { cancel(); <-watchdogDone; instance.Close() }()
+	defer func() { cancel(); <-watchdogDone; result = rootCloseResult(result, instance.Close) }()
 	stats := &BoxInstance{Box: instance}
 	proxyTags, directTags := rootTrafficTags(options.Outbounds, options.Endpoints)
 	stats.SetV2rayStats(strings.Join(append(append([]string{}, proxyTags...), directTags...), "\n"))

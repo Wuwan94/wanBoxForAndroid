@@ -45,6 +45,7 @@ class RootTunService : Service(), BaseService.Interface {
                     val changedError = snapshot?.error != status.error || recovered
                     val changedProfile = status.connected && (snapshot?.connected != true || snapshot?.profileId != status.profileId)
                     snapshot = status
+                    SmartAutoStopReceiver.reconcile(this@RootTunService, status.phase)
                     val mixedInboundAuthed = withContext(Dispatchers.IO) {
                         DataStore.currentProfile = if (status.connected) status.profileId else 0
                         status.connected && DataStore.mixedInboundNeedsAuth

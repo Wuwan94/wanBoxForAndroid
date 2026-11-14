@@ -154,6 +154,8 @@ func run(ctx context.Context, r *module.Runtime, args []string) error {
 			return r.Start(ctx)
 		case "stop":
 			return r.Stop(ctx)
+		case "resume":
+			return r.Resume(ctx)
 		case "restart", "reload":
 			return r.Restart(ctx)
 		}
@@ -174,6 +176,8 @@ func run(ctx context.Context, r *module.Runtime, args []string) error {
 	}
 	if len(args) == 2 && args[0] == "__internal" {
 		switch args[1] {
+		case "auto-stop-notify":
+			return r.DispatchAutoStopBroadcasts(ctx)
 		case "supervise":
 			return r.Supervise(ctx)
 		case "activate":
