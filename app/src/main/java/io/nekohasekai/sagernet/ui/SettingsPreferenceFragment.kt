@@ -108,13 +108,11 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
         }
         if (key == Key.SMART_AUTO_STOP_RULES || key == Key.SMART_AUTO_STOP_ENABLED) {
             updateAutoStopPermission()
-            viewLifecycleOwner.lifecycleScope.launch {
-                try { io.nekohasekai.sagernet.bg.RootModuleClient.startOrReload(startIfStopped = false) }
-                catch (e: kotlinx.coroutines.CancellationException) { throw e }
-                catch (e: Exception) {
+            SagerNet.reloadService { error ->
+                runOnMainDispatcher {
                     val activity = activity
                     if (activity != null && !activity.isFinishing && !activity.isDestroyed) {
-                        activity.alert(io.nekohasekai.sagernet.bg.RootModuleErrors.message(activity, e)).tryToShow()
+                        activity.alert(io.nekohasekai.sagernet.bg.SmartAutoStopApplyErrors.message(activity, error)).tryToShow()
                     }
                 }
             }

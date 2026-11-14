@@ -449,7 +449,7 @@ object RootModuleClient {
         }
     }
     fun safeError(error: Exception): String = error.message?.takeIf { it.matches(Regex("[a-z_]{1,80}")) } ?: "module_operation_failed"
-    suspend fun startOrReload(startIfStopped: Boolean = true): Unit = withContext(Dispatchers.IO) {
+    suspend fun startOrReload(startIfStopped: Boolean = true): Status = withContext(Dispatchers.IO) {
         RootModuleDataUpdate.applyInstallerSelection()
         if (!startIfStopped) changes.lock()
         else if (!changes.tryLock()) throw IOException("module_busy")
@@ -493,7 +493,7 @@ object RootModuleClient {
         }
     }
 
-    private suspend fun startOrReloadLocked(startIfStopped: Boolean, beforeStatus: Status? = null, confirmedWarning: OutboundReferenceWarning? = null) {
+    private suspend fun startOrReloadLocked(startIfStopped: Boolean, beforeStatus: Status? = null, confirmedWarning: OutboundReferenceWarning? = null): Status {
         val routeSnapshot = io.nekohasekai.sagernet.route.RootRouteBuildSnapshot.capture()
         val warning = prepareOutboundWarningLocked(startIfStopped, routeSnapshot)
         if (warning != null && (warning.issues != confirmedWarning?.issues ||
@@ -505,7 +505,7 @@ object RootModuleClient {
         if (RootModuleDataUpdate.pending()) throw IOException("data_update_pending")
         if (before.phase == "disabled") throw IOException("module_disabled_or_missing")
         val profile = routeSnapshot.allProfiles().firstOrNull { it.id == DataStore.selectedProxy }
-            ?: if (!startIfStopped && !before.state.canStop) return else throw IOException("profile_missing")
+            ?: if (!startIfStopped && !before.state.canStop) return before else throw IOException("profile_missing")
         // @author 雾晚: refresh cross-user UIDs (TTL-cached) so per-app rules
         // cover secondary users / cloned apps.
         runCatching { io.nekohasekai.sagernet.utils.PackageCache.refreshMultiUserUids() }
@@ -525,7 +525,7 @@ object RootModuleClient {
                 return applied
             } finally { file.delete(); instance.close() }
         }
-        try {
+        return try {
             applyBackend(RootInboundBackend.EBPF, before.revision)
         } catch (error: IOException) {
             // If this kernel/core cannot activate eBPF, retry the same validated profile

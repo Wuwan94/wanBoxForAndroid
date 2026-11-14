@@ -62,15 +62,12 @@ class ServiceCommandController(
     /** 真实后端 */
     class RealBackend : Backend {
         override suspend fun start(): RootModuleClient.Status {
-            RootModuleClient.startOrReload(startIfStopped = true)
-            val s = waitFor({ it.connected }, 10000)
-            // @author 雾晚：requestStart 自行校验 connected，不依赖 fake 抛异常
-            if (!s.connected) throw IllegalStateException("start_not_confirmed")
-            return s
+            val applied = RootModuleClient.startOrReload(startIfStopped = true)
+            return waitFor({ it.connected || it.phase == "suspended" }, 10000, applied.revision)
         }
         override suspend fun continueOutboundConfirmation(requestToken: String, startIfStopped: Boolean): RootModuleClient.Status {
-            RootModuleClient.continueOutboundWarning(requestToken, startIfStopped)
-            return if (startIfStopped) waitFor({ it.connected }, 10000) else queryStatus()
+            val applied = RootModuleClient.continueOutboundWarning(requestToken, startIfStopped)
+            return if (startIfStopped) waitFor({ it.connected || it.phase == "suspended" }, 10000, applied.revision) else queryStatus()
         }
         override fun cancelOutboundConfirmation(requestToken: String) = RootModuleClient.cancelOutboundWarning(requestToken)
 
@@ -155,8 +152,10 @@ class ServiceCommandController(
         internal suspend fun waitFor(
             predicate: (RootModuleClient.Status) -> Boolean,
             timeoutMs: Long,
+            targetRevision: String? = null,
             readStatus: suspend () -> RootModuleClient.Status = { RootModuleClient.call("status") },
         ): RootModuleClient.Status {
+            if (targetRevision != null && targetRevision.isBlank()) throw IllegalStateException("start_not_confirmed")
             val deadline = System.currentTimeMillis() + timeoutMs
             while (System.currentTimeMillis() < deadline) {
                 delay(500)
@@ -167,7 +166,7 @@ class ServiceCommandController(
                 } catch (_: Exception) {
                     null
                 } ?: continue
-                if (predicate(s)) return s
+                if ((targetRevision == null || s.runningRevision == targetRevision) && predicate(s)) return s
                 if (s.phase in setOf("failed", "cleanup_required", "disabled")) {
                     throw IllegalStateException(s.error.ifBlank {
                         if (s.phase == "disabled") "module_disabled_or_missing" else s.phase
@@ -299,7 +298,12 @@ class ServiceCommandController(
 
     /** UI 请求启动（不捕获 Fragment/views） */
     fun requestStart(): Boolean = trySubmit(CommandKind.START) {
-        backend.start().also { if (!it.connected) throw IllegalStateException(it.error.ifBlank { "start_not_confirmed" }) }
+        backend.start().also {
+            if (it.revision.isBlank() || it.runningRevision != it.revision ||
+                (!it.connected && it.phase != "suspended")) {
+                throw IllegalStateException(it.error.ifBlank { "start_not_confirmed" })
+            }
+        }
     }
 
     /** UI 请求停止 */

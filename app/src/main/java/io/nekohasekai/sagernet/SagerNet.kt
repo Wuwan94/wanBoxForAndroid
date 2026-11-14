@@ -350,6 +350,15 @@ class SagerNet : Application(),
         fun enableService() = moduleCommand { io.nekohasekai.sagernet.bg.RootModuleClient.enableService() }
         fun startService() = moduleCommand { io.nekohasekai.sagernet.bg.RootModuleClient.startOrReload() }
         fun reloadService() { configurationReload.request() }
+        fun reloadService(onError: (Exception) -> Unit) {
+            configurationReload.request(onError = { error ->
+                if (error is io.nekohasekai.sagernet.bg.RootModuleClient.OutboundReferenceWarningRequired) {
+                    reportModuleError(error)
+                } else {
+                    onError(error)
+                }
+            })
+        }
         // @author 雾晚: restart from newly generated App rules/settings, not the old module snapshot.
         fun restartService() { configurationReload.request() }
         fun stopService() = moduleCommand { io.nekohasekai.sagernet.bg.RootModuleClient.stop() }

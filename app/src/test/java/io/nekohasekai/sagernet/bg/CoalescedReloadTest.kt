@@ -7,6 +7,18 @@ import org.junit.Test
 
 /** Real coroutine queue, cancellation and error recovery; no Root process is mocked as connected. @author 雾晚 */
 class CoalescedReloadTest {
+    @Test fun immediateRequestPublishesItsHandlerBeforeResumingApply() = runBlocking {
+        val owner = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        val reports = mutableListOf<String>()
+        try {
+            val queue = CoalescedReload(owner, 10000,
+                apply = { throw java.io.IOException("failed") },
+                onError = { reports += "default" })
+            assertTrue(queue.request(immediate = true, onError = { reports += it.message!! }))
+            assertEquals(listOf("failed"), reports)
+        } finally { owner.cancel(); owner.coroutineContext[Job]!!.join() }
+    }
+
     @Test fun burstReadsLatestDataOnceAndStaysIdle() = runBlocking {
         val owner = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val applied = CompletableDeferred<Int>()
@@ -111,4 +123,28 @@ class CoalescedReloadTest {
         } finally { owner.cancel(); owner.coroutineContext[Job]!!.join() }
     }
 
+    @Test fun batchHandlerIsLatestAndDoesNotLeakAfterSuccessOrFailure() = runBlocking {
+        val owner = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val custom = CompletableDeferred<Exception>()
+        val default = kotlinx.coroutines.channels.Channel<Exception>(kotlinx.coroutines.channels.Channel.UNLIMITED)
+        val succeeded = CompletableDeferred<Unit>()
+        var applies = 0
+        val failure = java.io.IOException("original readable failure")
+        try {
+            val queue = CoalescedReload(owner, 80, apply = {
+                if (++applies == 1) succeeded.complete(Unit) else throw failure
+            }, onError = { default.trySend(it) })
+            queue.request(onError = { fail("Successful batch handler leaked") })
+            withTimeout(2000) { succeeded.await() }
+            queue.request()
+            assertSame(failure, withTimeout(2000) { default.receive() })
+            queue.request(onError = { fail("Superseded handler received failure") })
+            queue.request(onError = { custom.complete(it) })
+            queue.request()
+            assertSame(failure, withTimeout(2000) { custom.await() })
+            assertTrue(default.tryReceive().isFailure)
+            queue.request()
+            assertSame(failure, withTimeout(2000) { default.receive() })
+        } finally { owner.cancel(); owner.coroutineContext[Job]!!.join() }
+    }
 }

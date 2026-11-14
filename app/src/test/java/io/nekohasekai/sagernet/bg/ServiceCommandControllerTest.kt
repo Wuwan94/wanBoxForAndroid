@@ -150,7 +150,7 @@ class ServiceCommandControllerTest {
                 startIfStopped: Boolean,
             ): RootModuleClient.Status {
                 continuedRequests += requestToken to startIfStopped
-                return fakeStatus()
+                return fakeStatus(false, "suspended")
             }
         }
         val controller = ServiceCommandController(this, backend)
@@ -206,6 +206,7 @@ class ServiceCommandControllerTest {
             assertTrue(controller.state.value is ServiceCommandController.CommandState.Confirmed)
             val confirmed = controller.state.value as ServiceCommandController.CommandState.Confirmed
             assertEquals(continuedWarning, confirmed.warningResult)
+            assertEquals("suspended", confirmed.status.phase)
             assertFalse(controller.isBusy())
             assertFalse(controller.continueOutboundConfirmation("continued-request"))
             testScheduler.advanceUntilIdle()
@@ -367,6 +368,73 @@ class ServiceCommandControllerTest {
                 assertEquals("core_start_failed", error.message)
             }
         }
+    }
+
+    @Test
+    fun `waiting ignores other revisions and accepts requested suspended revision`() = runTest {
+        val statuses = listOf(
+            fakeStatus(false, "suspended").copy(runningRevision = "old"),
+            fakeStatus().copy(runningRevision = "old"),
+            fakeStatus(false, "suspended"),
+        )
+        var reads = 0
+        val result = ServiceCommandController.RealBackend().waitFor(
+            { it.connected || it.phase == "suspended" }, 10_000L, targetRevision = "rev",
+        ) { statuses[reads++] }
+        assertEquals(3, reads)
+        assertEquals(statuses.last(), result)
+    }
+
+    @Test
+    fun `empty requested revision fails closed before reading status`() = runTest {
+        try {
+            ServiceCommandController.RealBackend().waitFor({ it.connected }, 10_000L, targetRevision = "") {
+                fail("Unknown apply revision must not confirm any running core")
+                fakeStatus()
+            }
+            fail("Expected unconfirmed start")
+        } catch (error: IllegalStateException) {
+            assertEquals("start_not_confirmed", error.message)
+        }
+    }
+
+    @Test
+    fun `stale and failed backend results do not confirm start`() = runTest {
+        for (status in listOf(
+            fakeStatus().copy(runningRevision = "old"),
+            fakeStatus(false, "suspended").copy(runningRevision = "old"),
+            fakeStatus(false, "suspended").copy(revision = "", runningRevision = ""),
+            fakeStatus(false, "failed"),
+        )) {
+            val backend = object : ServiceCommandController.Backend {
+                override suspend fun start() = status
+                override suspend fun stop() = fakeStatus(false, "stopped")
+                override suspend fun setMode(mode: String) = fakeStatus()
+                override suspend fun selectNode(id: Long) = fakeStatus(profileId = id)
+                override suspend fun queryStatus() = status
+            }
+            val controller = ServiceCommandController(this, backend)
+            assertTrue(controller.requestStart())
+            testScheduler.advanceUntilIdle()
+            assertTrue(controller.state.value is ServiceCommandController.CommandState.Error)
+        }
+    }
+
+    @Test
+    fun `same revision suspended backend confirms start`() = runTest {
+        val suspended = fakeStatus(false, "suspended")
+        val backend = object : ServiceCommandController.Backend {
+            override suspend fun start() = suspended
+            override suspend fun stop() = fakeStatus(false, "stopped")
+            override suspend fun setMode(mode: String) = fakeStatus()
+            override suspend fun selectNode(id: Long) = fakeStatus(profileId = id)
+            override suspend fun queryStatus() = suspended
+        }
+        val controller = ServiceCommandController(this, backend)
+        assertTrue(controller.requestStart())
+        testScheduler.advanceUntilIdle()
+        assertEquals(ServiceCommandController.CommandState.Confirmed(
+            ServiceCommandController.CommandKind.START, 1L, suspended), controller.state.value)
     }
 
     @Test
