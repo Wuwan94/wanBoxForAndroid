@@ -1,9 +1,148 @@
 # @author 雾晚
 -keep class io.nekohasekai.sagernet.bg.InstallerDataCommit** { *; }
 # @author 雾晚: test coroutine classes call this instance accessor across APK boundaries.
--keep,allowobfuscation class io.nekohasekai.sagernet.SagerNet$Companion {
+-keep class io.nekohasekai.sagernet.SagerNet$Companion {
     public io.nekohasekai.sagernet.SagerNet getApplication();
 }
+# @author 雾晚: run 43574984965 observed five cross-APK linkage failures:
+# SagerNet getter, warning Companion field, RootModuleClient commandProcess accessor,
+# Issue constructor, and RootRouteBuildSnapshot capture.
+# Remaining keeps are direct Batch 5 test call safeguards found by source review.
+-keep class io.nekohasekai.sagernet.SagerNet {
+    public static final io.nekohasekai.sagernet.SagerNet$Companion Companion;
+}
+-keep class io.nekohasekai.sagernet.SagerNet$Companion {
+    public io.nekohasekai.sagernet.bg.ServiceCommandController getCommandController();
+}
+-keep class io.nekohasekai.sagernet.bg.RootModuleClient {
+    public static final io.nekohasekai.sagernet.bg.RootModuleClient INSTANCE;
+    public kotlin.jvm.functions.Function1 getCommandProcess$app_ossRelease();
+    public void setCommandProcess$app_ossRelease(kotlin.jvm.functions.Function1);
+    public void invalidateStatusCache();
+    public java.lang.Object prepareOutboundWarning(boolean, kotlin.coroutines.Continuation);
+    public java.lang.Object continueOutboundWarning(java.lang.String, boolean, kotlin.coroutines.Continuation);
+    public void cancelOutboundWarning(java.lang.String);
+}
+# OutboundReferenceAlarmTest:160-194 catches this exception and reads its warning.
+-keep class io.nekohasekai.sagernet.bg.RootModuleClient$OutboundReferenceWarningRequired {
+    public io.nekohasekai.sagernet.bg.OutboundReferenceWarning getWarning();
+}
+# OutboundReferenceAlarmTest:112,566 calls the factory and reads the dialog token.
+-keep class io.nekohasekai.sagernet.ui.OutboundReferenceWarningDialog {
+    public static final io.nekohasekai.sagernet.ui.OutboundReferenceWarningDialog$Companion Companion;
+    public java.lang.String getRequestToken();
+}
+-keep class io.nekohasekai.sagernet.ui.OutboundReferenceWarningDialog$Companion {
+    public io.nekohasekai.sagernet.ui.OutboundReferenceWarningDialog newResult(io.nekohasekai.sagernet.bg.OutboundReferenceWarning);
+}
+# OutboundReferenceAlarmTest:488 selects the string-code overload.
+-keep class io.nekohasekai.sagernet.bg.RootModuleErrors {
+    public static final io.nekohasekai.sagernet.bg.RootModuleErrors INSTANCE;
+    public java.lang.String message(android.content.Context, java.lang.String);
+}
+# OutboundReferenceAlarmTest:727-775 exercises route row recycling and publication.
+-keep class io.nekohasekai.sagernet.ui.MainActivity {
+    public boolean displayFragmentWithId(int);
+}
+-keep class io.nekohasekai.sagernet.ui.RouteFragment {
+    public androidx.recyclerview.widget.RecyclerView getRuleListView();
+    public io.nekohasekai.sagernet.ui.RouteFragment$RuleAdapter getRuleAdapter();
+}
+-keep class io.nekohasekai.sagernet.ui.RouteFragment$RuleAdapter {
+    public java.util.ArrayList getRuleList();
+    public java.lang.Object reload(kotlin.coroutines.Continuation);
+    public java.lang.Object onRemoved(long, kotlin.coroutines.Continuation);
+    public java.lang.Object onCleared(kotlin.coroutines.Continuation);
+    public androidx.recyclerview.widget.RecyclerView$ViewHolder onCreateViewHolder(android.view.ViewGroup, int);
+    public void onBindViewHolder(androidx.recyclerview.widget.RecyclerView$ViewHolder, int);
+    public int getItemViewType(int);
+}
+# Exact shared RecyclerView descriptor types and inherited APIs used at 730,738,756.
+-keep class androidx.recyclerview.widget.RecyclerView {
+    public androidx.recyclerview.widget.RecyclerView$Adapter getAdapter();
+}
+-keep class androidx.recyclerview.widget.RecyclerView$ViewHolder {
+    public final android.view.View itemView;
+}
+-keep class androidx.recyclerview.widget.RecyclerView$Adapter {
+    public void registerAdapterDataObserver(androidx.recyclerview.widget.RecyclerView$AdapterDataObserver);
+}
+-keep class androidx.recyclerview.widget.RecyclerView$AdapterDataObserver {
+    public <init>();
+    public void onChanged();
+}
+# DAO interfaces are separate from the already-kept entity classes / Room implementations.
+# AlarmTest:41-42,90,168; SnapshotTest:31-32,81,85,91,205-206.
+-keep interface io.nekohasekai.sagernet.database.RuleEntity$Dao {
+    public java.util.List allRules();
+    public void reset();
+    public void insert(java.util.List);
+    public void updateRule(io.nekohasekai.sagernet.database.RuleEntity);
+}
+-keep interface io.nekohasekai.sagernet.database.ProxyEntity$Dao {
+    public io.nekohasekai.sagernet.database.ProxyEntity getById(long);
+    public int updateProxy(io.nekohasekai.sagernet.database.ProxyEntity);
+}
+-keep interface io.nekohasekai.sagernet.database.preference.KeyValuePair$Dao {
+    public java.util.List all();
+}
+-keep class io.nekohasekai.sagernet.bg.OutboundReferenceWarning {
+    public static final io.nekohasekai.sagernet.bg.OutboundReferenceWarning$Companion Companion;
+    public <init>(java.lang.String, boolean, java.util.List);
+    public java.lang.String getRequestToken();
+    public boolean getStartIfStopped();
+    public java.util.List getIssues();
+}
+-keep class io.nekohasekai.sagernet.bg.OutboundReferenceWarning$Companion {
+    public io.nekohasekai.sagernet.bg.OutboundReferenceWarning$PendingReview queuePendingReview(android.content.Context, boolean);
+    public io.nekohasekai.sagernet.bg.OutboundReferenceWarning$PendingReview peekPendingReview(android.content.Context);
+    public boolean clearPendingReview(android.content.Context, java.lang.String);
+}
+-keep class io.nekohasekai.sagernet.bg.OutboundReferenceWarning$PendingReview {
+    public <init>(java.lang.String, boolean);
+    public java.lang.String getRequestId();
+    public boolean getStartIfStopped();
+    public boolean equals(java.lang.Object);
+}
+-keep class io.nekohasekai.sagernet.route.OutboundReferenceValidator$Issue {
+    public <init>(long, java.lang.String, io.nekohasekai.sagernet.route.OutboundReferenceValidator$ReferenceKind, long);
+    public long getMissingId();
+    public boolean equals(java.lang.Object);
+}
+-keep class io.nekohasekai.sagernet.route.OutboundReferenceValidator$ReferenceKind {
+    public static final io.nekohasekai.sagernet.route.OutboundReferenceValidator$ReferenceKind NODE_OR_STRATEGY_GROUP;
+}
+-keep class io.nekohasekai.sagernet.route.RootRouteBuildSnapshot {
+    public static final io.nekohasekai.sagernet.route.RootRouteBuildSnapshot$Companion Companion;
+    public java.util.List issues();
+}
+-keep class io.nekohasekai.sagernet.route.RootRouteBuildSnapshot$Companion {
+    public java.lang.Object capture(kotlin.coroutines.Continuation);
+}
+# Descriptor types: independently shrunk app/test APKs require stable shared descriptor names.
+# Keep these exact types, not their packages or all members.
+# OutboundReferenceAlarmTest directly calls this controller/state ABI across APKs.
+-keep class io.nekohasekai.sagernet.bg.ServiceCommandController {
+    public kotlinx.coroutines.flow.StateFlow getState();
+    public boolean requestOutboundConfirmation(io.nekohasekai.sagernet.bg.OutboundReferenceWarning, java.lang.String);
+    public static boolean requestOutboundConfirmation$default(io.nekohasekai.sagernet.bg.ServiceCommandController, io.nekohasekai.sagernet.bg.OutboundReferenceWarning, java.lang.String, int, java.lang.Object);
+    public boolean cancelOutboundConfirmation(java.lang.String);
+    public void acknowledge();
+    public boolean isBusy();
+}
+-keep interface kotlinx.coroutines.flow.StateFlow {
+    public java.lang.Object getValue();
+}
+-keep class io.nekohasekai.sagernet.bg.ServiceCommandController$CommandState
+-keep class io.nekohasekai.sagernet.bg.ServiceCommandController$CommandState$Idle {
+    public static final io.nekohasekai.sagernet.bg.ServiceCommandController$CommandState$Idle INSTANCE;
+}
+-keep class io.nekohasekai.sagernet.bg.ServiceCommandController$CommandState$ConfirmationRequired {
+    public io.nekohasekai.sagernet.bg.OutboundReferenceWarning getWarning();
+    public java.lang.String getPendingReviewId();
+}
+-keep interface kotlin.jvm.functions.Function1
+-keep interface kotlin.coroutines.Continuation
 # Only -PwanboxReleaseTests uses this file. R8 and resource shrinking remain enabled.
 # AGP removes shared dependencies from the test APK. Preserve their external public APIs
 # and the precise app facades invoked by androidTest; do not keep the whole business package.
