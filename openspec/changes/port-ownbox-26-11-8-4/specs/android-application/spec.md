@@ -108,7 +108,7 @@ Android 配置生成器 MUST 在启用流量嗅探时，把 `sniff` action 放�
 
 ### Requirement: Core settings provide an independent QUIC UDP 443 switch
 
-核心设置 MUST 提供独立的“拦截 QUIC (UDP 443)”开关，默认 MUST 开启。开启时，配置生成器 MUST 产生匹配 `network=udp`、`port=443` 的 reject 规则；关闭时 MUST NOT 产生此自动 reject 规则，使 UDP 443/HTTP/3/QUIC 可以继续按其他有效路由规则处理。该开关 MUST NOT 拦截 TCP 443 或 UDP 非 443 流量。设置文案 MUST 在默认语言与简体中文资源中可见。
+核心设置 MUST 提供独立的“拦截 QUIC (UDP 443)”开关，默认 MUST 开启。开启时，Root 配置 MUST 在普通用户路由规则之前产生只匹配 `network=udp`、`port=443` 的 `action=reject` 规则；该自动规则 MUST NOT 匹配 TCP 443 或 UDP 非 443。关闭时 MUST NOT 产生该自动规则，使 UDP 443/HTTP/3/QUIC 可以继续按其他有效路由规则处理，且 MUST 保留用户显式保存的规则。设置文案 MUST 在默认语言与简体中文资源中可见。
 
 #### Scenario: 默认拦截 UDP 443
 
@@ -123,6 +123,13 @@ Android 配置生成器 MUST 在启用流量嗅探时，把 `sniff` action 放�
 - **WHEN** Android 重新生成并下发 Root 配置
 - **THEN** 自动 UDP/443 reject 不存在
 - **AND** HTTP/3/QUIC 流量可按剩余路由规则通过
+
+#### Scenario: 关闭开关不删除用户自定义拒绝规则
+
+- **GIVEN** 用户关闭自动 QUIC 拦截，同时保存了一个仅匹配指定域名 UDP/443 的自定义 reject 规则
+- **WHEN** Android 重新生成并下发 Root 配置
+- **THEN** 全局自动 UDP/443 reject 不存在
+- **AND** 用户保存的域名范围 reject 规则仍存在且保持原有匹配条件
 
 ### Requirement: Missing route outbounds are visible before users start the core
 

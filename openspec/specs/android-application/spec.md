@@ -60,6 +60,31 @@ Android 配置生成器 MUST 在启用嗅探时将 `sniff` action 放在所有�
 - **THEN** DNS 流量由 `hijack-dns` 处理且不存在冗余的 53 端口代理兜底
 - **AND** 组播 reject 匹配目标 CIDR，且没有 `source_ip_cidr`
 
+### Requirement: Core settings provide an independent QUIC UDP 443 switch
+
+核心设置 MUST 提供独立的“拦截 QUIC (UDP 443)”开关，默认 MUST 开启。开启时，Root 配置 MUST 在普通用户路由规则之前产生只匹配 `network=udp`、`port=443` 的 `action=reject` 规则；该自动规则 MUST NOT 匹配 TCP 443 或 UDP 非 443。关闭时 MUST NOT 产生该自动规则，UDP 443/HTTP/3/QUIC MUST 继续按剩余有效路由规则处理，且 MUST 保留用户显式保存的规则。设置文案 MUST 在默认语言与简体中文资源中可见。
+
+#### Scenario: 默认拦截 UDP 443
+
+- **GIVEN** 用户首次安装或此前没有保存该设置
+- **WHEN** Android 生成并下发 Root sing-box 配置
+- **THEN** QUIC 开关默认开启且生成 UDP/443 reject
+- **AND** 自动规则位于普通用户规则之前，TCP/443 与 UDP/非443 不匹配该规则
+
+#### Scenario: 关闭后允许 HTTP/3 与 QUIC
+
+- **GIVEN** 用户关闭独立 QUIC 开关且没有显式自定义拒绝规则
+- **WHEN** Android 重新生成并下发 Root 配置
+- **THEN** 自动 UDP/443 reject 不存在
+- **AND** HTTP/3/QUIC 流量可按剩余路由规则通过
+
+#### Scenario: 关闭开关不删除用户自定义拒绝规则
+
+- **GIVEN** 用户关闭自动 QUIC 拦截，同时保存了一个仅匹配指定域名 UDP/443 的自定义 reject 规则
+- **WHEN** Android 重新生成 Root 配置
+- **THEN** 全局自动 UDP/443 reject 不存在
+- **AND** 用户保存的域名范围 reject 规则仍存在且保持原有匹配条件
+
 ### Requirement: 默认广告与 Play 规则不劫持系统下载
 
 默认广告规则和广告规则快捷/预设入口 MUST 使用本地 geosite 转换链支持的 `geosite-category-ads-all` 标签。新建的默认 Play Store 规则 MUST NOT 被应用强制启用，且 MUST NOT 注入 `com.android.providers.downloads` 或 `com.android.providers.downloads.ui`。迁移既有规则时，仅当规则 domains 含 `googleapis.cn` 且包名集合含任一上述旧注入包时，MUST 从该规则移除这两个包；MUST 保留规则原有 `enabled` 状态、其他包名及不符合该特征的规则。
