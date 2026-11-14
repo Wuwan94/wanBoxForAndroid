@@ -20,45 +20,10 @@ object BackupRestore {
         val array = content.getJSONArray(key)
         require(array.length() <= PortableBackup.RECORDS) { "备份记录数量超过限制" }
         return (0 until array.length()).map { index ->
-            val bytes = PortableBackup.strictBase64(array.getString(index))
-            require(bytes.size >= 4 && bytes.size % 4 == 0) { "备份记录长度无效" }
-            val parcel = Parcel.obtain()
             try {
-                parcel.unmarshall(bytes, 0, bytes.size)
-                parcel.setDataPosition(0)
-                create(parcel).also { require(parcel.dataAvail() == 0) { "备份记录包含无效数据" } }
-            } finally {
-                parcel.recycle()
-            }
-        }
-    }
-
-    private fun decodeRuleParcel(encoded: String): RuleEntity {
-        val bytes = PortableBackup.strictBase64(encoded)
-        require(bytes.size >= 4 && bytes.size % 4 == 0) { "备份记录长度无效" }
-        val parcel = Parcel.obtain()
-        return try {
-            parcel.unmarshall(bytes, 0, bytes.size)
-            parcel.setDataPosition(0)
-            ParcelizeBridge.createRule(parcel).also { require(parcel.dataAvail() == 0) { "备份记录包含无效数据" } }
-        } finally {
-            parcel.recycle()
-        }
-    }
-
-    internal fun decodeMixedRules(content: JSONObject): List<RuleEntity>? {
-        if (!content.has("rules")) return null
-        val array = content.getJSONArray("rules")
-        require(array.length() <= PortableBackup.RECORDS) { "备份记录数量超过限制" }
-        return (0 until array.length()).map { index ->
-            try {
-                when (val entry = array.get(index)) {
-                    is JSONObject -> PortableBackup.parseRuleObject(entry)
-                    is String -> decodeRuleParcel(entry)
-                    else -> throw IllegalArgumentException("规则记录格式无效")
-                }
+                PortableBackup.decodeLegacyParcel(array.getString(index), create)
             } catch (error: Exception) {
-                throw IllegalArgumentException("备份 rules 第 ${index + 1} 条记录无效，请重新导出或使用原版本迁移", error)
+                throw IllegalArgumentException("备份 $key 第 ${index + 1} 条记录无效，请重新导出或使用原版本迁移", error)
             }
         }
     }
@@ -75,7 +40,7 @@ object BackupRestore {
         val groups = decode(content, "groups") { parcel ->
             io.nekohasekai.sagernet.fmt.KryoConverters.deserializeStrict(ProxyGroup(), parcel.createByteArray())
         }
-        val rules = decodeMixedRules(content)
+        val rules = PortableBackup.decodeMixedRules(content)
         val decodedSettings = decode(content, "settings", KeyValuePair.CREATOR::createFromParcel)
         val settings = decodedSettings?.let { PortableBackup.withCoreSettingDefaults(it) }
         return Plan(profiles, groups, rules, settings).also(::validate)

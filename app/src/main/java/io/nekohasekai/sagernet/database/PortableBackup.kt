@@ -1,6 +1,7 @@
 // @author 雾晚
 package io.nekohasekai.sagernet.database
 
+import android.os.Parcel
 import com.google.gson.GsonBuilder
 import com.google.gson.stream.JsonReader
 import com.google.gson.stream.JsonToken
@@ -101,6 +102,34 @@ object PortableBackup {
         require(listOf(name, config, domains, ip, port, sourcePort, network, source, protocol, ruleset).all { it != null })
         require(packages != null && packages.all { it != null })
     }
+    internal fun <T> decodeLegacyParcel(encoded: String, create: (Parcel) -> T): T {
+        val bytes = strictBase64(encoded)
+        require(bytes.size >= 4 && bytes.size % 4 == 0) { "备份记录长度无效" }
+        val parcel = Parcel.obtain()
+        return try {
+            parcel.unmarshall(bytes, 0, bytes.size)
+            parcel.setDataPosition(0)
+            create(parcel).also { require(parcel.dataAvail() == 0) { "备份记录包含无效数据" } }
+        } finally {
+            parcel.recycle()
+        }
+    }
+    internal fun decodeMixedRules(content: JSONObject): List<RuleEntity>? {
+        if (!content.has("rules")) return null
+        val array = content.getJSONArray("rules")
+        require(array.length() <= RECORDS) { "备份记录数量超过限制" }
+        return (0 until array.length()).map { index ->
+            try {
+                when (val entry = array.get(index)) {
+                    is JSONObject -> parseRuleObject(entry)
+                    is String -> decodeLegacyParcel(entry, ParcelizeBridge::createRule)
+                    else -> throw IllegalArgumentException("规则记录格式无效")
+                }
+            } catch (error: Exception) {
+                throw IllegalArgumentException("备份 rules 第 ${index + 1} 条记录无效，请重新导出或使用原版本迁移", error)
+            }
+        }
+    }
     fun encode(plan: BackupRestore.Plan): ByteArray {
         BackupRestore.validate(plan)
         val root = JSONObject().put("format", FORMAT).put("schemaVersion", VERSION)
@@ -146,7 +175,7 @@ object PortableBackup {
             if (obj.has("subscription") && !obj.isNull("subscription")) fields(obj.getJSONObject("subscription"), names(SubscriptionBean::class.java))
             subscription?.initializeDefaultValues()
         } }
-        val rules = BackupRestore.decodeMixedRules(root)
+        val rules = decodeMixedRules(root)
         val parsedSettings = section("settings") { obj ->
             fields(obj, setOf("key", "valueType", "valueBase64"))
             KeyValuePair(obj.getString("key")).apply {
