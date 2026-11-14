@@ -346,10 +346,20 @@ enum class RootInboundBackend { EBPF, TUN }
 
 fun buildConfig(
     proxy: ProxyEntity, forTest: Boolean = false, forExport: Boolean = false,
-    rootInboundBackend: RootInboundBackend = RootInboundBackend.TUN
+    rootInboundBackend: RootInboundBackend = RootInboundBackend.TUN,
+    rootRouteSnapshot: io.nekohasekai.sagernet.route.RootRouteBuildSnapshot? = null,
 ): ConfigBuildResult {
     // @author 雾晚: persist preview.3's choice as an ordinary routing rule before reading rules.
-    if (!forTest && !forExport) InputMethodRouteMigration.migrate()
+    if (!forTest && !forExport && rootRouteSnapshot == null) InputMethodRouteMigration.migrate()
+
+    val frozenProfiles = rootRouteSnapshot?.allProfiles()
+    fun profilesByIds(ids: List<Long>): List<ProxyEntity> =
+        frozenProfiles?.filter { it.id in ids } ?: SagerDatabase.proxyDao.getEntities(ids)
+    fun profileById(id: Long): ProxyEntity? =
+        if (frozenProfiles != null) frozenProfiles.firstOrNull { it.id == id } else SagerDatabase.proxyDao.getById(id)
+    fun profilesByGroup(id: Long): List<ProxyEntity> =
+        frozenProfiles?.filter { it.groupId == id }?.sortedBy { it.userOrder } ?: SagerDatabase.proxyDao.getByGroup(id)
+    fun allProfiles(): List<ProxyEntity> = frozenProfiles ?: SagerDatabase.proxyDao.getAll()
 
     if (proxy.type == TYPE_CONFIG) {
         val bean = proxy.requireBean() as ConfigBean
@@ -378,7 +388,7 @@ fun buildConfig(
     fun ProxyEntity.resolveChainInternal(): MutableList<ProxyEntity> {
         val bean = requireBean()
         if (bean is ChainBean) {
-            val beans = SagerDatabase.proxyDao.getEntities(bean.proxies)
+            val beans = profilesByIds(bean.proxies)
             val beansMap = beans.associateBy { it.id }
             val beanList = ArrayList<ProxyEntity>()
             for (proxyId in bean.proxies) {
@@ -402,8 +412,8 @@ fun buildConfig(
 
     fun ProxyEntity.resolveChain(useGroupFront: Boolean = true, useGroupLanding: Boolean = true): MutableList<ProxyEntity> {
         val thisGroup = SagerDatabase.groupDao.getById(groupId)
-        val frontProxy = if (useGroupFront) thisGroup?.frontProxy?.let { SagerDatabase.proxyDao.getById(it) } else null
-        val landingProxy = if (useGroupLanding) thisGroup?.landingProxy?.let { SagerDatabase.proxyDao.getById(it) } else null
+        val frontProxy = if (useGroupFront) thisGroup?.frontProxy?.let { profileById(it) } else null
+        val landingProxy = if (useGroupLanding) thisGroup?.landingProxy?.let { profileById(it) } else null
         val list = resolveChainInternal()
         if (frontProxy != null) {
             list.add(frontProxy)
@@ -414,9 +424,9 @@ fun buildConfig(
         return list
     }
 
-    val extraRules = if (forTest) listOf() else RouteRulePriority.order(SagerDatabase.rulesDao.enabledRules())
+    val extraRules = if (forTest) listOf() else RouteRulePriority.order(rootRouteSnapshot?.enabledRules() ?: SagerDatabase.rulesDao.enabledRules())
     val extraProxies =
-        if (forTest) mapOf() else SagerDatabase.proxyDao.getEntities(extraRules.mapNotNull { rule ->
+        if (forTest) mapOf() else profilesByIds(extraRules.mapNotNull { rule ->
             rule.outbound.takeIf { it > 0 && it != proxy.id }
         }.toHashSet().toList()).associateBy { it.id }
     // @author 雾晚: hot-switch: module configs always carry a top-level selector
@@ -895,10 +905,10 @@ fun buildConfig(
             if (entity.type == ProxyEntity.TYPE_BALANCER) {
                 val balancerBean = entity.balancerBean ?: (entity.requireBean() as? BalancerBean) ?: BalancerBean()
                 val balancerFrontEntity = if (balancerBean.frontProxy > 0L && balancerBean.frontProxy != entity.id) {
-                    SagerDatabase.proxyDao.getById(balancerBean.frontProxy)
+                    profileById(balancerBean.frontProxy)
                 } else null
                 val balancerLandingEntity = if (balancerBean.landingProxy > 0L && balancerBean.landingProxy != entity.id) {
-                    SagerDatabase.proxyDao.getById(balancerBean.landingProxy)
+                    profileById(balancerBean.landingProxy)
                 } else null
 
                 val balancerFrontTag = balancerFrontEntity?.let { front ->
@@ -912,7 +922,7 @@ fun buildConfig(
                         else -> emptyList()
                     }
                     var list = targetGids.flatMap { gid ->
-                        SagerDatabase.proxyDao.getByGroup(gid)
+                        profilesByGroup(gid)
                     }.distinctBy { it.id }
 
                     if (!balancerBean.nameInclude.isNullOrBlank()) {
@@ -929,7 +939,7 @@ fun buildConfig(
                     }
                     list
                 } else {
-                    val rawEntities = SagerDatabase.proxyDao.getEntities(balancerBean.proxies).associateBy { it.id }
+                    val rawEntities = profilesByIds(balancerBean.proxies).associateBy { it.id }
                     balancerBean.proxies.mapNotNull { rawEntities[it] }
                 }).filter {
                     it.id != entity.id &&
@@ -1323,9 +1333,9 @@ fun buildConfig(
         // build outbounds
         if (buildSelector || useAutoSelect || useLoadBalance) {
             val list = if (group != null && group.id != 0L) {
-                SagerDatabase.proxyDao.getByGroup(group.id)
+                profilesByGroup(group.id)
             } else {
-                val all = SagerDatabase.proxyDao.getAll()
+                val all = allProfiles()
                 if (all.size > 1) all else listOf(proxy)
             }.filter { entity ->
                 !DataStore.isGroupDisabled(entity.groupId)

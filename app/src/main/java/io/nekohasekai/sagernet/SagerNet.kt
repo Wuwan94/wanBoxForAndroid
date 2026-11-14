@@ -244,9 +244,23 @@ class SagerNet : Application(),
         // @author 雾晚: short management operations; no Android service owns the core.
         private fun reportModuleError(error: Exception) {
             if (error is io.nekohasekai.sagernet.bg.RootModuleClient.OutboundReferenceWarningRequired) {
-                if (commandController.requestOutboundConfirmation(error.warning)) return
+                // Never acquire a process-local confirmation lock in :bg. The UI
+                // owns confirmation and re-reads the current sanitized issue snapshot.
+                val pending = io.nekohasekai.sagernet.bg.OutboundReferenceWarning.PendingReview(
+                    java.util.UUID.randomUUID().toString(), error.warning.startIfStopped)
+                try {
+                    io.nekohasekai.sagernet.bg.OutboundReferenceWarning.persistPendingReview(application, pending)
+                } catch (_: Exception) {
+                    // Keep the live UI notification usable even if private storage is unavailable.
+                }
+                try { application.sendBroadcast(Intent(io.nekohasekai.sagernet.bg.OutboundReferenceWarning.ACTION_REQUIRED)
+                    .setPackage(application.packageName)
+                    .putExtra(io.nekohasekai.sagernet.bg.OutboundReferenceWarning.EXTRA_REQUEST_ID, pending.requestId)
+                    .putExtra(io.nekohasekai.sagernet.bg.OutboundReferenceWarning.EXTRA_START_IF_STOPPED,
+                        pending.startIfStopped))
+                } catch (_: Exception) { /* The toast can still direct the user to the app. */ }
                 android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    android.widget.Toast.makeText(application, R.string.outbound_reference_busy,
+                    android.widget.Toast.makeText(application, R.string.outbound_reference_open_app,
                         android.widget.Toast.LENGTH_LONG).show()
                 }
                 return

@@ -8,6 +8,8 @@
     <string name="outbound_reference_review">Review rules</string>
     <string name="outbound_reference_continue">Continue Anyway</string>
     <string name="outbound_reference_busy">Route confirmation is required. Another command is busy; try again when it finishes.</string>
+    <string name="outbound_reference_open_app">Route confirmation is required. Open the app to review the rules.</string>
+    <string name="outbound_reference_result">The operation completed. These rules still reference missing outbounds and were not applied. Review the rules to fix them.</string>
     <string name="app_name" translatable="false">wanBox</string>
     <string name="app_name_long" translatable="false">wanBox</string>
     <string name="app_desc">The universal proxy toolchain for Android, written in Kotlin.</string>

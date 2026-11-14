@@ -30,6 +30,7 @@ import io.nekohasekai.sagernet.core.CoreRuntime
 abstract class BoxInstance(
     val profile: ProxyEntity,
     private val rootInboundBackend: RootInboundBackend = RootInboundBackend.TUN,
+    private val rootRouteSnapshot: io.nekohasekai.sagernet.route.RootRouteBuildSnapshot? = null,
 ) : AbstractInstance {
 
     private val diagnosticId = Integer.toHexString(System.identityHashCode(this))
@@ -50,7 +51,7 @@ abstract class BoxInstance(
     }
 
     protected open fun buildConfig() {
-        config = buildConfig(profile, rootInboundBackend = rootInboundBackend)
+        config = buildConfig(profile, rootInboundBackend = rootInboundBackend, rootRouteSnapshot = rootRouteSnapshot)
         DataStore.mixedInboundAuthed = DataStore.mixedInboundNeedsAuth
     }
 

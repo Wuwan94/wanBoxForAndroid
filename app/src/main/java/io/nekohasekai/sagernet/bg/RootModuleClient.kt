@@ -30,13 +30,11 @@ object RootModuleClient {
 
     private val pendingOutboundWarning = java.util.concurrent.atomic.AtomicReference<OutboundReferenceWarning?>()
 
-    private suspend fun outboundIssues() = io.nekohasekai.sagernet.route.OutboundReferenceValidator.validate(
-        io.nekohasekai.sagernet.database.ProfileManager.getRules().filter { it.enabled },
-        SagerDatabase.proxyDao.getAll().map { it.id }.toSet(),
-    )
-
-    private suspend fun prepareOutboundWarningLocked(startIfStopped: Boolean): OutboundReferenceWarning? {
-        val issues = outboundIssues()
+    private suspend fun prepareOutboundWarningLocked(
+        startIfStopped: Boolean,
+        snapshot: io.nekohasekai.sagernet.route.RootRouteBuildSnapshot,
+    ): OutboundReferenceWarning? {
+        val issues = snapshot.issues()
         if (issues.isEmpty()) {
             pendingOutboundWarning.set(null)
             return null
@@ -47,7 +45,9 @@ object RootModuleClient {
     }
 
     suspend fun prepareOutboundWarning(startIfStopped: Boolean): OutboundReferenceWarning? =
-        withContext(Dispatchers.IO) { changes.withLock { prepareOutboundWarningLocked(startIfStopped) } }
+        withContext(Dispatchers.IO) { changes.withLock {
+            prepareOutboundWarningLocked(startIfStopped, io.nekohasekai.sagernet.route.RootRouteBuildSnapshot.capture())
+        } }
 
     fun cancelOutboundWarning(requestToken: String) {
         val warning = pendingOutboundWarning.get()
@@ -55,12 +55,16 @@ object RootModuleClient {
     }
 
     suspend fun continueOutboundWarning(requestToken: String, startIfStopped: Boolean) = withContext(Dispatchers.IO) {
+        // Claim ownership once, without reading the database that installer restore may replace.
+        val confirmedWarning = pendingOutboundWarning.get()
+        if (confirmedWarning == null || confirmedWarning.requestToken != requestToken ||
+            confirmedWarning.startIfStopped != startIfStopped ||
+            !pendingOutboundWarning.compareAndSet(confirmedWarning, null))
+            throw IOException("outbound_confirmation_expired")
         RootModuleDataUpdate.applyInstallerSelection()
         changes.withLock {
-            val warning = pendingOutboundWarning.get()
-            if (warning?.requestToken != requestToken || warning.startIfStopped != startIfStopped)
-                throw IOException("outbound_confirmation_expired")
-            startOrReloadLocked(startIfStopped, confirmedToken = requestToken)
+            // Revalidate restored/current rules under the same lock as config application.
+            startOrReloadLocked(startIfStopped, confirmedWarning = confirmedWarning)
         }
     }
 
@@ -202,8 +206,12 @@ object RootModuleClient {
         }
     }
 
+    internal var commandProcess: (String) -> Process = { command ->
+        ProcessBuilder("su", "-c", "exec $CLI $command").start()
+    }
+
     private suspend fun doCall(command: String, input: File? = null): Status {
-        val process = try { ProcessBuilder("su", "-c", "exec $CLI $command").start() }
+        val process = try { commandProcess(command) }
             catch (_: IOException) { throw IOException("root_required") }
         try {
             return coroutineScope {
@@ -300,22 +308,24 @@ object RootModuleClient {
         }
     }
 
-    private suspend fun startOrReloadLocked(startIfStopped: Boolean, beforeStatus: Status? = null, confirmedToken: String? = null) {
-        val warning = prepareOutboundWarningLocked(startIfStopped)
-        if (warning != null && warning.requestToken != confirmedToken) throw OutboundReferenceWarningRequired(warning)
+    private suspend fun startOrReloadLocked(startIfStopped: Boolean, beforeStatus: Status? = null, confirmedWarning: OutboundReferenceWarning? = null) {
+        val routeSnapshot = io.nekohasekai.sagernet.route.RootRouteBuildSnapshot.capture()
+        val warning = prepareOutboundWarningLocked(startIfStopped, routeSnapshot)
+        if (warning != null && (warning.issues != confirmedWarning?.issues ||
+                warning.startIfStopped != confirmedWarning?.startIfStopped)) throw OutboundReferenceWarningRequired(warning)
         if (warning != null && !pendingOutboundWarning.compareAndSet(warning, null))
             throw IOException("outbound_confirmation_expired")
         val before = beforeStatus ?: callFreshStatus()
         // @author 雾晚: rule edits use module truth, never a stale UI/Binder state.
         if (RootModuleDataUpdate.pending()) throw IOException("data_update_pending")
         if (before.phase == "disabled") throw IOException("module_disabled_or_missing")
-        val profile = SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
+        val profile = routeSnapshot.allProfiles().firstOrNull { it.id == DataStore.selectedProxy }
             ?: if (!startIfStopped && !before.state.canStop) return else throw IOException("profile_missing")
         // @author 雾晚: refresh cross-user UIDs (TTL-cached) so per-app rules
         // cover secondary users / cloned apps.
         runCatching { io.nekohasekai.sagernet.utils.PackageCache.refreshMultiUserUids() }
         suspend fun applyBackend(backend: RootInboundBackend, expectedRevision: String): Status {
-            val instance = ProxyInstance(profile, rootInboundBackend = backend)
+            val instance = ProxyInstance(profile, rootInboundBackend = backend, rootRouteSnapshot = routeSnapshot)
             val file = File.createTempFile("module-snapshot-", ".json", SagerNet.application.cacheDir)
             try {
                 instance.init()

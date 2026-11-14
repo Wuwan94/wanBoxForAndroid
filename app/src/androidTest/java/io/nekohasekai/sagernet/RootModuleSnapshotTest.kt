@@ -14,6 +14,38 @@ import org.junit.Test
 
 /** Real App producer without root authorization or starting TUN. @author 雾晚 */
 class RootModuleSnapshotTest {
+    @Test fun validatedRootRoutesIgnoreLaterDatabaseMutations() = runBlocking {
+        val original = BackupRestore.parse(org.json.JSONObject(io.nekohasekai.sagernet.utils.BackupHelper.doBackup().toString(Charsets.UTF_8)))
+        fun node(id: Long, host: String) = ProxyEntity(id = id, groupId = 99010).putBean(SOCKSBean().apply {
+            initializeDefaultValues(); serverAddress = host; serverPort = 1080
+        })
+        val main = node(99011, "192.0.2.1")
+        val target = node(99012, "192.0.2.2")
+        val rule = RuleEntity(id = 99014, enabled = true, domains = "domain:frozen.invalid", outbound = target.id)
+        try {
+            BackupRestore.apply(BackupRestore.Plan(listOf(main, target), listOf(ProxyGroup(id = 99010, name = "fixture")), listOf(rule), null), true, true, false)
+            DataStore.serviceMode = Key.MODE_ROOT
+            DataStore.globalCustomConfig = ""; DataStore.globalMode = false; DataStore.enableClashAPI = false
+            val snapshot = io.nekohasekai.sagernet.route.RootRouteBuildSnapshot.capture()
+            assertTrue(snapshot.issues().isEmpty())
+            SagerDatabase.rulesDao.updateRule(rule.copy(domains = "domain:changed.invalid", outbound = 0))
+            SagerDatabase.proxyDao.updateProxy(target.apply { requireBean().serverAddress = "192.0.2.99" })
+            val instance = ProxyInstance(main, rootRouteSnapshot = snapshot)
+            try {
+                instance.init()
+                val config = RootModuleSnapshot(instance, "fixture-revision").build()["config"].asJsonObject
+                val route = config["route"].asJsonObject["rules"].asJsonArray.first {
+                    it.asJsonObject["domain_suffix"]?.toString()?.contains("frozen.invalid") == true
+                }.asJsonObject
+                val outbound = config["outbounds"].asJsonArray.first {
+                    it.asJsonObject["tag"]?.asString == route["outbound"].asString
+                }.asJsonObject
+                assertEquals("192.0.2.2", outbound["server"].asString)
+                assertFalse(config["route"].toString().contains("changed.invalid"))
+            } finally { instance.close() }
+        } finally { BackupRestore.apply(original, true, true, true) }
+    }
+
     @Test fun savedRuleTargetChangesReachActualPortableSnapshot() = runBlocking {
         val original = BackupRestore.parse(org.json.JSONObject(io.nekohasekai.sagernet.utils.BackupHelper.doBackup().toString(Charsets.UTF_8)))
         fun node(id: Long, host: String) = ProxyEntity(id = id, groupId = 99010).putBean(SOCKSBean().apply {

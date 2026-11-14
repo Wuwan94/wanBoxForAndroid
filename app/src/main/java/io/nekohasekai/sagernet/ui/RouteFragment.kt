@@ -287,11 +287,14 @@ class RouteFragment : ToolbarFragment(R.layout.layout_route), Toolbar.OnMenuItem
 
         val ruleList = ArrayList<RuleEntity>()
         private var outboundErrors = emptyMap<Long, io.nekohasekai.sagernet.route.OutboundReferenceValidator.Issue>()
+        private val reloadGeneration = java.util.concurrent.atomic.AtomicLong()
         suspend fun reload() {
+            val generation = reloadGeneration.incrementAndGet()
             val rules = ProfileManager.getRules()
             val errors = io.nekohasekai.sagernet.route.OutboundReferenceValidator.validate(
                 rules, SagerDatabase.proxyDao.getAll().map { it.id }.toSet()).associateBy { it.ruleId }
             ruleListView.post {
+                if (generation != reloadGeneration.get()) return@post
                 outboundErrors = errors
                 ruleList.clear()
                 ruleList.addAll(rules)
@@ -396,24 +399,15 @@ class RouteFragment : ToolbarFragment(R.layout.layout_route), Toolbar.OnMenuItem
         }
 
         override suspend fun onRemoved(ruleId: Long) {
-            val index = ruleList.indexOfFirst { it.id == ruleId }
-            if (index == -1) {
-                onMainDispatcher {
-                    autoReloadServiceIfStarted()
-                }
-            } else ruleListView.post {
-                ruleList.removeAt(index)
-                ruleAdapter.notifyItemRemoved(index + 1)
-                autoReloadServiceIfStarted()
-            }
+            reloadGeneration.incrementAndGet()
+            reload()
+            onMainDispatcher { autoReloadServiceIfStarted() }
         }
 
         override suspend fun onCleared() {
-            ruleListView.post {
-                ruleList.clear()
-                ruleAdapter.notifyDataSetChanged()
-                autoReloadServiceIfStarted()
-            }
+            reloadGeneration.incrementAndGet()
+            reload()
+            onMainDispatcher { autoReloadServiceIfStarted() }
         }
 
         inner class DocumentHolder(binding: LayoutEmptyRouteBinding) : RecyclerView.ViewHolder(binding.root) {

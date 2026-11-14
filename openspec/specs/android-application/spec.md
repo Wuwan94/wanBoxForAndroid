@@ -10,9 +10,15 @@
 
 Android MUST mark rules referencing missing positive node or strategy-group IDs red, including their name, outbound and error indicator. Built-in targets and existing IDs MUST remain valid, and recycled rows MUST reset their error appearance. Validation MUST refresh with the rules.
 
-Startup and reload preflight MUST validate enabled rules before creating or applying configuration. A modal MUST list safe rule names, rule IDs, missing reference types and IDs, explain that unresolved rules cannot be applied, and offer Cancel, Review rules and Continue Anyway. Back and outside cancellation MUST cancel the request; Review rules MUST cancel before navigating to rules.
+Explicit core start and reload requests MUST validate enabled rules before creating or applying configuration. A modal MUST list safe rule names, rule IDs, missing reference types and IDs, explain that unresolved rules cannot be applied, and offer Cancel, Review rules and Continue Anyway. Back and outside cancellation MUST cancel the request; Review rules MUST cancel before navigating to rules.
+
+Installer-data selection MUST first finish restoring the database; preflight MUST validate the final restored rules before generated core configuration is created or applied, rather than validating the database that the restore will replace.
 
 Continue MUST consume a one-use token bound to the exact issue snapshot and revalidate under the root mutation lock. Changed issues MUST require fresh confirmation while other commands remain blocked; fixed issues MAY proceed. Explicit cancellation, completion, failure and coroutine cancellation MUST release the command lock exactly once. Diagnostics MUST NOT retain configuration, authentication data, proxy addresses or raw core stderr.
+
+Warnings from `:bg` MUST first queue a pending-review marker in private shared app storage with interprocess synchronization, then signal an already-visible MainActivity through an explicit package-scoped broadcast received by a non-exported receiver. The reporting process MUST NOT create a confirmation or retain a confirmation lock. The persisted marker MUST contain only a random request ID and the `startIfStopped` boolean, with no rule names, rule/reference IDs, config, secrets, stderr or proxy data; multiple outstanding requests coalesce to the latest request. MainActivity MUST peek without clearing, then query current rules. It MUST compare-and-clear only the matching request ID when no warning is needed or after the warning DialogFragment is actually shown; stale acknowledgment MUST preserve newer requests. Busy controllers, discovery errors, saved FragmentManager state and failed confirmation acquisition MUST leave the marker queued, with retries on resume and return to Idle. If persistence fails, the reporting process MUST still attempt the broadcast and generic toast without logging user data; a live broadcast MAY supply the same minimal request value when the marker is unavailable. Ordinary Activity launch/resume without an outstanding background warning request MUST NOT run outbound preflight, show its modal or start a stopped core. A localized generic instruction MUST direct users to open the app; the event MUST NOT carry config, stderr, credentials or proxy data.
+
+Successful explicit Continue MUST retain the original unresolved issue snapshot in confirmed command state and show a result-mode DialogFragment explaining that those rules were not applied. It MUST offer acknowledgment and Review, never another Continue. Back/outside cancellation MUST acknowledge the result without cancelling the completed operation; Review MUST return to rule editing.
 
 #### Scenario: Missing references block startup until an explicit decision
 
@@ -21,6 +27,20 @@ Continue MUST consume a one-use token bound to the exact issue snapshot and reva
 - **THEN** configuration is not created or applied before the warning decision
 - **AND** changed references on Continue produce a fresh modal
 - **AND** Cancel releases the command controller without applying configuration
+
+#### Scenario: Opening the app alone does not request a core start
+
+- **GIVEN** enabled rules reference missing outbounds and no background warning request is outstanding
+- **WHEN** MainActivity opens or resumes
+- **THEN** no outbound preflight modal is shown and no core start is requested
+
+#### Scenario: A background warning survives the absence of an Activity
+
+- **GIVEN** `:bg` reports a warning when no Activity exists
+- **WHEN** MainActivity next resumes
+- **THEN** it peeks at the minimal pending marker and queries current rules for confirmation
+- **AND** it acknowledges only the matching request after dialog presentation or validation finds no warning
+- **AND** the original `startIfStopped` intent is preserved without persisting diagnostic data
 
 ### Requirement: Android 模块职责分层
 

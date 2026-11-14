@@ -37,8 +37,10 @@ class ServiceCommandController(
     sealed class CommandState {
         data object Idle : CommandState()
         data class Pending(val kind: CommandKind, val generation: Long) : CommandState()
-        data class ConfirmationRequired(val generation: Long, val warning: OutboundReferenceWarning) : CommandState()
-        data class Confirmed(val kind: CommandKind, val generation: Long, val status: RootModuleClient.Status) : CommandState()
+        data class ConfirmationRequired(val generation: Long, val warning: OutboundReferenceWarning,
+            val pendingReviewId: String? = null) : CommandState()
+        data class Confirmed(val kind: CommandKind, val generation: Long, val status: RootModuleClient.Status,
+            val warningResult: OutboundReferenceWarning? = null) : CommandState()
         data class Error(val kind: CommandKind, val generation: Long, val message: String) : CommandState()
         data object Cancelled : CommandState()
     }
@@ -234,11 +236,11 @@ class ServiceCommandController(
         return true
     }
 
-    fun requestOutboundConfirmation(warning: OutboundReferenceWarning): Boolean {
+    fun requestOutboundConfirmation(warning: OutboundReferenceWarning, pendingReviewId: String? = null): Boolean {
         if (warning.requestToken.isBlank() || warning.issues.isEmpty()) return false
         if (!mutex.tryLock()) return false
         generation++
-        _state.value = CommandState.ConfirmationRequired(generation, warning)
+        _state.value = CommandState.ConfirmationRequired(generation, warning, pendingReviewId)
         return true
     }
 
@@ -255,7 +257,7 @@ class ServiceCommandController(
             try {
                 val status = backend.continueOutboundConfirmation(requestToken, waiting.warning.startIfStopped)
                 if (generation == gen) {
-                    _state.compareAndSet(pending, CommandState.Confirmed(kind, gen, status))
+                    _state.compareAndSet(pending, CommandState.Confirmed(kind, gen, status, waiting.warning))
                 }
             } catch (e: RootModuleClient.OutboundReferenceWarningRequired) {
                 retainLock = true

@@ -22,7 +22,6 @@ import androidx.activity.addCallback
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 import androidx.annotation.IdRes
@@ -107,6 +106,13 @@ class MainActivity : ThemedActivity(),
     private val serviceModeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action == Action.SERVICE_MODE_CHANGED) connection.rebindIfServiceChanged(this@MainActivity)
+            if (intent.action == io.nekohasekai.sagernet.bg.OutboundReferenceWarning.ACTION_REQUIRED) {
+                intent.getStringExtra(io.nekohasekai.sagernet.bg.OutboundReferenceWarning.EXTRA_REQUEST_ID)?.let {
+                    livePendingReview = io.nekohasekai.sagernet.bg.OutboundReferenceWarning.PendingReview(it,
+                        intent.getBooleanExtra(io.nekohasekai.sagernet.bg.OutboundReferenceWarning.EXTRA_START_IF_STOPPED, true))
+                }
+                discoverOutboundWarning()
+            }
         }
     }
 
@@ -120,7 +126,10 @@ class MainActivity : ThemedActivity(),
         MessageStore.setCurrentActivity(this)
         lifecycleScope.launch {
             repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
-                SagerNet.commandController.state.collect { showOutboundWarning() }
+                SagerNet.commandController.state.collect {
+                    showOutboundWarning()
+                    if (it == io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.Idle) discoverOutboundWarning()
+                }
             }
         }
         val animateInitialControls = savedInstanceState == null
@@ -189,12 +198,9 @@ class MainActivity : ThemedActivity(),
         connection.connect(this, this)
         // @author 雾晚: fallback is written in :bg and does not fire this process's DataStore listener.
         val modeFilter = IntentFilter(Action.SERVICE_MODE_CHANGED)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(serviceModeReceiver, modeFilter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            @Suppress("DEPRECATION")
-            registerReceiver(serviceModeReceiver, modeFilter)
-        }
+        modeFilter.addAction(io.nekohasekai.sagernet.bg.OutboundReferenceWarning.ACTION_REQUIRED)
+        androidx.core.content.ContextCompat.registerReceiver(this, serviceModeReceiver, modeFilter,
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
         DataStore.configurationStore.registerChangeListener(this)
         GroupManager.userInterface = GroupInterfaceAdapter(this)
 
@@ -220,6 +226,8 @@ class MainActivity : ThemedActivity(),
         if (SagerNet.databaseFailure != null) return
         connection.rebindIfServiceChanged(this)
         MessageStore.setCurrentActivity(this)
+
+        discoverOutboundWarning()
 
         if (DataStore.hideFromRecentApps) {
             applyHideFromRecentApps(DataStore.hideFromRecentApps)
@@ -313,25 +321,79 @@ class MainActivity : ThemedActivity(),
         android.os.Handler(android.os.Looper.getMainLooper()).post { syncOutboundWarning() }
     }
 
+    private var livePendingReview: io.nekohasekai.sagernet.bg.OutboundReferenceWarning.PendingReview? = null
+    private var discoveringOutboundWarning = false
+    private var retryOutboundDiscovery = false
+
+    private fun discoverOutboundWarning() {
+        if (discoveringOutboundWarning) {
+            retryOutboundDiscovery = true
+            return
+        }
+        discoveringOutboundWarning = true
+        lifecycleScope.launch {
+            val controller = SagerNet.commandController
+            try {
+                if (controller.isBusy()) return@launch
+                val persisted = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    try { io.nekohasekai.sagernet.bg.OutboundReferenceWarning.peekPendingReview(SagerNet.application) }
+                    catch (_: Exception) { null }
+                }
+                val pending = persisted ?: livePendingReview ?: return@launch
+                // A durable latest-wins value supersedes an older broadcast fallback.
+                if (persisted != null) livePendingReview = null
+                val warning = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    io.nekohasekai.sagernet.bg.RootModuleClient.prepareOutboundWarning(pending.startIfStopped)
+                }
+                if (warning == null) {
+                    acknowledgeOutboundReview(pending.requestId)
+                } else {
+                    if (!controller.requestOutboundConfirmation(warning, pending.requestId)) {
+                        // Idle can be published just before the previous command releases its mutex.
+                        // Do not strand this request waiting for an Idle emission that already happened.
+                        if (controller.state.value == io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.Idle) {
+                            kotlinx.coroutines.delay(50)
+                            retryOutboundDiscovery = true
+                        }
+                    }
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                // Actual start/reload reports failures; discovery never applies configuration.
+            } finally {
+                discoveringOutboundWarning = false
+                if (retryOutboundDiscovery) {
+                    retryOutboundDiscovery = false
+                    discoverOutboundWarning()
+                }
+            }
+        }
+    }
+
+    internal fun acknowledgeOutboundReview(requestId: String) {
+        if (livePendingReview?.requestId == requestId) livePendingReview = null
+        SagerNet.application.applicationScope.launch {
+            try { io.nekohasekai.sagernet.bg.OutboundReferenceWarning.clearPendingReview(SagerNet.application, requestId) }
+            catch (_: Exception) { /* Retry on the next resume or Idle transition. */ }
+        }
+    }
+
     private fun syncOutboundWarning() {
         val manager = supportFragmentManager
         if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) ||
             manager.isStateSaved || manager.isDestroyed) return
-        val warning = (SagerNet.commandController.state.value as?
+        val state = SagerNet.commandController.state.value
+        val result = (state as? io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.Confirmed)?.warningResult
+        val warning = result ?: (state as?
             io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.ConfirmationRequired)?.warning
         val existing = manager.findFragmentByTag("outbound_reference_warning") as? OutboundReferenceWarningDialog
-        if (existing?.requestToken == warning?.requestToken && existing != null) return
+        if (existing?.requestToken == warning?.requestToken && existing != null && existing.isResult == (result != null)) return
         existing?.dismissNow()
-        if (warning != null) OutboundReferenceWarningDialog().apply {
-            arguments = Bundle().apply {
-                putString("token", warning.requestToken)
-                putString("message", this@MainActivity.getString(R.string.outbound_reference_message) + "\n\n" +
-                    warning.issues.joinToString("\n") {
-                        this@MainActivity.getString(R.string.outbound_reference_item, it.ruleName, it.ruleId,
-                            this@MainActivity.getString(R.string.outbound_reference_type), it.missingId)
-                    })
-            }
-        }.showNow(manager, "outbound_reference_warning")
+        if (warning != null) (if (result != null) OutboundReferenceWarningDialog.newResult(warning)
+            else OutboundReferenceWarningDialog.newWarning(warning, pendingReviewId = (state as?
+                io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.ConfirmationRequired)?.pendingReviewId))
+            .showNow(manager, "outbound_reference_warning")
     }
 
     fun applyHideFromRecentApps(hide: Boolean) {
