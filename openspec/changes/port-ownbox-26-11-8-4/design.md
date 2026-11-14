@@ -38,7 +38,7 @@ wanBox 的 RootModuleClient 将 Android ConfigBuilder 生成的 sing-box 配置�
 
 ### 3. 批次 3：用户备份兼容
 
-新导出沿用 `PortableBackup v2` 的 `profiles` 与可读 route JSON；当且仅当用户选中 settings 区段时，编码器才物化 DataStore 中影响 Root 网络行为的稳定默认：核心路由/DNS、应用/Wi-Fi/移动网/Root UID 路由策略、规则资源 provider/URLs、LAN/TLS 网络选项和共享连接测试 URL。这样旧备份即使只保存部分 settings，恢复后也保持可重复的有效 Root 网络配置；已有显式值优先。`INPUT_METHOD_DIRECT` 是一次性迁移标记，除非备份中显式存在，否则不补默认值。导入器对 v2 与 legacy v1 envelope 都接受 JSON `RuleEntity` 和 Base64 Parcel rule 的混合数组，并继续读取 v1 `proxies`、旧 Parcel 规则和旧 wanBox 用户备份。未选择 settings 时解析结果仍为未选择。所有这些路径属于用户备份，不把 RootModuleSnapshot/data archive 混入。
+新导出沿用 `PortableBackup v2` 的 `profiles` 与可读 route JSON；当且仅当用户选中 settings 区段时，编码器才物化 DataStore 中影响 Root 网络行为的稳定默认：核心路由/DNS、应用/Wi-Fi/移动网/Root UID 路由策略、规则资源 provider/URLs、LAN 访问、全局 TLS 证书校验策略和共享连接测试 URL。TLS 分片的 enable/length/interval 参数不是本批合成的核心默认；若用户显式保存则仍随 settings 导出，缺省时由当前 DataStore 默认值生效。这样旧备份即使只保存部分 settings，恢复后也保持可重复的有效 Root 网络配置；已有显式值优先。`INPUT_METHOD_DIRECT` 是一次性迁移标记，除非备份中显式存在，否则不补默认值。导入器对 v2 与 legacy v1 envelope 都接受 JSON `RuleEntity` 和 Base64 Parcel rule 的混合数组，并继续读取 v1 `proxies`、旧 Parcel 规则和旧 wanBox 用户备份。未选择 settings 时解析结果仍为未选择。所有这些路径属于用户备份，不把 RootModuleSnapshot/data archive 混入。
 
 ### 4. 批次 4：独立 QUIC 开关
 

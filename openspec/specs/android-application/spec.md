@@ -231,7 +231,7 @@ Android 应用 MUST 能导入 Throne 桌面 `.thrbackup`：解析 `THRN` QDataSt
 
 ### Requirement: 用户备份在新旧版本间保持可读与兼容
 
-Android 应用 MUST 以 `profiles` 作为新版用户备份字段，MUST 将 route rules 导出为可读 JSON，并在用户选择 `settings` 区段时物化 DataStore 的稳定 Root 网络配置默认值：核心路由/DNS、应用/Wi-Fi/移动网/Root UID 路由策略、规则资源 provider/URLs、LAN/TLS 网络选项及共享连接测试 URL。显式保存的设置 MUST 优先保留；`INPUT_METHOD_DIRECT` 这类一次性迁移标记 MUST NOT 被当作普通缺省值写入。导入器 MUST 兼容旧 `proxies` 字段、旧 Base64 Parcel 规则、同一数组内混合 JSON 与 Base64 Parcel rule entries，以及旧 wanBox 用户备份。若 `settings` 区段未被选择，导入计划 MUST 保持未选择且 MUST NOT 创建该区段的默认值。内部 RootModuleSnapshot/data archive MUST NOT 被当作用户 JSON 备份处理。
+Android 应用 MUST 以 `profiles` 作为新版用户备份字段，MUST 将 route rules 导出为可读 JSON，并在用户选择 `settings` 区段时物化 DataStore 的稳定 Root 网络配置默认值：核心路由/DNS、应用/Wi-Fi/移动网/Root UID 路由策略、规则资源 provider/URLs、LAN 访问、全局 TLS 证书校验策略及共享连接测试 URL。显式保存的设置 MUST 优先保留；`INPUT_METHOD_DIRECT` 这类一次性迁移标记 MUST NOT 被当作普通缺省值写入。导入器 MUST 兼容旧 `proxies` 字段、旧 Base64 Parcel 规则、同一数组内混合 JSON 与 Base64 Parcel rule entries，以及旧 wanBox 用户备份。若 `settings` 区段未被选择，导入计划 MUST 保持未选择且 MUST NOT 创建该区段的默认值。内部 RootModuleSnapshot/data archive MUST NOT 被当作用户 JSON 备份处理。
 
 #### Scenario: 导出新版用户备份并补齐稳定默认
 
