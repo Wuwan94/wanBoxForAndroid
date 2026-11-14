@@ -26,6 +26,19 @@ import java.util.Base64
 
 /** Root-only CLI bridge; the App never owns core processes. @author 雾晚 */
 object RootModuleClient {
+    class OutboundReferenceWarningRequired(
+        val warning: ServiceCommandController.OutboundReferenceWarning,
+    ) : Exception()
+
+    @Suppress("UNUSED_PARAMETER")
+    suspend fun prepareOutboundWarning(
+        startIfStopped: Boolean,
+    ): ServiceCommandController.OutboundReferenceWarning? = null
+
+    // No-op skeleton; token cancellation is implemented in the GREEN step.
+    @Suppress("UNUSED_PARAMETER")
+    fun cancelOutboundWarning(requestToken: String) {}
+
     // @author 雾晚: this is the manager-owned root module, never App private storage.
     @android.annotation.SuppressLint("SdCardPath")
     const val CLI = "/data/adb/modules/wanbox/bin/wanboxctl"

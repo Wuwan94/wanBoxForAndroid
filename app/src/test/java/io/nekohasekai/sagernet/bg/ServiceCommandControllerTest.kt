@@ -19,6 +19,63 @@ import org.junit.Test
 class ServiceCommandControllerTest {
 
     @Test
+    fun `changed outbound references require fresh confirmation and keep other commands blocked`() = runTest {
+        val initialWarning = ServiceCommandController.OutboundReferenceWarning(
+            requestToken = "initial-warning.invalid", startIfStopped = true,
+            issues = listOf(OutboundReferenceValidator.Issue(
+                ruleId = 910001L, ruleName = "initial-route.invalid",
+                kind = OutboundReferenceValidator.ReferenceKind.NODE_OR_STRATEGY_GROUP,
+                missingId = 910101L,
+            )),
+        )
+        val updatedWarning = ServiceCommandController.OutboundReferenceWarning(
+            requestToken = "updated-warning.invalid", startIfStopped = true,
+            issues = listOf(OutboundReferenceValidator.Issue(
+                ruleId = 910002L, ruleName = "updated-route.invalid",
+                kind = OutboundReferenceValidator.ReferenceKind.NODE_OR_STRATEGY_GROUP,
+                missingId = 910102L,
+            )),
+        )
+        val backend = object : ServiceCommandController.Backend {
+            override suspend fun start() = fakeStatus()
+            override suspend fun stop() = fakeStatus(false, "stopped")
+            override suspend fun setMode(mode: String) = fakeStatus()
+            override suspend fun selectNode(id: Long) = fakeStatus(profileId = id)
+            override suspend fun queryStatus() = fakeStatus()
+            override suspend fun continueOutboundConfirmation(
+                requestToken: String,
+                startIfStopped: Boolean,
+            ): RootModuleClient.Status {
+                throw RootModuleClient.OutboundReferenceWarningRequired(updatedWarning)
+            }
+        }
+        val controller = ServiceCommandController(this, backend)
+        try {
+            assertTrue(controller.requestOutboundConfirmation(initialWarning))
+            assertTrue(controller.continueOutboundConfirmation("initial-warning.invalid"))
+            testScheduler.advanceUntilIdle()
+
+            assertEquals(
+                ServiceCommandController.CommandState.ConfirmationRequired(1L, updatedWarning),
+                controller.state.value,
+            )
+            assertTrue(controller.isBusy())
+            assertFalse(controller.requestStart())
+            assertFalse(controller.requestStop())
+            assertFalse(controller.requestMode("rule"))
+            assertFalse(controller.requestNode(910103L))
+            assertFalse(controller.cancelOutboundConfirmation("initial-warning.invalid"))
+            assertTrue(controller.cancelOutboundConfirmation("updated-warning.invalid"))
+            assertEquals(ServiceCommandController.CommandState.Idle, controller.state.value)
+            assertFalse(controller.isBusy())
+        } finally {
+            val waiting = controller.state.value as? ServiceCommandController.CommandState.ConfirmationRequired
+            if (waiting != null) controller.cancelOutboundConfirmation(waiting.warning.requestToken)
+            controller.acknowledge()
+        }
+    }
+
+    @Test
     fun `outbound warning holds until explicit continue and cancel releases the next command`() = runTest {
         val continuedRequests = mutableListOf<Pair<String, Boolean>>()
         var starts = 0
