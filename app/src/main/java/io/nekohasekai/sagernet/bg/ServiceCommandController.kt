@@ -37,7 +37,10 @@ class ServiceCommandController(
     sealed class CommandState {
         data object Idle : CommandState()
         data class Pending(val kind: CommandKind, val generation: Long) : CommandState()
-        data class Confirmed(val kind: CommandKind, val generation: Long, val status: RootModuleClient.Status) : CommandState()
+        data class ConfirmationRequired(val generation: Long, val warning: OutboundReferenceWarning,
+            val pendingReviewId: String? = null) : CommandState()
+        data class Confirmed(val kind: CommandKind, val generation: Long, val status: RootModuleClient.Status,
+            val warningResult: OutboundReferenceWarning? = null) : CommandState()
         data class Error(val kind: CommandKind, val generation: Long, val message: String) : CommandState()
         data object Cancelled : CommandState()
     }
@@ -49,17 +52,25 @@ class ServiceCommandController(
         suspend fun setMode(mode: String): RootModuleClient.Status
         suspend fun selectNode(id: Long): RootModuleClient.Status
         suspend fun queryStatus(): RootModuleClient.Status
+        suspend fun continueOutboundConfirmation(
+            requestToken: String,
+            startIfStopped: Boolean,
+        ): RootModuleClient.Status = throw UnsupportedOperationException("outbound_confirmation_not_implemented")
+        fun cancelOutboundConfirmation(requestToken: String) {}
     }
 
     /** 真实后端 */
     class RealBackend : Backend {
         override suspend fun start(): RootModuleClient.Status {
-            RootModuleClient.startOrReload(startIfStopped = true)
-            val s = waitFor({ it.connected }, 10000)
-            // @author 雾晚：requestStart 自行校验 connected，不依赖 fake 抛异常
-            if (!s.connected) throw IllegalStateException("start_not_confirmed")
-            return s
+            val applied = RootModuleClient.startOrReload(startIfStopped = true)
+            return waitFor({ it.connected || it.phase == "suspended" }, 10000, applied.revision)
         }
+        override suspend fun continueOutboundConfirmation(requestToken: String, startIfStopped: Boolean): RootModuleClient.Status {
+            val applied = RootModuleClient.continueOutboundWarning(requestToken, startIfStopped)
+            return if (startIfStopped) waitFor({ it.connected || it.phase == "suspended" }, 10000, applied.revision) else queryStatus()
+        }
+        override fun cancelOutboundConfirmation(requestToken: String) = RootModuleClient.cancelOutboundWarning(requestToken)
+
         override suspend fun stop(): RootModuleClient.Status {
             RootModuleClient.stop()
             // @author 雾晚：STOP 明确检查 phase==stopped，starting/failed 不算
@@ -141,8 +152,10 @@ class ServiceCommandController(
         internal suspend fun waitFor(
             predicate: (RootModuleClient.Status) -> Boolean,
             timeoutMs: Long,
+            targetRevision: String? = null,
             readStatus: suspend () -> RootModuleClient.Status = { RootModuleClient.call("status") },
         ): RootModuleClient.Status {
+            if (targetRevision != null && targetRevision.isBlank()) throw IllegalStateException("start_not_confirmed")
             val deadline = System.currentTimeMillis() + timeoutMs
             while (System.currentTimeMillis() < deadline) {
                 delay(500)
@@ -153,7 +166,7 @@ class ServiceCommandController(
                 } catch (_: Exception) {
                     null
                 } ?: continue
-                if (predicate(s)) return s
+                if ((targetRevision == null || s.runningRevision == targetRevision) && predicate(s)) return s
                 if (s.phase in setOf("failed", "cleanup_required", "disabled")) {
                     throw IllegalStateException(s.error.ifBlank {
                         if (s.phase == "disabled") "module_disabled_or_missing" else s.phase
@@ -171,6 +184,13 @@ class ServiceCommandController(
     private val _state = MutableStateFlow<CommandState>(CommandState.Idle)
     val state: StateFlow<CommandState> = _state.asStateFlow()
 
+    init {
+        applicationScope.coroutineContext[Job]?.invokeOnCompletion {
+            val waiting = _state.value as? CommandState.ConfirmationRequired
+            if (waiting != null) cancelOutboundConfirmation(waiting.warning.requestToken)
+        }
+    }
+
     /**
      * 尝试提交。若有命令执行中，直接返回 false（不排队）。
      * 任务在 applicationScope 中执行，调用方取消不影响。
@@ -182,6 +202,7 @@ class ServiceCommandController(
         val gen = generation
         _state.value = CommandState.Pending(kind, gen)
 
+        var retainLock = false
         applicationScope.launch {
             try {
                 val status = backend.action()
@@ -189,6 +210,9 @@ class ServiceCommandController(
                 if (generation == gen) {
                     _state.value = CommandState.Confirmed(kind, gen, status)
                 }
+            } catch (e: RootModuleClient.OutboundReferenceWarningRequired) {
+                retainLock = true
+                _state.value = CommandState.ConfirmationRequired(gen, e.warning)
             } catch (e: CancellationException) {
                 // @author 雾晚：取消时重置为 Idle，可继续提交
                 if (generation == gen) {
@@ -201,16 +225,85 @@ class ServiceCommandController(
                 if (generation == gen) {
                     _state.value = CommandState.Error(kind, gen, e.message ?: "unknown")
                 }
-            } finally {
+            }
+        }.invokeOnCompletion { cause ->
+            if (!retainLock) {
+                if (cause is CancellationException && generation == gen) _state.value = CommandState.Idle
                 mutex.unlock()
             }
         }
         return true
     }
 
+    fun requestOutboundConfirmation(warning: OutboundReferenceWarning, pendingReviewId: String? = null): Boolean {
+        if (warning.requestToken.isBlank() || warning.issues.isEmpty()) return false
+        if (!mutex.tryLock()) return false
+        generation++
+        _state.value = CommandState.ConfirmationRequired(generation, warning, pendingReviewId)
+        return true
+    }
+
+    fun continueOutboundConfirmation(requestToken: String): Boolean {
+        val waiting = _state.value as? CommandState.ConfirmationRequired ?: return false
+        if (waiting.warning.requestToken != requestToken) return false
+        val gen = waiting.generation
+        val kind = CommandKind.START
+        val pending = CommandState.Pending(kind, gen)
+        if (!_state.compareAndSet(waiting, pending)) return false
+
+        var retainLock = false
+        applicationScope.launch {
+            try {
+                val status = backend.continueOutboundConfirmation(requestToken, waiting.warning.startIfStopped)
+                if (generation == gen) {
+                    _state.compareAndSet(pending, CommandState.Confirmed(kind, gen, status, waiting.warning))
+                }
+            } catch (e: RootModuleClient.OutboundReferenceWarningRequired) {
+                retainLock = true
+                _state.compareAndSet(pending, CommandState.ConfirmationRequired(gen, e.warning))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                if (generation == gen) {
+                    _state.compareAndSet(pending, CommandState.Error(kind, gen, "outbound_confirmation_failed"))
+                }
+            }
+        }.invokeOnCompletion { cause ->
+            // Also runs when the scope was cancelled before the coroutine body started.
+            if (cause is CancellationException && generation == gen) {
+                _state.compareAndSet(pending, CommandState.Idle)
+            }
+            if (!retainLock) {
+                try {
+                    backend.cancelOutboundConfirmation(requestToken)
+                } finally {
+                    mutex.unlock()
+                }
+            }
+        }
+        return true
+    }
+
+    fun cancelOutboundConfirmation(requestToken: String): Boolean {
+        val waiting = _state.value as? CommandState.ConfirmationRequired ?: return false
+        if (waiting.warning.requestToken != requestToken) return false
+        if (!_state.compareAndSet(waiting, CommandState.Idle)) return false
+        try {
+            backend.cancelOutboundConfirmation(requestToken)
+        } finally {
+            mutex.unlock()
+        }
+        return true
+    }
+
     /** UI 请求启动（不捕获 Fragment/views） */
     fun requestStart(): Boolean = trySubmit(CommandKind.START) {
-        backend.start().also { if (!it.connected) throw IllegalStateException(it.error.ifBlank { "start_not_confirmed" }) }
+        backend.start().also {
+            if (it.revision.isBlank() || it.runningRevision != it.revision ||
+                (!it.connected && it.phase != "suspended")) {
+                throw IllegalStateException(it.error.ifBlank { "start_not_confirmed" })
+            }
+        }
     }
 
     /** UI 请求停止 */
@@ -241,5 +334,20 @@ class ServiceCommandController(
         }
     }
 
-    fun isBusy(): Boolean = _state.value is CommandState.Pending
+    /** Reserve an idle controller through a suspending acknowledgment; commands never queue behind it. */
+    suspend fun tryRunWhileIdle(action: suspend () -> Unit): Boolean {
+        if (!mutex.tryLock()) return false
+        try {
+            if (isBusy()) return false
+            action()
+            return true
+        } finally {
+            mutex.unlock()
+        }
+    }
+
+    fun isBusy(): Boolean = when (_state.value) {
+        is CommandState.Pending, is CommandState.ConfirmationRequired -> true
+        else -> false
+    }
 }

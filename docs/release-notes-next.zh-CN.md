@@ -1,76 +1,42 @@
-# v3.0.15-preview.3 发行说明
+# v3.0.15-preview.4 发行说明（候选）
 
-**状态：已发布的稳定性预览版。** [Release 页面](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.3) 的 tag 指向合并提交 `fe193f1134a80ff38fb0cb3ed4677eb2b79c1dce`，由 [Preview Build run `43404430362`](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/43404430362) 发布；本版不替换稳定版 `v3.0.14`，Root 模块码为 `2028`。
+**状态：未发布的稳定性预览版候选。**
 
-本版承接 preview.2 的底层优化，修正两项复审发现：低内存设备的 `memory.high` 必须钳制到 256 MiB，而不是关闭治理；卸载脚本必须与热更新路径使用相同的 pref 9001 清理契约，规则状态未确认时不得报告网络已恢复。无界面功能增减。
+本版在 Root-only 架构中适配六项功能与修复，面向已 Root 的 Android 12+ arm64 设备。稳定版 `v3.0.14` / Root 模块码 `2026` 与 sing-box pin `v1.15.0-alpha.13-reF1nd` 均保持不变；预览名为 `3.0.15-preview.4`，APK `versionCode=10144`，Root 模块码仍为 `2028`。
 
----
+## 本版更新
 
-## ✦ 核心演进
+1. **智能启停代理**：高级设置支持最多 5 条本地 IP、CIDR 或 `gateway:` 指纹规则；不申请定位权限。命中后在 Root 模块内安全挂起核心，通知栏保留「恢复」「停止」；离开网络自动恢复，手动恢复会抑制同指纹重复挂起，且不全局 flush 其他模块的路由规则。
+2. **QUIC 控制**：默认开启的独立开关只拦截 UDP 443；关闭后放行 HTTP/3/QUIC，不影响 TCP 443 或其他 UDP 端口。
+3. **无效出站告警**：引用不存在节点/策略组的规则标红；启动前集中提醒，用户可返回修复或明确继续。
+4. **路由与默认项**：sniff 前置域名分流；适用模式下自定义 reject 前置内置国内直连 fallback；修正组播与 DNS 53 兜底规则；广告列表统一 `geosite-category-ads-all`，不再强制将 Play 下载组件导入代理规则。
+5. **分组测速继承**：没有专属地址的分组动态跟随全局连接测试网址，显式分组设置继续优先。
+6. **备份兼容**：统一导出 `profiles`，兼容导入旧 `proxies`；路由规则以可读 JSON 导出并可导入旧 Base64 Parcel；补齐核心路由/DNS 默认设置，保留旧 wanBox 备份导入。
 
-### 1. 回环长轮询通道：管理器与模块的本地长连接（新）
-supervisor 内嵌仅监听 `127.0.0.1` 的只读 HTTP 通道，启动时生成随机令牌并写入 `channel.json`（权限 0600），管理器经 `su` 桥新命令 `wanboxctl channel` 取得端点。状态与仪表盘读取改走通道（含按 `state.revision` 唤醒的长轮询），前台观察不再每次衍生 `su` 进程，单次往返由 100–300ms 降至毫秒级；通道与 CLI 共用同一渲染路径、输出逐字节一致，响应继续走管理器全量校验。通道故障自动回退 `su` 桥并冷却 30 秒；所有变更操作仍只走 `su` 桥，通道不承载任何写操作。
+## 升级与验证边界
 
-### 2. pref 9001 黑洞规则循环净空
-热更新守护关闭路径（`defaultRouteGuard`）与卸载脚本使用同一契约：循环删除 `pref 9001`，只有内核明确报告规则不存在才算清空；其他错误或 128 次上限触顶均按 Fail-Closed 处理。卸载仍完成其余清理并以 `exit 0` 结束，但会记录网络恢复状态未知，不再误报已恢复。杜绝残留孤儿黑洞规则导致断网。
-
-### 3. 独立子 cgroup 与内存软限制
-supervisor 启动时（核心与插件拉起之前）建立专属 `wanbox` 子 cgroup 并迁入自身，其后拉起的核心与插件天然生于组内。内存治理只作用于该子组：非零 `MemTotal/4` 结果钳制于 [256 MiB, 4 GiB] 并写入子组；用量达阈值九成或 `memory.events` 计数增长时判定为压力，主动触发 GC 并以 30 秒节流。高吞吐时内核回收先行介入，降低被系统 LMK 闪退的概率；治理不可用时静默降级，绝不写根组或他人组、绝不阻塞模块启动。
-
-### 4. 节点故障迁移阈值明示与回归覆盖
-`HealthModeAuto` 的连击阈值提为命名常量（默认 3、范围 2–10），并补齐边界、连击清零与失败锁存的回归测试。迁移行为不变：仅经 127.0.0.1 回环 Clash API 切换同组 Selector，不重建 TUN、不断长连接，切换失败锁存 degraded 不乱切。
-
-### 5. 管理器读聚合
-状态缓存 TTL 由 2 秒调整为 4 秒（与前台观察节拍对齐），status/dashboard 兄弟视图同锁聚合预取，进一步减少重复取数；开关、切换等决策路径仍绕缓存实时查询。
+同一 Release 的瘦管理器 APK 与 Root 模块必须成套安装。回退时使用正式版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 和配套模块。本地 Go race/vet、Root arm64 构建、libcore Go 测试、Android JVM 测试与 APK/AndroidTest APK 编译通过；Sandbox 无 KVM，本地模拟器 instrumentation 未执行。Preview Build 发布门禁仍须通过精确 SHA、资产与 CI 模拟器检查；未做真实 Magisk / KernelSU / APatch 设备矩阵。
 
 ---
 
-## 📦 资产清单与运行环境
+## 历史归档：v3.0.15-preview.3 已发布说明
 
-- **运行要求**：Android 12+ (API 31+) · arm64-v8a · Magisk / KernelSU / APatch 已 Root 设备。
-- **管理器形态**：纯瘦管理器（APK 约 5.91 MiB），核心仅随 Root 模块分发，不提供普通 VPN 回退。
-- **版本对齐**：模块码 `2028`，APK `versionCode=10143`（高于 preview.2 的 10137 与正式版 3.0.14 的 10130，可直接覆盖安装）。
-
-本 Release 提供 4 个资产，必须**成套配对使用**：
-
-```
-wanBoxForAndroid-3.0.15-preview.3-arm64-v8a-release.apk  瘦身管理器
-wanbox-root-module-arm64-v8a.zip                         Root 核心模块（内核 + wanboxctl）
-wanbox-root-module-with-manager-arm64-v8a.zip             模块 + 管理器合一刷机包
-SHA256SUMS                                               上述资产校验和
-```
-
----
-
-## 🛡️ 升级、回退与验证边界
-
-1. **升级与热更新**：直接覆盖安装新版 APK，并在 Root 管理器或关于页刷入模块 ZIP；生效后核心自动热重启，无需重启手机系统。
-2. **回退方案**：卸载预览版 APK，安装稳定版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 与配套模块（码 `2026`）。
-3. **验证边界**：本地 Go、POSIX Shell 与 Python 工具测试通过；官方 [Preview Build run `43404430362`](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/43404430362) 通过 Root 模块与 APK 构建、模拟器冷启动、候选资产校验、发布后回读及 SHA256SUMS 校验。未做全量 Root 真机矩阵，日常主力使用建议留在稳定版 v3.0.14。
+preview.3 由 PR #39 合并提交 `fe193f1134a80ff38fb0cb3ed4677eb2b79c1dce` 发布，官方 `Preview Build` run `43404430362` 成功，稳定版 `v3.0.14` 未变。该版修正低内存设备 `memory.high` 下限与卸载时 `pref 9001` 规则清理状态误报；Root 模块码为 `2028`、APK `versionCode=10143`。其资产摘要见[版本对照](current-version.zh-CN.md)。
 
 ---
 
 ## 历史归档：v3.0.15-preview.2 已发布说明（Release/tag 已清理）
 
-**状态：曾发布的稳定性预览版；Release/tag 已在 preview.3 发布并验证后按单预览保留策略清理。** 当时 tag 指向合并提交 `2a57973623db59cb635a869b5d552dd971f8235c`，由 `Preview Build` run `43393988473` 发布；稳定版 `v3.0.14` 未变。该版包含回环长轮询 IPC、热更新守护与卸载清理、故障迁移阈值、独立子 cgroup 和内存软限制等底层优化。
-
-该版 Root 模块码为 `2027`、APK `versionCode=10137`，发布瘦身 APK、普通 Root 模块、带管理器模块及 `SHA256SUMS` 四件套。低于 256 MiB 的计算值与卸载侧清理触顶状态处理问题已由 preview.3 修正；preview.2 的历史资产摘要见 [版本对照](docs/current-version.zh-CN.md)。
+preview.2 曾由 `Preview Build` run `43393988473` 发布，tag 原指向 `2a57973623db59cb635a869b5d552dd971f8235c`；preview.3 发布验证后按单预览策略清理。该版包含回环长轮询、热更新守护与卸载清理、故障迁移阈值、独立子 cgroup 和内存软限制。模块码 `2027`、APK `versionCode=10137`；低内存阈值和卸载清理触顶问题随后由 preview.3 修复。
 
 ---
 
 ## 历史归档：v3.0.15-preview.1 已发布说明（Release/tag 已清理）
 
-**状态：曾发布的稳定性预览版；Release/tag 已在 preview.2 发布后按单预览保留策略清理。** 当时仓库 `Preview Build` tag 指向合并提交 `5aca93bee39a9d07a56d750908e0d9c88ad5f90c`。本版不替换稳定版 `v3.0.14`。
-
-本版重点攻克 Root 模块在 Magisk / KernelSU / APatch 环境下的**免重启热更新加固**与**卸载纯净治理**：
-- **热更新 5 秒 Canary 观察与自动回滚**：新核心启动后经 5 秒健康期双重核验（底层进程存活 + Clash 控制器 `/version` 探活）；秒退或未响应立即触发 Fail-Safe 回滚。
-- **切换间隙瞬态黑洞守护（Fail-Closed）**：旧核心停止前注入 `pref 9001 blackhole`，杜绝切换毫秒隙真实 IP 外溢。
-- **Magisk / KernelSU 更新标记自动收口**：清除模块目录 `update` 标志，事件通道广播 `module_hot_update_committed:<versionCode>`，前台 App 实时刷新模块版本码。
-- **卸载脚本五轨纯净收尾**：优雅停机 → 原生信号强退 → 注销 TUN 并强清 pref 9000/9001 路由 → 清理运行时锁与 IPC → 默认保护用户配置资产，始终 `exit 0`。
-- **版本对齐**：Root 模块码 `2027`、APK `versionCode=10136`；历史资产摘要见 [版本对照](docs/current-version.zh-CN.md)。
+preview.1 曾由 `Preview Build` run `43203156796` 发布，tag 指向 `5aca93bee39a9d07a56d750908e0d9c88ad5f90c`；随后按单预览策略清理。该版加强 Root 模块免重启热更新健康观察、自动回滚、`pref 9001` 切换守护及卸载清理；模块码 `2027`、APK `versionCode=10136`。
 
 ---
 
 ## 历史归档：v3.0.14-preview.1 已发布说明（已由正式版承接）
 
-> v3.0.14-preview.1 当时发布说明原文及六项复查修复（版本规则漂移守卫、更新包版本戳绑定、导出任务独立守卫、状态码判定发布 Tag、代理错误脱敏）已由 v3.0.14 正式版全量承接，正式说明见 [RELEASE_NOTES.md](RELEASE_NOTES.md)；历史发布脉络见 [CHANGELOG.md](CHANGELOG.md)。稳定版现为 v3.0.14。
+> v3.0.14-preview.1 的历史说明和复查修复已由 v3.0.14 正式版承接；正式说明见 [RELEASE_NOTES.md](../RELEASE_NOTES.md)，历史发布脉络见 [CHANGELOG.md](../CHANGELOG.md)。

@@ -19,6 +19,17 @@ class RouteRulePriorityTest {
         assertEquals(listOf(2L, 3L, 4L, 1L, 5L), RouteRulePriority.order(input).map { it.id })
         assertEquals(before, input)
     }
+    @Test fun rejectFallbacksPrecedeDomesticDirectFallbacksWithoutMutatingStoredRules() {
+        val domesticDirect = RuleEntity(id = 1, userOrder = 1, enabled = true, domains = "geosite:cn", outbound = -1)
+        val customReject = RuleEntity(id = 2, userOrder = 2, enabled = true, domains = "geosite-category-ads-all", outbound = -2)
+        val input = listOf(domesticDirect, customReject)
+        val before = input.map { it.copy() }
+
+        assertEquals(listOf(2L, 1L), RouteRulePriority.order(input).map { it.id })
+        assertEquals(before, input)
+        assertEquals(1L, domesticDirect.userOrder)
+        assertEquals(2L, customReject.userOrder)
+    }
     @Test fun ScopedSetsAndCustomJsonCannotBeSilentlyDemoted() {
         val broad = RuleEntity(ruleset = "rssite:https://example.invalid/list.srs")
         for (rule in listOf(broad.copy(domains = "domain:example.invalid"), broad.copy(ip = "192.0.2.1"),

@@ -1,6 +1,7 @@
 // @author 雾晚
 package io.nekohasekai.sagernet.bg
 
+import io.nekohasekai.sagernet.route.OutboundReferenceValidator
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -16,6 +17,206 @@ import org.junit.Test
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ServiceCommandControllerTest {
+
+    @Test
+    fun `idle acknowledgment excludes commands and releases its reservation on failure`() = runTest {
+        val controller = ServiceCommandController(this)
+        val entered = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val release = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val acknowledgment = launch {
+            try {
+                controller.tryRunWhileIdle {
+                    entered.complete(Unit)
+                    release.await()
+                    throw java.io.IOException("clear failed")
+                }
+                fail("Expected clear failure")
+            } catch (_: java.io.IOException) { }
+        }
+        entered.await()
+        assertFalse(controller.requestStop())
+        assertFalse(controller.tryRunWhileIdle { fail("Must not overlap acknowledgment") })
+        release.complete(Unit)
+        acknowledgment.join()
+        assertTrue(controller.tryRunWhileIdle { })
+
+        val warning = OutboundReferenceWarning("busy", false, listOf(
+            OutboundReferenceValidator.Issue(12L, "Video",
+                OutboundReferenceValidator.ReferenceKind.NODE_OR_STRATEGY_GROUP, 99L),
+        ))
+        assertTrue(controller.requestOutboundConfirmation(warning))
+        assertFalse(controller.tryRunWhileIdle { fail("Must retain review while busy") })
+        assertTrue(controller.cancelOutboundConfirmation(warning.requestToken))
+    }
+
+    @Test
+    fun `initial start warning blocks commands until cancelled`() = runTest {
+        val warning = OutboundReferenceWarning("start-warning", true, listOf(
+            OutboundReferenceValidator.Issue(12L, "Video",
+                OutboundReferenceValidator.ReferenceKind.NODE_OR_STRATEGY_GROUP, 99L),
+        ))
+        val backend = object : ServiceCommandController.Backend {
+            override suspend fun start(): RootModuleClient.Status =
+                throw RootModuleClient.OutboundReferenceWarningRequired(warning)
+            override suspend fun stop() = fakeStatus(false, "stopped")
+            override suspend fun setMode(mode: String) = fakeStatus()
+            override suspend fun selectNode(id: Long) = fakeStatus(profileId = id)
+            override suspend fun queryStatus() = fakeStatus()
+        }
+        val controller = ServiceCommandController(this, backend)
+        assertTrue(controller.requestStart())
+        testScheduler.advanceUntilIdle()
+        assertEquals(ServiceCommandController.CommandState.ConfirmationRequired(1L, warning), controller.state.value)
+        assertFalse(controller.requestStop())
+        assertTrue(controller.cancelOutboundConfirmation(warning.requestToken))
+        assertTrue(controller.requestStop())
+        testScheduler.advanceUntilIdle()
+        assertEquals(ServiceCommandController.CommandState.Confirmed(
+            ServiceCommandController.CommandKind.STOP, 2L, fakeStatus(false, "stopped")), controller.state.value)
+    }
+
+    @Test
+    fun `changed outbound references require fresh confirmation and keep other commands blocked`() = runTest {
+        val initialWarning = OutboundReferenceWarning(
+            requestToken = "initial-warning.invalid", startIfStopped = true,
+            issues = listOf(OutboundReferenceValidator.Issue(
+                ruleId = 910001L, ruleName = "initial-route.invalid",
+                kind = OutboundReferenceValidator.ReferenceKind.NODE_OR_STRATEGY_GROUP,
+                missingId = 910101L,
+            )),
+        )
+        val updatedWarning = OutboundReferenceWarning(
+            requestToken = "updated-warning.invalid", startIfStopped = true,
+            issues = listOf(OutboundReferenceValidator.Issue(
+                ruleId = 910002L, ruleName = "updated-route.invalid",
+                kind = OutboundReferenceValidator.ReferenceKind.NODE_OR_STRATEGY_GROUP,
+                missingId = 910102L,
+            )),
+        )
+        val backend = object : ServiceCommandController.Backend {
+            override suspend fun start() = fakeStatus()
+            override suspend fun stop() = fakeStatus(false, "stopped")
+            override suspend fun setMode(mode: String) = fakeStatus()
+            override suspend fun selectNode(id: Long) = fakeStatus(profileId = id)
+            override suspend fun queryStatus() = fakeStatus()
+            override suspend fun continueOutboundConfirmation(
+                requestToken: String,
+                startIfStopped: Boolean,
+            ): RootModuleClient.Status {
+                throw RootModuleClient.OutboundReferenceWarningRequired(updatedWarning)
+            }
+        }
+        val controller = ServiceCommandController(this, backend)
+        try {
+            assertTrue(controller.requestOutboundConfirmation(initialWarning))
+            assertTrue(controller.continueOutboundConfirmation("initial-warning.invalid"))
+            testScheduler.advanceUntilIdle()
+
+            assertEquals(
+                ServiceCommandController.CommandState.ConfirmationRequired(1L, updatedWarning),
+                controller.state.value,
+            )
+            assertTrue(controller.isBusy())
+            assertFalse(controller.requestStart())
+            assertFalse(controller.requestStop())
+            assertFalse(controller.requestMode("rule"))
+            assertFalse(controller.requestNode(910103L))
+            assertFalse(controller.cancelOutboundConfirmation("initial-warning.invalid"))
+            assertTrue(controller.cancelOutboundConfirmation("updated-warning.invalid"))
+            assertEquals(ServiceCommandController.CommandState.Idle, controller.state.value)
+            assertFalse(controller.isBusy())
+        } finally {
+            val waiting = controller.state.value as? ServiceCommandController.CommandState.ConfirmationRequired
+            if (waiting != null) controller.cancelOutboundConfirmation(waiting.warning.requestToken)
+            controller.acknowledge()
+        }
+    }
+
+    @Test
+    fun `outbound warning holds until explicit continue and cancel releases the next command`() = runTest {
+        val continuedRequests = mutableListOf<Pair<String, Boolean>>()
+        var starts = 0
+        val backend = object : ServiceCommandController.Backend {
+            override suspend fun start(): RootModuleClient.Status {
+                starts++
+                return fakeStatus()
+            }
+            override suspend fun stop() = fakeStatus(false, "stopped")
+            override suspend fun setMode(mode: String) = fakeStatus()
+            override suspend fun selectNode(id: Long) = fakeStatus(profileId = id)
+            override suspend fun queryStatus() = fakeStatus()
+            override suspend fun continueOutboundConfirmation(
+                requestToken: String,
+                startIfStopped: Boolean,
+            ): RootModuleClient.Status {
+                continuedRequests += requestToken to startIfStopped
+                return fakeStatus(false, "suspended")
+            }
+        }
+        val controller = ServiceCommandController(this, backend)
+        val warning = OutboundReferenceWarning(
+            requestToken = "cancelled-request",
+            startIfStopped = true,
+            issues = listOf(OutboundReferenceValidator.Issue(
+                ruleId = 12L,
+                ruleName = "Video",
+                kind = OutboundReferenceValidator.ReferenceKind.NODE_OR_STRATEGY_GROUP,
+                missingId = 99L,
+            )),
+        )
+
+        assertTrue("warning request should be accepted", controller.requestOutboundConfirmation(warning))
+        testScheduler.advanceUntilIdle()
+        assertEquals(
+            ServiceCommandController.CommandState.ConfirmationRequired(1L, warning),
+            controller.state.value,
+        )
+        assertTrue(controller.isBusy())
+        assertFalse(controller.requestStart())
+        assertEquals(0, starts)
+        assertEquals(emptyList<Pair<String, Boolean>>(), continuedRequests)
+
+        assertTrue(controller.cancelOutboundConfirmation("cancelled-request"))
+        testScheduler.advanceUntilIdle()
+        assertEquals(ServiceCommandController.CommandState.Idle, controller.state.value)
+        assertFalse(controller.isBusy())
+        assertFalse(controller.continueOutboundConfirmation("cancelled-request"))
+        assertEquals(emptyList<Pair<String, Boolean>>(), continuedRequests)
+        assertEquals(0, starts)
+
+        assertTrue(controller.requestStart())
+        testScheduler.advanceUntilIdle()
+        assertEquals(1, starts)
+        controller.acknowledge()
+
+        val continuedWarning = warning.copy(
+            requestToken = "continued-request",
+            startIfStopped = false,
+        )
+        try {
+            assertTrue(controller.requestOutboundConfirmation(continuedWarning))
+            testScheduler.advanceUntilIdle()
+            assertTrue(controller.state.value is ServiceCommandController.CommandState.ConfirmationRequired)
+            assertEquals(emptyList<Pair<String, Boolean>>(), continuedRequests)
+            assertTrue(controller.continueOutboundConfirmation("continued-request"))
+            assertFalse(controller.continueOutboundConfirmation("continued-request"))
+            testScheduler.advanceUntilIdle()
+            assertEquals(listOf("continued-request" to false), continuedRequests)
+            assertEquals(1, starts)
+            assertTrue(controller.state.value is ServiceCommandController.CommandState.Confirmed)
+            val confirmed = controller.state.value as ServiceCommandController.CommandState.Confirmed
+            assertEquals(continuedWarning, confirmed.warningResult)
+            assertEquals("suspended", confirmed.status.phase)
+            assertFalse(controller.isBusy())
+            assertFalse(controller.continueOutboundConfirmation("continued-request"))
+            testScheduler.advanceUntilIdle()
+            assertEquals(listOf("continued-request" to false), continuedRequests)
+        } finally {
+            val waiting = controller.state.value as? ServiceCommandController.CommandState.ConfirmationRequired
+            if (waiting != null) controller.cancelOutboundConfirmation(waiting.warning.requestToken)
+            controller.acknowledge()
+        }
+    }
 
     private fun fakeStatus(connected: Boolean = true, phase: String = "connected", profileId: Long = 1L) =
         RootModuleClient.Status(
@@ -167,6 +368,73 @@ class ServiceCommandControllerTest {
                 assertEquals("core_start_failed", error.message)
             }
         }
+    }
+
+    @Test
+    fun `waiting ignores other revisions and accepts requested suspended revision`() = runTest {
+        val statuses = listOf(
+            fakeStatus(false, "suspended").copy(runningRevision = "old"),
+            fakeStatus().copy(runningRevision = "old"),
+            fakeStatus(false, "suspended"),
+        )
+        var reads = 0
+        val result = ServiceCommandController.RealBackend().waitFor(
+            { it.connected || it.phase == "suspended" }, 10_000L, targetRevision = "rev",
+        ) { statuses[reads++] }
+        assertEquals(3, reads)
+        assertEquals(statuses.last(), result)
+    }
+
+    @Test
+    fun `empty requested revision fails closed before reading status`() = runTest {
+        try {
+            ServiceCommandController.RealBackend().waitFor({ it.connected }, 10_000L, targetRevision = "") {
+                fail("Unknown apply revision must not confirm any running core")
+                fakeStatus()
+            }
+            fail("Expected unconfirmed start")
+        } catch (error: IllegalStateException) {
+            assertEquals("start_not_confirmed", error.message)
+        }
+    }
+
+    @Test
+    fun `stale and failed backend results do not confirm start`() = runTest {
+        for (status in listOf(
+            fakeStatus().copy(runningRevision = "old"),
+            fakeStatus(false, "suspended").copy(runningRevision = "old"),
+            fakeStatus(false, "suspended").copy(revision = "", runningRevision = ""),
+            fakeStatus(false, "failed"),
+        )) {
+            val backend = object : ServiceCommandController.Backend {
+                override suspend fun start() = status
+                override suspend fun stop() = fakeStatus(false, "stopped")
+                override suspend fun setMode(mode: String) = fakeStatus()
+                override suspend fun selectNode(id: Long) = fakeStatus(profileId = id)
+                override suspend fun queryStatus() = status
+            }
+            val controller = ServiceCommandController(this, backend)
+            assertTrue(controller.requestStart())
+            testScheduler.advanceUntilIdle()
+            assertTrue(controller.state.value is ServiceCommandController.CommandState.Error)
+        }
+    }
+
+    @Test
+    fun `same revision suspended backend confirms start`() = runTest {
+        val suspended = fakeStatus(false, "suspended")
+        val backend = object : ServiceCommandController.Backend {
+            override suspend fun start() = suspended
+            override suspend fun stop() = fakeStatus(false, "stopped")
+            override suspend fun setMode(mode: String) = fakeStatus()
+            override suspend fun selectNode(id: Long) = fakeStatus(profileId = id)
+            override suspend fun queryStatus() = suspended
+        }
+        val controller = ServiceCommandController(this, backend)
+        assertTrue(controller.requestStart())
+        testScheduler.advanceUntilIdle()
+        assertEquals(ServiceCommandController.CommandState.Confirmed(
+            ServiceCommandController.CommandKind.START, 1L, suspended), controller.state.value)
     }
 
     @Test

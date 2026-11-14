@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- @author 雾晚 -->
 <resources>
+    <string name="outbound_reference_title">Missing route outbounds</string>
+    <string name="outbound_reference_message">These enabled rules reference missing outbounds and cannot be applied. Review the rules or explicitly continue anyway.</string>
+    <string name="outbound_reference_item">%1$s (rule %2$d): missing %3$s #%4$d</string>
+    <string name="outbound_reference_type">node or strategy group</string>
+    <string name="outbound_reference_review">Review rules</string>
+    <string name="outbound_reference_continue">Continue Anyway</string>
+    <string name="outbound_reference_busy">Route confirmation is required. Another command is busy; try again when it finishes.</string>
+    <string name="outbound_reference_open_app">Route confirmation is required. Open the app to review the rules.</string>
+    <string name="outbound_reference_result">The operation completed. These rules still reference missing outbounds and were not applied. Review the rules to fix them.</string>
     <string name="app_name" translatable="false">wanBox</string>
     <string name="app_name_long" translatable="false">wanBox</string>
     <string name="app_desc">The universal proxy toolchain for Android, written in Kotlin.</string>
@@ -269,6 +278,8 @@
     <string name="route_opt_block_quic">Block QUIC</string>
     <string name="domain_strategy">Domain Resolution Strategy</string>
     <string name="traffic_sniffing">Enable Traffic Sniffing</string>
+    <string name="core_block_quic_title">Block QUIC (UDP 443)</string>
+    <string name="core_block_quic_summary">Reject UDP traffic to destination port 443. Turn off to let HTTP/3/QUIC follow other routing rules.</string>
     <string name="enable_mux">Enable Multiplexer</string>
     <string name="mux_sum">Mux is designed to reduce TCP handshake latency, not to increase
         connection throughput. Using Mux to watch videos, download or speed test is usually counter
@@ -1319,4 +1330,14 @@
     <string name="tools_section_network">Network checks</string>
     <string name="tools_section_support">Troubleshooting</string>
     <string name="tools_crash_log_summary">Export available crash records for troubleshooting. No logs are uploaded automatically.</string>
+    <string name="smart_auto_stop_title">Smart Auto-stop</string>
+    <string name="smart_auto_stop_rules">Smart Auto-stop rules</string>
+    <string name="smart_auto_stop_rules_hint">Up to five numeric IP addresses or CIDRs; optional gateway: prefix. Separate with commas, semicolons or newlines.</string>
+    <string name="smart_auto_stop_invalid">Enter numeric IPv4/IPv6 addresses or valid CIDRs only. Hostnames and Wi-Fi names are unsupported.</string>
+    <string name="smart_auto_stop_too_many">At most five rules are allowed.</string>
+    <string name="smart_auto_stop_permission">Notification settings for Smart Auto-stop. Enable app notifications and the Smart Auto-stop channel to use Resume and Stop controls. Tap to open settings.</string>
+    <string name="smart_auto_stop_suspended">Suspended · Smart Auto-stop</string>
+    <string name="smart_auto_stop_resume_hint">Proxy is suspended. Tap Resume to continue.</string>
+    <string name="smart_auto_stop_resume">Resume</string>
+    <string name="smart_auto_stop_permission_denied">Smart Auto-stop remains disabled. Enable app notifications and the Smart Auto-stop channel in notification settings.</string>
 </resources>

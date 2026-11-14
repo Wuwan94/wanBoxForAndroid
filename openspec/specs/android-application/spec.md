@@ -6,6 +6,42 @@
 
 ## Requirements
 
+### Requirement: Missing route outbounds are visible before users start the core
+
+Android MUST mark rules referencing missing positive node or strategy-group IDs red, including their name, outbound and error indicator. Built-in targets and existing IDs MUST remain valid, and recycled rows MUST reset their error appearance. Validation MUST refresh with the rules.
+
+Explicit core start and reload requests MUST validate enabled rules before creating or applying configuration. A modal MUST list safe rule names, rule IDs, missing reference types and IDs, explain that unresolved rules cannot be applied, and offer Cancel, Review rules and Continue Anyway. Back and outside cancellation MUST cancel the request; Review rules MUST cancel before navigating to rules.
+
+Installer-data selection MUST first finish restoring the database; preflight MUST validate the final restored rules before generated core configuration is created or applied, rather than validating the database that the restore will replace.
+
+Continue MUST consume a one-use token bound to the exact issue snapshot and revalidate under the root mutation lock. Changed issues MUST require fresh confirmation while other commands remain blocked; fixed issues MAY proceed. Explicit cancellation, completion, failure and coroutine cancellation MUST release the command lock exactly once. Diagnostics MUST NOT retain configuration, authentication data, proxy addresses or raw core stderr.
+
+Warnings from `:bg` MUST first queue a pending-review marker in private shared app storage with interprocess synchronization, then signal an already-visible MainActivity through an explicit package-scoped broadcast received by a non-exported receiver. The reporting process MUST NOT create a confirmation or retain a confirmation lock. The persisted marker MUST contain only a random request ID and the `startIfStopped` boolean, with no rule names, rule/reference IDs, config, secrets, stderr or proxy data; multiple outstanding requests coalesce to the latest request. MainActivity MUST peek without clearing, then query current rules. It MUST compare-and-clear only the matching request ID when no warning is needed or after the warning DialogFragment is actually shown; stale acknowledgment MUST preserve newer requests. Busy controllers, discovery errors, saved FragmentManager state and failed confirmation acquisition MUST leave the marker queued, with retries on resume and return to Idle. If persistence fails, the reporting process MUST still attempt the broadcast and generic toast without logging user data; a live broadcast MAY supply the same minimal request value when the marker is unavailable. Ordinary Activity launch/resume without an outstanding background warning request MUST NOT run outbound preflight, show its modal or start a stopped core. A localized generic instruction MUST direct users to open the app; the event MUST NOT carry config, stderr, credentials or proxy data.
+
+Successful explicit Continue MUST retain the original unresolved issue snapshot in confirmed command state and show a result-mode DialogFragment explaining that those rules were not applied. It MUST offer acknowledgment and Review, never another Continue. Back/outside cancellation MUST acknowledge the result without cancelling the completed operation; Review MUST return to rule editing.
+
+#### Scenario: Missing references block startup until an explicit decision
+
+- **GIVEN** enabled rules reference missing outbounds
+- **WHEN** startup or reload is requested
+- **THEN** configuration is not created or applied before the warning decision
+- **AND** changed references on Continue produce a fresh modal
+- **AND** Cancel releases the command controller without applying configuration
+
+#### Scenario: Opening the app alone does not request a core start
+
+- **GIVEN** enabled rules reference missing outbounds and no background warning request is outstanding
+- **WHEN** MainActivity opens or resumes
+- **THEN** no outbound preflight modal is shown and no core start is requested
+
+#### Scenario: A background warning survives the absence of an Activity
+
+- **GIVEN** `:bg` reports a warning when no Activity exists
+- **WHEN** MainActivity next resumes
+- **THEN** it peeks at the minimal pending marker and queries current rules for confirmation
+- **AND** it acknowledges only the matching request after dialog presentation or validation finds no warning
+- **AND** the original `startIfStopped` intent is preserved without persisting diagnostic data
+
 ### Requirement: Android 模块职责分层
 
 `app/` MUST 承载 UI、后台服务、数据库、配置解析和 JNI 平台适配。`io.nekohasekai.sagernet` MUST 保持 SagerNet 核心框架职责，`moe.matsuri.nb4a` MUST 承担 NekoBox/Throne 兼容扩展、附加协议绑定和工具职责。资源 MUST 按 Android 标准目录组织，并维持已支持语言的本地化字符串；测试菜单和设置中的用户可见名称 MUST 使用可翻译资源，不得以不可翻译的英文文案替代。
@@ -34,6 +70,99 @@
 - **WHEN** `ConfigBuilder` 生成 sing-box 配置
 - **THEN** 输出可被目标官方内核 schema 接受
 - **AND** 不包含已移除的入站 sniff、legacy TUN 地址或 `route.concurrent_dial` 字段
+
+### Requirement: Root 路由顺序保持域名命中与拒绝优先级
+
+Android 配置生成器 MUST 在启用嗅探时将 `sniff` action 放在所有基于域名的路由规则之前，包括 Root mixed 入站探测规则。显式用户规则 MUST 位于 geographic fallback 前并保持彼此的相对顺序；fallback 重排 MUST 将拒绝型 geographic fallback 放在内置国内 geosite/geoip 直连 fallback 之前，且 MUST NOT 改写数据库中的用户顺序。Root DNS 的 port 53 与 protocol dns 流量 MUST 由 `hijack-dns` 处理，MUST NOT 生成重复的 53 端口代理兜底。组播 reject MUST 只匹配目的地址，MUST NOT 包含 `source_ip_cidr`。
+
+#### Scenario: sniff 先于 Root 探测和业务域名规则
+
+- **GIVEN** 用户启用流量嗅探，Root 配置包含 mixed 入站探测域名和用户域名分流规则
+- **WHEN** Android 生成 sing-box route rules
+- **THEN** `action=sniff` 位于探测域名及其他域名路由之前
+- **AND** 用户域名规则仍按显式规则语义参与路由
+
+#### Scenario: 自定义 reject 优先于国内 direct fallback
+
+- **GIVEN** 启用规则中同时存在用户自定义 reject geographic fallback 与内置国内 direct fallback
+- **WHEN** wanBox 排序并生成普通规则路由
+- **THEN** reject fallback 位于国内 direct fallback 之前
+- **AND** Room 中原始用户顺序保持不变
+
+#### Scenario: DNS 与组播规则保持目的流量语义
+
+- **GIVEN** Android 为 Root 模式生成 DNS 与组播 route rules
+- **WHEN** 配置生成 port 53/protocol dns 的 hijack 及组播 reject
+- **THEN** DNS 流量由 `hijack-dns` 处理且不存在冗余的 53 端口代理兜底
+- **AND** 组播 reject 匹配目标 CIDR，且没有 `source_ip_cidr`
+
+### Requirement: 缺失的路由出站引用必须显式告警
+
+Android MUST 对规则实际使用的出站引用检查节点与策略组是否存在；内置 proxy/direct/block 目标 MUST 被识别为有效引用。引用缺失的规则 MUST 在路由列表显示红色错误状态，且核心启动或应用新配置前 MUST 显示列出规则与缺失引用类型/ID 的提醒。提醒 MUST 提供返回路由列表修复或明确继续的选项；继续时 MUST 保留未应用规则的可见提醒，不得静默忽略。脱敏 issue MUST NOT 包含凭据、代理地址或原始核心 stderr，也 MUST NOT 持久化到规则实体。
+
+#### Scenario: 路由列表标记悬空引用
+
+- **GIVEN** 一条规则引用的节点或策略组已被删除
+- **WHEN** 用户打开路由规则列表
+- **THEN** 对应规则显示红色错误状态及安全的缺失引用摘要
+- **AND** 有效节点、策略组及内置出站不会被误标
+
+#### Scenario: 启动前提醒且仅由用户决定继续
+
+- **GIVEN** 当前启用规则含一个或多个不存在的出站引用
+- **WHEN** 用户启动核心或应用新的 Root 配置
+- **THEN** 配置应用前出现包含规则名称/ID 与缺失引用类型/ID 的提醒
+- **AND** 用户可返回路由列表修复或明确继续；取消不得启动/应用，继续后未应用规则仍列在提醒结果中
+
+### Requirement: Core settings provide an independent QUIC UDP 443 switch
+
+核心设置 MUST 提供独立的“拦截 QUIC (UDP 443)”开关，默认 MUST 开启。开启时，Root 配置 MUST 在普通用户路由规则之前产生只匹配 `network=udp`、`port=443` 的 `action=reject` 规则；该自动规则 MUST NOT 匹配 TCP 443 或 UDP 非 443。关闭时 MUST NOT 产生该自动规则，UDP 443/HTTP/3/QUIC MUST 继续按剩余有效路由规则处理，且 MUST 保留用户显式保存的规则。设置文案 MUST 在默认语言与简体中文资源中可见。导出包含 settings 区段的便携备份时，MUST 将缺失的 `blockQuic` 默认物化为 `true`，并 MUST 在导入/导出往返中保留显式值。
+
+#### Scenario: 默认拦截 UDP 443
+
+- **GIVEN** 用户首次安装或此前没有保存该设置
+- **WHEN** Android 生成并下发 Root sing-box 配置
+- **THEN** QUIC 开关默认开启且生成 UDP/443 reject
+- **AND** 自动规则位于普通用户规则之前，TCP/443 与 UDP/非443 不匹配该规则
+
+#### Scenario: 关闭后允许 HTTP/3 与 QUIC
+
+- **GIVEN** 用户关闭独立 QUIC 开关且没有显式自定义拒绝规则
+- **WHEN** Android 重新生成并下发 Root 配置
+- **THEN** 自动 UDP/443 reject 不存在
+- **AND** HTTP/3/QUIC 流量可按剩余路由规则通过
+
+#### Scenario: 关闭开关不删除用户自定义拒绝规则
+
+- **GIVEN** 用户关闭自动 QUIC 拦截，同时保存了一个仅匹配指定域名 UDP/443 的自定义 reject 规则
+- **WHEN** Android 重新生成 Root 配置
+- **THEN** 全局自动 UDP/443 reject 不存在
+- **AND** 用户保存的域名范围 reject 规则仍存在且保持原有匹配条件
+
+#### Scenario: 便携备份保留 QUIC 默认与显式设置
+
+- **GIVEN** 便携备份包含 settings 区段，且一个备份没有显式保存 `blockQuic`、另一个备份显式保存 `false`
+- **WHEN** Android 导出并再次导入这两份备份
+- **THEN** 缺失值在备份中物化为 `true`，导入时也补齐为 `true`
+- **AND** 显式 `false` 在导出和导入后仍为 `false`
+
+### Requirement: 默认广告与 Play 规则不劫持系统下载
+
+默认广告规则和广告规则快捷/预设入口 MUST 使用本地 geosite 转换链支持的 `geosite-category-ads-all` 标签。新建的默认 Play Store 规则 MUST NOT 被应用强制启用，且 MUST NOT 注入 `com.android.providers.downloads` 或 `com.android.providers.downloads.ui`。迁移既有规则时，仅当规则 domains 含 `googleapis.cn` 且包名集合含任一上述旧注入包时，MUST 从该规则移除这两个包；MUST 保留规则原有 `enabled` 状态、其他包名及不符合该特征的规则。
+
+#### Scenario: 创建默认广告与 Play 规则
+
+- **GIVEN** 新安装触发默认路由规则创建，或用户使用广告规则快捷/预设入口
+- **WHEN** 应用生成默认 route rule
+- **THEN** 广告规则使用 `geosite-category-ads-all` 本地标签
+- **AND** 默认 Play 规则不被强制启用且不包含 Downloads Provider/Download Manager 包名
+
+#### Scenario: 升级已有 Play 下载注入规则
+
+- **GIVEN** 已保存的 Play 规则 domains 含 `googleapis.cn`，且包名含一个或两个旧 Downloads 注入项
+- **WHEN** `ProfileManager` 读取并迁移路由规则
+- **THEN** 两个旧注入包名均从该 Play 规则移除
+- **AND** 原有 enabled 状态与其他包名保持不变，非 Play 规则不受影响
 
 ### Requirement: 链式配置引用必须解析到最终出站标签
 
@@ -76,6 +205,31 @@ Android 后台服务 MUST 将配置无效、依赖缺失或内核启动失败报
 - **THEN** 配置改用安全的远程 DoH 回退值
 - **AND** DNS detour 指向当前节点
 - **AND** 用户收到修改设置的提示
+
+### Requirement: 未设置组级测速 URL 动态继承全局 URL
+
+组级测速 URL 未显式设置时 MUST 保持空 override，并在每次生成组级 URLTest/LoadBalance outbound 或解析单节点测速链接时动态使用当前全局 `connectionTestURL`；显式组 URL MUST 优先。编辑页加载与保存 MUST NOT 固化全局/默认 URL。旧版自动写入且精确等于 `default_group_test_url` 的 fallback MUST 迁移为空 override，其他非空值 MUST 保留。Root snapshot 中组级 URLTest/LoadBalance outbound 与单节点解析 MUST 使用同一组级解析结果；Root mixed-inbound 的应用级连接测试探测规则及 Root health-check policy MUST 继续使用全局 `connectionTestURL`，不得继承组级 override。
+
+#### Scenario: 空或旧 fallback override 跟随当前全局值
+
+- **GIVEN** 一个组未设置测速 URL，或只存有旧版固定 `default_group_test_url`
+- **WHEN** 全局 `connectionTestURL` 改变并重新生成组级 Root URLTest/LoadBalance outbound
+- **THEN** 该组使用最新全局 URL，旧 fallback 被迁移为空 override
+- **AND** 再次修改全局 URL 后，空 override 继续跟随新值
+
+#### Scenario: 显式组 URL 保持组级测速优先
+
+- **GIVEN** 某组保存了不同于旧 fallback 的明确测速 URL
+- **WHEN** URLTest 或 LoadBalance outbound 生成且全局 URL 改变
+- **THEN** 该组仍使用自己的显式 URL
+- **AND** 未配置组 URL 的其他分组使用新的全局 URL
+
+#### Scenario: 应用级 Root probe 仍保持全局 URL
+
+- **GIVEN** 某组显式测速 URL 与全局 `connectionTestURL` 不同
+- **WHEN** Root 配置生成应用级 mixed-inbound 探测规则和组级测速 outbound
+- **THEN** 组级 URLTest/LoadBalance outbound 使用显式组 URL
+- **AND** mixed-inbound 探测规则与 health-check policy 仍使用全局 URL
 
 ### Requirement: 测速与正式连接保持语义一致且实例隔离
 
@@ -161,6 +315,39 @@ Android 应用 MUST 能导入 Throne 桌面 `.thrbackup`：解析 `THRN` QDataSt
 - **AND** 不支持的 outbound 以自定义 JSON 配置保留
 - **AND** 应用触发完整重启
 
+### Requirement: 用户备份在新旧版本间保持可读与兼容
+
+Android 应用 MUST 以 `profiles` 作为新版用户备份字段，MUST 将 route rules 导出为可读 JSON，并在用户选择 `settings` 区段时物化 DataStore 的稳定 Root 网络配置默认值：核心路由/DNS、应用/Wi-Fi/移动网/Root UID 路由策略、规则资源 provider/URLs、LAN 访问、全局 TLS 证书校验策略及共享连接测试 URL。显式保存的设置 MUST 优先保留；`INPUT_METHOD_DIRECT` 这类一次性迁移标记 MUST NOT 被当作普通缺省值写入。导入器 MUST 兼容旧 `proxies` 字段、旧 Base64 Parcel 规则、同一数组内混合 JSON 与 Base64 Parcel rule entries，以及旧 wanBox 用户备份。若 `settings` 区段未被选择，导入计划 MUST 保持未选择且 MUST NOT 创建该区段的默认值。内部 RootModuleSnapshot/data archive MUST NOT 被当作用户 JSON 备份处理。
+
+#### Scenario: 导出新版用户备份并补齐稳定默认
+
+- **GIVEN** 用户选择导出 profiles、rules 和 settings，且部分 Root 网络配置设置没有持久化值
+- **WHEN** App 编码用户备份
+- **THEN** profiles 使用 `profiles` 字段，route rules 使用可读 JSON
+- **AND** settings 中缺失的稳定 Root 网络配置默认值被物化，显式值保持原样
+- **AND** 未显式保存的一次性迁移标记不被补入
+
+#### Scenario: 导入旧 wanBox 备份
+
+- **GIVEN** 旧 wanBox 用户备份使用 `proxies`、Base64 Parcel 规则或部分旧版 settings
+- **WHEN** 用户导入该备份
+- **THEN** profiles、groups、rules 和被选择的 settings 可按兼容规则恢复
+- **AND** 已保存值优先，缺失的稳定默认只在存在 settings 区段时补齐
+
+#### Scenario: 混合 route entries 可导入
+
+- **GIVEN** v1 或 v2 用户备份的 rules 数组同时包含 JSON object 与 Base64 Parcel string
+- **WHEN** 导入器解析 rules
+- **THEN** 两类 entry 均还原为语义等价的 RuleEntity
+- **AND** 不支持或损坏的 entry 在写入数据库前被拒绝
+
+#### Scenario: 未选择 settings 时保持未选择
+
+- **GIVEN** 用户只选择导入 profiles 或 rules，备份没有 `settings` 区段
+- **WHEN** 导入器解析备份
+- **THEN** settings 保持未选择
+- **AND** 不会仅因兼容逻辑而添加设置默认值
+
 ### Requirement: 启动入口与关键 UI 保持可达
 
 Launcher `MainActivity` MUST 唯一声明静态快捷方式元数据；切换、启用、禁用和扫码四个快捷方式的目标包 MUST 与 `nb4a.properties` 的应用包名一致，目标 Activity MUST 可被 Launcher 启动。扫码界面 MUST 以底部悬浮按钮提供手电筒和图片导入，不依赖会被预览遮挡的工具栏。
@@ -196,3 +383,55 @@ Android 应用在前台页面操作失败且已有可用宿主 Activity 时，MU
 - **WHEN** 应用请求显示该配置项的错误详情
 - **THEN** 应用显示含该错误详情的提示对话框
 - **AND** 主题包装 Context 不影响显示结果
+
+#### Scenario: Smart Auto-stop Root snapshot Apply 失败安全处理
+
+- **GIVEN** 用户在 Smart Auto-stop 设置中发起 Root snapshot Apply
+- **WHEN** Apply 发生普通失败且宿主 Activity 仍可用
+- **THEN** 应用通过现有安全宿主处理入口显示包含原始可读错误消息的对话框，主题包装 Context 不影响宿主解析
+- **AND** 若显示时宿主 Activity 正在结束、已销毁或不存在，应用安全跳过显示，不产生新的未处理异常或无效窗口
+- **AND** 若 Apply 抛出 `CancellationException`，异常继续传播，MUST NOT 被当成普通错误显示
+
+### Requirement: Smart network auto-stop is bounded, location-permission-free, and user-controllable
+
+高级设置 MUST 提供默认关闭的网络自动挂起开关与规则编辑，最多允许 5 条规则，支持逗号、分号、中文逗号和换行分隔的本地 IPv4/IPv6、CIDR 与 `gateway:` 网关匹配。功能 MUST NOT 请求定位权限。Android 13 及以上 MUST 在启用功能时请求通知权限；若权限被拒绝，MUST 保持功能关闭并明确提示用户。启用功能时，Android MUST 在 Root snapshot 中附带经校验的应用 `appPackage`。应用 MUST 只接受面向该应用的固定 `AUTO_STOP_STATE` action 和 `suspended`、`connected`、`stopped`、`failed`、`disabled` phase 值；phase event MUST NOT 携带网络标识、匹配规则或核心输出。命中规则后，Root supervisor MUST 优雅停止当前核心，只有核心确认退出并释放自己的 TUN/auto-route 后才可报告挂起；MUST NOT 全局 flush iptables/nftables 或操作其他实例路由。挂起时 MUST 保留显示“已挂起”及“恢复”“停止”按钮的通知；两个 action 分别调用 Root resume 与 stop。离开匹配网络后 MUST 自动恢复此前自动挂起的核心；用户在同一网络手动恢复后 MUST 抑制该 fingerprint 下的重复挂起，网络变化后才重新匹配；用户手动停止不得被自动恢复覆盖。
+
+#### Scenario: 匹配网络后只在核心退出时显示挂起
+
+- **GIVEN** 用户配置至多 5 条有效 IP/CIDR/`gateway:` 规则且当前物理网络匹配
+- **WHEN** Root supervisor 请求核心优雅退出
+- **THEN** 只有确认核心退出并释放本实例 TUN/auto-route 后，Android 才显示已挂起 phase 和可操作通知
+- **AND** 不请求定位权限，phase event 不包含网络地址、gateway、SSID 或规则文本
+
+#### Scenario: 离开网络与同网手动恢复
+
+- **GIVEN** 核心因当前 network fingerprint 自动挂起
+- **WHEN** 设备离开匹配网络，或用户在同一网络手动恢复
+- **THEN** 离开网络时原运行意图自动恢复一次；同网手动恢复抑制该 fingerprint 的再次挂起
+- **AND** 通知的恢复/停止按钮分别执行 Root resume/stop，手动停止不会被自动恢复覆盖
+
+Android MUST reconcile notifications only for the fixed phases `suspended`, `connected`, `stopped`, `failed`, and `disabled`; unknown actions or phases MUST be ignored. After a notification Resume or Stop action, Android MUST query Root status even if the command fails, and MUST use a recognized returned phase as authoritative. If notification delivery or status communication fails, or the queried phase is unknown, Android MUST preserve the last successfully displayed suspended notification rather than dismissing it based on the action alone. Coroutine cancellation MUST propagate.
+
+#### Scenario: Notification action loses its reply or status is unavailable
+
+- **GIVEN** Android last successfully displayed the actionable suspended notification
+- **WHEN** the user selects Resume or Stop and the command reply fails
+- **THEN** Android MUST still query authoritative Root status and reconcile a recognized phase
+- **AND** if the status query fails or returns an unknown phase, Android MUST retain the last suspended notification and its actions
+- **AND** a failed notification delivery MUST NOT dismiss the last successfully displayed suspended notification
+
+Before enabling Smart Auto-stop on every supported Android version, Android MUST create/inspect the `smart_auto_stop` notification channel and verify both app-level notification availability and channel importance other than `IMPORTANCE_NONE`. On API 33+ it MUST request missing runtime notification permission first and recheck app/channel availability after the result. If any gate remains blocked, the feature MUST remain disabled with actionable app/channel notification settings. Notification settings MUST remain available while the feature is enabled. Snapshot generation MUST derive the current Android user/profile through a supported Android API and include its integer `userId` alongside `appPackage`.
+
+#### Scenario: App or channel notifications are blocked
+
+- **GIVEN** app notifications are disabled on API 31–32, or the Smart Auto-stop channel has `IMPORTANCE_NONE` on any supported Android version
+- **WHEN** the user tries to enable Smart Auto-stop
+- **THEN** the feature remains disabled and an actionable notification-settings entry is available
+- **AND** granting API 33+ runtime permission alone cannot bypass a blocked channel
+
+#### Scenario: Notification controls remain discoverable
+
+- **GIVEN** Smart Auto-stop is enabled with app and channel notifications available
+- **WHEN** the user opens advanced settings
+- **THEN** notification settings remain accessible
+- **AND** returning from notification settings rechecks availability before retaining the enabled setting

@@ -113,6 +113,8 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     /** phase2: one-shot flag for the LIGHT_GRAY → MILK_TEA migration (see SagerNet.onCreate). */
     /** phase2: node health check policy sent to the module (off / notify / auto). Default notify-only. */
     var healthCheckMode by configurationStore.string("healthCheckMode") { "notify" }
+    var smartAutoStopEnabled by configurationStore.boolean(Key.SMART_AUTO_STOP_ENABLED) { false }
+    var smartAutoStopRules by configurationStore.string(Key.SMART_AUTO_STOP_RULES) { "" }
     var themeMilkTeaMigrated by configurationStore.boolean("themeMilkTeaMigrated") { false }
     val useSystemTheme: Boolean get() = false
     var nightTheme by configurationStore.stringToInt(Key.NIGHT_THEME)
@@ -122,6 +124,7 @@ object DataStore : OnPreferenceDataStoreChangeListener {
         get() = Key.MODE_ROOT
         set(@Suppress("UNUSED_PARAMETER") value) { configurationStore.putString(Key.SERVICE_MODE, Key.MODE_ROOT) }
     var trafficSniffing by configurationStore.stringToInt(Key.TRAFFIC_SNIFFING) { 1 }
+    var blockQuic by configurationStore.boolean(Key.BLOCK_QUIC) { true }
     var resolveDestination by configurationStore.boolean(Key.RESOLVE_DESTINATION)
     var mtu by configurationStore.stringToInt(Key.MTU) { 9000 }
     var bypassLan by configurationStore.boolean(Key.BYPASS_LAN)
@@ -377,21 +380,12 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var groupIsSelector by profileCacheStore.boolean(Key.GROUP_IS_SELECTOR)
     var groupIsUrlTest by profileCacheStore.boolean("groupIsUrlTest")
     var groupIsLoadBalance by profileCacheStore.boolean("groupIsLoadBalance")
-    private var rawGroupUrlTestUrl by profileCacheStore.string("groupUrlTestUrl") {
-        SagerNet.application.getString(R.string.default_group_test_url)
-    }
-    var groupUrlTestUrl: String
-        get() {
-            val url = rawGroupUrlTestUrl.trim()
-            if (url.isBlank()) {
-                val newUrl = SagerNet.application.getString(R.string.default_group_test_url)
-                rawGroupUrlTestUrl = newUrl
-                return newUrl
-            }
-            return url
-        }
+    private var rawGroupUrlTestUrlOverride by profileCacheStore.string("groupUrlTestUrl") { "" }
+    // Blank is intentional: it follows the current global URL test setting.
+    var groupUrlTestUrlOverride: String
+        get() = rawGroupUrlTestUrlOverride
         set(value) {
-            rawGroupUrlTestUrl = value.trim()
+            rawGroupUrlTestUrlOverride = value
         }
     var groupUrlTestInterval by profileCacheStore.stringToInt("groupUrlTestInterval") { 600 }
     var groupUrlTestTolerance by profileCacheStore.stringToInt("groupUrlTestTolerance") { 100 }
@@ -416,10 +410,17 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     }
     fun groupIsLoadBalance(groupId: Long): Boolean = isGroupLoadBalance(groupId)
     fun setGroupIsLoadBalance(groupId: Long, value: Boolean) = setGroupLoadBalance(groupId, value)
-    fun groupUrlTestUrl(groupId: Long): String {
-        val stored = configurationStore.getString("group_${groupId}_urlTestUrl", "")?.trim()?.takeIf { it.isNotBlank() }
-        return stored ?: SagerNet.application.getString(R.string.default_group_test_url)
+    fun readAndMigrateGroupUrlTestUrlOverride(groupId: Long): String {
+        val key = "group_${groupId}_urlTestUrl"
+        val stored = configurationStore.getString(key, "") ?: ""
+        if (stored == SagerNet.application.getString(R.string.default_group_test_url)) {
+            configurationStore.putString(key, "")
+            return ""
+        }
+        return stored
     }
+    fun resolvedGroupUrlTestUrl(groupId: Long): String =
+        readAndMigrateGroupUrlTestUrlOverride(groupId).trim().takeIf { it.isNotBlank() } ?: connectionTestURL
     fun setGroupUrlTestUrl(groupId: Long, value: String) {
         configurationStore.putString("group_${groupId}_urlTestUrl", value)
     }

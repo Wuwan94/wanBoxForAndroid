@@ -96,7 +96,7 @@ type fakeMonitor struct {
 
 func (f *fakeMonitor) deps() monitorDeps {
 	return monitorDeps{
-		fingerprint: func() string { f.mu.Lock(); defer f.mu.Unlock(); return f.fp },
+		fingerprint: func() networkDecision { f.mu.Lock(); defer f.mu.Unlock(); return networkDecision{Fingerprint: f.fp} },
 		probe:       func(context.Context) bool { f.mu.Lock(); defer f.mu.Unlock(); return f.probeOK },
 		failover: func(context.Context) bool {
 			f.mu.Lock()
@@ -250,7 +250,7 @@ func TestMonitorAutoModeRequiresConsecutiveStreak(t *testing.T) {
 	var mu sync.Mutex
 	clock := time.Unix(0, 0)
 	deps := monitorDeps{
-		fingerprint: func() string { return "a" },
+		fingerprint: func() networkDecision { return networkDecision{Fingerprint: "a"} },
 		probe: func(context.Context) bool {
 			n := int(atomic.AddInt32(&probes, 1))
 			if n == 6 {

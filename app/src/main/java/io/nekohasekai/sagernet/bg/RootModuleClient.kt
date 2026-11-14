@@ -29,10 +29,52 @@ import java.util.Base64
 
 /** Root-only CLI bridge; the App never owns core processes. @author 雾晚 */
 object RootModuleClient {
+    class OutboundReferenceWarningRequired(val warning: OutboundReferenceWarning) : Exception("outbound_confirmation_required")
+
+    private val pendingOutboundWarning = java.util.concurrent.atomic.AtomicReference<OutboundReferenceWarning?>()
+
+    private suspend fun prepareOutboundWarningLocked(
+        startIfStopped: Boolean,
+        snapshot: io.nekohasekai.sagernet.route.RootRouteBuildSnapshot,
+    ): OutboundReferenceWarning? {
+        val issues = snapshot.issues()
+        if (issues.isEmpty()) {
+            pendingOutboundWarning.set(null)
+            return null
+        }
+        return pendingOutboundWarning.get()?.takeIf { it.issues == issues && it.startIfStopped == startIfStopped }
+            ?: OutboundReferenceWarning(java.util.UUID.randomUUID().toString(), startIfStopped, issues)
+                .also { pendingOutboundWarning.set(it) }
+    }
+
+    suspend fun prepareOutboundWarning(startIfStopped: Boolean): OutboundReferenceWarning? =
+        withContext(Dispatchers.IO) { changes.withLock {
+            prepareOutboundWarningLocked(startIfStopped, io.nekohasekai.sagernet.route.RootRouteBuildSnapshot.capture())
+        } }
+
+    fun cancelOutboundWarning(requestToken: String) {
+        val warning = pendingOutboundWarning.get()
+        if (warning?.requestToken == requestToken) pendingOutboundWarning.compareAndSet(warning, null)
+    }
+
+    suspend fun continueOutboundWarning(requestToken: String, startIfStopped: Boolean) = withContext(Dispatchers.IO) {
+        // Claim ownership once, without reading the database that installer restore may replace.
+        val confirmedWarning = pendingOutboundWarning.get()
+        if (confirmedWarning == null || confirmedWarning.requestToken != requestToken ||
+            confirmedWarning.startIfStopped != startIfStopped ||
+            !pendingOutboundWarning.compareAndSet(confirmedWarning, null))
+            throw IOException("outbound_confirmation_expired")
+        RootModuleDataUpdate.applyInstallerSelection()
+        changes.withLock {
+            // Revalidate restored/current rules under the same lock as config application.
+            startOrReloadLocked(startIfStopped, confirmedWarning = confirmedWarning)
+        }
+    }
+
     // @author 雾晚: this is the manager-owned root module, never App private storage.
     @android.annotation.SuppressLint("SdCardPath")
     const val CLI = "/data/adb/modules/wanbox/bin/wanboxctl"
-    private val commands = setOf("status", "module", "logs", "dashboard", "start", "stop", "restart", "reload",
+    private val commands = setOf("status", "module", "logs", "dashboard", "start", "stop", "resume", "restart", "reload",
         "config apply", "config validate", "autostart on", "autostart off", "data prepare", "data finish", "data rollback",
         "node failover", "node tags")
     private val changes = Mutex()
@@ -96,6 +138,7 @@ object RootModuleClient {
         val connected get() = phase == "connected" && installData == null
         val state get() = if (installData != null) BaseService.State.Stopped else when (phase) {
             "connected" -> BaseService.State.Connected
+            "suspended" -> BaseService.State.Suspended
             "starting" -> BaseService.State.Connecting
             else -> BaseService.State.Stopped
         }
@@ -113,7 +156,7 @@ object RootModuleClient {
         }
         val state = json.getAsJsonObject("state") ?: throw IOException("module_status_invalid")
         val phase = state["phase"]?.asString ?: throw IOException("module_status_invalid")
-        if (phase !in setOf("connected", "starting", "stopped", "failed", "disabled", "cleanup_required")) throw IOException("module_status_invalid")
+        if (phase !in setOf("connected", "starting", "suspended", "stopped", "failed", "disabled", "cleanup_required")) throw IOException("module_status_invalid")
         val selection = state["installData"]?.takeUnless { it.isJsonNull }?.let {
             if (!it.isJsonObject) throw IOException("install_data_selection_invalid")
             val entry = it.asJsonObject
@@ -210,6 +253,10 @@ object RootModuleClient {
                 statusCache.putIfGeneration(RootModuleReadQuery.STATUS, it, cacheGeneration)
             }
         }
+    }
+
+    internal var commandProcess: (String) -> Process = { command ->
+        ProcessBuilder("su", "-c", "exec $CLI $command").start()
     }
 
     /**
@@ -353,7 +400,7 @@ object RootModuleClient {
 
     /** Run one bridge command and return its raw stdout, unparsed. */
     private suspend fun doCallRaw(command: String, input: File? = null): String {
-        val process = try { ProcessBuilder("su", "-c", "exec $CLI $command").start() }
+        val process = try { commandProcess(command) }
             catch (_: IOException) { throw IOException("root_required") }
         try {
             return coroutineScope {
@@ -402,7 +449,7 @@ object RootModuleClient {
         }
     }
     fun safeError(error: Exception): String = error.message?.takeIf { it.matches(Regex("[a-z_]{1,80}")) } ?: "module_operation_failed"
-    suspend fun startOrReload(startIfStopped: Boolean = true): Unit = withContext(Dispatchers.IO) {
+    suspend fun startOrReload(startIfStopped: Boolean = true): Status = withContext(Dispatchers.IO) {
         RootModuleDataUpdate.applyInstallerSelection()
         if (!startIfStopped) changes.lock()
         else if (!changes.tryLock()) throw IOException("module_busy")
@@ -427,6 +474,7 @@ object RootModuleClient {
                     call("stop")
                     action
                 }
+                ServiceToggleAction.RESUME -> { call("resume"); action }
                 ServiceToggleAction.START -> {
                     if (profileId >= 0L) DataStore.selectedProxy = profileId
                     startOrReloadLocked(startIfStopped = true, beforeStatus = status)
@@ -440,22 +488,29 @@ object RootModuleClient {
         RootModuleDataUpdate.applyInstallerSelection()
         tryWithChangesLock {
             val status = callFreshStatus()
-            if (!status.state.canStop) startOrReloadLocked(startIfStopped = true, beforeStatus = status)
+            if (status.state == BaseService.State.Suspended) call("resume")
+            else if (!status.state.canStop) startOrReloadLocked(startIfStopped = true, beforeStatus = status)
         }
     }
 
-    private suspend fun startOrReloadLocked(startIfStopped: Boolean, beforeStatus: Status? = null) {
+    private suspend fun startOrReloadLocked(startIfStopped: Boolean, beforeStatus: Status? = null, confirmedWarning: OutboundReferenceWarning? = null): Status {
+        val routeSnapshot = io.nekohasekai.sagernet.route.RootRouteBuildSnapshot.capture()
+        val warning = prepareOutboundWarningLocked(startIfStopped, routeSnapshot)
+        if (warning != null && (warning.issues != confirmedWarning?.issues ||
+                warning.startIfStopped != confirmedWarning?.startIfStopped)) throw OutboundReferenceWarningRequired(warning)
+        if (warning != null && !pendingOutboundWarning.compareAndSet(warning, null))
+            throw IOException("outbound_confirmation_expired")
         val before = beforeStatus ?: callFreshStatus()
         // @author 雾晚: rule edits use module truth, never a stale UI/Binder state.
         if (RootModuleDataUpdate.pending()) throw IOException("data_update_pending")
         if (before.phase == "disabled") throw IOException("module_disabled_or_missing")
-        val profile = SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
-            ?: if (!startIfStopped && !before.state.canStop) return else throw IOException("profile_missing")
+        val profile = routeSnapshot.allProfiles().firstOrNull { it.id == DataStore.selectedProxy }
+            ?: if (!startIfStopped && !before.state.canStop) return before else throw IOException("profile_missing")
         // @author 雾晚: refresh cross-user UIDs (TTL-cached) so per-app rules
         // cover secondary users / cloned apps.
         runCatching { io.nekohasekai.sagernet.utils.PackageCache.refreshMultiUserUids() }
         suspend fun applyBackend(backend: RootInboundBackend, expectedRevision: String): Status {
-            val instance = ProxyInstance(profile, rootInboundBackend = backend)
+            val instance = ProxyInstance(profile, rootInboundBackend = backend, rootRouteSnapshot = routeSnapshot)
             val file = File.createTempFile("module-snapshot-", ".json", SagerNet.application.cacheDir)
             try {
                 instance.init()
@@ -465,12 +520,12 @@ object RootModuleClient {
                 // Apply owns active-core restart/rollback; passive edits never start a stopped module.
                 if (startIfStopped) {
                     call("autostart ${if (DataStore.persistAcrossReboot) "on" else "off"}")
-                    if (!applied.state.canStop) call("start")
+                    if (!applied.state.canStop && applied.state != BaseService.State.Suspended) call("start")
                 }
                 return applied
             } finally { file.delete(); instance.close() }
         }
-        try {
+        return try {
             applyBackend(RootInboundBackend.EBPF, before.revision)
         } catch (error: IOException) {
             // If this kernel/core cannot activate eBPF, retry the same validated profile
@@ -483,6 +538,7 @@ object RootModuleClient {
     }
 
     suspend fun stop() = changes.withLock { call("stop") }
+    suspend fun resume() = changes.withLock { call("resume") }
     /**
      * Hot-switch the running core to another node without restart.
      * Serialized with config applies; any failure must make the caller fall back
@@ -609,6 +665,13 @@ internal class RootModuleSnapshot(private val instance: ProxyInstance, private v
             }
             addBytes("files/health_check.json", policy.toString().toByteArray())
         }
+        val autoStop = JsonObject().apply {
+            addProperty("enabled", DataStore.smartAutoStopEnabled)
+            add("rules", com.google.gson.JsonArray().apply { SmartAutoStopRuleParser.parse(DataStore.smartAutoStopRules).getOrThrow().forEach { add(it) } })
+            addProperty("appPackage", io.nekohasekai.sagernet.BuildConfig.APPLICATION_ID)
+            addProperty("userId", SmartAutoStopAndroidUser.fromUid(android.os.Process.myUid()))
+        }
+        addBytes("files/smart_auto_stop.json", autoStop.toString().toByteArray())
         val encoded = JsonObject(); files.forEach { (name, bytes) -> encoded.addProperty(name, Base64.getEncoder().encodeToString(bytes)) }
         return JsonObject().apply {
             addProperty("schemaVersion", 1); addProperty("expectedRevision", revision); add("config", config); add("files", encoded); add("plugins", plugins)

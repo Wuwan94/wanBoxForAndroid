@@ -83,7 +83,7 @@ class RouteRulePreferences(private val fragment: PreferenceFragmentCompat) {
     }
     private fun showRuleSets() {
         // Existing geodata tags already used by wanBox; no new catalogue downloader or mirror policy.
-        val presets = listOf("geosite:cn", "geoip:cn", "geosite:category-ads-all")
+        val presets = listOf("geosite:cn", "geoip:cn", "geosite-category-ads-all")
         val domains = DataStore.routeDomain.split('\n').toMutableList()
         val ips = DataStore.routeIP.split('\n').toMutableList()
         val checked = presets.map { it in domains || it in ips }.toBooleanArray()

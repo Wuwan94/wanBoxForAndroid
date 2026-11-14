@@ -18,6 +18,7 @@ import android.os.UserManager
 import androidx.core.content.getSystemService
 import go.Seq
 import io.nekohasekai.sagernet.bg.SagerConnection
+import io.nekohasekai.sagernet.bg.ServiceNotification
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.isOss
@@ -235,7 +236,7 @@ class SagerNet : Application(),
 
         /** The module owns the core; the manager no longer posts tray notifications. @author 雾晚 */
         fun clearLegacyNotifications() {
-            notification.cancelAll()
+            notification.cancel(ServiceNotification.notificationId)
             for (channel in listOf("service-vpn", "service-proxy", "service-subscription", "connection-test")) {
                 notification.deleteNotificationChannel(channel)
             }
@@ -243,6 +244,28 @@ class SagerNet : Application(),
 
         // @author 雾晚: short management operations; no Android service owns the core.
         private fun reportModuleError(error: Exception) {
+            if (error is io.nekohasekai.sagernet.bg.RootModuleClient.OutboundReferenceWarningRequired) {
+                // Never acquire a process-local confirmation lock in :bg. The UI
+                // owns confirmation and re-reads the current sanitized issue snapshot.
+                val pending = io.nekohasekai.sagernet.bg.OutboundReferenceWarning.PendingReview(
+                    java.util.UUID.randomUUID().toString(), error.warning.startIfStopped)
+                try {
+                    io.nekohasekai.sagernet.bg.OutboundReferenceWarning.persistPendingReview(application, pending)
+                } catch (_: Exception) {
+                    // Keep the live UI notification usable even if private storage is unavailable.
+                }
+                try { application.sendBroadcast(Intent(io.nekohasekai.sagernet.bg.OutboundReferenceWarning.ACTION_REQUIRED)
+                    .setPackage(application.packageName)
+                    .putExtra(io.nekohasekai.sagernet.bg.OutboundReferenceWarning.EXTRA_REQUEST_ID, pending.requestId)
+                    .putExtra(io.nekohasekai.sagernet.bg.OutboundReferenceWarning.EXTRA_START_IF_STOPPED,
+                        pending.startIfStopped))
+                } catch (_: Exception) { /* The toast can still direct the user to the app. */ }
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    android.widget.Toast.makeText(application, R.string.outbound_reference_open_app,
+                        android.widget.Toast.LENGTH_LONG).show()
+                }
+                return
+            }
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 android.widget.Toast.makeText(application, io.nekohasekai.sagernet.bg.RootModuleErrors.message(application, error),
                     android.widget.Toast.LENGTH_LONG).show()
@@ -327,6 +350,15 @@ class SagerNet : Application(),
         fun enableService() = moduleCommand { io.nekohasekai.sagernet.bg.RootModuleClient.enableService() }
         fun startService() = moduleCommand { io.nekohasekai.sagernet.bg.RootModuleClient.startOrReload() }
         fun reloadService() { configurationReload.request() }
+        fun reloadService(onError: (Exception) -> Unit) {
+            configurationReload.request(onError = { error ->
+                if (error is io.nekohasekai.sagernet.bg.RootModuleClient.OutboundReferenceWarningRequired) {
+                    reportModuleError(error)
+                } else {
+                    onError(error)
+                }
+            })
+        }
         // @author 雾晚: restart from newly generated App rules/settings, not the old module snapshot.
         fun restartService() { configurationReload.request() }
         fun stopService() = moduleCommand { io.nekohasekai.sagernet.bg.RootModuleClient.stop() }

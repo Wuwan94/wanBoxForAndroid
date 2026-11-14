@@ -178,6 +178,9 @@
     <moe.matsuri.nb4a.ui.ExpandablePreferenceCategory
         app:key="categoryAdvancedGroup"
         app:title="@string/settings_group_advanced">
+        <SwitchPreference app:key="smartAutoStopEnabled" app:defaultValue="false" app:title="@string/smart_auto_stop_title" />
+        <EditTextPreference app:key="smartAutoStopRules" app:defaultValue="" app:title="@string/smart_auto_stop_rules" app:summary="@string/smart_auto_stop_rules_hint" />
+        <Preference app:key="smartAutoStopPermission" app:title="@string/smart_auto_stop_permission" app:persistent="false" />
 
         <EditTextPreference
             app:defaultValue="https://dns.google/dns-query"
@@ -247,6 +250,13 @@
             app:key="trafficSniffing"
             app:title="@string/traffic_sniffing"
             app:useSimpleSummaryProvider="true" />
+
+        <SwitchPreference
+            app:defaultValue="true"
+            app:icon="@drawable/ic_line_shield"
+            app:key="blockQuic"
+            app:summary="@string/core_block_quic_summary"
+            app:title="@string/core_block_quic_title" />
 
         <SwitchPreference
             app:icon="@drawable/ic_line_text"

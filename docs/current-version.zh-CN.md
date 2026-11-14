@@ -1,6 +1,6 @@
 # 发布、源码与版本对照
 
-核对日期：2026-11-13。发布状态以 GitHub Release、tag 与实际下载资产为准；源码元数据本身不构成已发布资产的核验。
+核对日期：2026-11-15。发布状态以 GitHub Release、tag 与实际下载资产为准；源码元数据本身不构成已发布资产的核验。
 
 | 对象 | 版本与状态 | 版本码及来源 |
 |---|---|---|
@@ -8,11 +8,11 @@
 | 已发布预览版 | [v3.0.15-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.3)，prerelease；tag/commit `fe193f1134a80ff38fb0cb3ed4677eb2b79c1dce` | APK `versionCode=10143` / Root 模块码 `2028`；由正式 `Preview Build` run `43404430362` 发布 |
 | 上一正式版 | [v3.0.11](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11)，非 prerelease，保留；tag `03c6eb70854c797ee1e4069e378145be5ca56b0d` | APK / Root 模块 `10065 / 2013`（历史资产核验记录，归档语境） |
 | 发布基线 | [v3.0.15-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.3) 的 tag/commit `fe193f1134a80ff38fb0cb3ed4677eb2b79c1dce` | PR #39 合并提交；固定发布基线，不等同于后续 main HEAD |
-| 源码预览线 | `3.0.15-preview.3`，与最新已发布预览同线 | `PRE_VERSION_NAME=3.0.15-preview.3`、`PRE_VERSION_CODE=2028`；共享向量计算 APK `versionCode=10143` |
+| 源码预览线 | `3.0.15-preview.4`（候选构建；须经发布工作流验证） | `PRE_VERSION_NAME=3.0.15-preview.4`、`PRE_VERSION_CODE=2028`；共享向量计算 APK `versionCode=10144` |
 
-源码元数据正式线保持 `VERSION_NAME=3.0.14`、`VERSION_CODE=2026`；preview.3 是当前已发布预览，`PRE_VERSION_NAME=3.0.15-preview.3`、`PRE_VERSION_CODE=2028`，其 APK `versionCode=10143` 高于 preview.2 的 `10137`，可作为正常覆盖升级包。稳定版未改变。
+源码元数据正式线保持 `VERSION_NAME=3.0.14`、`VERSION_CODE=2026`；preview.3 仍是当前已发布预览，preview.4 是当前源码候选：`PRE_VERSION_NAME=3.0.15-preview.4`、`PRE_VERSION_CODE=2028`，派生 APK `versionCode=10144`，高于 preview.3 的 `10143`。稳定版与 `SINGBOX_VERSION` 未改变。
 
-v3.0.15-preview.3 由 PR #39 修复并晋升，官方 `Preview Build` run `43404430362` 发布；tag 固定指向 `fe193f1134a80ff38fb0cb3ed4677eb2b79c1dce`。preview.2 的 Release/tag 已在新资产校验成功后按单预览策略清理；正式版 v3.0.14 与上一正式版 v3.0.11 保留。
+v3.0.15-preview.3 由 PR #39 修复并晋升，官方 `Preview Build` run `43404430362` 发布；tag 固定指向 `fe193f1134a80ff38fb0cb3ed4677eb2b79c1dce`。preview.4 在发布前仍须通过精确 SHA、构建、模拟器与资产校验；当前尚无 preview.4 Release/tag。preview.2 的 Release/tag 已在 preview.3 资产校验成功后按单预览策略清理；正式版 v3.0.14 与上一正式版 v3.0.11 保留。
 
 ## v3.0.14 正式版四件套（文件名）
 

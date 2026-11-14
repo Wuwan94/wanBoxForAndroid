@@ -39,3 +39,19 @@ func TestReadOnlyCommandsDoNotStartRuntime(t *testing.T) {
 		}
 	}
 }
+
+func TestResumeDispatchAndStatus(t *testing.T) {
+	r := module.New(filepath.Join(t.TempDir(), "data"), t.TempDir())
+	if err := run(context.Background(), r, []string{"resume"}); err == nil || err.Error() != "module_not_suspended" {
+		t.Fatalf("resume dispatch: %v", err)
+	}
+	if err := run(context.Background(), r, []string{"resume", "extra"}); err == nil || err.Error() != "arguments_invalid" {
+		t.Fatalf("resume arity: %v", err)
+	}
+	if err := run(context.Background(), r, []string{"status"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.Status(); got.Phase != "disabled" || got.Core.PID != 0 || got.Supervisor.PID != 0 {
+		t.Fatalf("resume unexpectedly started runtime: %+v", got)
+	}
+}

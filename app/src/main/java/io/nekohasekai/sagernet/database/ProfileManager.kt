@@ -210,7 +210,7 @@ object ProfileManager {
             createRule(
                 RuleEntity(
                     name = app.getString(R.string.route_opt_block_ads),
-                    domains = "geosite:category-ads-all",
+                    domains = "geosite-category-ads-all",
                     outbound = -2
                 )
             )
@@ -246,7 +246,8 @@ object ProfileManager {
                             "domain:xn--ngstr-lra8j.com",
                             "domain:xn--ngstr-cn-8za9o.com"
                         ).joinToString("\n"),
-                        packages = setOf("com.android.vending", "com.google.android.gms")
+                        packages = setOf("com.android.vending", "com.google.android.gms"),
+                        enabled = false
                     ), false
                 )
                 createRule(
@@ -269,6 +270,7 @@ object ProfileManager {
             // Auto-enrich existing Play Store rules for existing users without resetting DB
             var needReload = false
             rules.forEach { rule ->
+                var changed = false
                 if (rule.domains.contains("googleapis.cn") && !rule.domains.contains("gvt1.com")) {
                     val currentDomains = rule.domains.split("\n").map { it.trim() }.filter { it.isNotBlank() }
                     val newDomains = listOf(
@@ -292,6 +294,18 @@ object ProfileManager {
                     )
                     rule.domains = (currentDomains + newDomains).distinct().joinToString("\n")
                     rule.packages = rule.packages + setOf("com.android.vending", "com.google.android.gms")
+                    changed = true
+                }
+                if (rule.domains.contains("googleapis.cn") && rule.packages.any {
+                        it == "com.android.providers.downloads" || it == "com.android.providers.downloads.ui"
+                    }) {
+                    rule.packages = rule.packages - setOf(
+                        "com.android.providers.downloads",
+                        "com.android.providers.downloads.ui"
+                    )
+                    changed = true
+                }
+                if (changed) {
                     SagerDatabase.rulesDao.updateRule(rule)
                     needReload = true
                 }

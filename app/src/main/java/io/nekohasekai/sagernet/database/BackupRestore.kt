@@ -20,15 +20,10 @@ object BackupRestore {
         val array = content.getJSONArray(key)
         require(array.length() <= PortableBackup.RECORDS) { "备份记录数量超过限制" }
         return (0 until array.length()).map { index ->
-            val bytes = PortableBackup.strictBase64(array.getString(index))
-            require(bytes.size >= 4 && bytes.size % 4 == 0) { "备份记录长度无效" }
-            val parcel = Parcel.obtain()
             try {
-                parcel.unmarshall(bytes, 0, bytes.size)
-                parcel.setDataPosition(0)
-                create(parcel).also { require(parcel.dataAvail() == 0) { "备份记录包含无效数据" } }
-            } finally {
-                parcel.recycle()
+                PortableBackup.decodeLegacyParcel(array.getString(index), create)
+            } catch (error: Exception) {
+                throw IllegalArgumentException("备份 $key 第 ${index + 1} 条记录无效，请重新导出或使用原版本迁移", error)
             }
         }
     }
@@ -45,8 +40,9 @@ object BackupRestore {
         val groups = decode(content, "groups") { parcel ->
             io.nekohasekai.sagernet.fmt.KryoConverters.deserializeStrict(ProxyGroup(), parcel.createByteArray())
         }
-        val rules = decode(content, "rules", ParcelizeBridge::createRule)
-        val settings = decode(content, "settings", KeyValuePair.CREATOR::createFromParcel)
+        val rules = PortableBackup.decodeMixedRules(content)
+        val decodedSettings = decode(content, "settings", KeyValuePair.CREATOR::createFromParcel)
+        val settings = decodedSettings?.let { PortableBackup.withCoreSettingDefaults(it) }
         return Plan(profiles, groups, rules, settings).also(::validate)
     }
 

@@ -42,7 +42,7 @@ class BaseService {
         /**
          * Idle state is only used by UI and will never be returned by BaseService.
          */
-        Idle, Connecting(true, true, false), Connected(true, true, true), Stopping, Stopped,
+        Idle, Connecting(true, true, false), Connected(true, true, true), Suspended, Stopping, Stopped,
     }
 
     interface ExpectedException

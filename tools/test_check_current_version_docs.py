@@ -82,16 +82,19 @@ class CurrentVersionDocsTest(unittest.TestCase):
         finally:
             tmp.cleanup()
 
-    def test_checker_flags_published_preview_written_as_candidate(self):
+    def test_checker_flags_preview_status_mismatch(self):
         root, tmp = make_tree()
         try:
             notes = root / checker.FILES["notes"]
-            notes.write_text(
-                notes.read_text(encoding="utf-8").replace(
-                    "状态：已发布的稳定性预览版", "状态：未发布的稳定性预览版候选"
-                ),
-                encoding="utf-8",
-            )
+            text = notes.read_text(encoding="utf-8")
+            if checker.SOURCE_PREVIEW == checker.PUBLISHED_PREVIEW:
+                source_status = "状态：已发布的稳定性预览版"
+                wrong_status = "状态：未发布的稳定性预览版候选"
+            else:
+                source_status = "状态：未发布的稳定性预览版候选"
+                wrong_status = "状态：已发布的稳定性预览版"
+            self.assertIn(source_status, text)
+            notes.write_text(text.replace(source_status, wrong_status, 1), encoding="utf-8")
             errors = checker.failures(root)
             self.assertTrue(any("PREVIEW_NOTES.md" in e for e in errors), errors)
         finally:

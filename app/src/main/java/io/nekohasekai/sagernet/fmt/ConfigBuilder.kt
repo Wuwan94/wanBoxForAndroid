@@ -346,10 +346,20 @@ enum class RootInboundBackend { EBPF, TUN }
 
 fun buildConfig(
     proxy: ProxyEntity, forTest: Boolean = false, forExport: Boolean = false,
-    rootInboundBackend: RootInboundBackend = RootInboundBackend.TUN
+    rootInboundBackend: RootInboundBackend = RootInboundBackend.TUN,
+    rootRouteSnapshot: io.nekohasekai.sagernet.route.RootRouteBuildSnapshot? = null,
 ): ConfigBuildResult {
     // @author 雾晚: persist preview.3's choice as an ordinary routing rule before reading rules.
-    if (!forTest && !forExport) InputMethodRouteMigration.migrate()
+    if (!forTest && !forExport && rootRouteSnapshot == null) InputMethodRouteMigration.migrate()
+
+    val frozenProfiles = rootRouteSnapshot?.allProfiles()
+    fun profilesByIds(ids: List<Long>): List<ProxyEntity> =
+        frozenProfiles?.filter { it.id in ids } ?: SagerDatabase.proxyDao.getEntities(ids)
+    fun profileById(id: Long): ProxyEntity? =
+        if (frozenProfiles != null) frozenProfiles.firstOrNull { it.id == id } else SagerDatabase.proxyDao.getById(id)
+    fun profilesByGroup(id: Long): List<ProxyEntity> =
+        frozenProfiles?.filter { it.groupId == id }?.sortedBy { it.userOrder } ?: SagerDatabase.proxyDao.getByGroup(id)
+    fun allProfiles(): List<ProxyEntity> = frozenProfiles ?: SagerDatabase.proxyDao.getAll()
 
     if (proxy.type == TYPE_CONFIG) {
         val bean = proxy.requireBean() as ConfigBean
@@ -378,7 +388,7 @@ fun buildConfig(
     fun ProxyEntity.resolveChainInternal(): MutableList<ProxyEntity> {
         val bean = requireBean()
         if (bean is ChainBean) {
-            val beans = SagerDatabase.proxyDao.getEntities(bean.proxies)
+            val beans = profilesByIds(bean.proxies)
             val beansMap = beans.associateBy { it.id }
             val beanList = ArrayList<ProxyEntity>()
             for (proxyId in bean.proxies) {
@@ -402,8 +412,8 @@ fun buildConfig(
 
     fun ProxyEntity.resolveChain(useGroupFront: Boolean = true, useGroupLanding: Boolean = true): MutableList<ProxyEntity> {
         val thisGroup = SagerDatabase.groupDao.getById(groupId)
-        val frontProxy = if (useGroupFront) thisGroup?.frontProxy?.let { SagerDatabase.proxyDao.getById(it) } else null
-        val landingProxy = if (useGroupLanding) thisGroup?.landingProxy?.let { SagerDatabase.proxyDao.getById(it) } else null
+        val frontProxy = if (useGroupFront) thisGroup?.frontProxy?.let { profileById(it) } else null
+        val landingProxy = if (useGroupLanding) thisGroup?.landingProxy?.let { profileById(it) } else null
         val list = resolveChainInternal()
         if (frontProxy != null) {
             list.add(frontProxy)
@@ -414,9 +424,9 @@ fun buildConfig(
         return list
     }
 
-    val extraRules = if (forTest) listOf() else RouteRulePriority.order(SagerDatabase.rulesDao.enabledRules())
+    val extraRules = if (forTest) listOf() else RouteRulePriority.order(rootRouteSnapshot?.enabledRules() ?: SagerDatabase.rulesDao.enabledRules())
     val extraProxies =
-        if (forTest) mapOf() else SagerDatabase.proxyDao.getEntities(extraRules.mapNotNull { rule ->
+        if (forTest) mapOf() else profilesByIds(extraRules.mapNotNull { rule ->
             rule.outbound.takeIf { it > 0 && it != proxy.id }
         }.toHashSet().toList()).associateBy { it.id }
     // @author 雾晚: hot-switch: module configs always carry a top-level selector
@@ -895,10 +905,10 @@ fun buildConfig(
             if (entity.type == ProxyEntity.TYPE_BALANCER) {
                 val balancerBean = entity.balancerBean ?: (entity.requireBean() as? BalancerBean) ?: BalancerBean()
                 val balancerFrontEntity = if (balancerBean.frontProxy > 0L && balancerBean.frontProxy != entity.id) {
-                    SagerDatabase.proxyDao.getById(balancerBean.frontProxy)
+                    profileById(balancerBean.frontProxy)
                 } else null
                 val balancerLandingEntity = if (balancerBean.landingProxy > 0L && balancerBean.landingProxy != entity.id) {
-                    SagerDatabase.proxyDao.getById(balancerBean.landingProxy)
+                    profileById(balancerBean.landingProxy)
                 } else null
 
                 val balancerFrontTag = balancerFrontEntity?.let { front ->
@@ -912,7 +922,7 @@ fun buildConfig(
                         else -> emptyList()
                     }
                     var list = targetGids.flatMap { gid ->
-                        SagerDatabase.proxyDao.getByGroup(gid)
+                        profilesByGroup(gid)
                     }.distinctBy { it.id }
 
                     if (!balancerBean.nameInclude.isNullOrBlank()) {
@@ -929,7 +939,7 @@ fun buildConfig(
                     }
                     list
                 } else {
-                    val rawEntities = SagerDatabase.proxyDao.getEntities(balancerBean.proxies).associateBy { it.id }
+                    val rawEntities = profilesByIds(balancerBean.proxies).associateBy { it.id }
                     balancerBean.proxies.mapNotNull { rawEntities[it] }
                 }).filter {
                     it.id != entity.id &&
@@ -1323,9 +1333,9 @@ fun buildConfig(
         // build outbounds
         if (buildSelector || useAutoSelect || useLoadBalance) {
             val list = if (group != null && group.id != 0L) {
-                SagerDatabase.proxyDao.getByGroup(group.id)
+                profilesByGroup(group.id)
             } else {
-                val all = SagerDatabase.proxyDao.getAll()
+                val all = allProfiles()
                 if (all.size > 1) all else listOf(proxy)
             }.filter { entity ->
                 !DataStore.isGroupDisabled(entity.groupId)
@@ -1335,7 +1345,7 @@ fun buildConfig(
                 tagMap[it.id] = buildChain(it.id, it)
             }
             if (useAutoSelect && tagMap.isNotEmpty()) {
-                val testUrl = group?.let { DataStore.groupUrlTestUrl(it.id) }
+                val testUrl = group?.let { DataStore.resolvedGroupUrlTestUrl(it.id) }
                 val intervalVal = group?.let { DataStore.groupUrlTestInterval(it.id) }
                 val toleranceVal = group?.let { DataStore.groupUrlTestTolerance(it.id) }
                 val idleTimeoutVal = group?.let { DataStore.groupUrlTestIdleTimeout(it.id) }
@@ -1352,7 +1362,14 @@ fun buildConfig(
                     )
                 )
             } else if (useLoadBalance && tagMap.isNotEmpty()) {
-                outbounds.add(0, buildLoadBalanceOutbound(tagMap.values.toList(), customTag = TAG_PROXY))
+                outbounds.add(
+                    0,
+                    buildLoadBalanceOutbound(
+                        tagMap.values.toList(),
+                        testUrl = group?.let { DataStore.resolvedGroupUrlTestUrl(it.id) },
+                        customTag = TAG_PROXY
+                    )
+                )
                 balancerMemberMap[proxy.id] = list.mapNotNull { it.id.takeIf { id -> id != proxy.id } }
             } else {
                 outbounds.add(0, buildSelectorOutbound(tagMap[proxy.id], tagMap.values.toList(), customTag = TAG_PROXY))
@@ -1395,6 +1412,14 @@ fun buildConfig(
                     outbound = TAG_DIRECT
                 })
             }
+        }
+
+        if (!forTest && !forExport && DataStore.blockQuic) {
+            route.rules.add(Rule_DefaultOptions().apply {
+                network = listOf("udp")
+                port = listOf(443)
+                action = "reject"
+            })
         }
 
         // @author 雾晚: 仅 export 保留历史全局截断分支；runtime (!forExport) 走动态 clash_mode 规则
@@ -1865,7 +1890,14 @@ fun buildConfig(
             // 构建最优先前置路由规则（须位于所有用户规则之前）
             val topRouteRules = mutableListOf<Rule>()
 
-            // @author 雾晚: match Root's configured probe before sniff/resolve and user routes.
+            // 1. sing-box 1.13：sniff（须位于规则最前）
+            if (needSniff) {
+                topRouteRules.add(Rule_DefaultOptions().apply {
+                    action = "sniff"
+                })
+            }
+
+            // @author 雾晚: sniff must run before Root's configured probe/domain routes.
             // This keeps local CONNECT measurements on the same selected proxy as core tests.
             if (isRootTun) {
                 val probeHost = runCatching { java.net.URI(DataStore.connectionTestURL).host }.getOrNull()
@@ -1873,13 +1905,6 @@ fun buildConfig(
                     inbound = listOf(TAG_MIXED)
                     domain = listOf(probeHost)
                     outbound = mainProxyTag
-                })
-            }
-
-            // 1. sing-box 1.13：sniff（须位于规则最前）
-            if (needSniff) {
-                topRouteRules.add(Rule_DefaultOptions().apply {
-                    action = "sniff"
                 })
             }
 
@@ -1944,16 +1969,6 @@ fun buildConfig(
                 })
             }
 
-            // 7. 未拦截远程 DNS 兜底保护（port 53 / protocol dns 流量强制走代理）
-            topRouteRules.add(Rule_DefaultOptions().apply {
-                port = listOf(53)
-                outbound = mainProxyTag
-            })
-            topRouteRules.add(Rule_DefaultOptions().apply {
-                protocol = listOf("dns")
-                outbound = mainProxyTag
-            })
-
             route.rules.addAll(0, topRouteRules)
 
             if (DataStore.bypassLanInCore) {
@@ -1965,7 +1980,6 @@ fun buildConfig(
             // block mcast
             route.rules.add(Rule_DefaultOptions().apply {
                 ip_cidr = listOf("224.0.0.0/3", "ff00::/8")
-                source_ip_cidr = listOf("224.0.0.0/3", "ff00::/8")
                 action = "reject"
             })
             // FakeDNS obj (sing-box 1.14: fakeip configured as a server in dns.servers)
