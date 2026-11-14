@@ -76,14 +76,14 @@ Android 配置生成器 MUST 在启用流量嗅探时，把 `sniff` action 放�
 
 ### Requirement: User backup export is readable and imports legacy wanBox backups
 
-用户备份 MUST 以 `profiles` 作为新导出字段，规则 MUST 以可读 JSON 表示，并 MUST 显式保存跨版本恢复所需的核心路由/DNS 默认值。导入器 MUST 兼容旧 `proxies` 字段、旧 Base64 Parcel route rules、旧 wanBox 用户备份及混合新旧 rule entry；缺失的核心默认值 MUST 以稳定默认处理，已显式保存的用户值 MUST NOT 被覆盖。用户备份 MUST 与内部 RootModuleSnapshot/data archive 保持边界分离。
+用户备份 MUST 以 `profiles` 作为新导出字段，规则 MUST 以可读 JSON 表示；当选择 `settings` 区段时，MUST 显式保存跨版本恢复所需的稳定 Root 网络配置默认值，包括核心路由/DNS、应用/Wi-Fi/移动网/Root UID 路由策略、规则资源 provider/URLs、LAN/TLS 网络选项及共享连接测试 URL。导入器 MUST 兼容旧 `proxies` 字段、旧 Base64 Parcel route rules、旧 wanBox 用户备份及混合新旧 rule entry；缺失的稳定默认值 MUST 在存在 settings 区段时补齐，已显式保存的用户值 MUST NOT 被覆盖。未选择 settings 时解析计划 MUST 保持未选择。用户备份 MUST 与内部 RootModuleSnapshot/data archive 保持边界分离。
 
 #### Scenario: 导出新版用户备份
 
 - **GIVEN** 用户选择导出 profiles、rules 或核心设置
 - **WHEN** App 生成用户备份
 - **THEN** profiles 写入 `profiles`，规则以可读 JSON 导出
-- **AND** 缺少持久化项的核心路由/DNS 设置按当前稳定默认显式写入
+- **AND** 缺少持久化项的 Root 网络配置设置按 DataStore 稳定默认显式写入
 
 #### Scenario: 导入旧 wanBox 备份
 
