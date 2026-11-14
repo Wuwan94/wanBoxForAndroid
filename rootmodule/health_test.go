@@ -250,7 +250,7 @@ func TestMonitorAutoModeRequiresConsecutiveStreak(t *testing.T) {
 	var mu sync.Mutex
 	clock := time.Unix(0, 0)
 	deps := monitorDeps{
-		fingerprint: func() string { return "a" },
+		fingerprint: func() networkDecision { return networkDecision{Fingerprint: "a"} },
 		probe: func(context.Context) bool {
 			n := int(atomic.AddInt32(&probes, 1))
 			if n == 6 {
