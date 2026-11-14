@@ -35,6 +35,11 @@
 -keep class io.nekohasekai.sagernet.ui.OutboundReferenceWarningDialog$Companion {
     public io.nekohasekai.sagernet.ui.OutboundReferenceWarningDialog newResult(io.nekohasekai.sagernet.bg.OutboundReferenceWarning);
 }
+# OutboundReferenceAlarmTest:364,642 calls this base-class method across APKs.
+-keepclassmembers class androidx.lifecycle.Lifecycle {
+    public androidx.lifecycle.Lifecycle$State getCurrentState();
+}
+
 # OutboundReferenceAlarmTest:488 selects the string-code overload.
 -keep class io.nekohasekai.sagernet.bg.RootModuleErrors {
     public static final io.nekohasekai.sagernet.bg.RootModuleErrors INSTANCE;
