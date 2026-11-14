@@ -21,6 +21,7 @@ import android.view.View
 import androidx.activity.addCallback
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.withStarted
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
@@ -841,9 +842,12 @@ class MainActivity : ThemedActivity(),
                 val stage = (error as? io.nekohasekai.sagernet.bg.InstallerDataCommit.Failure)?.stage?.name ?: "SELECTION"
                 val types = generateSequence(error as Throwable) { it.cause }.take(4).joinToString("/") { it.javaClass.simpleName }
                 Logs.e("InstallerData stage=$stage type=$types code=${io.nekohasekai.sagernet.bg.RootModuleClient.safeError(error)}")
-                if (!isFinishing && !isDestroyed && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) {
-                    installerDataDialog?.dismiss()
-                    installerDataDialog = alert(io.nekohasekai.sagernet.bg.RootModuleErrors.message(this@MainActivity, error)).also { it.show() }
+                // A fast journal failure can arrive before onStart finishes dispatching STARTED.
+                lifecycle.withStarted {
+                    if (!isFinishing && !isDestroyed) {
+                        installerDataDialog?.dismiss()
+                        installerDataDialog = alert(io.nekohasekai.sagernet.bg.RootModuleErrors.message(this@MainActivity, error)).also { it.show() }
+                    }
                 }
             }
         }
