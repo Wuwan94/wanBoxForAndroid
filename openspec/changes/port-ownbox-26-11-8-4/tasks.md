@@ -16,10 +16,10 @@
 
 ## 3. 批次 3：修复/核验备份格式与旧 wanBox 兼容
 
-- [ ] 3.1 审查 `PortableBackup`/`BackupRestore`/`BackupHelper` 与真实 fixtures：新导出 `profiles`、可读 route JSON、核心路由/DNS 默认值；导入旧 `proxies`、Base64 Parcel rule、旧 wanBox 备份。Root module snapshot/data archive 不属于用户备份。
-- [ ] 3.2 对未覆盖行为先加可复现 fixture 测试：新导出解码、旧 wanBox 往返、JSON+Base64 mixed rule、设置缺省补齐与显式值保留。现有实现/测试完整时不重复改写，只保留核验结论。
-- [ ] 3.3 若有测试暴露缺口，只改 App 备份边界；同步 `openspec/specs/android-application/spec.md`，静态自审、语义提交、仅推送授权分支。
-- [ ] 3.4 批次 3 CI 门：运行 `verify-android.yml` 中 `PortableBackupTest`、`PortableBackupCompatibilityTest`、`BackupCrossVersionTest` 所属 unit/instrumentation jobs；预期旧新格式往返和默认设置测试通过。回传 run URL、SHA、fixture 与 job 结果。真机场景（不阻塞）：导入旧 wanBox 备份再导出/导入新版，核对数据保持；未执行须标明。
+- [x] 3.1 审查 `PortableBackup`/`BackupRestore`/`BackupHelper`：确认 v2 使用 `profiles` 与可读 JSON route，旧 v1 支持 `proxies`/Base64 Parcel，RootModuleSnapshot/data archive 与用户备份分离；跨版本 fixture 使用虚构节点、凭据和域名。
+- [x] 3.2 新增/扩展 `PortableBackupTest`、`PortableBackupCompatibilityTest`：覆盖新版 JSON 导出、稳定 Root 网络默认、显式设置优先、`INPUT_METHOD_DIRECT` 迁移标记不物化、v1/v2 混合 JSON+Base64 Parcel rules、未选择 settings 保持未选择；测试先行并由远端 CI 验证。
+- [x] 3.3 修复仅限 App 备份边界：导出/导入按需补 DataStore 默认并统一严格 Parcel 解码；主规范、change delta 和 design 已同步。`git diff --check` 通过，未改版本或 `SINGBOX_VERSION`。双轴代码复审未发现规格缺项；Codex CLI 两个已配置模型均因 Xingchi API 503 无法返回审查结果。
+- [x] 3.4 批次 3 最终门：[`verify-android.yml` run 43534159696](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/43534159696) 成功，SHA `b9e5a0cffd50f9371d8023bfeae33099025511b5`；Build LibCore、Build Android Debug APK、cross-version evidence jobs 均成功。API 35 x86_64 emulator 上旧版 `v3.0.13-preview.3` 与新版双向导入/导出共 4 项各 `OK (1 test)`；测试产物记录在 `closeout-emulator-evidence`，不代表 Root 真机验证。按用户指示未等待真机；该 batch 未创建 PR/Release/tag。
 
 ## 4. 批次 4：新增独立 QUIC（UDP 443）开关
 
