@@ -99,6 +99,13 @@ Android 配置生成器 MUST 在启用流量嗅探时，把 `sniff` action 放�
 - **THEN** 两类规则均被还原为语义等价的 RuleEntity
 - **AND** Root 模块内部 snapshot/data archive 不被当作用户 JSON 备份处理
 
+#### Scenario: 未选择设置区段时不物化默认值
+
+- **GIVEN** 用户备份未包含 `settings` 区段
+- **WHEN** 导入器解析该备份
+- **THEN** 解析计划的 settings 保持未选择
+- **AND** 导入器不在未选中的区段中创建核心默认设置
+
 ### Requirement: Core settings provide an independent QUIC UDP 443 switch
 
 核心设置 MUST 提供独立的“拦截 QUIC (UDP 443)”开关，默认 MUST 开启。开启时，配置生成器 MUST 产生匹配 `network=udp`、`port=443` 的 reject 规则；关闭时 MUST NOT 产生此自动 reject 规则，使 UDP 443/HTTP/3/QUIC 可以继续按其他有效路由规则处理。该开关 MUST NOT 拦截 TCP 443 或 UDP 非 443 流量。设置文案 MUST 在默认语言与简体中文资源中可见。

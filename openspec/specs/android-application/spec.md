@@ -229,6 +229,39 @@ Android 应用 MUST 能导入 Throne 桌面 `.thrbackup`：解析 `THRN` QDataSt
 - **AND** 不支持的 outbound 以自定义 JSON 配置保留
 - **AND** 应用触发完整重启
 
+### Requirement: 用户备份在新旧版本间保持可读与兼容
+
+Android 应用 MUST 以 `profiles` 作为新版用户备份字段，MUST 将 route rules 导出为可读 JSON，并在用户选择 `settings` 区段时物化 DataStore 的稳定核心路由/DNS 默认值与共享连接测试 URL 默认值。显式保存的设置 MUST 优先保留；`INPUT_METHOD_DIRECT` 这类一次性迁移标记 MUST NOT 被当作普通缺省值写入。导入器 MUST 兼容旧 `proxies` 字段、旧 Base64 Parcel 规则、同一数组内混合 JSON 与 Base64 Parcel rule entries，以及旧 wanBox 用户备份。若 `settings` 区段未被选择，导入计划 MUST 保持未选择且 MUST NOT 创建该区段的默认值。内部 RootModuleSnapshot/data archive MUST NOT 被当作用户 JSON 备份处理。
+
+#### Scenario: 导出新版用户备份并补齐稳定默认
+
+- **GIVEN** 用户选择导出 profiles、rules 和 settings，且部分核心设置没有持久化值
+- **WHEN** App 编码用户备份
+- **THEN** profiles 使用 `profiles` 字段，route rules 使用可读 JSON
+- **AND** settings 中缺失的稳定核心路由/DNS 默认值被物化，显式值保持原样
+- **AND** 未显式保存的一次性迁移标记不被补入
+
+#### Scenario: 导入旧 wanBox 备份
+
+- **GIVEN** 旧 wanBox 用户备份使用 `proxies`、Base64 Parcel 规则或部分旧版 settings
+- **WHEN** 用户导入该备份
+- **THEN** profiles、groups、rules 和被选择的 settings 可按兼容规则恢复
+- **AND** 已保存值优先，缺失的稳定默认只在存在 settings 区段时补齐
+
+#### Scenario: 混合 route entries 可导入
+
+- **GIVEN** v1 或 v2 用户备份的 rules 数组同时包含 JSON object 与 Base64 Parcel string
+- **WHEN** 导入器解析 rules
+- **THEN** 两类 entry 均还原为语义等价的 RuleEntity
+- **AND** 不支持或损坏的 entry 在写入数据库前被拒绝
+
+#### Scenario: 未选择 settings 时保持未选择
+
+- **GIVEN** 用户只选择导入 profiles 或 rules，备份没有 `settings` 区段
+- **WHEN** 导入器解析备份
+- **THEN** settings 保持未选择
+- **AND** 不会仅因兼容逻辑而添加设置默认值
+
 ### Requirement: 启动入口与关键 UI 保持可达
 
 Launcher `MainActivity` MUST 唯一声明静态快捷方式元数据；切换、启用、禁用和扫码四个快捷方式的目标包 MUST 与 `nb4a.properties` 的应用包名一致，目标 Activity MUST 可被 Launcher 启动。扫码界面 MUST 以底部悬浮按钮提供手电筒和图片导入，不依赖会被预览遮挡的工具栏。
