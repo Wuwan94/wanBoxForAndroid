@@ -81,6 +81,11 @@ class RouteFragment : ToolbarFragment(R.layout.layout_route), Toolbar.OnMenuItem
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (::ruleAdapter.isInitialized) runOnDefaultDispatcher { ruleAdapter.reload() }
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
@@ -281,9 +286,13 @@ class RouteFragment : ToolbarFragment(R.layout.layout_route), Toolbar.OnMenuItem
     inner class RuleAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>(), ProfileManager.RuleListener, UndoSnackbarManager.Interface<RuleEntity> {
 
         val ruleList = ArrayList<RuleEntity>()
+        private var outboundErrors = emptyMap<Long, io.nekohasekai.sagernet.route.OutboundReferenceValidator.Issue>()
         suspend fun reload() {
             val rules = ProfileManager.getRules()
+            val errors = io.nekohasekai.sagernet.route.OutboundReferenceValidator.validate(
+                rules, SagerDatabase.proxyDao.getAll().map { it.id }.toSet()).associateBy { it.ruleId }
             ruleListView.post {
+                outboundErrors = errors
                 ruleList.clear()
                 ruleList.addAll(rules)
                 ruleAdapter.notifyDataSetChanged()
@@ -377,21 +386,13 @@ class RouteFragment : ToolbarFragment(R.layout.layout_route), Toolbar.OnMenuItem
         }
 
         override suspend fun onAdd(rule: RuleEntity) {
-            ruleListView.post {
-                ruleList.add(rule)
-                ruleAdapter.notifyItemInserted(ruleList.size)
-                autoReloadServiceIfStarted()
-            }
+            reload()
+            onMainDispatcher { autoReloadServiceIfStarted() }
         }
 
         override suspend fun onUpdated(rule: RuleEntity) {
-            val index = ruleList.indexOfFirst { it.id == rule.id }
-            if (index == -1) return
-            ruleListView.post {
-                ruleList[index] = rule
-                ruleAdapter.notifyItemChanged(index + 1)
-                autoReloadServiceIfStarted()
-            }
+            reload()
+            onMainDispatcher { autoReloadServiceIfStarted() }
         }
 
         override suspend fun onRemoved(ruleId: Long) {
@@ -426,6 +427,7 @@ class RouteFragment : ToolbarFragment(R.layout.layout_route), Toolbar.OnMenuItem
         inner class RuleHolder(binding: LayoutRouteItemBinding) : RecyclerView.ViewHolder(binding.root) {
 
             lateinit var rule: RuleEntity
+            val outboundError = binding.outboundError
             val profileName = binding.profileName
             val profileType = binding.profileType
             val routeOutbound = binding.routeOutbound
@@ -435,18 +437,24 @@ class RouteFragment : ToolbarFragment(R.layout.layout_route), Toolbar.OnMenuItem
 
             fun bind(ruleEntity: RuleEntity) {
                 rule = ruleEntity
+                val issue = outboundErrors[rule.id]
+                outboundError.visibility = if (issue == null) View.GONE else View.VISIBLE
+                outboundError.text = issue?.let { itemView.context.getString(R.string.outbound_reference_item, it.ruleName, it.ruleId, itemView.context.getString(R.string.outbound_reference_type), it.missingId) }.orEmpty()
+                outboundError.setTextColor(ContextCompat.getColor(itemView.context, R.color.color_route_block))
                 profileName.text = rule.displayName()
                 profileType.text = rule.mkSummary()
                 routeOutbound.text = rule.displayOutbound()
 
                 // 根据路由类型设置文字颜色
-                val colorRes = when (rule.outbound) {
+                val colorRes = if (issue != null) R.color.color_route_block else when (rule.outbound) {
                     -2L -> R.color.color_route_block   // 屏蔽：红色
                     -1L -> R.color.color_route_direct  // 直连：绿色
                     0L -> R.color.color_route_proxy    // 代理：蓝色
                     else -> R.color.color_route_config // 配置：紫色
                 }
                 routeOutbound.setTextColor(ContextCompat.getColor(itemView.context, colorRes))
+                profileName.setTextColor(if (issue != null) ContextCompat.getColor(itemView.context, R.color.color_route_block)
+                    else itemView.context.getColorAttr(android.R.attr.textColorPrimary))
 
                 itemView.setOnClickListener(null)
                 itemView.isClickable = false

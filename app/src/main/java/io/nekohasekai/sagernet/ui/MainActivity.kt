@@ -20,6 +20,8 @@ import android.view.ViewGroup
 import android.view.View
 import androidx.activity.addCallback
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
@@ -116,6 +118,11 @@ class MainActivity : ThemedActivity(),
             return
         }
         MessageStore.setCurrentActivity(this)
+        lifecycleScope.launch {
+            repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                SagerNet.commandController.state.collect { showOutboundWarning() }
+            }
+        }
         val animateInitialControls = savedInstanceState == null
 
         binding = LayoutMainBinding.inflate(layoutInflater)
@@ -293,11 +300,38 @@ class MainActivity : ThemedActivity(),
     override fun onPostResume() {
         super.onPostResume()
         if (SagerNet.databaseFailure != null) return
+        showOutboundWarning()
         val restoredFragment =
             supportFragmentManager.findFragmentById(R.id.fragment_holder) as? ToolbarFragment
         if (restoredFragment != null && restoredFragment !== currentMainFragment) {
             currentMainFragment = restoredFragment
         }
+    }
+
+    private fun showOutboundWarning() {
+        // Run after lifecycle/FragmentManager dispatch, including restored-fragment transactions.
+        android.os.Handler(android.os.Looper.getMainLooper()).post { syncOutboundWarning() }
+    }
+
+    private fun syncOutboundWarning() {
+        val manager = supportFragmentManager
+        if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) ||
+            manager.isStateSaved || manager.isDestroyed) return
+        val warning = (SagerNet.commandController.state.value as?
+            io.nekohasekai.sagernet.bg.ServiceCommandController.CommandState.ConfirmationRequired)?.warning
+        val existing = manager.findFragmentByTag("outbound_reference_warning") as? OutboundReferenceWarningDialog
+        if (existing?.requestToken == warning?.requestToken && existing != null) return
+        existing?.dismissNow()
+        if (warning != null) OutboundReferenceWarningDialog().apply {
+            arguments = Bundle().apply {
+                putString("token", warning.requestToken)
+                putString("message", this@MainActivity.getString(R.string.outbound_reference_message) + "\n\n" +
+                    warning.issues.joinToString("\n") {
+                        this@MainActivity.getString(R.string.outbound_reference_item, it.ruleName, it.ruleId,
+                            this@MainActivity.getString(R.string.outbound_reference_type), it.missingId)
+                    })
+            }
+        }.showNow(manager, "outbound_reference_warning")
     }
 
     fun applyHideFromRecentApps(hide: Boolean) {

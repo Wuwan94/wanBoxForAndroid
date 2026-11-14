@@ -8,6 +8,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.gson.Gson
+import io.nekohasekai.sagernet.bg.OutboundReferenceWarning
 import io.nekohasekai.sagernet.bg.RootModuleClient
 import io.nekohasekai.sagernet.bg.ServiceCommandController
 import io.nekohasekai.sagernet.database.DataStore
@@ -63,9 +64,128 @@ class OutboundReferenceAlarmTest {
     ) as MainActivity
 
     @Test
+    fun replacedRootWarningRequiresFreshConfirmationWhenContinuingOldToken() = runBlocking {
+        val original = SagerDatabase.rulesDao.allRules()
+        val tokens = mutableListOf<String>()
+        try {
+            clearController()
+            assertNull(SagerDatabase.proxyDao.getById(9223372036854775806L))
+            assertNull(SagerDatabase.proxyDao.getById(9223372036854775804L))
+            replaceRules(fixtures())
+            val oldWarning = checkNotNull(RootModuleClient.prepareOutboundWarning(true))
+                .also { tokens += it.requestToken }
+            replaceRules(fixtures().map {
+                if (it.id == 910001L) it.copy(outbound = 9223372036854775804L) else it
+            })
+            val replacement = checkNotNull(RootModuleClient.prepareOutboundWarning(true))
+                .also { tokens += it.requestToken }
+            assertNotEquals(oldWarning.requestToken, replacement.requestToken)
+
+            // Both tokens describe missing references, so Continue must stop before core config/application.
+            try {
+                RootModuleClient.continueOutboundWarning(oldWarning.requestToken, true)
+                fail("An old token must require fresh confirmation")
+            } catch (required: RootModuleClient.OutboundReferenceWarningRequired) {
+                tokens += required.warning.requestToken
+                assertNotEquals(oldWarning.requestToken, required.warning.requestToken)
+                assertEquals(listOf(9223372036854775804L), required.warning.issues.map { it.missingId })
+                assertTrue(required.warning.startIfStopped)
+            }
+        } finally {
+            try {
+                tokens.forEach { RootModuleClient.cancelOutboundWarning(it) }
+                clearController()
+            } finally {
+                replaceRules(original)
+            }
+        }
+    }
+
+    @Test
+    fun startupPreflightFindsInvalidRulesWhileControllerIsIdle() {
+        val original = SagerDatabase.rulesDao.allRules()
+        val oldPreview = DataStore.previewHintDismissedVersion
+        val controller = SagerNet.commandController
+        var activity: MainActivity? = null
+        try {
+            clearController()
+            assertNull(SagerDatabase.proxyDao.getById(9223372036854775806L))
+            replaceRules(fixtures())
+            DataStore.previewHintDismissedVersion = BuildConfig.PRE_VERSION_NAME
+            assertEquals(ServiceCommandController.CommandState.Idle, controller.state.value)
+            activity = launch()
+            val host = checkNotNull(activity)
+            awaitMain("Startup preflight must discover missing outbounds and show confirmation") {
+                val waiting = controller.state.value as? ServiceCommandController.CommandState.ConfirmationRequired
+                waiting?.warning?.issues?.map { it.missingId } == listOf(9223372036854775806L) &&
+                    (host.supportFragmentManager.findFragmentByTag("outbound_reference_warning") as? DialogFragment)
+                        ?.dialog?.isShowing == true
+            }
+        } finally {
+            try {
+                activity?.let { host -> instrumentation.runOnMainSync { host.finish() } }
+                instrumentation.waitForIdleSync()
+            } finally {
+                try { clearController() } finally {
+                    try { replaceRules(original) } finally {
+                        DataStore.previewHintDismissedVersion = oldPreview
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun foregroundWarningBroadcastDiscoversNewlyInvalidRules() {
+        val original = SagerDatabase.rulesDao.allRules()
+        val oldPreview = DataStore.previewHintDismissedVersion
+        val controller = SagerNet.commandController
+        var activity: MainActivity? = null
+        try {
+            clearController()
+            assertNull(SagerDatabase.proxyDao.getById(9223372036854775806L))
+            replaceRules(fixtures().map { it.copy(outbound = 0L) })
+            DataStore.previewHintDismissedVersion = BuildConfig.PRE_VERSION_NAME
+            activity = launch()
+            val host = checkNotNull(activity)
+            instrumentation.waitForIdleSync()
+            runBlocking {
+                assertNull(RootModuleClient.prepareOutboundWarning(startIfStopped = true))
+            }
+            instrumentation.runOnMainSync {
+                assertTrue(host.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED))
+                assertEquals(ServiceCommandController.CommandState.Idle, controller.state.value)
+                assertNull(host.supportFragmentManager.findFragmentByTag("outbound_reference_warning"))
+            }
+            replaceRules(fixtures())
+            instrumentation.targetContext.sendBroadcast(
+                Intent("io.nekohasekai.sagernet.action.OUTBOUND_REFERENCE_WARNING_REQUIRED")
+                    .setPackage(instrumentation.targetContext.packageName)
+            )
+            awaitMain("A foreground warning broadcast must discover missing outbounds and show confirmation") {
+                val waiting = controller.state.value as? ServiceCommandController.CommandState.ConfirmationRequired
+                waiting?.warning?.issues?.map { it.missingId } == listOf(9223372036854775806L) &&
+                    (host.supportFragmentManager.findFragmentByTag("outbound_reference_warning") as? DialogFragment)
+                        ?.dialog?.isShowing == true
+            }
+        } finally {
+            try {
+                activity?.let { host -> instrumentation.runOnMainSync { host.finish() } }
+                instrumentation.waitForIdleSync()
+            } finally {
+                try { clearController() } finally {
+                    try { replaceRules(original) } finally {
+                        DataStore.previewHintDismissedVersion = oldPreview
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     fun preparationReportsOnlyEnabledMissingOutboundWithoutSensitivePayload() = runBlocking {
         val original = SagerDatabase.rulesDao.allRules()
-        var warning: ServiceCommandController.OutboundReferenceWarning? = null
+        var warning: OutboundReferenceWarning? = null
         try {
             clearController()
             assertEquals(null, SagerDatabase.proxyDao.getById(9223372036854775806L))
@@ -120,8 +240,15 @@ class OutboundReferenceAlarmTest {
                 adapter.onBindViewHolder(holder, 1)
                 val indicator = holder.itemView.findViewById<TextView>(R.id.outbound_error)
                 assertEquals("Missing outbound must be visible", View.VISIBLE, indicator.visibility)
+                val name = holder.itemView.findViewById<TextView>(R.id.profile_name)
+                val outbound = holder.itemView.findViewById<TextView>(R.id.route_outbound)
+                assertEquals(host.getColor(R.color.color_route_block), name.currentTextColor)
+                assertEquals(host.getColor(R.color.color_route_block), outbound.currentTextColor)
                 adapter.onBindViewHolder(holder, 2)
                 assertEquals("Recycled built-in row must hide the warning", View.GONE, indicator.visibility)
+                assertEquals("Recycled row must clear diagnostic text", "", indicator.text.toString())
+                assertEquals(host.getColor(R.color.color_route_proxy), outbound.currentTextColor)
+                assertNotEquals(host.getColor(R.color.color_route_block), name.currentTextColor)
             }
         } finally {
             try {
@@ -139,21 +266,20 @@ class OutboundReferenceAlarmTest {
 
     @Test
     fun startupShowsPendingWarningAndCancelReleasesController() {
+        val original = SagerDatabase.rulesDao.allRules()
         val oldPreview = DataStore.previewHintDismissedVersion
         val controller = SagerNet.commandController
+        var warning: OutboundReferenceWarning? = null
         var activity: MainActivity? = null
         try {
             clearController()
+            assertNull(SagerDatabase.proxyDao.getById(9223372036854775806L))
+            replaceRules(fixtures())
             DataStore.previewHintDismissedVersion = BuildConfig.PRE_VERSION_NAME
-            val warning = ServiceCommandController.OutboundReferenceWarning(
-                requestToken = "startup-warning.invalid", startIfStopped = true,
-                issues = listOf(OutboundReferenceValidator.Issue(
-                    ruleId = 910001L, ruleName = "startup-route.invalid",
-                    kind = OutboundReferenceValidator.ReferenceKind.NODE_OR_STRATEGY_GROUP,
-                    missingId = 9223372036854775806L,
-                )),
-            )
-            assertTrue(controller.requestOutboundConfirmation(warning))
+            warning = runBlocking {
+                checkNotNull(RootModuleClient.prepareOutboundWarning(startIfStopped = true))
+            }
+            assertTrue(controller.requestOutboundConfirmation(checkNotNull(warning)))
             activity = launch()
             val host = checkNotNull(activity)
             awaitMain("MainActivity must show the pending outbound warning on startup") {
@@ -165,8 +291,12 @@ class OutboundReferenceAlarmTest {
                 val dialog = fragment.requireDialog() as AlertDialog
                 assertTrue(dialog.isShowing)
                 val message = dialog.findViewById<TextView>(android.R.id.message)!!.text.toString()
-                assertTrue(message.contains("startup-route.invalid"))
+                assertTrue(message.contains("outbound-alarm.invalid missing route"))
                 assertTrue(message.contains("9223372036854775806"))
+                assertTrue(message.contains(host.getString(R.string.outbound_reference_type)))
+                for (forbidden in listOf("fixture-password.invalid", "fixture-address.invalid", "fixture-stderr.invalid")) {
+                    assertFalse(message.contains(forbidden))
+                }
                 val cancel = dialog.getButton(DialogInterface.BUTTON_NEGATIVE)
                 assertEquals(View.VISIBLE, cancel.visibility)
                 assertTrue(cancel.text.isNotBlank())
@@ -181,7 +311,14 @@ class OutboundReferenceAlarmTest {
                 activity?.let { host -> instrumentation.runOnMainSync { host.finish() } }
                 instrumentation.waitForIdleSync()
             } finally {
-                try { clearController() } finally { DataStore.previewHintDismissedVersion = oldPreview }
+                try {
+                    warning?.let { RootModuleClient.cancelOutboundWarning(it.requestToken) }
+                    clearController()
+                } finally {
+                    try { replaceRules(original) } finally {
+                        DataStore.previewHintDismissedVersion = oldPreview
+                    }
+                }
             }
         }
     }

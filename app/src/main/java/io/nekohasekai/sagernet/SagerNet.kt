@@ -243,6 +243,14 @@ class SagerNet : Application(),
 
         // @author 雾晚: short management operations; no Android service owns the core.
         private fun reportModuleError(error: Exception) {
+            if (error is io.nekohasekai.sagernet.bg.RootModuleClient.OutboundReferenceWarningRequired) {
+                if (commandController.requestOutboundConfirmation(error.warning)) return
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    android.widget.Toast.makeText(application, R.string.outbound_reference_busy,
+                        android.widget.Toast.LENGTH_LONG).show()
+                }
+                return
+            }
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 android.widget.Toast.makeText(application, io.nekohasekai.sagernet.bg.RootModuleErrors.message(application, error),
                     android.widget.Toast.LENGTH_LONG).show()

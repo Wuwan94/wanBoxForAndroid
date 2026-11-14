@@ -6,6 +6,22 @@
 
 ## Requirements
 
+### Requirement: Missing route outbounds are visible before users start the core
+
+Android MUST mark rules referencing missing positive node or strategy-group IDs red, including their name, outbound and error indicator. Built-in targets and existing IDs MUST remain valid, and recycled rows MUST reset their error appearance. Validation MUST refresh with the rules.
+
+Startup and reload preflight MUST validate enabled rules before creating or applying configuration. A modal MUST list safe rule names, rule IDs, missing reference types and IDs, explain that unresolved rules cannot be applied, and offer Cancel, Review rules and Continue Anyway. Back and outside cancellation MUST cancel the request; Review rules MUST cancel before navigating to rules.
+
+Continue MUST consume a one-use token bound to the exact issue snapshot and revalidate under the root mutation lock. Changed issues MUST require fresh confirmation while other commands remain blocked; fixed issues MAY proceed. Explicit cancellation, completion, failure and coroutine cancellation MUST release the command lock exactly once. Diagnostics MUST NOT retain configuration, authentication data, proxy addresses or raw core stderr.
+
+#### Scenario: Missing references block startup until an explicit decision
+
+- **GIVEN** enabled rules reference missing outbounds
+- **WHEN** startup or reload is requested
+- **THEN** configuration is not created or applied before the warning decision
+- **AND** changed references on Continue produce a fresh modal
+- **AND** Cancel releases the command controller without applying configuration
+
 ### Requirement: Android 模块职责分层
 
 `app/` MUST 承载 UI、后台服务、数据库、配置解析和 JNI 平台适配。`io.nekohasekai.sagernet` MUST 保持 SagerNet 核心框架职责，`moe.matsuri.nb4a` MUST 承担 NekoBox/Throne 兼容扩展、附加协议绑定和工具职责。资源 MUST 按 Android 标准目录组织，并维持已支持语言的本地化字符串；测试菜单和设置中的用户可见名称 MUST 使用可翻译资源，不得以不可翻译的英文文案替代。

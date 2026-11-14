@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package io.nekohasekai.sagernet.bg
 
-import io.nekohasekai.sagernet.route.OutboundReferenceValidator
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -33,12 +32,6 @@ class ServiceCommandController(
 ) {
     /** 命令类型 */
     enum class CommandKind { START, STOP, MODE, NODE }
-
-    data class OutboundReferenceWarning(
-        val requestToken: String,
-        val startIfStopped: Boolean,
-        val issues: List<OutboundReferenceValidator.Issue>,
-    )
 
     /** 命令状态 */
     sealed class CommandState {
@@ -73,6 +66,12 @@ class ServiceCommandController(
             if (!s.connected) throw IllegalStateException("start_not_confirmed")
             return s
         }
+        override suspend fun continueOutboundConfirmation(requestToken: String, startIfStopped: Boolean): RootModuleClient.Status {
+            RootModuleClient.continueOutboundWarning(requestToken, startIfStopped)
+            return if (startIfStopped) waitFor({ it.connected }, 10000) else queryStatus()
+        }
+        override fun cancelOutboundConfirmation(requestToken: String) = RootModuleClient.cancelOutboundWarning(requestToken)
+
         override suspend fun stop(): RootModuleClient.Status {
             RootModuleClient.stop()
             // @author 雾晚：STOP 明确检查 phase==stopped，starting/failed 不算
@@ -184,6 +183,13 @@ class ServiceCommandController(
     private val _state = MutableStateFlow<CommandState>(CommandState.Idle)
     val state: StateFlow<CommandState> = _state.asStateFlow()
 
+    init {
+        applicationScope.coroutineContext[Job]?.invokeOnCompletion {
+            val waiting = _state.value as? CommandState.ConfirmationRequired
+            if (waiting != null) cancelOutboundConfirmation(waiting.warning.requestToken)
+        }
+    }
+
     /**
      * 尝试提交。若有命令执行中，直接返回 false（不排队）。
      * 任务在 applicationScope 中执行，调用方取消不影响。
@@ -195,6 +201,7 @@ class ServiceCommandController(
         val gen = generation
         _state.value = CommandState.Pending(kind, gen)
 
+        var retainLock = false
         applicationScope.launch {
             try {
                 val status = backend.action()
@@ -202,6 +209,9 @@ class ServiceCommandController(
                 if (generation == gen) {
                     _state.value = CommandState.Confirmed(kind, gen, status)
                 }
+            } catch (e: RootModuleClient.OutboundReferenceWarningRequired) {
+                retainLock = true
+                _state.value = CommandState.ConfirmationRequired(gen, e.warning)
             } catch (e: CancellationException) {
                 // @author 雾晚：取消时重置为 Idle，可继续提交
                 if (generation == gen) {
@@ -214,7 +224,10 @@ class ServiceCommandController(
                 if (generation == gen) {
                     _state.value = CommandState.Error(kind, gen, e.message ?: "unknown")
                 }
-            } finally {
+            }
+        }.invokeOnCompletion { cause ->
+            if (!retainLock) {
+                if (cause is CancellationException && generation == gen) _state.value = CommandState.Idle
                 mutex.unlock()
             }
         }
@@ -237,12 +250,16 @@ class ServiceCommandController(
         val pending = CommandState.Pending(kind, gen)
         if (!_state.compareAndSet(waiting, pending)) return false
 
+        var retainLock = false
         applicationScope.launch {
             try {
                 val status = backend.continueOutboundConfirmation(requestToken, waiting.warning.startIfStopped)
                 if (generation == gen) {
                     _state.compareAndSet(pending, CommandState.Confirmed(kind, gen, status))
                 }
+            } catch (e: RootModuleClient.OutboundReferenceWarningRequired) {
+                retainLock = true
+                _state.compareAndSet(pending, CommandState.ConfirmationRequired(gen, e.warning))
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
@@ -255,7 +272,13 @@ class ServiceCommandController(
             if (cause is CancellationException && generation == gen) {
                 _state.compareAndSet(pending, CommandState.Idle)
             }
-            mutex.unlock()
+            if (!retainLock) {
+                try {
+                    backend.cancelOutboundConfirmation(requestToken)
+                } finally {
+                    mutex.unlock()
+                }
+            }
         }
         return true
     }

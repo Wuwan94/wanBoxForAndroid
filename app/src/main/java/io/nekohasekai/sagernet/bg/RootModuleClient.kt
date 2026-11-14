@@ -26,18 +26,43 @@ import java.util.Base64
 
 /** Root-only CLI bridge; the App never owns core processes. @author 雾晚 */
 object RootModuleClient {
-    class OutboundReferenceWarningRequired(
-        val warning: ServiceCommandController.OutboundReferenceWarning,
-    ) : Exception()
+    class OutboundReferenceWarningRequired(val warning: OutboundReferenceWarning) : Exception("outbound_confirmation_required")
 
-    @Suppress("UNUSED_PARAMETER")
-    suspend fun prepareOutboundWarning(
-        startIfStopped: Boolean,
-    ): ServiceCommandController.OutboundReferenceWarning? = null
+    private val pendingOutboundWarning = java.util.concurrent.atomic.AtomicReference<OutboundReferenceWarning?>()
 
-    // No-op skeleton; token cancellation is implemented in the GREEN step.
-    @Suppress("UNUSED_PARAMETER")
-    fun cancelOutboundWarning(requestToken: String) {}
+    private suspend fun outboundIssues() = io.nekohasekai.sagernet.route.OutboundReferenceValidator.validate(
+        io.nekohasekai.sagernet.database.ProfileManager.getRules().filter { it.enabled },
+        SagerDatabase.proxyDao.getAll().map { it.id }.toSet(),
+    )
+
+    private suspend fun prepareOutboundWarningLocked(startIfStopped: Boolean): OutboundReferenceWarning? {
+        val issues = outboundIssues()
+        if (issues.isEmpty()) {
+            pendingOutboundWarning.set(null)
+            return null
+        }
+        return pendingOutboundWarning.get()?.takeIf { it.issues == issues && it.startIfStopped == startIfStopped }
+            ?: OutboundReferenceWarning(java.util.UUID.randomUUID().toString(), startIfStopped, issues)
+                .also { pendingOutboundWarning.set(it) }
+    }
+
+    suspend fun prepareOutboundWarning(startIfStopped: Boolean): OutboundReferenceWarning? =
+        withContext(Dispatchers.IO) { changes.withLock { prepareOutboundWarningLocked(startIfStopped) } }
+
+    fun cancelOutboundWarning(requestToken: String) {
+        val warning = pendingOutboundWarning.get()
+        if (warning?.requestToken == requestToken) pendingOutboundWarning.compareAndSet(warning, null)
+    }
+
+    suspend fun continueOutboundWarning(requestToken: String, startIfStopped: Boolean) = withContext(Dispatchers.IO) {
+        RootModuleDataUpdate.applyInstallerSelection()
+        changes.withLock {
+            val warning = pendingOutboundWarning.get()
+            if (warning?.requestToken != requestToken || warning.startIfStopped != startIfStopped)
+                throw IOException("outbound_confirmation_expired")
+            startOrReloadLocked(startIfStopped, confirmedToken = requestToken)
+        }
+    }
 
     // @author 雾晚: this is the manager-owned root module, never App private storage.
     @android.annotation.SuppressLint("SdCardPath")
@@ -275,7 +300,11 @@ object RootModuleClient {
         }
     }
 
-    private suspend fun startOrReloadLocked(startIfStopped: Boolean, beforeStatus: Status? = null) {
+    private suspend fun startOrReloadLocked(startIfStopped: Boolean, beforeStatus: Status? = null, confirmedToken: String? = null) {
+        val warning = prepareOutboundWarningLocked(startIfStopped)
+        if (warning != null && warning.requestToken != confirmedToken) throw OutboundReferenceWarningRequired(warning)
+        if (warning != null && !pendingOutboundWarning.compareAndSet(warning, null))
+            throw IOException("outbound_confirmation_expired")
         val before = beforeStatus ?: callFreshStatus()
         // @author 雾晚: rule edits use module truth, never a stale UI/Binder state.
         if (RootModuleDataUpdate.pending()) throw IOException("data_update_pending")

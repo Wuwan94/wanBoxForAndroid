@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- @author 雾晚 -->
 <resources>
+    <string name="outbound_reference_title">Missing route outbounds</string>
+    <string name="outbound_reference_message">These enabled rules reference missing outbounds and cannot be applied. Review the rules or explicitly continue anyway.</string>
+    <string name="outbound_reference_item">%1$s (rule %2$d): missing %3$s #%4$d</string>
+    <string name="outbound_reference_type">node or strategy group</string>
+    <string name="outbound_reference_review">Review rules</string>
+    <string name="outbound_reference_continue">Continue Anyway</string>
+    <string name="outbound_reference_busy">Route confirmation is required. Another command is busy; try again when it finishes.</string>
     <string name="app_name" translatable="false">wanBox</string>
     <string name="app_name_long" translatable="false">wanBox</string>
     <string name="app_desc">The universal proxy toolchain for Android, written in Kotlin.</string>

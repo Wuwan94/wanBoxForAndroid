@@ -127,6 +127,10 @@
                     android:id="@+id/outbound_error"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:textColor="@color/color_route_block"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:layout_marginBottom="8dp"
+                    android:accessibilityLiveRegion="polite"
                     android:visibility="gone" />
             </LinearLayout>
 
