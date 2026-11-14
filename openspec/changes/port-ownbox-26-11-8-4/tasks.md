@@ -23,10 +23,10 @@
 
 ## 4. 批次 4：新增独立 QUIC（UDP 443）开关
 
-- [ ] 4.1 先为开关默认值、Core settings preference 持久化和配置输出写回归测试：开时生成 UDP/443 reject；关时不生成自动 reject；UDP 非 443 与 TCP 443 不受自动规则影响；Root snapshot 传递一致。
-- [ ] 4.2 增加默认开启的 `blockQuic` 设置和独立核心设置 UI；更新默认语言及简体中文文案；`ConfigBuilder` 仅在开启时生成 `network=udp`、`port=443`、`action=reject`。保留用户显式自定义规则。
-- [ ] 4.3 同步 `openspec/specs/android-application/spec.md`，自审并检查语言资源键、设置默认值与 `SINGBOX_VERSION` 不变；语义提交并仅推送授权分支。
-- [ ] 4.4 批次 4 CI 门：`verify-android.yml` unit/build/instrumentation 和 Root snapshot tests 通过，确认没有 Release/tag 操作。回传 run URL、SHA、测试结果。真机场景（不阻塞）：独立开关开/关测试 HTTP/3 回退及 UDP 非 443/TCP 443 连通；未执行须报告。
+- [x] 4.1 先行行为测试覆盖默认开启、保存/读取 false、Root snapshot 配置输出；自动规则精确匹配 UDP/443，显式断言不匹配 TCP/443 与 UDP/80；关闭后无自动规则且保留用户自定义规则。Root snapshot 状态在 `finally` 中恢复。
+- [x] 4.2 增加默认开启的 `blockQuic` 设置和独立核心设置 UI；更新默认语言及简体中文文案；`ConfigBuilder` 仅在开启时生成 `network=udp`、`port=443`、`action=reject`，并保留用户显式规则；settings 备份默认物化为 true、显式 false 保留。
+- [x] 4.3 同步 `openspec/specs/android-application/spec.md`、change delta/design；完成 Standards/Spec 双轴复审与技能指导下的 Codex 写测/复审；`git diff --check` 通过，确认版本文件及 `SINGBOX_VERSION` 未变。提交 `ca0c9a5`、`43a95fe`、`6d1b335`，仅推送授权分支。
+- [x] 4.4 批次 4 CI 门：[`verify-android.yml` run 43546395772](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/43546395772) 在 SHA `6d1b335ca30f48461defa40f6b5f5e51891c66cf` 成功；Build LibCore、Android build/unit/security、Root instrumentation、迁移/manifest、Magisk module 与下载预算 job 全通过。当前 run 的 `Module Size Lab` 与 cross-version evidence 输入关闭；备份跨版本互换已在 [`verify-android.yml` run 43541913645](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/43541913645) 成功，四项旧/新版测试各 `OK (1 test)`，新版备份含 `blockQuic=true`。未改发布工作流，未创建 PR/Release/tag。按用户指示未等待真机；HTTP/3 实际回退和 TCP/443、UDP 非 443 真机连通未验证。
 
 ## 5. 批次 5：无效出站规则定位与启动告警
 
