@@ -1,6 +1,7 @@
 // @author 雾晚
 package io.nekohasekai.sagernet.bg
 
+import io.nekohasekai.sagernet.route.OutboundReferenceValidator
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -16,6 +17,82 @@ import org.junit.Test
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ServiceCommandControllerTest {
+
+    @Test
+    fun `outbound warning holds until explicit continue and cancel releases the next command`() = runTest {
+        val continuedRequests = mutableListOf<Pair<String, Boolean>>()
+        var starts = 0
+        val backend = object : ServiceCommandController.Backend {
+            override suspend fun start(): RootModuleClient.Status {
+                starts++
+                return fakeStatus()
+            }
+            override suspend fun stop() = fakeStatus(false, "stopped")
+            override suspend fun setMode(mode: String) = fakeStatus()
+            override suspend fun selectNode(id: Long) = fakeStatus(profileId = id)
+            override suspend fun queryStatus() = fakeStatus()
+            override suspend fun continueOutboundConfirmation(
+                requestToken: String,
+                startIfStopped: Boolean,
+            ): RootModuleClient.Status {
+                continuedRequests += requestToken to startIfStopped
+                return fakeStatus()
+            }
+        }
+        val controller = ServiceCommandController(this, backend)
+        val warning = ServiceCommandController.OutboundReferenceWarning(
+            requestToken = "cancelled-request",
+            startIfStopped = true,
+            issues = listOf(OutboundReferenceValidator.Issue(
+                ruleId = 12L,
+                ruleName = "Video",
+                kind = OutboundReferenceValidator.ReferenceKind.NODE_OR_STRATEGY_GROUP,
+                missingId = 99L,
+            )),
+        )
+
+        assertTrue("warning request should be accepted", controller.requestOutboundConfirmation(warning))
+        testScheduler.advanceUntilIdle()
+        assertEquals(
+            ServiceCommandController.CommandState.ConfirmationRequired(1L, warning),
+            controller.state.value,
+        )
+        assertTrue(controller.isBusy())
+        assertFalse(controller.requestStart())
+        assertEquals(0, starts)
+        assertEquals(emptyList<Pair<String, Boolean>>(), continuedRequests)
+
+        assertTrue(controller.cancelOutboundConfirmation("cancelled-request"))
+        testScheduler.advanceUntilIdle()
+        assertEquals(ServiceCommandController.CommandState.Idle, controller.state.value)
+        assertFalse(controller.isBusy())
+        assertFalse(controller.continueOutboundConfirmation("cancelled-request"))
+        assertEquals(emptyList<Pair<String, Boolean>>(), continuedRequests)
+        assertEquals(0, starts)
+
+        assertTrue(controller.requestStart())
+        testScheduler.advanceUntilIdle()
+        assertEquals(1, starts)
+        controller.acknowledge()
+
+        assertTrue(controller.requestOutboundConfirmation(warning.copy(
+            requestToken = "continued-request",
+            startIfStopped = false,
+        )))
+        testScheduler.advanceUntilIdle()
+        assertTrue(controller.state.value is ServiceCommandController.CommandState.ConfirmationRequired)
+        assertEquals(emptyList<Pair<String, Boolean>>(), continuedRequests)
+        assertTrue(controller.continueOutboundConfirmation("continued-request"))
+        assertFalse(controller.continueOutboundConfirmation("continued-request"))
+        testScheduler.advanceUntilIdle()
+        assertEquals(listOf("continued-request" to false), continuedRequests)
+        assertEquals(1, starts)
+        assertTrue(controller.state.value is ServiceCommandController.CommandState.Confirmed)
+        assertFalse(controller.isBusy())
+        assertFalse(controller.continueOutboundConfirmation("continued-request"))
+        testScheduler.advanceUntilIdle()
+        assertEquals(listOf("continued-request" to false), continuedRequests)
+    }
 
     private fun fakeStatus(connected: Boolean = true, phase: String = "connected", profileId: Long = 1L) =
         RootModuleClient.Status(

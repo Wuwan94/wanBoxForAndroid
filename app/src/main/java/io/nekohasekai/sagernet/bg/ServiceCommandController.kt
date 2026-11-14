@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package io.nekohasekai.sagernet.bg
 
+import io.nekohasekai.sagernet.route.OutboundReferenceValidator
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -33,10 +34,17 @@ class ServiceCommandController(
     /** 命令类型 */
     enum class CommandKind { START, STOP, MODE, NODE }
 
+    data class OutboundReferenceWarning(
+        val requestToken: String,
+        val startIfStopped: Boolean,
+        val issues: List<OutboundReferenceValidator.Issue>,
+    )
+
     /** 命令状态 */
     sealed class CommandState {
         data object Idle : CommandState()
         data class Pending(val kind: CommandKind, val generation: Long) : CommandState()
+        data class ConfirmationRequired(val generation: Long, val warning: OutboundReferenceWarning) : CommandState()
         data class Confirmed(val kind: CommandKind, val generation: Long, val status: RootModuleClient.Status) : CommandState()
         data class Error(val kind: CommandKind, val generation: Long, val message: String) : CommandState()
         data object Cancelled : CommandState()
@@ -49,6 +57,10 @@ class ServiceCommandController(
         suspend fun setMode(mode: String): RootModuleClient.Status
         suspend fun selectNode(id: Long): RootModuleClient.Status
         suspend fun queryStatus(): RootModuleClient.Status
+        suspend fun continueOutboundConfirmation(
+            requestToken: String,
+            startIfStopped: Boolean,
+        ): RootModuleClient.Status = throw UnsupportedOperationException("outbound_confirmation_not_implemented")
     }
 
     /** 真实后端 */
@@ -207,6 +219,13 @@ class ServiceCommandController(
         }
         return true
     }
+
+    // Batch 5 API skeleton: confirmation behavior is intentionally not implemented yet.
+    fun requestOutboundConfirmation(warning: OutboundReferenceWarning): Boolean = false
+
+    fun continueOutboundConfirmation(requestToken: String): Boolean = false
+
+    fun cancelOutboundConfirmation(requestToken: String): Boolean = false
 
     /** UI 请求启动（不捕获 Fragment/views） */
     fun requestStart(): Boolean = trySubmit(CommandKind.START) {
