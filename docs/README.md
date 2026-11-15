@@ -74,9 +74,9 @@ wanBox 严守「证据驱动」与「Fail-Closed」原则，所有关键改动�
 - [**preview3-validation.zh-CN.md**](./preview3-validation.zh-CN.md)：preview.3 阶段性自动化单测与静态分析数据。
 - [**preview12-efficiency.zh-CN.md**](./preview12-efficiency.zh-CN.md) / [**preview13-routing-stability.zh-CN.md**](./preview13-routing-stability.zh-CN.md)：早期稳定性预览版专项实测记录。
 
-### 2. 25 MiB 体积硬门禁与代码尺寸分析
+### 2. 26 MiB 体积硬门禁与代码尺寸分析
 - [**apk-size-report-20261028.md**](./apk-size-report-20261028.md)：内核符号裁剪依据（`.gopclntab` 切字节分析与真实 Deflate-9 压缩实测）。
-- [**size-report-final.md**](./size-report-final.md)：双产物（瘦 APK + Root 模块 ZIP）严守 25 MiB（26,214,400 字节）绝对预算的核算报告。
+- [**size-report-final.md**](./size-report-final.md)：双产物（瘦 APK + Root 模块 ZIP）体积核算报告（报告按当时 25 MiB 上限核算；现行门禁为 26 MiB / 27,262,976 字节，以 `tools/size_budget.py` 为准）。
 
 ### 3. 安全、备份与工具链审计
 - [**audit-security-lifecycle.md**](./audit-security-lifecycle.md)：Android 最终 Manifest 导出组件白名单扫描与生命周期安全。
@@ -115,6 +115,6 @@ wanBox 严守「证据驱动」与「Fail-Closed」原则，所有关键改动�
 
 | 文档名称 | 主要内容与规约说明 | 状态 / 作用 |
 |---|---|---|
-| [**CONTRIBUTING.md**](../CONTRIBUTING.md) | **开发者贡献指南**：架构不可动红线（瘦身解耦、Fail-Closed）、25 MiB 严格体积门禁、本地自动化单测与 Conventional Commits 提交约定。 | 贡献标准 |
+| [**CONTRIBUTING.md**](../CONTRIBUTING.md) | **开发者贡献指南**：架构不可动红线（瘦身解耦、Fail-Closed）、26 MiB 严格体积门禁、本地自动化单测与 Conventional Commits 提交约定。 | 贡献标准 |
 | [**SECURITY.md**](../SECURITY.md) | **安全策略与漏洞报告**：支持渠道、威胁模型（流量防泄露、Root 权限边界）与 Private Vulnerability Reporting 私密披露机制。 | 安全保障 |
 | [**PULL_REQUEST_TEMPLATE.md**](../.github/PULL_REQUEST_TEMPLATE.md) | **PR 审查模板**：自动化验收与架构安全自查 Checklist。 | 协作守卫 |
