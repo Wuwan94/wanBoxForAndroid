@@ -8,11 +8,11 @@
 | 已发布预览版 | [v3.0.15-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.4)，prerelease；tag/commit `d6914e70d730c63ee3c3cbb2b00fe2e754b6737e` | APK `versionCode=10144` / Root 模块码 `2028`；由正式 `Preview Build` run `43628453020` 发布 |
 | 上一正式版 | [v3.0.11](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11)，非 prerelease，保留；tag `03c6eb70854c797ee1e4069e378145be5ca56b0d` | APK / Root 模块 `10065 / 2013`（历史资产核验记录，归档语境） |
 | 发布基线 | [v3.0.15-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.4) 的 tag/commit `d6914e70d730c63ee3c3cbb2b00fe2e754b6737e` | 固定发布基线，不等同于后续 main HEAD |
-| 源码预览线 | `3.0.16-preview.1`（候选构建；须经发布工作流验证） | `PRE_VERSION_NAME=3.0.16-preview.1`、`PRE_VERSION_CODE=2029`；共享向量计算 APK `versionCode=10146` |
+| 源码预览线 | `3.0.16-preview.2`（候选构建；须经发布工作流验证） | `PRE_VERSION_NAME=3.0.16-preview.2`、`PRE_VERSION_CODE=2029`；共享向量计算 APK `versionCode=10147` |
 
-源码元数据正式线保持 `VERSION_NAME=3.0.14`、`VERSION_CODE=2026`；preview.4 仍是当前已发布预览，3.0.16-preview.1 是当前源码候选：`PRE_VERSION_NAME=3.0.16-preview.1`、`PRE_VERSION_CODE=2029`，派生 APK `versionCode=10146`，高于 preview.4 的 `10144`。稳定版与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变。
+源码元数据正式线保持 `VERSION_NAME=3.0.14`、`VERSION_CODE=2026`；preview.4 仍是当前已发布预览，3.0.16-preview.2 是当前源码候选：`PRE_VERSION_NAME=3.0.16-preview.2`、`PRE_VERSION_CODE=2029`，派生 APK `versionCode=10147`，高于 3.0.16-preview.1 的 `10146`。稳定版与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变。
 
-`verify-android` run `43625363368` 在集成提交 `69de6eac6a23d0af65525991c6fff3cbf1a6e620` 成功，instrumentation、迁移、manifest 与体积门禁通过。`Preview Build` run `43628453020` 在 main 提交/tag `d6914e70d730c63ee3c3cbb2b00fe2e754b6737e` 成功，四个 job 全部通过并发布 preview.4。preview.3 Release/tag 已在 preview.4 发布后按单预览策略清理；旧 workflow run `43404430362` 与提交 `fe193f1134a80ff38fb0cb3ed4677eb2b79c1dce` 保留其历史证据。3.0.16-preview.1 在发布前仍须通过精确 SHA、构建与资产校验；当前尚无 3.0.16-preview.1 Release/tag。正式版 v3.0.14 与上一正式版 v3.0.11 保留。
+`verify-android` run `43625363368` 在集成提交 `69de6eac6a23d0af65525991c6fff3cbf1a6e620` 成功，instrumentation、迁移、manifest 与体积门禁通过。`Preview Build` run `43628453020` 在 main 提交/tag `d6914e70d730c63ee3c3cbb2b00fe2e754b6737e` 成功，四个 job 全部通过并发布 preview.4。preview.3 Release/tag 已在 preview.4 发布后按单预览策略清理；旧 workflow run `43404430362` 与提交 `fe193f1134a80ff38fb0cb3ed4677eb2b79c1dce` 保留其历史证据。3.0.16-preview.1 已由 `Preview Build` run `43673447000` 在 main 提交/tag `7630ddd90e6092f9ce5647d34fb7d9a892db5769` 发布，四件套经 API 回读一致；其发布文档同步并入 preview.2 周期统一处理。3.0.16-preview.2 在发布前仍须通过精确 SHA、构建与资产校验；当前尚无 3.0.16-preview.2 Release/tag。正式版 v3.0.14 与上一正式版 v3.0.11 保留。
 
 ## v3.0.14 正式版四件套（文件名）
 
