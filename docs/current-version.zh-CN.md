@@ -144,20 +144,20 @@ APK 与普通 Root 模块合计 `23938787` 字节（22.83 MiB）；带管理器�
 
 ## 资产与兼容信息
 
-历史机器可读记录 [preview3-version-evidence.json](preview3-version-evidence.json) 对应 v3.0.11 正式版与 v3.0.11-preview.2，**不是本轮 v3.0.15-preview.3 的核验结果**。其中包括 Release digest、SHA256SUMS、ZIP 清单、带管理器模块内 APK 与外部 APK 的字节一致性、`aapt` 身份与 `apksigner` 验证。
+历史机器可读记录 [preview3-version-evidence.json](preview3-version-evidence.json) 对应 v3.0.11 正式版与 v3.0.11-preview.2，**不是本轮 v3.0.16-preview.2 的核验结果**。其中包括 Release digest、SHA256SUMS、ZIP 清单、带管理器模块内 APK 与外部 APK 的字节一致性、`aapt` 身份与 `apksigner` 验证。
 
-历史共同包名为 `com.lit008834.pixel.wanboxforandroid`，证书 SHA-256 为 `80ecee1c42d861d59cdc460447335fc4bfdf80103d6225a17c1bdf83a33521f6`；这是历史记录，不代表本轮 preview.1 资产已验签。
+历史共同包名为 `com.lit008834.pixel.wanboxforandroid`，证书 SHA-256 为 `80ecee1c42d861d59cdc460447335fc4bfdf80103d6225a17c1bdf83a33521f6`；这是历史记录，不代表本轮 preview.2 资产已验签。
 
 Android 12+（minSdk 31）、arm64-v8a、Root；瘦管理器和 Root 模块必须使用同一发布页的同版资产。下载通过同一 Release 的 SHA256SUMS 后才可提示安装，禁止静默安装；资产不全时明确提示并引导至发布页，不拼凑不同 Release 的文件。
 
 ## 发布来源与边界
 
-当前已发布预览以本文表格中的 v3.0.15-preview.4 为准；`PREVIEW_NOTES.md` 与[说明快照](release-notes-next.zh-CN.md)记录同一已发布版本。preview.3 的 Release/tag 已清理，其 workflow run 与 commit 及资产快照作为历史记录保留。preview.2 与更早预览的说明和资产摘要均不作为当前下载入口或本轮新测试结果。
+当前已发布预览以本文表格中的 v3.0.16-preview.2 为准；`PREVIEW_NOTES.md` 与[说明快照](release-notes-next.zh-CN.md)记录同一已发布版本。preview.1 的 Release/tag 已在 preview.2 发布后清理，其 workflow run、commit 与资产快照作为历史记录保留。preview.4 及更早预览的说明和资产摘要均不作为当前下载入口或本轮新测试结果。
 
-`verify-android` run `43625363368` 在集成提交 `69de6eac6a23d0af65525991c6fff3cbf1a6e620` 通过 instrumentation、迁移、manifest 与体积门禁；正式 `Preview Build` run `43628453020` 在精确提交 `d6914e70d730c63ee3c3cbb2b00fe2e754b6737e` 的四个 job 全部成功。发布后下载资产与公开 `SHA256SUMS` 校验通过；上表列明四件套字节数与 SHA-256。
+`verify-android` run `43679580768`（修复 PR #47，提交 `d483e796ed9f8de747f95b195ea4af072ce64374`）与 run `43682068186`（升版 PR #48，提交 `d67883c3f9a745ca7855936a65a2f738401d5617`）的 `Build LibCore` 作业通过（含 `go test -race ./...`、`go vet`、Python 工具 108 项与版本文档一致性检查）以及 instrumentation、迁移、manifest 与体积门禁；正式 `Preview Build` run `43684289336` 在精确提交 `c5701a0979ef2a8ee4d28020f513f7f4aac07358` 的四个 job 全部成功。发布后下载资产与公开 `SHA256SUMS` 校验通过；上表列明四件套字节数与 SHA-256。
 
-[发布清单](release-checklist.zh-CN.md) 保留分阶段门槛与正式版发布清单。preview.4 未执行 Magisk / KernelSU / APatch 真机矩阵，该项仍未验证；稳定版 v3.0.14 保持不变，任何自动化结果都不代替真机验证。
+[发布清单](release-checklist.zh-CN.md) 保留分阶段门槛与正式版发布清单。preview.2 未执行 Magisk / KernelSU / APatch 真机矩阵，该项仍未验证；稳定版 v3.0.14 保持不变，任何自动化结果都不代替真机验证。
 
-上一正式版 v3.0.11 与稳定版 v3.0.14 的 Release 与 tag 均保留，正式发布不执行 prune；当前预览渠道只保留最新的 prerelease，即 v3.0.15-preview.4。preview.3 已在新资产核验成功后由官方流程清理；preview.2 及更早历史按原记录保留。后续发布仍须使用获批精确提交及同次核验的四件套资产，并在清理旧预览前完成回读验证。
+上一正式版 v3.0.11 与稳定版 v3.0.14 的 Release 与 tag 均保留，正式发布不执行 prune；当前预览渠道只保留最新的 prerelease，即 v3.0.16-preview.2。preview.1 已在新资产核验成功后由官方流程清理；preview.4 及更早历史按原记录保留。后续发布仍须使用获批精确提交及同次核验的四件套资产，并在清理旧预览前完成回读验证。
 
 正式版说明见 [RELEASE_NOTES.md](../RELEASE_NOTES.md)（v3.0.14；原 v3.0.11 说明正文已被替换，保留在其 Release 页与 git 历史中）。
