@@ -180,18 +180,35 @@ class ServiceCommandController(
 
     private val mutex = Mutex()
     private var generation = 0L
+    private val confirmationTimerLock = Any()
+    private var timerSeq = 0L
     companion object {
         // Two minutes allows review while bounding locks abandoned with a dismissed Activity.
         private const val CONFIRMATION_TIMEOUT_MS = 2 * 60 * 1000L
     }
 
-    private fun scheduleConfirmationTimeout(waiting: CommandState.ConfirmationRequired) {
+    private fun scheduleConfirmationTimeout(
+        waiting: CommandState.ConfirmationRequired,
+        expected: CommandState? = null,
+    ) = synchronized(confirmationTimerLock) {
+        if (expected != null) {
+            if (!_state.compareAndSet(expected, waiting)) return@synchronized
+        } else {
+            _state.value = waiting
+        }
+        val seq = ++timerSeq
         applicationScope.launch {
             delay(CONFIRMATION_TIMEOUT_MS)
-            if (_state.compareAndSet(waiting, CommandState.Idle)) {
+            // Publishing a renewed wait and checking its deadline must be atomic:
+            // StateFlow CAS considers structurally equal confirmations identical.
+            val expired = synchronized(confirmationTimerLock) {
+                timerSeq == seq && _state.compareAndSet(waiting, CommandState.Idle)
+            }
+            if (expired) {
                 try { backend.cancelOutboundConfirmation(waiting.warning.requestToken) } finally { mutex.unlock() }
             }
         }
+        Unit
     }
 
     private val _state = MutableStateFlow<CommandState>(CommandState.Idle)
@@ -226,7 +243,6 @@ class ServiceCommandController(
             } catch (e: RootModuleClient.OutboundReferenceWarningRequired) {
                 retainLock = true
                 val waiting = CommandState.ConfirmationRequired(gen, e.warning)
-                _state.value = waiting
                 scheduleConfirmationTimeout(waiting)
             } catch (e: CancellationException) {
                 // @author 雾晚：取消时重置为 Idle，可继续提交
@@ -255,7 +271,6 @@ class ServiceCommandController(
         if (!mutex.tryLock()) return false
         generation++
         val waiting = CommandState.ConfirmationRequired(generation, warning, pendingReviewId)
-        _state.value = waiting
         scheduleConfirmationTimeout(waiting)
         return true
     }
@@ -278,7 +293,7 @@ class ServiceCommandController(
             } catch (e: RootModuleClient.OutboundReferenceWarningRequired) {
                 retainLock = true
                 val waiting = CommandState.ConfirmationRequired(gen, e.warning)
-                if (_state.compareAndSet(pending, waiting)) scheduleConfirmationTimeout(waiting)
+                scheduleConfirmationTimeout(waiting, expected = pending)
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {

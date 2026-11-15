@@ -3,6 +3,7 @@ package io.nekohasekai.sagernet.ui
 import android.app.Dialog
 import android.content.DialogInterface
 import android.os.Bundle
+import android.widget.Toast
 import androidx.fragment.app.DialogFragment
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.nekohasekai.sagernet.R
@@ -39,7 +40,9 @@ class OutboundReferenceWarningDialog : DialogFragment() {
                 }
             }
             .setPositiveButton(R.string.outbound_reference_continue) { _, _ ->
-                SagerNet.commandController.continueOutboundConfirmation(requestToken)
+                if (!SagerNet.commandController.continueOutboundConfirmation(requestToken)) {
+                    Toast.makeText(requireContext(), R.string.outbound_reference_expired, Toast.LENGTH_LONG).show()
+                }
             }
             .create()
     }

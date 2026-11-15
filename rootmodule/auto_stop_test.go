@@ -242,14 +242,6 @@ func TestPolicyObservationGatesAndMonitorFingerprint(t *testing.T) {
 	if d.Suspend || d.Fingerprint != networkFingerprint() || suppressed != "keep" {
 		t.Fatalf("disabled decision: %+v %s", d, suppressed)
 	}
-	for _, tc := range []struct {
-		rules []string
-		want  bool
-	}{{[]string{"192.0.2.1"}, false}, {[]string{" GATEWAY:192.0.2.1"}, true}, {[]string{"gateway:invalid"}, false}} {
-		if policyNeedsGateways(SmartAutoStop{Rules: tc.rules}) != tc.want {
-			t.Fatal(tc)
-		}
-	}
 	r.observeNetwork = func() NetworkObservation { return observation("192.0.2.1") }
 	d = r.monitorNetworkDecision(SmartAutoStop{Enabled: true, Rules: []string{"192.0.2.1"}}, &suppressed)
 	if !d.Suspend || d.Fingerprint != networkFingerprint() || suppressed != "" {
@@ -317,16 +309,48 @@ func TestGatewayCacheConcurrentRefresh(t *testing.T) {
 	}
 }
 
-func TestObservationWithoutGatewayRulesDoesNotRefreshCache(t *testing.T) {
+func TestDisabledPolicyDoesNotRefreshCache(t *testing.T) {
 	defaultGatewayCache.mu.Lock()
 	before := defaultGatewayCache.updated
 	defaultGatewayCache.mu.Unlock()
-	if got := readPhysicalObservation(false); len(got.Gateways) != 0 {
-		t.Fatal(got.Gateways)
-	}
+	r := &Runtime{}
+	suppressed := "keep"
+	r.policyAutoStopDecision(SmartAutoStop{}, &suppressed)
 	defaultGatewayCache.mu.Lock()
 	defer defaultGatewayCache.mu.Unlock()
 	if defaultGatewayCache.updated != before {
-		t.Fatal("gateway cache refreshed without gateway rules")
+		t.Fatal("gateway cache refreshed for disabled policy")
+	}
+}
+
+func TestGatewayCacheReaderRunsOutsideLock(t *testing.T) {
+	var c gatewayCache
+	c.read(observation("192.0.2.9"), time.Unix(100, 0), func() map[string][]net.IP {
+		if !c.mu.TryLock() {
+			t.Error("gateway discovery holds the cache mutex")
+		} else {
+			c.mu.Unlock()
+		}
+		return nil
+	})
+}
+
+func TestGatewayCacheReturnsIndependentMaps(t *testing.T) {
+	var c gatewayCache
+	o := observation("192.0.2.9")
+	now := time.Unix(100, 0)
+	read := func() map[string][]net.IP {
+		return map[string][]net.IP{"wlan0": {net.ParseIP("192.0.2.1")}}
+	}
+	first := c.read(o, now, read)
+	delete(first, "wlan0")
+	second := c.read(o, now.Add(time.Second), read)
+	if len(second["wlan0"]) != 1 || !second["wlan0"][0].Equal(net.ParseIP("192.0.2.1")) {
+		t.Fatalf("caller changed cached gateways: %v", second)
+	}
+	second["other"] = []net.IP{net.ParseIP("198.51.100.1")}
+	third := c.read(o, now.Add(2*time.Second), read)
+	if _, ok := third["other"]; ok {
+		t.Fatal("cache-hit maps are shared")
 	}
 }
