@@ -1360,4 +1360,10 @@
     <string name="policy_failed">Failed</string>
     <string name="policy_direct">Direct</string>
     <string name="policy_block">Block</string>
+    <string name="module_diagnostics_health">Health</string>
+    <string name="module_diagnostics_exit_reason">Last exit reason</string>
+    <string name="module_diagnostics_exit_code">Last exit code</string>
+    <string name="module_diagnostics_exit_time">Last exit time</string>
+    <string name="module_diagnostics_retry_count">Retry count</string>
+    <string name="module_diagnostics_event">Recent module event</string>
 </resources>

@@ -131,7 +131,8 @@ object RootModuleClient {
         // phase2: optional module health fields (older modules omit them)
         val health: String = "", val lastExit: String = "", val lastReason: String = "",
         val retryCount: Int = 0, val events: List<ModuleEvent> = emptyList(),
-        val profileTags: Map<Long, String> = emptyMap()) {
+        val profileTags: Map<Long, String> = emptyMap(),
+        val lastExitAt: Long = 0L) {
         /** 异常: module failed / needs cleanup, or connected but the data plane is degraded. */
         val abnormal get() = installData == null && (phase == "failed" || phase == "cleanup_required" ||
             (phase == "connected" && health == "degraded"))
@@ -201,7 +202,8 @@ object RootModuleClient {
             health = state.safeString("health"), lastExit = state.safeString("lastExit"),
             lastReason = state.safeString("lastReason"),
             retryCount = state["retryCount"]?.takeIf { it.isJsonPrimitive }?.asInt ?: 0,
-            events = events, profileTags = profileTags)
+            events = events, profileTags = profileTags,
+            lastExitAt = state["lastExitAt"]?.takeUnless { it.isJsonNull }?.asLong ?: 0L)
     }
     suspend fun call(command: String, input: File? = null): Status = withContext(Dispatchers.IO) {
         require(command in commands || command.matches(Regex("data selection-finish [a-f0-9]{32}"))
