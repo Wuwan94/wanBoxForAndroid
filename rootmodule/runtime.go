@@ -934,8 +934,7 @@ func (r *Runtime) Resume(ctx context.Context) error {
 			}
 			return errors.New("module_not_suspended")
 		}
-		o := r.physicalObservation()
-		fp := NetworkFingerprint(o)
+		fp := NetworkFingerprint(r.fullPhysicalObservation())
 		if len(fp) > 128 {
 			return errors.New("network_fingerprint_invalid")
 		}

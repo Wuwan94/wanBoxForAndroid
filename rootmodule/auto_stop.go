@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -157,7 +158,14 @@ func NetworkFingerprint(o NetworkObservation) string {
 	h := sha256.Sum256([]byte(strings.Join(p, "\n")))
 	return hex.EncodeToString(h[:8])
 }
-func ReadPhysicalObservation() NetworkObservation {
+func ReadPhysicalObservation(policy SmartAutoStop) NetworkObservation {
+	if !policy.Enabled {
+		return NetworkObservation{}
+	}
+	return readPhysicalObservation(policyNeedsGateways(policy))
+}
+
+func readPhysicalObservation(gateways bool) NetworkObservation {
 	o := NetworkObservation{Interfaces: map[string][]net.IP{}}
 	for _, in := range interfacesOrEmpty() {
 		if in.Flags&net.FlagUp == 0 || in.Flags&net.FlagLoopback != 0 || ignoredInterface(in.Name) {
@@ -172,7 +180,9 @@ func ReadPhysicalObservation() NetworkObservation {
 			o.Interfaces[in.Name] = ips
 		}
 	}
-	o.Gateways = readDefaultGateways()
+	if gateways {
+		o.Gateways = defaultGatewayCache.read(o, time.Now(), readDefaultGateways)
+	}
 	return o
 }
 
@@ -194,9 +204,13 @@ func readDefaultGateways() map[string][]net.IP {
 	out := parseDefaultGateways(v4, v6)
 	// Android keeps per-network defaults in policy tables, outside /proc/net/route.
 	// Use fixed argv without a shell, and retain proc observations on command failure.
+	ipPath := resolveIPPath(func(path string) bool { _, err := os.Stat(path); return err == nil }, exec.LookPath)
+	if ipPath == "" {
+		return out
+	}
 	for _, family := range []string{"-4", "-6"} {
 		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-		data, err := exec.CommandContext(ctx, "ip", family, "route", "show", "table", "all").Output()
+		data, err := exec.CommandContext(ctx, ipPath, family, "route", "show", "table", "all").Output()
 		cancel()
 		if err != nil {
 			continue
@@ -367,11 +381,22 @@ func autoStopMonitorFingerprint(policy SmartAutoStop, o NetworkObservation, supp
 	return networkDecision{Fingerprint: fp}
 }
 
-func (r *Runtime) physicalObservation() NetworkObservation {
+// fullPhysicalObservation includes gateways for policy-independent manual resume tokens.
+func (r *Runtime) fullPhysicalObservation() NetworkObservation {
 	if r.observeNetwork != nil {
 		return r.observeNetwork()
 	}
-	return ReadPhysicalObservation()
+	return readPhysicalObservation(true)
+}
+
+func (r *Runtime) physicalObservation(policy SmartAutoStop) NetworkObservation {
+	if !policy.Enabled {
+		return NetworkObservation{}
+	}
+	if r.observeNetwork != nil {
+		return r.observeNetwork()
+	}
+	return ReadPhysicalObservation(policy)
 }
 
 // parseIPDefaultGateways reads iproute2/toybox output, including Android policy tables.
@@ -438,10 +463,71 @@ func (r *Runtime) readSuppression() string {
 
 // Both lifecycle loops consume suppression through the same network decision.
 func (r *Runtime) autoStopDecision(policy SmartAutoStop, o NetworkObservation, suppressed *string) networkDecision {
+	if !policy.Enabled {
+		return networkDecision{}
+	}
 	before := *suppressed
 	decision := autoStopMonitorFingerprint(policy, o, suppressed)
 	if before != "" && *suppressed == "" {
 		_ = os.Remove(r.path("runtime", suppressionFile))
 	}
 	return decision
+}
+
+func policyNeedsGateways(policy SmartAutoStop) bool {
+	for _, raw := range policy.Rules {
+		if rule, err := parseAutoRule(raw); err == nil && rule.Gateway {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Runtime) policyAutoStopDecision(policy SmartAutoStop, suppressed *string) networkDecision {
+	if !policy.Enabled {
+		return networkDecision{}
+	}
+	return r.autoStopDecision(policy, r.physicalObservation(policy), suppressed)
+}
+
+func (r *Runtime) monitorNetworkDecision(policy SmartAutoStop, suppressed *string) networkDecision {
+	decision := r.policyAutoStopDecision(policy, suppressed)
+	decision.Fingerprint = networkFingerprint()
+	return decision
+}
+
+// Serialize refreshes across lifecycle loops, including the command execution.
+type gatewayCache struct {
+	mu          sync.Mutex
+	fingerprint string
+	updated     time.Time
+	gateways    map[string][]net.IP
+}
+
+// gatewayCacheTTL limits gateway discovery to once per minute on an unchanged network.
+const gatewayCacheTTL = 60 * time.Second
+
+var defaultGatewayCache gatewayCache
+
+func (c *gatewayCache) read(o NetworkObservation, now time.Time, read func() map[string][]net.IP) map[string][]net.IP {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	o.Gateways = nil
+	fp := NetworkFingerprint(o)
+	if c.updated.IsZero() || c.fingerprint != fp || now.Sub(c.updated) >= gatewayCacheTTL {
+		c.gateways = read()
+		c.fingerprint, c.updated = fp, now
+	}
+	return c.gateways
+}
+
+func resolveIPPath(exists func(string) bool, lookPath func(string) (string, error)) string {
+	if exists("/system/bin/ip") {
+		return "/system/bin/ip"
+	}
+	path, err := lookPath("ip")
+	if err != nil {
+		return ""
+	}
+	return path
 }

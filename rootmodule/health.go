@@ -568,7 +568,7 @@ func (r *Runtime) monitorGeneration(ctx context.Context, rev string, s *State, m
 	}
 	return runMonitor(ctx, hc, monitorDeps{
 		fingerprint: func() networkDecision {
-			return r.autoStopDecision(policy, r.physicalObservation(), suppressed)
+			return r.monitorNetworkDecision(policy, suppressed)
 		},
 		probe:    probe,
 		failover: failover,

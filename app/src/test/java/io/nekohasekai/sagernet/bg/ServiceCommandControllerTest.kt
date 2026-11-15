@@ -19,6 +19,59 @@ import org.junit.Test
 class ServiceCommandControllerTest {
 
     @Test
+    fun `abandoned confirmations expire once and old deadlines preserve a new generation`() = runTest {
+        val cancelled = mutableListOf<String>()
+        val backend = object : ServiceCommandController.Backend {
+            override suspend fun start(): RootModuleClient.Status =
+                throw RootModuleClient.OutboundReferenceWarningRequired(warning("start"))
+            override suspend fun stop() = fakeStatus(false, "stopped")
+            override suspend fun setMode(mode: String) = fakeStatus()
+            override suspend fun selectNode(id: Long) = fakeStatus(profileId = id)
+            override suspend fun queryStatus() = fakeStatus()
+            override suspend fun continueOutboundConfirmation(requestToken: String, startIfStopped: Boolean) = fakeStatus()
+            override fun cancelOutboundConfirmation(requestToken: String) { cancelled += requestToken }
+        }
+        val controller = ServiceCommandController(backgroundScope, backend)
+        assertTrue(controller.requestStart())
+        testScheduler.runCurrent()
+        testScheduler.advanceTimeBy(120_000)
+        testScheduler.runCurrent()
+        assertEquals(ServiceCommandController.CommandState.Idle, controller.state.value)
+        assertEquals(listOf("start"), cancelled)
+        assertFalse(controller.continueOutboundConfirmation("start"))
+
+        assertTrue(controller.requestOutboundConfirmation(warning("old")))
+        testScheduler.advanceTimeBy(60_000)
+        assertTrue(controller.cancelOutboundConfirmation("old"))
+        assertTrue(controller.requestOutboundConfirmation(warning("new")))
+        testScheduler.advanceTimeBy(60_000)
+        testScheduler.runCurrent()
+        assertTrue(controller.isBusy())
+        assertFalse("new timer must not have fired", cancelled.contains("new"))
+        assertTrue(controller.continueOutboundConfirmation("new"))
+        testScheduler.runCurrent()
+        testScheduler.advanceTimeBy(120_000)
+        testScheduler.runCurrent()
+        assertTrue(controller.state.value is ServiceCommandController.CommandState.Confirmed)
+        assertEquals(1, cancelled.count { it == "new" })
+        controller.acknowledge()
+        assertTrue(controller.requestOutboundConfirmation(warning("abandoned")))
+        testScheduler.runCurrent()
+        testScheduler.advanceTimeBy(120_000)
+        testScheduler.runCurrent()
+        assertEquals(ServiceCommandController.CommandState.Idle, controller.state.value)
+        assertEquals(1, cancelled.count { it == "abandoned" })
+        assertTrue(controller.requestStop())
+        testScheduler.runCurrent()
+        assertTrue(controller.state.value is ServiceCommandController.CommandState.Confirmed)
+    }
+
+    private fun warning(token: String) = OutboundReferenceWarning(token, true, listOf(
+        OutboundReferenceValidator.Issue(12L, "Video",
+            OutboundReferenceValidator.ReferenceKind.NODE_OR_STRATEGY_GROUP, 99L),
+    ))
+
+    @Test
     fun `idle acknowledgment excludes commands and releases its reservation on failure`() = runTest {
         val controller = ServiceCommandController(this)
         val entered = kotlinx.coroutines.CompletableDeferred<Unit>()
@@ -65,12 +118,12 @@ class ServiceCommandControllerTest {
         }
         val controller = ServiceCommandController(this, backend)
         assertTrue(controller.requestStart())
-        testScheduler.advanceUntilIdle()
+        testScheduler.runCurrent()
         assertEquals(ServiceCommandController.CommandState.ConfirmationRequired(1L, warning), controller.state.value)
         assertFalse(controller.requestStop())
         assertTrue(controller.cancelOutboundConfirmation(warning.requestToken))
         assertTrue(controller.requestStop())
-        testScheduler.advanceUntilIdle()
+        testScheduler.runCurrent()
         assertEquals(ServiceCommandController.CommandState.Confirmed(
             ServiceCommandController.CommandKind.STOP, 2L, fakeStatus(false, "stopped")), controller.state.value)
     }
@@ -110,7 +163,7 @@ class ServiceCommandControllerTest {
         try {
             assertTrue(controller.requestOutboundConfirmation(initialWarning))
             assertTrue(controller.continueOutboundConfirmation("initial-warning.invalid"))
-            testScheduler.advanceUntilIdle()
+            testScheduler.runCurrent()
 
             assertEquals(
                 ServiceCommandController.CommandState.ConfirmationRequired(1L, updatedWarning),
@@ -166,7 +219,7 @@ class ServiceCommandControllerTest {
         )
 
         assertTrue("warning request should be accepted", controller.requestOutboundConfirmation(warning))
-        testScheduler.advanceUntilIdle()
+        testScheduler.runCurrent()
         assertEquals(
             ServiceCommandController.CommandState.ConfirmationRequired(1L, warning),
             controller.state.value,
@@ -177,7 +230,7 @@ class ServiceCommandControllerTest {
         assertEquals(emptyList<Pair<String, Boolean>>(), continuedRequests)
 
         assertTrue(controller.cancelOutboundConfirmation("cancelled-request"))
-        testScheduler.advanceUntilIdle()
+        testScheduler.runCurrent()
         assertEquals(ServiceCommandController.CommandState.Idle, controller.state.value)
         assertFalse(controller.isBusy())
         assertFalse(controller.continueOutboundConfirmation("cancelled-request"))
@@ -185,7 +238,7 @@ class ServiceCommandControllerTest {
         assertEquals(0, starts)
 
         assertTrue(controller.requestStart())
-        testScheduler.advanceUntilIdle()
+        testScheduler.runCurrent()
         assertEquals(1, starts)
         controller.acknowledge()
 
@@ -195,12 +248,12 @@ class ServiceCommandControllerTest {
         )
         try {
             assertTrue(controller.requestOutboundConfirmation(continuedWarning))
-            testScheduler.advanceUntilIdle()
+            testScheduler.runCurrent()
             assertTrue(controller.state.value is ServiceCommandController.CommandState.ConfirmationRequired)
             assertEquals(emptyList<Pair<String, Boolean>>(), continuedRequests)
             assertTrue(controller.continueOutboundConfirmation("continued-request"))
             assertFalse(controller.continueOutboundConfirmation("continued-request"))
-            testScheduler.advanceUntilIdle()
+            testScheduler.runCurrent()
             assertEquals(listOf("continued-request" to false), continuedRequests)
             assertEquals(1, starts)
             assertTrue(controller.state.value is ServiceCommandController.CommandState.Confirmed)
@@ -209,7 +262,7 @@ class ServiceCommandControllerTest {
             assertEquals("suspended", confirmed.status.phase)
             assertFalse(controller.isBusy())
             assertFalse(controller.continueOutboundConfirmation("continued-request"))
-            testScheduler.advanceUntilIdle()
+            testScheduler.runCurrent()
             assertEquals(listOf("continued-request" to false), continuedRequests)
         } finally {
             val waiting = controller.state.value as? ServiceCommandController.CommandState.ConfirmationRequired

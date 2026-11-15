@@ -667,7 +667,12 @@ internal class RootModuleSnapshot(private val instance: ProxyInstance, private v
         }
         val autoStop = JsonObject().apply {
             addProperty("enabled", DataStore.smartAutoStopEnabled)
-            add("rules", com.google.gson.JsonArray().apply { SmartAutoStopRuleParser.parse(DataStore.smartAutoStopRules).getOrThrow().forEach { add(it) } })
+            add("rules", com.google.gson.JsonArray().apply {
+                SmartAutoStopRuleParser.parse(DataStore.smartAutoStopRules).getOrElse {
+                    Logs.w("Smart auto-stop rules invalid; using empty rules")
+                    emptyList()
+                }.forEach { add(it) }
+            })
             addProperty("appPackage", io.nekohasekai.sagernet.BuildConfig.APPLICATION_ID)
             addProperty("userId", SmartAutoStopAndroidUser.fromUid(android.os.Process.myUid()))
         }

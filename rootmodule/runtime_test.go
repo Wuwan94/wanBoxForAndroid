@@ -7,8 +7,10 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -383,6 +385,56 @@ func TestCleanupRequiredPreventsDuplicateStartAndExplicitStopRetries(t *testing.
 	}
 	if _, err := os.Stat(r.path("runtime", "cleanup.json")); !os.IsNotExist(err) {
 		t.Fatalf("confirmed cleanup must clear marker: %v", err)
+	}
+}
+
+func TestResumeUsesFullObservationRegardlessOfPolicy(t *testing.T) {
+	for _, policy := range []string{`{"enabled":false,"rules":[]}`, `{"enabled":true,"rules":["192.0.2.9"],"appPackage":"io.test.app","userId":10}`, `{broken`} {
+		t.Run(policy, func(t *testing.T) {
+			r, snapshot := fixture(t)
+			if _, err := r.Apply(context.Background(), snapshot); err != nil {
+				t.Fatal(err)
+			}
+			// Resolve the procfs PID even when procfs uses an outer PID namespace.
+			pidText, err := os.Readlink("/proc/self")
+			if err != nil {
+				t.Fatal(err)
+			}
+			pid, err := strconv.Atoi(pidText)
+			if err != nil {
+				t.Fatal(err)
+			}
+			self, err := Identity(pid)
+			if err != nil {
+				t.Fatal(err)
+			}
+			const revision = "resume-test"
+			if err := os.MkdirAll(r.path("generations", revision, "files"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := AtomicWrite(r.path("generations", revision, "files", autoStopFile), []byte(policy), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := jsonWrite(r.path("state.json"), State{SchemaVersion: Version, Phase: "suspended", Supervisor: self, RunningRevision: revision}); err != nil {
+				t.Fatal(err)
+			}
+			o := observation("192.0.2.9")
+			o.Gateways = map[string][]net.IP{"wlan0": {net.ParseIP("192.0.2.1")}}
+			calls := 0
+			r.observeNetwork = func() NetworkObservation { calls++; return o }
+			if err := r.Resume(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			for _, marker := range []string{"resume", suppressionFile} {
+				got, err := os.ReadFile(r.path("runtime", marker))
+				if err != nil || string(got) != NetworkFingerprint(o) {
+					t.Fatalf("%s: got %q, want %q: %v", marker, got, NetworkFingerprint(o), err)
+				}
+			}
+			if calls != 1 {
+				t.Fatalf("observation calls: %d", calls)
+			}
+		})
 	}
 }
 
