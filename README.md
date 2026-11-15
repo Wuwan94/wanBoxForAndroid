@@ -79,10 +79,9 @@ wanBox 把「界面」和「代理本体」拆成两件独立的事：管理器�
 一个管理器、一个守护模块、一颗内核，三层各管一段：
 
 ```mermaid
-flowchart TD
+flowchart LR
     M["瘦管理器 APK<br/>Material 3"] -->|"127.0.0.1 回环 IPC"| G["Root 守护模块<br/>Magisk / KernelSU / APatch"]
-    G --> K["sing-box 内核<br/>TUN + 策略路由"]
-    K --> N["设备流量按分应用规则出站"]
+    G --> K["sing-box 内核<br/>TUN + 策略路由<br/>按分应用规则出站"]
 ```
 
 | 层 | 组成 | 关键机制 |
