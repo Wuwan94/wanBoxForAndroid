@@ -107,10 +107,10 @@ flowchart LR
 
 | 资产 | 用途 |
 |:--|:--|
-| `wanbox-root-module-with-manager-arm64-v8a.zip` · **推荐** | Root 模块 + 管理器合一，刷入即用 |
-| `wanBoxForAndroid-3.0.14-arm64-v8a.apk` | 只更新管理器（需已装同版模块） |
-| `wanbox-root-module-arm64-v8a.zip` | 只更新 Root 模块（内核 + `wanboxctl`） |
-| `SHA256SUMS` | 上述三项的校验和，安装前先 `sha256sum --check` |
+| **合一包** · 推荐 | `wanbox-root-module-with-manager-arm64-v8a.zip` — 模块 + 管理器，刷入即用 |
+| 管理器 APK | `wanBoxForAndroid-3.0.14-arm64-v8a.apk` — 只更新管理器（需已装同版模块） |
+| Root 模块 | `wanbox-root-module-arm64-v8a.zip` — 只更新内核与 `wanboxctl` |
+| 校验和 | `SHA256SUMS` — 上面三项的校验和，安装前先 `sha256sum --check` |
 
 > ⚠️ **成套同版**：管理器 APK 内不含核心，必须与同一个 Release 页里的 Root 模块（v3.0.14 对应模块码 `2026`）一起安装或更新。**严禁跨版本混用。**
 
