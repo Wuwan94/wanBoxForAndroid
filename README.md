@@ -66,8 +66,8 @@ Published releases: stable v3.0.14 and preview v3.0.16-preview.2.
       <p>内核守护进程驻入专属 <code>wanbox</code> 子 cgroup，<code>MemTotal/4</code> 动态钳制于 [256 MiB, 4 GiB]；用量触碰高水位主动触发 GC，防止被系统 LMK 查杀闪退。</p>
     </td>
     <td width="50%" valign="top">
-      <h3>🛡️ 25 MiB 预算与严谨工程</h3>
-      <p>管理器与模块双产物严守 25 MiB 硬门禁；108 项离线自动化单测全量覆盖，版本码单源绑定防漂移，守护每一份构建证据。</p>
+      <h3>🛡️ 26 MiB 预算与严谨工程</h3>
+      <p>管理器与模块双产物合计严守 26 MiB 硬门禁（模块 ZIP + APK）；108 项离线自动化单测全量覆盖，版本码单源绑定防漂移，守护每一份构建证据。</p>
     </td>
   </tr>
 </table>
@@ -136,6 +136,18 @@ graph TD
 
 > ⚠️ **成套同版配对原则**：瘦管理器 APK 内部不含核心，**必须与同一发布页中的 Root 模块同步安装或更新**，严禁跨版本混用。
 
+### 尝鲜预览（v3.0.16-preview.2）
+
+预览线跟随最新复审修复，与正式版 `v3.0.14` 并行发布、各成套使用：统一手动恢复与自动启停监控的网络指纹口径，并加固网关缓存并发、确认定时器与弹窗超时反馈；不新增功能。
+
+| 资产 | 体积 |
+|:--|--:|
+| 瘦身管理器 APK（`versionCode=10147`） | 5.94 MiB |
+| Root 模块 ZIP（模块码 `2029`） | 17.12 MiB |
+| 模块 + 管理器合一 ZIP | 22.41 MiB |
+
+[→ 前往 v3.0.16-preview.2 Release](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.2) · [→ 稳定版 v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14)
+
 ### 快速安装步骤
 
 1. **下载模块**：从最新 Release 页面下载推荐的合一模块包 `wanbox-root-module-with-manager-arm64-v8a.zip`。
@@ -150,7 +162,7 @@ graph TD
 | 承载环境 | Magisk / KernelSU / APatch | 系统级 TUN 接口与透明代理路由 |
 | 管理端语言 | Kotlin (SDK 35 / JDK 17) | Material 3 原生界面，轻量瘦身设计 |
 | 核心引擎 | sing-box `v1.15.0-alpha.13-reF1nd` | 纯 Go 内核，系统守护进程常驻 |
-| 自动化 | GitHub Actions CI / CD | 108 项离线门禁、Fail-Closed 与 25MB 体积校验 |
+| 自动化 | GitHub Actions CI / CD | 108 项离线门禁、Fail-Closed 与 26 MiB 体积校验 |
 
 ## ❓ 常见问题 / FAQ
 
@@ -230,7 +242,7 @@ wanBox 是一套面向已 Root 设备的系统级方案，底层直接在 Linux 
   - **Strict Fail-Closed Policy:** Traffic checks and latency probes are strictly routed via 127.0.0.1 mixed proxy, preventing real IP leaks.
   - **Smooth Per-App Proxy:** Background async icon loading with 120-item native <code>LruCache</code> for smooth scrolling.
   - **Atomic QS Tile:** State-machine debounce to filter transient states and eliminate race conditions.
-  - **25 MiB Hard Size Budget:** Rigorous binary size and automated regression gate enforcement.
+  - **26 MiB Hard Size Budget:** Rigorous binary size and automated regression gate enforcement on the module ZIP plus APK.
 
   ### License & Community
 
