@@ -1,34 +1,31 @@
-# v3.0.15-preview.4 发行说明
+# v3.0.16-preview.1 发行说明（候选）
 
-**状态：已发布的稳定性预览版。**
+**状态：未发布的稳定性预览版候选。**
 
-本版把 OwnBox `v26.11.8.4` 的六项改动移植进 Root-only 架构，面向已 Root 的 Android 12+ arm64 设备。稳定版 `v3.0.14` / Root 模块码 `2026` 与 sing-box pin `v1.15.0-alpha.13-reF1nd` 均未改变；预览名为 `3.0.15-preview.4`，APK `versionCode=10144`，Root 模块码仍为 `2028`。
+本版是 v3.0.15-preview.4 的复审修复版，面向已 Root 的 Android 12+ arm64 设备：针对智能启停的耗电、网络指纹耦合与三处健壮性问题做定向修复，不新增功能。稳定版 `v3.0.14` / Root 模块码 `2026` 与 sing-box pin `v1.15.0-alpha.13-reF1nd` 均未改变；预览名为 `3.0.16-preview.1`，APK `versionCode=10146`，Root 模块码 `2029`。
 
 ## 与上一版对比
 
-| 项目 | v3.0.15-preview.3 | v3.0.15-preview.4 |
+| 项目 | v3.0.15-preview.4 | v3.0.16-preview.1 |
 |---|---|---|
-| 内容 | 长轮询通道、cgroup 软限制与热更新/卸载治理收尾 | 六项移植（路由、测速继承、备份兼容、QUIC 开关、无效出站告警、智能启停）+ 清理确认流 |
-| APK `versionCode` | 10143 | 10144 |
-| Root 模块码 | 2028 | 2028 |
-| APK | 6,200,158 字节 / 5.91 MiB | 6,231,390 字节 / 5.94 MiB |
-| 普通模块 ZIP | 17,932,526 字节 / 17.10 MiB | 17,952,780 字节 / 17.12 MiB |
-| 合一 ZIP | 23,441,379 字节 / 22.36 MiB | 23,490,404 字节 / 22.40 MiB |
+| 内容 | 六项移植（路由、测速继承、备份兼容、QUIC 开关、无效出站告警、智能启停）+ 清理确认流 | preview.4 复审修复：智能启停省电、指纹解耦、网关读取健壮性、规则解析容错、确认锁超时释放、恢复令牌修正 |
+| APK `versionCode` | 10144 | 10146 |
+| Root 模块码 | 2028 | 2029 |
 
-preview.1 起的既有基座本版未改：5 秒 Canary 热更新观察与自动回滚、切换间隙 `pref 9001` 黑洞守护、`127.0.0.1` 只读长轮询状态通道、独立子 cgroup 的 `memory.high`（`MemTotal/4` 钳制于 256 MiB–4 GiB）。
+preview.4 的功能基座本版未改：智能启停、QUIC 开关、无效出站告警、路由与默认规则、分组测速继承、备份兼容；以及 preview.1 起的 5 秒 Canary 热更新观察与自动回滚、切换间隙 `pref 9001` 黑洞守护、`127.0.0.1` 只读长轮询状态通道、独立子 cgroup 的 `memory.high`（`MemTotal/4` 钳制于 256 MiB–4 GiB）。
 
 ## 本版更新
 
-1. **智能启停代理**：高级设置支持最多 5 条本地 IP、CIDR 或 `gateway:` 指纹规则；不申请定位权限。命中后在 Root 模块内安全挂起核心，通知栏保留「恢复」「停止」；离开网络自动恢复，手动恢复会抑制同指纹重复挂起，且不全局 flush 其他模块的路由规则。
-2. **QUIC 控制**：默认开启的独立开关只拦截 UDP 443；关闭后放行 HTTP/3/QUIC，不影响 TCP 443 或其他 UDP 端口。
-3. **无效出站告警**：引用不存在节点/策略组的规则标红；启动前集中提醒，用户可返回修复或明确继续。
-4. **路由与默认项**：sniff 前置域名分流；适用模式下自定义 reject 前置内置国内直连 fallback；修正组播与 DNS 53 兜底规则；广告列表统一 `geosite-category-ads-all`，不再强制将 Play 下载组件导入代理规则。
-5. **分组测速继承**：没有专属地址的分组动态跟随全局连接测试网址，显式分组设置继续优先。
-6. **备份兼容**：统一导出 `profiles`，兼容导入旧 `proxies`；路由规则以可读 JSON 导出并可导入旧 Base64 Parcel；补齐核心路由/DNS 默认设置，保留旧 wanBox 备份导入。
+1. **智能启停省电**：自动启停未启用时不再每 5 秒启动 `ip` 进程做网络观察；默认网关只在规则实际包含 `gateway:` 条件时读取，并按接口集合指纹做 60 秒节流缓存。
+2. **网络指纹解耦**：全局 `network_changed` 判断与重建预算改用只含物理接口与全局单播地址的指纹；含网关与 IPv6 链路本地地址的完整指纹只用于自动启停匹配与恢复抑制，网关变化不再误触发核心重建。
+3. **网关读取健壮性**：优先 `/system/bin/ip` 绝对路径，回退 PATH 查找，避免精简环境下网关规则静默失效。
+4. **规则解析容错**：智能启停规则解析失败改为记录警告并降级为空规则列表，不再阻断整份状态快照下发。
+5. **确认锁超时释放**：等待确认的操作增加 2 分钟有界超时，超时后仅在 CAS 赢得与确切待确认状态的比较时释放，磁贴与通知操作不再被永久拒绝；单次 CAS 确认令牌纪律不变。
+6. **恢复令牌修正**：手动恢复的抑制令牌恢复为按含网关的真实当前网络指纹计算，不受自动启停启用状态影响，策略文件损坏也不再让手动恢复平白失败。
 
 ## 升级与验证边界
 
-同一 Release 的瘦管理器 APK 与 Root 模块必须成套安装。回退时使用正式版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 和配套模块。已发布：[GitHub Release v3.0.15-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.4)，`Preview Build` run `43628453020` 在提交/tag `d6914e70d730c63ee3c3cbb2b00fe2e754b6737e` 四个 job 全部成功；`verify-android` run `43625363368` 在集成提交 `69de6eac6a23d0af65525991c6fff3cbf1a6e620` 的 instrumentation、迁移、manifest 与体积门禁通过。已下载资产通过 SHA256SUMS 校验，字节数与哈希详见[版本对照](current-version.zh-CN.md)。未执行 Magisk / KernelSU / APatch 真机矩阵，智能挂起/恢复与 QUIC 回退等真机场景仍未验证。
+同一 Release 的瘦管理器 APK 与 Root 模块必须成套安装。回退时使用正式版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 和配套模块。候选阶段证据：RootModule Go 全套测试本地通过，Python 工具 108 项与版本文档一致性检查通过；Gradle 单测与 APK 构建以 GitHub `Verify Android Build` 为门禁，发布时以 `Preview Build` 对精确提交构建并校验资产（本地 Gradle 因维护机虚拟机内存受限无法运行，不计为通过）。未执行 Magisk / KernelSU / APatch 真机矩阵，智能启停耗电、网关命中与确认超时恢复等真机场景仍未验证。
 
 ---
 
