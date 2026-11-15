@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"maps"
 	"net"
 	"os"
 	"os/exec"
@@ -158,14 +159,11 @@ func NetworkFingerprint(o NetworkObservation) string {
 	h := sha256.Sum256([]byte(strings.Join(p, "\n")))
 	return hex.EncodeToString(h[:8])
 }
-func ReadPhysicalObservation(policy SmartAutoStop) NetworkObservation {
-	if !policy.Enabled {
-		return NetworkObservation{}
-	}
-	return readPhysicalObservation(policyNeedsGateways(policy))
-}
 
-func readPhysicalObservation(gateways bool) NetworkObservation {
+var gatewayReader = readDefaultGateways
+
+// ReadPhysicalObservation always includes cached gateways. Callers gate disabled policies.
+func ReadPhysicalObservation() NetworkObservation {
 	o := NetworkObservation{Interfaces: map[string][]net.IP{}}
 	for _, in := range interfacesOrEmpty() {
 		if in.Flags&net.FlagUp == 0 || in.Flags&net.FlagLoopback != 0 || ignoredInterface(in.Name) {
@@ -180,9 +178,7 @@ func readPhysicalObservation(gateways bool) NetworkObservation {
 			o.Interfaces[in.Name] = ips
 		}
 	}
-	if gateways {
-		o.Gateways = defaultGatewayCache.read(o, time.Now(), readDefaultGateways)
-	}
+	o.Gateways = defaultGatewayCache.read(o, time.Now(), gatewayReader)
 	return o
 }
 
@@ -381,22 +377,12 @@ func autoStopMonitorFingerprint(policy SmartAutoStop, o NetworkObservation, supp
 	return networkDecision{Fingerprint: fp}
 }
 
-// fullPhysicalObservation includes gateways for policy-independent manual resume tokens.
-func (r *Runtime) fullPhysicalObservation() NetworkObservation {
+// physicalObservation is shared by manual resume and enabled auto-stop monitoring.
+func (r *Runtime) physicalObservation() NetworkObservation {
 	if r.observeNetwork != nil {
 		return r.observeNetwork()
 	}
-	return readPhysicalObservation(true)
-}
-
-func (r *Runtime) physicalObservation(policy SmartAutoStop) NetworkObservation {
-	if !policy.Enabled {
-		return NetworkObservation{}
-	}
-	if r.observeNetwork != nil {
-		return r.observeNetwork()
-	}
-	return ReadPhysicalObservation(policy)
+	return ReadPhysicalObservation()
 }
 
 // parseIPDefaultGateways reads iproute2/toybox output, including Android policy tables.
@@ -474,20 +460,11 @@ func (r *Runtime) autoStopDecision(policy SmartAutoStop, o NetworkObservation, s
 	return decision
 }
 
-func policyNeedsGateways(policy SmartAutoStop) bool {
-	for _, raw := range policy.Rules {
-		if rule, err := parseAutoRule(raw); err == nil && rule.Gateway {
-			return true
-		}
-	}
-	return false
-}
-
 func (r *Runtime) policyAutoStopDecision(policy SmartAutoStop, suppressed *string) networkDecision {
 	if !policy.Enabled {
 		return networkDecision{}
 	}
-	return r.autoStopDecision(policy, r.physicalObservation(policy), suppressed)
+	return r.autoStopDecision(policy, r.physicalObservation(), suppressed)
 }
 
 func (r *Runtime) monitorNetworkDecision(policy SmartAutoStop, suppressed *string) networkDecision {
@@ -496,9 +473,10 @@ func (r *Runtime) monitorNetworkDecision(policy SmartAutoStop, suppressed *strin
 	return decision
 }
 
-// Serialize refreshes across lifecycle loops, including the command execution.
+// Coalesce refreshes across lifecycle loops without holding mu during discovery.
 type gatewayCache struct {
 	mu          sync.Mutex
+	refreshing  chan struct{}
 	fingerprint string
 	updated     time.Time
 	gateways    map[string][]net.IP
@@ -510,15 +488,34 @@ const gatewayCacheTTL = 60 * time.Second
 var defaultGatewayCache gatewayCache
 
 func (c *gatewayCache) read(o NetworkObservation, now time.Time, read func() map[string][]net.IP) map[string][]net.IP {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	o.Gateways = nil
 	fp := NetworkFingerprint(o)
-	if c.updated.IsZero() || c.fingerprint != fp || now.Sub(c.updated) >= gatewayCacheTTL {
-		c.gateways = read()
+	for {
+		c.mu.Lock()
+		if !c.updated.IsZero() && c.fingerprint == fp && now.Sub(c.updated) < gatewayCacheTTL {
+			gateways := maps.Clone(c.gateways)
+			c.mu.Unlock()
+			return gateways
+		}
+		if done := c.refreshing; done != nil {
+			c.mu.Unlock()
+			<-done
+			continue
+		}
+		done := make(chan struct{})
+		c.refreshing = done
+		c.mu.Unlock()
+
+		gateways := read()
+
+		c.mu.Lock()
+		c.gateways = gateways
 		c.fingerprint, c.updated = fp, now
+		c.refreshing = nil
+		close(done)
+		c.mu.Unlock()
+		return maps.Clone(gateways)
 	}
-	return c.gateways
 }
 
 func resolveIPPath(exists func(string) bool, lookPath func(string) (string, error)) string {

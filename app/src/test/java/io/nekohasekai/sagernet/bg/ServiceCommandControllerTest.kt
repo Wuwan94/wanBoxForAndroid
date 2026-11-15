@@ -66,6 +66,43 @@ class ServiceCommandControllerTest {
         assertTrue(controller.state.value is ServiceCommandController.CommandState.Confirmed)
     }
 
+    @Test
+    fun `repeated equal confirmation gets a full timeout after retry`() = runTest {
+        val cancelled = mutableListOf<String>()
+        val repeated = warning("retry")
+        val backend = object : ServiceCommandController.Backend {
+            override suspend fun start() = fakeStatus()
+            override suspend fun stop() = fakeStatus(false, "stopped")
+            override suspend fun setMode(mode: String) = fakeStatus()
+            override suspend fun selectNode(id: Long) = fakeStatus(profileId = id)
+            override suspend fun queryStatus() = fakeStatus()
+            override suspend fun continueOutboundConfirmation(requestToken: String, startIfStopped: Boolean): RootModuleClient.Status =
+                throw RootModuleClient.OutboundReferenceWarningRequired(repeated.copy())
+            override fun cancelOutboundConfirmation(requestToken: String) { cancelled += requestToken }
+        }
+        val controller = ServiceCommandController(backgroundScope, backend)
+        assertTrue(controller.requestOutboundConfirmation(repeated))
+        testScheduler.runCurrent()
+        testScheduler.advanceTimeBy(60_000)
+        assertTrue(controller.continueOutboundConfirmation("retry"))
+        testScheduler.runCurrent()
+        testScheduler.advanceTimeBy(60_000)
+        testScheduler.runCurrent()
+        assertTrue("old deadline must preserve the renewed wait", controller.isBusy())
+        assertTrue(cancelled.isEmpty())
+        assertFalse("renewed wait retains the command lock", controller.requestStop())
+        testScheduler.advanceTimeBy(59_999)
+        testScheduler.runCurrent()
+        assertTrue(controller.isBusy())
+        testScheduler.advanceTimeBy(1)
+        testScheduler.runCurrent()
+        assertEquals(ServiceCommandController.CommandState.Idle, controller.state.value)
+        assertEquals(listOf("retry"), cancelled)
+        assertTrue(controller.requestStop())
+        testScheduler.runCurrent()
+        assertTrue(controller.state.value is ServiceCommandController.CommandState.Confirmed)
+    }
+
     private fun warning(token: String) = OutboundReferenceWarning(token, true, listOf(
         OutboundReferenceValidator.Issue(12L, "Video",
             OutboundReferenceValidator.ReferenceKind.NODE_OR_STRATEGY_GROUP, 99L),

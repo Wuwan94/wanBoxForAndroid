@@ -438,6 +438,101 @@ func TestResumeUsesFullObservationRegardlessOfPolicy(t *testing.T) {
 	}
 }
 
+func TestResumeTokenSurvivesMonitorForIPAndCIDR(t *testing.T) {
+	previousReader := gatewayReader
+	defaultGatewayCache.mu.Lock()
+	previous := gatewayCache{
+		refreshing: defaultGatewayCache.refreshing,
+		fingerprint: defaultGatewayCache.fingerprint,
+		updated: defaultGatewayCache.updated,
+		gateways: defaultGatewayCache.gateways,
+	}
+	defaultGatewayCache.refreshing = nil
+	defaultGatewayCache.fingerprint = ""
+	defaultGatewayCache.updated = time.Time{}
+	defaultGatewayCache.gateways = nil
+	defaultGatewayCache.mu.Unlock()
+	t.Cleanup(func() {
+		gatewayReader = previousReader
+		defaultGatewayCache.mu.Lock()
+		defaultGatewayCache.refreshing = previous.refreshing
+		defaultGatewayCache.fingerprint = previous.fingerprint
+		defaultGatewayCache.updated = previous.updated
+		defaultGatewayCache.gateways = previous.gateways
+		defaultGatewayCache.mu.Unlock()
+	})
+	gateways := map[string][]net.IP{}
+	for _, in := range interfacesOrEmpty() {
+		gateways[in.Name] = []net.IP{net.ParseIP("192.0.2.1")}
+	}
+	gatewayReader = func() map[string][]net.IP { return gateways }
+	o := ReadPhysicalObservation()
+	var ip net.IP
+	for _, addresses := range o.Interfaces {
+		if len(addresses) > 0 {
+			ip = addresses[0]
+			break
+		}
+	}
+	if ip == nil {
+		t.Skip("no usable physical interface address")
+	}
+	prefix := "/128"
+	if ip.To4() != nil {
+		prefix = "/32"
+	}
+	for _, rule := range []string{ip.String(), ip.String() + prefix} {
+		t.Run(rule, func(t *testing.T) {
+			r, snapshot := fixture(t)
+			if _, err := r.Apply(context.Background(), snapshot); err != nil {
+				t.Fatal(err)
+			}
+			pidText, err := os.Readlink("/proc/self")
+			if err != nil {
+				t.Fatal(err)
+			}
+			pid, err := strconv.Atoi(pidText)
+			if err != nil {
+				t.Fatal(err)
+			}
+			self, err := Identity(pid)
+			if err != nil {
+				t.Fatal(err)
+			}
+			const revision = "resume-test"
+			policy := SmartAutoStop{Enabled: true, Rules: []string{rule}}
+			if err := os.MkdirAll(r.path("generations", revision, "files"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := jsonWrite(r.path("generations", revision, "files", autoStopFile), policy); err != nil {
+				t.Fatal(err)
+			}
+			if err := jsonWrite(r.path("state.json"), State{SchemaVersion: Version, Phase: "suspended", Supervisor: self, RunningRevision: revision}); err != nil {
+				t.Fatal(err)
+			}
+			if err := r.Resume(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			token := r.readSuppression()
+			if token == "" || token != NetworkFingerprint(o) {
+				t.Fatalf("resume token = %q, want %q", token, NetworkFingerprint(o))
+			}
+			suppressed := token
+			decision := r.policyAutoStopDecision(policy, &suppressed)
+			if decision.Suspend {
+				t.Fatalf("manual resume must suppress %s: %+v", rule, decision)
+			}
+			if suppressed != token {
+				t.Fatalf("monitor changed suppression token: got %q, want %q", suppressed, token)
+			}
+			stored, err := os.ReadFile(r.path("runtime", suppressionFile))
+			if err != nil || string(stored) != token {
+				t.Fatalf("monitor changed suppression file: got %q, want %q: %v", stored, token, err)
+			}
+		})
+	}
+}
+
 func TestResumeMarkerOnlyWhileSuspendedAndStopClears(t *testing.T) {
 	r, snapshot := fixture(t)
 	if _, err := r.Apply(context.Background(), snapshot); err != nil {
