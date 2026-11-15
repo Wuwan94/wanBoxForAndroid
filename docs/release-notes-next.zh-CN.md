@@ -2,7 +2,20 @@
 
 **状态：已发布的稳定性预览版。**
 
-本版在 Root-only 架构中适配六项功能与修复，面向已 Root 的 Android 12+ arm64 设备。稳定版 `v3.0.14` / Root 模块码 `2026` 与 sing-box pin `v1.15.0-alpha.13-reF1nd` 均保持不变；预览名为 `3.0.15-preview.4`，APK `versionCode=10144`，Root 模块码仍为 `2028`。
+本版把 OwnBox `v26.11.8.4` 的六项改动移植进 Root-only 架构，面向已 Root 的 Android 12+ arm64 设备。稳定版 `v3.0.14` / Root 模块码 `2026` 与 sing-box pin `v1.15.0-alpha.13-reF1nd` 均未改变；预览名为 `3.0.15-preview.4`，APK `versionCode=10144`，Root 模块码仍为 `2028`。
+
+## 与上一版对比
+
+| 项目 | v3.0.15-preview.3 | v3.0.15-preview.4 |
+|---|---|---|
+| 内容 | 长轮询通道、cgroup 软限制与热更新/卸载治理收尾 | 六项移植（路由、测速继承、备份兼容、QUIC 开关、无效出站告警、智能启停）+ 清理确认流 |
+| APK `versionCode` | 10143 | 10144 |
+| Root 模块码 | 2028 | 2028 |
+| APK | 6,200,158 字节 / 5.91 MiB | 6,231,390 字节 / 5.94 MiB |
+| 普通模块 ZIP | 17,932,526 字节 / 17.10 MiB | 17,952,780 字节 / 17.12 MiB |
+| 合一 ZIP | 23,441,379 字节 / 22.36 MiB | 23,490,404 字节 / 22.40 MiB |
+
+preview.1 起的既有基座本版未改：5 秒 Canary 热更新观察与自动回滚、切换间隙 `pref 9001` 黑洞守护、`127.0.0.1` 只读长轮询状态通道、独立子 cgroup 的 `memory.high`（`MemTotal/4` 钳制于 256 MiB–4 GiB）。
 
 ## 本版更新
 
@@ -15,28 +28,10 @@
 
 ## 升级与验证边界
 
-同一 Release 的瘦管理器 APK 与 Root 模块必须成套安装。回退时使用正式版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 和配套模块。已发布：[GitHub Release v3.0.15-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.4)，`Preview Build` run `43628453020` 在提交/tag `d6914e70d730c63ee3c3cbb2b00fe2e754b6737e` 四个 job 全部成功；`verify-android` run `43625363368` 在集成提交 `69de6eac6a23d0af65525991c6fff3cbf1a6e620` 的 instrumentation、迁移、manifest 与体积门禁通过。已下载资产通过 SHA256SUMS 校验，详见[版本对照](current-version.zh-CN.md)。未执行 Magisk / KernelSU / APatch 真机矩阵，仍未验证。
+同一 Release 的瘦管理器 APK 与 Root 模块必须成套安装。回退时使用正式版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 和配套模块。已发布：[GitHub Release v3.0.15-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.4)，`Preview Build` run `43628453020` 在提交/tag `d6914e70d730c63ee3c3cbb2b00fe2e754b6737e` 四个 job 全部成功；`verify-android` run `43625363368` 在集成提交 `69de6eac6a23d0af65525991c6fff3cbf1a6e620` 的 instrumentation、迁移、manifest 与体积门禁通过。已下载资产通过 SHA256SUMS 校验，字节数与哈希详见[版本对照](current-version.zh-CN.md)。未执行 Magisk / KernelSU / APatch 真机矩阵，智能挂起/恢复与 QUIC 回退等真机场景仍未验证。
 
 ---
 
-## 历史归档：v3.0.15-preview.3 已发布说明（Release/tag 已清理）
+## 历史归档
 
-preview.3 Release/tag 已在 preview.4 发布后按单预览策略清理；历史证据为官方 `Preview Build` run `43404430362` 与原 commit `fe193f1134a80ff38fb0cb3ed4677eb2b79c1dce`，稳定版 `v3.0.14` 未变。该版修正低内存设备 `memory.high` 下限与卸载时 `pref 9001` 规则清理状态误报；Root 模块码为 `2028`、APK `versionCode=10143`。其历史资产摘要见[版本对照](current-version.zh-CN.md)。
-
----
-
-## 历史归档：v3.0.15-preview.2 已发布说明（Release/tag 已清理）
-
-preview.2 曾由 `Preview Build` run `43393988473` 发布，tag 原指向 `2a57973623db59cb635a869b5d552dd971f8235c`；preview.3 发布验证后按单预览策略清理。该版包含回环长轮询、热更新守护与卸载清理、故障迁移阈值、独立子 cgroup 和内存软限制。模块码 `2027`、APK `versionCode=10137`；低内存阈值和卸载清理触顶问题随后由 preview.3 修复。
-
----
-
-## 历史归档：v3.0.15-preview.1 已发布说明（Release/tag 已清理）
-
-preview.1 曾由 `Preview Build` run `43203156796` 发布，tag 指向 `5aca93bee39a9d07a56d750908e0d9c88ad5f90c`；随后按单预览策略清理。该版加强 Root 模块免重启热更新健康观察、自动回滚、`pref 9001` 切换守护及卸载清理；模块码 `2027`、APK `versionCode=10136`。
-
----
-
-## 历史归档：v3.0.14-preview.1 已发布说明（已由正式版承接）
-
-> v3.0.14-preview.1 的历史说明和复查修复已由 v3.0.14 正式版承接；正式说明见 [RELEASE_NOTES.md](../RELEASE_NOTES.md)，历史发布脉络见 [CHANGELOG.md](../CHANGELOG.md)。
+v3.0.14-preview.1 与 v3.0.15-preview.1–.3 的已发布说明：各版 Release/tag 已按单预览策略清理，说明与资产快照见[版本对照](current-version.zh-CN.md)，发布脉络见 [CHANGELOG.md](../CHANGELOG.md)。
