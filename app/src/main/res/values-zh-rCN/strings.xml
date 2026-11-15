@@ -1226,4 +1226,23 @@
     <string name="smart_auto_stop_resume_hint">代理已暂停，点击恢复以继续。</string>
     <string name="smart_auto_stop_resume">恢复</string>
     <string name="smart_auto_stop_permission_denied">智能自动暂停保持关闭。请在通知设置中开启应用通知及“智能自动暂停”通知渠道。</string>
+    <string name="policy_groups">策略组</string>
+    <string name="policy_refresh">刷新</string>
+    <string name="policy_retry">重试</string>
+    <string name="policy_loading">正在读取运行中的策略组…</string>
+    <string name="policy_unavailable">核心未运行或控制器不可达。</string>
+    <string name="policy_empty">运行快照中没有策略组。</string>
+    <string name="policy_skipped">已跳过不支持或格式异常的出站：%1$d</string>
+    <string name="policy_summary">当前：%1$s · 成员数：%2$d</string>
+    <string name="policy_unknown">未知</string>
+    <string name="policy_automatic">自动选择</string>
+    <string name="policy_measure">整组测速</string>
+    <string name="policy_no_members">暂无成员</string>
+    <string name="policy_selected">当前选中</string>
+    <string name="policy_switch_success">切换成功，已回读校验</string>
+    <string name="policy_switch_failed">切换失败，正在重新读取实际选中状态。</string>
+    <string name="policy_latency">%1$d 毫秒</string>
+    <string name="policy_failed">失败</string>
+    <string name="policy_direct">直连</string>
+    <string name="policy_block">阻断</string>
 </resources>

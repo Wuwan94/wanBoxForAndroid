@@ -6,4 +6,8 @@
         android:icon="@drawable/ic_minimal_plus"
         android:title="@string/group_create"
         app:showAsAction="always" />
+    <item
+        android:id="@+id/action_policy_groups"
+        android:title="@string/policy_groups"
+        app:showAsAction="never" />
 </menu>

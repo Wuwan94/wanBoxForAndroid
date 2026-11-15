@@ -431,6 +431,13 @@
             android:launchMode="singleTask"
             android:parentActivityName="io.nekohasekai.sagernet.ui.MainActivity" />
         <activity
+            android:name="io.nekohasekai.sagernet.ui.PolicyGroupsActivity"
+            android:configChanges="uiMode"
+            android:exported="false"
+            android:label="@string/policy_groups"
+            android:launchMode="singleTask"
+            android:parentActivityName="io.nekohasekai.sagernet.ui.MainActivity" />
+        <activity
             android:name="io.nekohasekai.sagernet.ui.ProfileSelectActivity"
             android:configChanges="uiMode"
             android:label="@string/select_profile"
