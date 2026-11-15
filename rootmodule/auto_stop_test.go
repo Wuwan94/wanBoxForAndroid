@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -231,5 +232,101 @@ func TestPhysicalLinkLocalObservationMatches(t *testing.T) {
 		if AutoStopMatches(SmartAutoStop{Enabled: true, Rules: []string{tc.exact}}, o) {
 			t.Fatal("ignored interface matched")
 		}
+	}
+}
+
+func TestPolicyObservationGatesAndMonitorFingerprint(t *testing.T) {
+	r := &Runtime{observeNetwork: func() NetworkObservation { t.Fatal("disabled observation"); return NetworkObservation{} }}
+	suppressed := "keep"
+	d := r.monitorNetworkDecision(SmartAutoStop{}, &suppressed)
+	if d.Suspend || d.Fingerprint != networkFingerprint() || suppressed != "keep" {
+		t.Fatalf("disabled decision: %+v %s", d, suppressed)
+	}
+	for _, tc := range []struct {
+		rules []string
+		want  bool
+	}{{[]string{"192.0.2.1"}, false}, {[]string{" GATEWAY:192.0.2.1"}, true}, {[]string{"gateway:invalid"}, false}} {
+		if policyNeedsGateways(SmartAutoStop{Rules: tc.rules}) != tc.want {
+			t.Fatal(tc)
+		}
+	}
+	r.observeNetwork = func() NetworkObservation { return observation("192.0.2.1") }
+	d = r.monitorNetworkDecision(SmartAutoStop{Enabled: true, Rules: []string{"192.0.2.1"}}, &suppressed)
+	if !d.Suspend || d.Fingerprint != networkFingerprint() || suppressed != "" {
+		t.Fatalf("enabled decision: %+v %s", d, suppressed)
+	}
+}
+
+func TestGatewayCache(t *testing.T) {
+	var c gatewayCache
+	now := time.Unix(100, 0)
+	calls := 0
+	read := func() map[string][]net.IP { calls++; return map[string][]net.IP{"wlan0": {net.ParseIP("192.0.2.1")}} }
+	o := observation("192.0.2.2")
+	c.read(o, now, read)
+	c.read(o, now.Add(59*time.Second), read)
+	if calls != 1 {
+		t.Fatal(calls)
+	}
+	c.read(o, now.Add(60*time.Second), read)
+	c.read(observation("192.0.2.3"), now.Add(61*time.Second), read)
+	if calls != 3 {
+		t.Fatal(calls)
+	}
+}
+
+func TestResolveIPPath(t *testing.T) {
+	for _, exists := range []bool{true, false} {
+		got := resolveIPPath(func(string) bool { return exists }, func(name string) (string, error) {
+			if name != "ip" {
+				t.Fatal(name)
+			}
+			return "/usr/bin/ip", nil
+		})
+		want := "/usr/bin/ip"
+		if exists {
+			want = "/system/bin/ip"
+		}
+		if got != want {
+			t.Fatal(got)
+		}
+	}
+	if got := resolveIPPath(func(string) bool { return false }, func(string) (string, error) { return "", errors.New("missing") }); got != "" {
+		t.Fatal(got)
+	}
+}
+
+func observation(ip string) NetworkObservation {
+	return NetworkObservation{Interfaces: map[string][]net.IP{"wlan0": {net.ParseIP(ip)}}}
+}
+
+func TestGatewayCacheConcurrentRefresh(t *testing.T) {
+	var c gatewayCache
+	var wg sync.WaitGroup
+	calls := 0
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c.read(observation("192.0.2.9"), time.Unix(100, 0), func() map[string][]net.IP { calls++; return nil })
+		}()
+	}
+	wg.Wait()
+	if calls != 1 {
+		t.Fatalf("concurrent readers refreshed %d times", calls)
+	}
+}
+
+func TestObservationWithoutGatewayRulesDoesNotRefreshCache(t *testing.T) {
+	defaultGatewayCache.mu.Lock()
+	before := defaultGatewayCache.updated
+	defaultGatewayCache.mu.Unlock()
+	if got := readPhysicalObservation(false); len(got.Gateways) != 0 {
+		t.Fatal(got.Gateways)
+	}
+	defaultGatewayCache.mu.Lock()
+	defer defaultGatewayCache.mu.Unlock()
+	if defaultGatewayCache.updated != before {
+		t.Fatal("gateway cache refreshed without gateway rules")
 	}
 }

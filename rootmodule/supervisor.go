@@ -200,7 +200,6 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 				if _, e := os.Stat(r.path("runtime", "stop")); e == nil {
 					return nil
 				}
-				o := r.physicalObservation()
 				if b, e := os.ReadFile(r.path("runtime", "resume")); e == nil {
 					if len(b) <= 128 {
 						suppressed = strings.TrimSpace(string(b))
@@ -208,7 +207,7 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 						break
 					}
 				}
-				if !r.autoStopDecision(policy, o, &suppressed).Suspend {
+				if !r.policyAutoStopDecision(policy, &suppressed).Suspend {
 					break
 				}
 			}

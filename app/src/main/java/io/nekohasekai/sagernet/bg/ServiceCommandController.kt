@@ -180,6 +180,19 @@ class ServiceCommandController(
 
     private val mutex = Mutex()
     private var generation = 0L
+    companion object {
+        // Two minutes allows review while bounding locks abandoned with a dismissed Activity.
+        private const val CONFIRMATION_TIMEOUT_MS = 2 * 60 * 1000L
+    }
+
+    private fun scheduleConfirmationTimeout(waiting: CommandState.ConfirmationRequired) {
+        applicationScope.launch {
+            delay(CONFIRMATION_TIMEOUT_MS)
+            if (_state.compareAndSet(waiting, CommandState.Idle)) {
+                try { backend.cancelOutboundConfirmation(waiting.warning.requestToken) } finally { mutex.unlock() }
+            }
+        }
+    }
 
     private val _state = MutableStateFlow<CommandState>(CommandState.Idle)
     val state: StateFlow<CommandState> = _state.asStateFlow()
@@ -212,7 +225,9 @@ class ServiceCommandController(
                 }
             } catch (e: RootModuleClient.OutboundReferenceWarningRequired) {
                 retainLock = true
-                _state.value = CommandState.ConfirmationRequired(gen, e.warning)
+                val waiting = CommandState.ConfirmationRequired(gen, e.warning)
+                _state.value = waiting
+                scheduleConfirmationTimeout(waiting)
             } catch (e: CancellationException) {
                 // @author 雾晚：取消时重置为 Idle，可继续提交
                 if (generation == gen) {
@@ -239,7 +254,9 @@ class ServiceCommandController(
         if (warning.requestToken.isBlank() || warning.issues.isEmpty()) return false
         if (!mutex.tryLock()) return false
         generation++
-        _state.value = CommandState.ConfirmationRequired(generation, warning, pendingReviewId)
+        val waiting = CommandState.ConfirmationRequired(generation, warning, pendingReviewId)
+        _state.value = waiting
+        scheduleConfirmationTimeout(waiting)
         return true
     }
 
@@ -260,7 +277,8 @@ class ServiceCommandController(
                 }
             } catch (e: RootModuleClient.OutboundReferenceWarningRequired) {
                 retainLock = true
-                _state.compareAndSet(pending, CommandState.ConfirmationRequired(gen, e.warning))
+                val waiting = CommandState.ConfirmationRequired(gen, e.warning)
+                if (_state.compareAndSet(pending, waiting)) scheduleConfirmationTimeout(waiting)
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
