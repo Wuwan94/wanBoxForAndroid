@@ -80,11 +80,9 @@ wanBox 把「界面」和「代理本体」拆成两件独立的事：管理器�
 
 ```mermaid
 flowchart LR
-    M["管理器 APK<br/>Material 3 · 无原生核心"] -->|"只读状态 · 127.0.0.1 长轮询"| G
-    M -->|"变更操作 · wanboxctl（su 桥）"| G
-    G["Root 守护模块<br/>Magisk / KernelSU / APatch"] --> K["sing-box<br/>v1.15.0-alpha.13-reF1nd"]
-    K --> R["内核 TUN + 策略路由"]
-    R --> N["设备流量按分应用规则出站"]
+    M["瘦管理器 APK<br/>Material 3"] -->|"127.0.0.1 回环 IPC"| G["Root 守护模块<br/>Magisk / KernelSU / APatch"]
+    G --> K["sing-box 内核<br/>TUN + 策略路由"]
+    K --> N["设备流量<br/>按分应用规则出站"]
 ```
 
 | 层 | 组成 | 关键机制 |
