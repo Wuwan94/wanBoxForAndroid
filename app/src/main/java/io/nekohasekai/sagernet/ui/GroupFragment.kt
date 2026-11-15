@@ -166,6 +166,9 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
 
     override fun onMenuItemClick(item: MenuItem): Boolean {
         when (item.itemId) {
+            R.id.action_policy_groups -> {
+                startActivity(Intent(context, PolicyGroupsActivity::class.java))
+            }
             R.id.action_new_group -> {
                 startActivity(Intent(context, GroupSettingsActivity::class.java))
             }

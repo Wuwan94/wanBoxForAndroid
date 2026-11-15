@@ -1341,4 +1341,23 @@
     <string name="smart_auto_stop_resume_hint">Proxy is suspended. Tap Resume to continue.</string>
     <string name="smart_auto_stop_resume">Resume</string>
     <string name="smart_auto_stop_permission_denied">Smart Auto-stop remains disabled. Enable app notifications and the Smart Auto-stop channel in notification settings.</string>
+    <string name="policy_groups">Policy groups</string>
+    <string name="policy_refresh">Refresh</string>
+    <string name="policy_retry">Retry</string>
+    <string name="policy_loading">Loading running policy groups…</string>
+    <string name="policy_unavailable">Core is not running or the controller is unreachable.</string>
+    <string name="policy_empty">No policy groups in the running snapshot.</string>
+    <string name="policy_skipped">Skipped unsupported or malformed entries: %1$d</string>
+    <string name="policy_summary">Current: %1$s · Members: %2$d</string>
+    <string name="policy_unknown">Unknown</string>
+    <string name="policy_automatic">Automatic selection</string>
+    <string name="policy_measure">Test group latency</string>
+    <string name="policy_no_members">No members</string>
+    <string name="policy_selected">Selected</string>
+    <string name="policy_switch_success">Selection verified</string>
+    <string name="policy_switch_failed">Switch failed. Reloading the actual selection.</string>
+    <string name="policy_latency">%1$d ms</string>
+    <string name="policy_failed">Failed</string>
+    <string name="policy_direct">Direct</string>
+    <string name="policy_block">Block</string>
 </resources>
