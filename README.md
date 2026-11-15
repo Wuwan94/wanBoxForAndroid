@@ -87,7 +87,7 @@ flowchart LR
 | 层 | 组成 | 关键机制 |
 |:--|:--|:--|
 | 管理器 | Kotlin · Material 3，APK 无原生库 | 只经回环观察状态；所有变更操作走 `wanboxctl`（su 桥） |
-| 回环总线 | `127.0.0.1` 只读 HTTP 通道 · Clash API `127.0.0.1:9090` | 32 字符十六进制 token 鉴权；通道按契约只读，变更不落在通道上 |
+| 回环总线 | `127.0.0.1` 只读状态通道 · Clash API `127.0.0.1:9090` | 状态通道以 32 字符十六进制 token 鉴权、按契约只读；变更不落在通道上 |
 | 守护模块 | Magisk / KernelSU / APatch 脚本 + supervisor | 启停、5 秒 Canary 看门狗、cgroup 治理、规则下发 |
 | 内核与路由 | sing-box `v1.15.0-alpha.13-reF1nd` | TUN 接口 + iptables 策略路由，按分应用规则精准出站 |
 
