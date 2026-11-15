@@ -1245,4 +1245,10 @@
     <string name="policy_failed">失败</string>
     <string name="policy_direct">直连</string>
     <string name="policy_block">阻断</string>
+    <string name="module_diagnostics_health">健康状态</string>
+    <string name="module_diagnostics_exit_reason">最近退出原因</string>
+    <string name="module_diagnostics_exit_code">最近退出码</string>
+    <string name="module_diagnostics_exit_time">最近退出时间</string>
+    <string name="module_diagnostics_retry_count">重试次数</string>
+    <string name="module_diagnostics_event">最近模块事件</string>
 </resources>

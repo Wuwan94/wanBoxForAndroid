@@ -12,6 +12,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.graphics.drawable.DrawableCompat
 import androidx.preference.*
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import io.nekohasekai.sagernet.bg.ModuleDiagnostics
 import io.nekohasekai.sagernet.bg.NotificationGate
 import io.nekohasekai.sagernet.bg.SmartAutoStopNotifications
 import io.nekohasekai.sagernet.Key
@@ -444,6 +445,36 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
                 isSelectable = false
             }
             preferenceScreen.addPreference(moduleStatus)
+            val diagnosticPreferences = mutableListOf<Preference>()
+            fun renderDiagnostics(status: io.nekohasekai.sagernet.bg.RootModuleClient.Status) {
+                diagnosticPreferences.forEach { preferenceScreen.removePreference(it) }
+                diagnosticPreferences.clear()
+                val dateFormat = java.text.DateFormat.getDateTimeInstance()
+                ModuleDiagnostics.format(status).forEachIndexed { index, line ->
+                    val label = when (line.kind) {
+                        ModuleDiagnostics.Kind.HEALTH -> R.string.module_diagnostics_health
+                        ModuleDiagnostics.Kind.EXIT_REASON -> R.string.module_diagnostics_exit_reason
+                        ModuleDiagnostics.Kind.EXIT_CODE -> R.string.module_diagnostics_exit_code
+                        ModuleDiagnostics.Kind.EXIT_TIME -> R.string.module_diagnostics_exit_time
+                        ModuleDiagnostics.Kind.RETRY_COUNT -> R.string.module_diagnostics_retry_count
+                        ModuleDiagnostics.Kind.EVENT -> R.string.module_diagnostics_event
+                    }
+                    val time = if (line.epochSeconds > 0L) {
+                        // Clamp malformed timestamps before converting protocol seconds to milliseconds.
+                        dateFormat.format(java.util.Date(line.epochSeconds.coerceAtMost(Long.MAX_VALUE / 1000) * 1000))
+                    } else ""
+                    val preference = Preference(requireContext()).apply {
+                        key = "moduleDiagnostic$index"
+                        setTitle(label)
+                        summary = listOf(time, line.value).filter { it.isNotEmpty() }.joinToString(" · ")
+                        order = index
+                        isSelectable = false
+                        isPersistent = false
+                    }
+                    diagnosticPreferences += preference
+                    preferenceScreen.addPreference(preference)
+                }
+            }
             var stateText = "—"
             fun renderModuleStatus() {
                 val code = io.nekohasekai.sagernet.bg.RootModuleClient.moduleVersionFlow.value
@@ -452,13 +483,20 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             lifecycleScope.launch {
                 stateText = try {
                     val module = io.nekohasekai.sagernet.bg.RootModuleClient.call("status")
+                    renderDiagnostics(module)
                     getString(if (module.connected) R.string.service_state_connected else R.string.service_state_idle)
                 } catch (e: kotlinx.coroutines.CancellationException) { throw e }
                   catch (e: Exception) { io.nekohasekai.sagernet.bg.RootModuleErrors.message(requireContext(), e) }
                 renderModuleStatus()
             }
             lifecycleScope.launch {
-                io.nekohasekai.sagernet.bg.RootModuleClient.moduleVersionFlow.collect { renderModuleStatus() }
+                io.nekohasekai.sagernet.bg.RootModuleClient.moduleVersionFlow.collect {
+                    renderModuleStatus()
+                    try {
+                        renderDiagnostics(io.nekohasekai.sagernet.bg.RootModuleClient.callFreshStatus())
+                    } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                      catch (_: Exception) { /* Keep the last successful diagnostics on status failure. */ }
+                }
             }
             addHealthCheckPreferences()
         }
