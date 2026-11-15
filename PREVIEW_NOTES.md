@@ -1,6 +1,6 @@
-# v3.0.16-preview.2 发行说明（候选）
+# v3.0.16-preview.2 发行说明
 
-**状态：未发布的稳定性预览版候选。**
+**状态：已发布的稳定性预览版。**
 
 本版是 v3.0.16-preview.1 的复审修复版：修复手动恢复抑制令牌与自动启停监控的网络指纹口径不一致，并加固网关缓存并发、确认定时器与弹窗超时反馈，不新增功能。正式稳定版 `v3.0.14`（`VERSION_CODE=2026`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 不变；预览元数据码 `PRE_VERSION_CODE=2029` 不变，派生 APK `versionCode=10147`，高于 preview.1 的 `10146`。
 
@@ -32,17 +32,15 @@ preview.1 的修复基座本版未改：智能启停省电与指纹解耦、网�
 
 - **运行要求**：Android 12+（API 31+）、arm64-v8a、Magisk / KernelSU / APatch 等 Root 环境。
 - **版本对齐**：APK `versionName=3.0.16-preview.2` / `versionCode=10147`；Root 模块码 `2029`。瘦管理器和 Root 模块必须来自同一预览 Release、同版成套使用。
-- **同版资产**：`wanBoxForAndroid-3.0.16-preview.2-arm64-v8a-release.apk`、`wanbox-root-module-arm64-v8a.zip`、`wanbox-root-module-with-manager-arm64-v8a.zip`、`SHA256SUMS`；字节数与哈希在发布后回填[版本对照](docs/current-version.zh-CN.md)。
+- **同版资产**：`wanBoxForAndroid-3.0.16-preview.2-arm64-v8a-release.apk`、`wanbox-root-module-arm64-v8a.zip`、`wanbox-root-module-with-manager-arm64-v8a.zip`、`SHA256SUMS`。
 - **回退**：使用正式稳定版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 与配套 Root 模块（模块码 `2026`）；不要混用不同 Release 的 APK 和模块。
 
-## 🛡️ 验证边界与真机待测
+## 🛡️ 验证边界
 
-候选阶段证据：RootModule Go 全套测试本地通过（含新增指纹口径回归测试），Python 工具 108 项与版本文档一致性检查通过，代码经独立复审逐项核对；Gradle 单测与 APK 构建以 GitHub `Verify Android Build` 为门禁，发布时以 `Preview Build` 对精确提交构建并校验资产。本地 Gradle 在当前维护机上因虚拟机环境限制无法运行（daemon 通信中断与下载通道异常，多次复现），不计为通过。
-
-**未做的真机验证**：Magisk / KernelSU / APatch 设备矩阵，以及手动恢复后在同一网络下 IP/CIDR 规则的抑制保持、网关规则命中、确认超时后的磁贴/通知恢复、智能启停实际耗电。自动化结果不等同于真实 Root 设备的网络恢复验证。
+发布证据：[GitHub Release v3.0.16-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.2)，`Preview Build` run `43684289336` 在提交/tag `c5701a0979ef2a8ee4d28020f513f7f4aac07358` 发布成功。`verify-android` run `43679580768`（修复 PR #47）与 run `43682068186`（升版 PR #48）成功，instrumentation、迁移、manifest 与体积门禁通过。RootModule Go 全套测试（含新增指纹口径回归测试）与 Python 工具 108 项在本地通过，代码经独立复审逐项核对；本地 Gradle 因维护机虚拟机环境限制无法运行（多次复现），不计为通过。下载资产的 SHA256SUMS 校验通过，精确字节数和哈希见[版本对照](docs/current-version.zh-CN.md)。未执行 Magisk / KernelSU / APatch 真机矩阵，手动恢复后同网络下 IP/CIDR 规则的抑制保持、网关命中、确认超时恢复与实际耗电仍未验证；自动化结果不等同于真实 Root 设备的网络恢复验证。
 
 ---
 
 ## 历史归档
 
-v3.0.14-preview.1 与 v3.0.15-preview.1–.3 的已发布说明：各版 Release/tag 已按单预览策略清理，说明与资产快照见[版本对照](docs/current-version.zh-CN.md)，发布脉络见 [CHANGELOG.md](CHANGELOG.md)。
+v3.0.14-preview.1、v3.0.15-preview.1–.3、v3.0.15-preview.4 与 v3.0.16-preview.1 的已发布说明：各版 Release/tag 已按单预览策略清理，说明与资产快照见[版本对照](docs/current-version.zh-CN.md)，发布脉络见 [CHANGELOG.md](CHANGELOG.md)。

@@ -1,6 +1,6 @@
-# v3.0.16-preview.2 发行说明（候选）
+# v3.0.16-preview.2 发行说明
 
-**状态：未发布的稳定性预览版候选。**
+**状态：已发布的稳定性预览版。**
 
 本版是 v3.0.16-preview.1 的复审修复版，面向已 Root 的 Android 12+ arm64 设备：修复手动恢复抑制令牌与自动启停监控的网络指纹口径不一致，并加固网关缓存并发、确认定时器与弹窗超时反馈，不新增功能。稳定版 `v3.0.14` / Root 模块码 `2026` 与 sing-box pin `v1.15.0-alpha.13-reF1nd` 均未改变；预览名为 `3.0.16-preview.2`，APK `versionCode=10147`，Root 模块码 `2029`。
 
@@ -23,10 +23,10 @@ preview.1 的修复基座本版未改：智能启停省电与指纹解耦、网�
 
 ## 升级与验证边界
 
-同一 Release 的瘦管理器 APK 与 Root 模块必须成套安装。回退时使用正式版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 和配套模块。候选阶段证据：RootModule Go 全套测试本地通过（含新增指纹口径回归测试），Python 工具 108 项与版本文档一致性检查通过，代码经独立复审逐项核对；Gradle 单测与 APK 构建以 GitHub `Verify Android Build` 为门禁，发布时以 `Preview Build` 对精确提交构建并校验资产（本地 Gradle 因维护机虚拟机环境限制无法运行，不计为通过）。未执行 Magisk / KernelSU / APatch 真机矩阵，手动恢复后同网络下 IP/CIDR 规则的抑制保持、网关命中与确认超时恢复等真机场景仍未验证。
+同一 Release 的瘦管理器 APK 与 Root 模块必须成套安装。回退时使用正式版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 和配套模块。已发布：[GitHub Release v3.0.16-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.2)，`Preview Build` run `43684289336` 在提交/tag `c5701a0979ef2a8ee4d28020f513f7f4aac07358` 发布成功；`verify-android` run `43679580768` 与 `43682068186` 的 instrumentation、迁移、manifest 与体积门禁通过。已下载资产通过 SHA256SUMS 校验，详见[版本对照](current-version.zh-CN.md)。未执行 Magisk / KernelSU / APatch 真机矩阵，仍未验证。
 
 ---
 
 ## 历史归档
 
-v3.0.14-preview.1 与 v3.0.15-preview.1–.3 的已发布说明：各版 Release/tag 已按单预览策略清理，说明与资产快照见[版本对照](current-version.zh-CN.md)，发布脉络见 [CHANGELOG.md](../CHANGELOG.md)。
+v3.0.14-preview.1、v3.0.15-preview.1–.3、v3.0.15-preview.4 与 v3.0.16-preview.1 的已发布说明：各版 Release/tag 已按单预览策略清理，说明与资产快照见[版本对照](current-version.zh-CN.md)，发布脉络见 [CHANGELOG.md](../CHANGELOG.md)。

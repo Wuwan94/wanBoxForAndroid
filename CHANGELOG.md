@@ -4,9 +4,22 @@
 
 ## wanBox 3.0.x 发布记录
 
-### v3.0.15-preview.4（已发布预览）
+### v3.0.16-preview.2（已发布预览）
 
-- [GitHub Release v3.0.15-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.4) 由 `Preview Build` run `43628453020` 在 main commit/tag `d6914e70d730c63ee3c3cbb2b00fe2e754b6737e` 发布，四个 job 全部成功；`verify-android` run `43625363368` 在集成提交 `69de6eac6a23d0af65525991c6fff3cbf1a6e620` 成功。
+- [GitHub Release v3.0.16-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.2) 由 `Preview Build` run `43684289336` 在 main commit/tag `c5701a0979ef2a8ee4d28020f513f7f4aac07358` 发布；`verify-android` run `43679580768`（修复 PR #47）与 run `43682068186`（升版 PR #48）成功。
+- 四项修复：手动恢复抑制令牌与自动启停监控统一指纹口径（IP/CIDR-only 规则下手动恢复不再被首个监控周期误清并重新挂起，附生产路径回归测试）、网关缓存发现移到锁外执行并返回副本、确认定时器引入单调序号防旧定时器误清续期等待、出站告警弹窗在确认失效时给出明确提示。稳定版仍为 v3.0.14，正式元数据 `3.0.14 / 2026` 与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未变；preview.2 元数据为模块 `2029` / APK `10147`。
+- 发布下载的 APK、普通 Root ZIP 和合一 ZIP 均通过公开 `SHA256SUMS` 校验；APK + 普通 Root ZIP 为 `24187995` 字节（23.07 MiB），合一 ZIP 为 `23493445` 字节，均低于 26 MiB。四件套逐项字节数和 SHA-256 见[版本对照](docs/current-version.zh-CN.md)。
+- `verify-android` 的 instrumentation、迁移、manifest 和体积门禁通过；Root Magisk / KernelSU / APatch 真机矩阵未执行，仍未验证。
+
+### v3.0.16-preview.1（历史预览，Release/tag 已清理）
+
+- 曾由 `Preview Build` run `43673447000` 在 main commit/tag `7630ddd90e6092f9ce5647d34fb7d9a892db5769` 发布（修复由 PR #45 合入，升版 PR #46）；preview.2 发布后其 Release/tag 按单预览策略清理。本条为其迟到的发布记录，与 preview.2 的发布文档同步一并补齐。
+- 内容为 v3.0.15-preview.4 复审修复：智能启停禁用时不再每 5 秒 fork `ip`、全局指纹与自动启停指纹解耦、网关读取优先 `/system/bin/ip`、管理器规则解析容错、确认锁有界超时释放、手动恢复令牌按真实网络计算。元数据为模块 `2029` / APK `10146`。
+- 发布四件套经 API 回读一致并通过公开 `SHA256SUMS` 校验；APK + 普通 Root ZIP 为 `24186742` 字节，合一 ZIP 为 `23492569` 字节，均低于 26 MiB。逐项数据见[版本对照](docs/current-version.zh-CN.md)。Root 真机矩阵未执行。
+
+### v3.0.15-preview.4（历史预览，Release/tag 已清理）
+
+- [GitHub Release v3.0.15-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.4) 由 `Preview Build` run `43628453020` 在 main commit/tag `d6914e70d730c63ee3c3cbb2b00fe2e754b6737e` 发布，四个 job 全部成功；`verify-android` run `43625363368` 在集成提交 `69de6eac6a23d0af65525991c6fff3cbf1a6e620` 成功。3.0.16-preview.1 发布后其 Release/tag 按单预览策略清理。
 - 六项更新：Root 网络智能挂起/恢复、QUIC UDP 443 独立开关、无效出站规则提醒、路由与默认规则修正、分组测速地址动态继承、备份格式兼容。稳定版仍为 v3.0.14，正式元数据 `3.0.14 / 2026` 与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未变；preview.4 元数据为模块 `2028` / APK `10144`。
 - 发布下载的 APK、普通 Root ZIP 和合一 ZIP 均通过公开 `SHA256SUMS` 校验；APK + 普通 Root ZIP 为 `24184170` 字节（23.06 MiB），合一 ZIP 为 `23490404` 字节，均低于 25 MiB。四件套逐项字节数和 SHA-256 见[版本对照](docs/current-version.zh-CN.md)。
 - `verify-android` 的 instrumentation、迁移、manifest 和体积门禁通过；Root Magisk / KernelSU / APatch 真机矩阵未执行，仍未验证。

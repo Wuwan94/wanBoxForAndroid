@@ -1,6 +1,6 @@
-# v3.0.15-preview.4 分阶段发布清单
+# v3.0.16-preview.2 分阶段发布清单
 
-本版 **v3.0.15-preview.4 已作为稳定性预览版发布**：[Release](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.15-preview.4)，tag/commit `d6914e70d730c63ee3c3cbb2b00fe2e754b6737e`，由 `Preview Build` run `43628453020` 发布且四个 job 全部成功。`verify-android` run `43625363368`（集成提交 `69de6eac6a23d0af65525991c6fff3cbf1a6e620`）通过 instrumentation、迁移、manifest 与体积门禁。已发布正式版仍为 v3.0.14（正式版发布清单见本文件下文专节）。preview.3 Release/tag 已在 preview.4 发布后按单预览策略清理，历史 workflow run `43404430362` 与 commit `fe193f1134a80ff38fb0cb3ed4677eb2b79c1dce` 保留。Root 真机矩阵未执行，仍未验证。
+本版 **v3.0.16-preview.2 已作为稳定性预览版发布**：[Release](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.2)，tag/commit `c5701a0979ef2a8ee4d28020f513f7f4aac07358`，由 `Preview Build` run `43684289336` 发布。`verify-android` run `43679580768`（修复 PR #47）与 run `43682068186`（升版 PR #48）通过 instrumentation、迁移、manifest 与体积门禁。已发布正式版仍为 v3.0.14（正式版发布清单见本文件下文专节）。preview.1 Release/tag 已在 preview.2 发布后按单预览策略清理，历史 workflow run `43673447000` 与 commit `7630ddd90e6092f9ce5647d34fb7d9a892db5769` 保留。Root 真机矩阵未执行，仍未验证。
 
 ## 当前基线与不可变约束
 
