@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -493,7 +494,7 @@ func (c *gatewayCache) read(o NetworkObservation, now time.Time, read func() map
 	for {
 		c.mu.Lock()
 		if !c.updated.IsZero() && c.fingerprint == fp && now.Sub(c.updated) < gatewayCacheTTL {
-			gateways := maps.Clone(c.gateways)
+			gateways := cloneGateways(c.gateways)
 			c.mu.Unlock()
 			return gateways
 		}
@@ -514,8 +515,19 @@ func (c *gatewayCache) read(o NetworkObservation, now time.Time, read func() map
 		c.refreshing = nil
 		close(done)
 		c.mu.Unlock()
-		return maps.Clone(gateways)
+		return cloneGateways(gateways)
 	}
+}
+
+func cloneGateways(gateways map[string][]net.IP) map[string][]net.IP {
+	out := maps.Clone(gateways)
+	for name, ips := range out {
+		out[name] = slices.Clone(ips)
+		for i, ip := range ips {
+			out[name][i] = slices.Clone(ip)
+		}
+	}
+	return out
 }
 
 func resolveIPPath(exists func(string) bool, lookPath func(string) (string, error)) string {
