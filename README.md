@@ -76,7 +76,7 @@ wanBox 把「界面」和「代理本体」拆成两件独立的事：管理器�
 
 ## 架构速览
 
-一个管理器、一个守护模块、一颗内核，三层各管一段：
+一个管理器、一个守护模块、一颗内核：三者之间只靠一条回环总线通话。
 
 ```mermaid
 flowchart LR
@@ -96,7 +96,7 @@ flowchart LR
 | 项 | 要求 |
 |:--|:--|
 | 系统 | Android 12+（API 31+），targetSdk 35 |
-| 架构 | 仅 `arm64-v8a`，不提供 32 位与模拟器产物 |
+| 架构 | 仅发布 `arm64-v8a`，x86_64 只用于内部验证 |
 | Root | Magisk / KernelSU / APatch 之一，需允许安装并启用本模块 |
 | 网络 | 不申请 VPN 权限，没有 VPN 模式回退 |
 | 内核 | sing-box `v1.15.0-alpha.13-reF1nd`，随 Root 模块分发 |
