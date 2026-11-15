@@ -131,7 +131,7 @@ graph TD
 | 资产名称 | 类型 | 适用场景 | 下载 | 校验 |
 |:--|:--|:--|:--:|:--:|
 | **wanbox-root-module-with-manager-arm64-v8a.zip** · 推荐 | 模块 + 管理器合一 | 刷入即用，开箱内含同版本管理器 | [下载 ZIP](https://github.com/Wuwan94/wanBoxForAndroid/releases/latest) | [SHA-256](https://github.com/Wuwan94/wanBoxForAndroid/releases/latest) |
-| **wanBoxForAndroid-*.apk** | 瘦身管理器 APK | 独立管理器（约 6.1 MiB），需搭配已安装模块 | [下载 APK](https://github.com/Wuwan94/wanBoxForAndroid/releases/latest) | [SHA-256](https://github.com/Wuwan94/wanBoxForAndroid/releases/latest) |
+| **wanBoxForAndroid-*.apk** | 瘦身管理器 APK | 独立管理器（约 5.9 MiB），需搭配已安装模块 | [下载 APK](https://github.com/Wuwan94/wanBoxForAndroid/releases/latest) | [SHA-256](https://github.com/Wuwan94/wanBoxForAndroid/releases/latest) |
 | **wanbox-root-module-arm64-v8a.zip** | 独立 Root 模块 | 纯内核与守护进程（sing-box v1.15.0-alpha） | [下载 ZIP](https://github.com/Wuwan94/wanBoxForAndroid/releases/latest) | [SHA-256](https://github.com/Wuwan94/wanBoxForAndroid/releases/latest) |
 
 > ⚠️ **成套同版配对原则**：瘦管理器 APK 内部不含核心，**必须与同一发布页中的 Root 模块同步安装或更新**，严禁跨版本混用。
@@ -225,7 +225,7 @@ wanBox 是一套面向已 Root 设备的系统级方案，底层直接在 Linux 
 
   ### Highlights
 
-  - **Thin Manager Architecture:** APK size ~6.1 MiB with zero native core overhead in UI process (no <code>libgojni.so</code> in app RAM).
+  - **Thin Manager Architecture:** APK size ~5.9 MiB with zero native core overhead in UI process (no <code>libgojni.so</code> in app RAM).
   - **Root-Powered TUN Routing:** Core lifecycle managed by Magisk / KernelSU / APatch daemon; no Android VPN framework overhead or notification key icon.
   - **Strict Fail-Closed Policy:** Traffic checks and latency probes are strictly routed via 127.0.0.1 mixed proxy, preventing real IP leaks.
   - **Smooth Per-App Proxy:** Background async icon loading with 120-item native <code>LruCache</code> for smooth scrolling.
