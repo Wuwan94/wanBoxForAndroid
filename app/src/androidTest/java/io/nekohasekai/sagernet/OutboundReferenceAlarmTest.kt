@@ -485,7 +485,10 @@ class OutboundReferenceAlarmTest {
             val pending = OutboundReferenceWarning.queuePendingReview(context, true)
             activity = launch()
             val host = checkNotNull(activity)
-            val errorMessage = io.nekohasekai.sagernet.bg.RootModuleErrors.message(context, "installer_journal_corrupt")
+            // MainActivity uses the per-app locale, which can differ from the
+            // instrumentation target Context (for example after MinimalUiTest).
+            // Compare the visible dialog against its host resources, not system text.
+            val errorMessage = io.nekohasekai.sagernet.bg.RootModuleErrors.message(host, "installer_journal_corrupt")
             // The visible error is the completion signal: no timing delay or private job hook.
             fun containsError(node: android.view.accessibility.AccessibilityNodeInfo?): Boolean {
                 if (node == null) return false
