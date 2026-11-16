@@ -43,7 +43,7 @@ class GroupEditorValidationTest {
     }
 
     @Test fun graphUsesTypedStableIdsAndLocatesTheBackEdgeMember() {
-        val graph = mapOf(EntityId.Node(2) to listOf(EntityId.Node(3)),
+        val graph: Map<EntityId, List<EntityId>> = mapOf(EntityId.Node(2) to listOf(EntityId.Node(3)),
             EntityId.Node(3) to listOf(EntityId.Group(1)))
         val issues = GroupEditor.validate(draft(), nodes, graph, emptySet())
         assertTrue(issues.any { it.code == "cycle" && it.member == EntityId.Group(1) })
