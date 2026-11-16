@@ -187,32 +187,13 @@ internal fun buildUrlTestOutbound(
         outbounds = memberTags
         url = testUrl?.takeIf { it.isNotBlank() }
             ?: "http://connectivitycheck.gstatic.com/generate_204"
-        val iv = (intervalSec?.takeIf { it > 0 } ?: 600L).coerceAtLeast(10L)
-        interval = "${iv}s"
-        // @author 雾晚: saved settings override the quieter defaults for new groups.
-        tolerance = toleranceMs?.takeIf { it >= 0 } ?: 100
-        // Enforce minimum 10-minute idle_timeout regardless of memory mode.
-        // This guarantees Telegram file uploads (which can take many minutes) are never
-        // interrupted by the kernel reclaiming an "idle" leastPing connection pool.
-        // DO NOT lower this threshold for any memory optimization — violates stability contract.
-        val rawIdleTimeout = idleTimeoutStr?.takeIf { it.isNotBlank() }
-        if (rawIdleTimeout != null) {
-            val parsed = if (rawIdleTimeout.all { c -> c.isDigit() }) "${rawIdleTimeout}s" else rawIdleTimeout
-            // Parse minutes from string like "3m", "5m", "10m", "30m"; enforce minimum 30m
-            val minSecs = 30 * 60
-            val parsedSecs = when {
-                parsed.endsWith("m") -> (parsed.dropLast(1).toLongOrNull() ?: 0L) * 60
-                parsed.endsWith("s") -> parsed.dropLast(1).toLongOrNull() ?: 0L
-                else -> 0L
-            }
-            idle_timeout = if (parsedSecs < minSecs) "30m" else parsed
-        } else {
-            idle_timeout = "30m"
-        }
-        // CRITICAL: Never interrupt active connections on node switch.
-        // interrupt_exist_connections=true would instantly kill Telegram upload streams on any
-        // 5ms latency fluctuation. This must always be false — it is NOT overridden by memory mode.
-        interrupt_exist_connections = false
+        val parameters = io.nekohasekai.sagernet.group.editor.clampUrlTestParams(
+            io.nekohasekai.sagernet.group.editor.UrlTestParameters(url.orEmpty(), intervalSec ?: 600L,
+                toleranceMs?.takeIf { it >= 0 } ?: 100, idleTimeoutStr ?: "30m", false))
+        interval = "${parameters.intervalSeconds}s"
+        tolerance = parameters.toleranceMs
+        idle_timeout = parameters.idleTimeout
+        interrupt_exist_connections = parameters.interruptExisting
     }
 
 private fun endpointTag(value: Any?): String? {
@@ -2168,6 +2149,7 @@ fun buildConfig(
                     url = DataStore.resolvedGroupUrlTestUrl(draft.id))),
                 if (draft.id == proxy.groupId) TAG_PROXY else draft.name,
                 tagMap, DataStore.connectionTestURL,
+                defaultTag = if (draft.id == proxy.groupId) tagMap[proxy.id] else null,
             )
         }
         ConfigBuildResult(

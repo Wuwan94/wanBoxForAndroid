@@ -183,33 +183,9 @@ class BackupFragment : NamedFragment(R.layout.layout_backup) {
             startFilesForResult(importThroneDesktopFile, "*/*")
         }
 
-        // @author 雾晚: batch 4c — legacy-targeted export is guarded pre-write by
-        // BackupCompatibility; the verdict dialog is shown and no file is written
-        // while the guard refuses (unrepresentable fields and/or unverified
-        // historical-reader capability). A future verified reader must add the
-        // actual legacy writer together with flipping the guard.
-        binding.actionExportLegacy.setOnClickListener {
-            runOnDefaultDispatcher {
-                val verdict = BackupCompatibility.checkLegacyExport(BackupHelper.currentPlan())
-                onMainDispatcher {
-                    if (!isAdded) return@onMainDispatcher
-                    val message = buildString {
-                        verdict.unrepresentableFields.forEach { field ->
-                            append(getString(R.string.migration_legacy_field, field))
-                            append("\n")
-                        }
-                        if (!verdict.readerCapabilityVerified) {
-                            append(getString(R.string.migration_legacy_reader_unverified))
-                        }
-                    }
-                    MaterialAlertDialogBuilder(requireContext())
-                        .setTitle(R.string.migration_legacy_blocked_title)
-                        .setMessage(message.trim())
-                        .setPositiveButton(android.R.string.ok, null)
-                        .show()
-                }
-            }
-        }
+        // Legacy writing is not implemented; never expose an always-rejected action.
+        binding.actionExportLegacy.isEnabled = false
+        binding.actionExportLegacy.setText(R.string.backup_legacy_unavailable)
 
         setupWebDAV(binding)
         MaterialAlertDialogBuilder(requireContext())

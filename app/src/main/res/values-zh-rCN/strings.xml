@@ -1317,4 +1317,7 @@
     <string name="group_editor_url">请输入 HTTP(S) URL，或留空以继承。</string>
     <string name="group_editor_recover">恢复编辑前的组配置</string>
     <string name="group_editor_baseline_error">未应用：无法读取当前有效配置，或当前配置尚不含这些成员。请先正常应用配置，再重新打开编辑器。</string>
+    <string name="backup_legacy_unavailable">兼容旧版导出暂未开放</string>
+    <string name="group_editor_stability_limits">锁定关闭；检测间隔至少 10 秒，空闲超时至少 30 分钟</string>
+    <string name="group_editor_recovery_required">上次策略组编辑未完成。请打开“策略组”，点击菜单中的“恢复编辑前的组配置”，恢复成功后再连接。</string>
 </resources>

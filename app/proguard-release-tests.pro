@@ -239,6 +239,8 @@
     public java.lang.Object createProfile(long, io.nekohasekai.sagernet.fmt.AbstractBean, kotlin.coroutines.Continuation);
     public java.lang.Object updateProfile(io.nekohasekai.sagernet.database.ProxyEntity, kotlin.coroutines.Continuation);
     public java.lang.Object getRules(kotlin.coroutines.Continuation);
+    # GroupEditorPersistenceTest deletes subscription members through the real producer.
+    public java.lang.Object deleteProfile(long, long, kotlin.coroutines.Continuation);
 }
 
 # -----------------------------------------------------------------------------
@@ -400,7 +402,9 @@
 # GroupEditorPersistenceTest:43,93 patches the real producer snapshot.
 -keep class io.nekohasekai.sagernet.group.editor.GroupEditor {
     public static final io.nekohasekai.sagernet.group.editor.GroupEditor INSTANCE;
-    public com.google.gson.JsonObject patchSnapshot(com.google.gson.JsonObject, io.nekohasekai.sagernet.group.editor.GroupDraft, java.lang.String, java.lang.String);
+    public com.google.gson.JsonObject patchSnapshot(com.google.gson.JsonObject, io.nekohasekai.sagernet.group.editor.GroupDraft, java.lang.String, java.lang.String, java.lang.Long);
+    # Kotlin call sites omit selectedProfileId; preserve the cross-APK default bridge too.
+    public static com.google.gson.JsonObject patchSnapshot$default(io.nekohasekai.sagernet.group.editor.GroupEditor, com.google.gson.JsonObject, io.nekohasekai.sagernet.group.editor.GroupDraft, java.lang.String, java.lang.String, java.lang.Long, int, java.lang.Object);
 }
 # GroupEditorPersistenceTest:174,279,282 validates references and reopens saved state.
 -keep class io.nekohasekai.sagernet.group.editor.GroupEditorService {

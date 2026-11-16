@@ -53,8 +53,17 @@ class PolicyGroupsActivity : ThemedActivity(R.layout.layout_policy_groups) {
         toolbar.setNavigationOnClickListener { finish() }
         toolbar.menu.add(R.string.policy_refresh).setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
         val editItem = toolbar.menu.add(R.string.group_editor_local)
+        val recoveryItem = toolbar.menu.add(R.string.group_editor_recover)
+        recoveryItem.isVisible = io.nekohasekai.sagernet.group.editor.GroupLocalPreparation.pending()
         toolbar.setOnMenuItemClickListener {
-            if (it === editItem) openLocalEditor() else refresh()
+            if (it === recoveryItem) lifecycleScope.launch {
+                try {
+                    RootModuleClient.recoverGroupDraft()
+                    recoveryItem.isVisible = false
+                    refresh()
+                } catch (error: CancellationException) { throw error }
+                catch (_: Exception) { showMessage(R.string.group_editor_recovery_required, retry = false) }
+            } else if (it === editItem) openLocalEditor() else refresh()
             true
         }
         val scroll = findViewById<View>(R.id.policy_scroll)

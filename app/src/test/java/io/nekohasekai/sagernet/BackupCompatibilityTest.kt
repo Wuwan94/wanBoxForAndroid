@@ -100,7 +100,7 @@ class BackupCompatibilityTest {
         assertFalse(verdict.unrepresentableFields.contains("groups.landingProxy"))
     }
 
-    @Test fun legacyExportRejectsRepresentablePlanWhileReaderCapabilityUnverified() {
+    @Test fun unavailableLegacyWriterStaysFailClosedEvenForRepresentablePlan() {
         val verdict = BackupCompatibility.checkLegacyExport(sample())
         assertFalse(verdict.allowed)
         assertTrue(verdict.unrepresentableFields.isEmpty())

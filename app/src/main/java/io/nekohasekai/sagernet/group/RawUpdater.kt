@@ -352,6 +352,7 @@ object RawUpdater : GroupUpdater() {
             }
             if (!isShrunkTooMuch && toDelete.isNotEmpty()) {
                 SagerDatabase.proxyDao.deleteProxy(toDelete).also {
+                    io.nekohasekai.sagernet.group.editor.GroupEditorStore.removeDeletedMembers(toDelete.map { it.id }.toSet())
                     Logs.d("Deleted profiles: $it")
                 }
             }

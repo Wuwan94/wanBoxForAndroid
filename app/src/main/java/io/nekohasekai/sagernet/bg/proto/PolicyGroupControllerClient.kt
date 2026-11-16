@@ -50,7 +50,12 @@ internal class PolicyGroupControllerClient(
         var skipped = 0
         val groups = mutableListOf<PolicyGroup>()
         for (tag in proxies.keys()) {
-            val group = proxies.optJSONObject(tag)?.let { parseGroup(tag, it) }
+            val entry = proxies.optJSONObject(tag) ?: continue
+            // Ordinary proxies / DIRECT / REJECT are not malformed policy groups.
+            val groupLike = entry.has("all") || entry.has("now") ||
+                (entry.opt("type") as? String)?.lowercase() in setOf("selector", "urltest", "fallback", "loadbalance")
+            if (!groupLike) continue
+            val group = parseGroup(tag, entry)
             if (group == null) skipped++ else groups.add(group)
         }
         return PolicyGroupSnapshot(groups, skipped)

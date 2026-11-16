@@ -32,6 +32,16 @@ class GroupEditorPersistenceTest {
                         .build()
                 } finally { instance.close() }
             }
+            DataStore.selectedProxy = first.id
+            val selectorDraft = GroupDraft(99124, "fixture", GroupMode.SELECTOR, listOf(99126, 99125),
+                UrlTestParameters("", 600, 100, "30m", false))
+            val builtSelector = config(mapOf(99124L to selectorDraft))
+            val selector = builtSelector["config"].asJsonObject["outbounds"].asJsonArray
+                .first { it.asJsonObject["tag"].asString == "proxy" }.asJsonObject
+            val builtTags = com.google.gson.JsonParser.parseString(String(java.util.Base64.getDecoder()
+                .decode(builtSelector["files"].asJsonObject["files/profile_tags.json"].asString), Charsets.UTF_8)).asJsonObject
+            assertEquals(builtTags[first.id.toString()].asJsonObject["tag"].asString, selector["default"].asString)
+            assertNotEquals(selector["outbounds"].asJsonArray[0].asString, selector["default"].asString)
             val baseline = config(emptyMap())
             val before = baseline["config"].asJsonObject
             assertTrue(before["inbounds"].asJsonArray.any { it.asJsonObject["type"]?.asString == "tun" })
@@ -51,10 +61,35 @@ class GroupEditorPersistenceTest {
             assertEquals("https://example.test/probe", group["url"].asString)
             assertEquals("31s", group["interval"].asString)
             assertEquals(12, group["tolerance"].asInt)
-            assertEquals("2m", group["idle_timeout"].asString)
-            assertTrue(group["interrupt_exist_connections"].asBoolean)
+            assertEquals("30m", group["idle_timeout"].asString)
+            assertFalse(group["interrupt_exist_connections"].asBoolean)
             before.remove("outbounds"); after.remove("outbounds")
             assertEquals(before, after)
+        } finally { BackupRestore.apply(original, true, true, true) }
+    }
+
+    @Test fun existingIdentityAndDeletedSubscriptionMembersHaveOneTruth() = kotlinx.coroutines.runBlocking {
+        val original = BackupRestore.parse(org.json.JSONObject(
+            io.nekohasekai.sagernet.utils.BackupHelper.doBackup().toString(Charsets.UTF_8)))
+        fun node(id: Long) = ProxyEntity(id = id, groupId = 99124).putBean(
+            io.nekohasekai.sagernet.fmt.socks.SOCKSBean().apply {
+                initializeDefaultValues(); name = "node-$id"; serverAddress = "192.0.2.1"; serverPort = 1080
+            })
+        try {
+            BackupRestore.apply(BackupRestore.Plan(listOf(node(99125), node(99126)),
+                listOf(ProxyGroup(id = 99124, name = "database-name", isSelector = true)), emptyList(), null), true, true, false)
+            val draft = GroupDraft(99124, "stale-draft-name", GroupMode.SELECTOR, listOf(99125, 99126),
+                UrlTestParameters("", 600, 100, "30m", false))
+            GroupEditorStore.write(draft)
+            val canonical = GroupEditorService.load(draft.id)
+            assertEquals("database-name", canonical.name)
+            assertTrue(GroupEditorService.validate(canonical.copy(name = "renamed")).any { it.code == "identity_locked" })
+            assertTrue(GroupEditorService.validate(canonical.copy(name = "node-99125")).any { it.code == "duplicate_tag" })
+            ProfileManager.deleteProfile(99124, 99125)
+            assertEquals(listOf(99126L), GroupEditorStore.read(draft.id)?.members)
+            assertFalse(GroupEditorService.validate(GroupEditorService.load(draft.id)).any { it.code == "missing_entity" })
+            ProfileManager.deleteProfile(99124, 99126)
+            assertNull(GroupEditorStore.read(draft.id))
         } finally { BackupRestore.apply(original, true, true, true) }
     }
 

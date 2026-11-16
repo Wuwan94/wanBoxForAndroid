@@ -59,8 +59,9 @@ class PolicyGroupControllerClientTest {
     }
 
     @Test fun snapshotAuthenticatesAndPreservesMembersAndCurrentSelection() {
-        serve(200 to """{"proxies":{"node":{"type":"Shadowsocks"},"proxy":{"type":"sElEcToR","now":"b","all":["b","a"]},"auto":{"type":"URLTest","now":"a","all":[]}}}""") { url, requests ->
+        serve(200 to """{"proxies":{"node":{"type":"Shadowsocks"},"DIRECT":{"type":"Direct"},"REJECT":{"type":"Reject"},"proxy":{"type":"sElEcToR","now":"b","all":["b","a"]},"auto":{"type":"URLTest","now":"a","all":[]}}}""") { url, requests ->
             val snapshot = runBlocking { PolicyGroupControllerClient(url) { secret }.snapshot() }
+            assertEquals(0, snapshot.skippedEntries)
             assertEquals(setOf("proxy", "auto"), snapshot.groups.map { it.tag }.toSet())
             assertEquals(listOf("b", "a"), snapshot.groups.single { it.tag == "proxy" }.members)
             assertEquals("b", snapshot.groups.single { it.tag == "proxy" }.now)
@@ -154,4 +155,12 @@ class PolicyGroupControllerClientTest {
         }
     }
 
+
+    @Test fun onlyMalformedGroupLikeEntriesCountAsSkipped() {
+        serve(200 to """{"proxies":{"node":{"type":"VLESS"},"bad":{"type":"selector"},"badNow":{"type":"selector","all":["a"],"now":42},"unsupported":{"type":"fallback","all":["a"]},"unknown":{"all":false}}}""") { url, _ ->
+            val snapshot = runBlocking { PolicyGroupControllerClient(url) { secret }.snapshot() }
+            assertEquals(4, snapshot.skippedEntries)
+            assertTrue(snapshot.groups.isEmpty())
+        }
+    }
 }

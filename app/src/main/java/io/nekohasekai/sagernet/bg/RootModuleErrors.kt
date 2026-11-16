@@ -20,6 +20,7 @@ object RootModuleErrors {
         "core_exited", "plugin_exited", "core_killed_after_timeout", "core_retry" -> R.string.module_reason_core_exit
         "retry_limit_reached" -> R.string.module_reason_retry_limit
         "startup_timeout" -> R.string.module_reason_startup_timeout
+        "group_editor_recovery_required" -> R.string.group_editor_recovery_required
         "cleanup_required" -> R.string.module_reason_cleanup_required
         "root_required" -> R.string.module_reason_root_required
         "module_protocol_mismatch" -> R.string.module_reason_protocol_mismatch

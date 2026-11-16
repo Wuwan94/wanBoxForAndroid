@@ -502,7 +502,7 @@ object RootModuleClient {
                 warning.startIfStopped != confirmedWarning?.startIfStopped)) throw OutboundReferenceWarningRequired(warning)
         if (warning != null && !pendingOutboundWarning.compareAndSet(warning, null))
             throw IOException("outbound_confirmation_expired")
-        if (io.nekohasekai.sagernet.group.editor.GroupLocalPreparation.pending()) throw IOException("cleanup_required")
+        if (io.nekohasekai.sagernet.group.editor.GroupLocalPreparation.pending()) throw IOException("group_editor_recovery_required")
         val before = beforeStatus ?: callFreshStatus()
         // @author 雾晚: rule edits use module truth, never a stale UI/Binder state.
         if (RootModuleDataUpdate.pending()) throw IOException("data_update_pending")
@@ -559,10 +559,8 @@ object RootModuleClient {
                     if (exit != 0) throw IOException("baseline_unavailable")
                     bytes
                 }
-                if (callFreshStatus().revision != revision) throw IOException("revision_conflict")
-                JsonParser.parseString(String(bytes, Charsets.UTF_8)).asJsonObject.apply {
-                    addProperty("expectedRevision", revision)
-                }
+                io.nekohasekai.sagernet.group.editor.EditorBaselineReader.read(revision,
+                    { bytes }, { callFreshStatus().revision })
             } finally {
                 process.destroy()
                 runCatching { process.inputStream.close() }
@@ -589,22 +587,24 @@ object RootModuleClient {
             val store = io.nekohasekai.sagernet.group.editor.GroupLocalPreparation
             if (!store.pending()) return@withLock callFreshStatus()
             try {
-                val undo = store.undoRecord()
-                val before = callFreshStatus()
-                if (before.phase !in setOf("connected", "stopped", "suspended")) throw IOException("module_not_ready")
-                store.restoreRecord(undo)
-                val baseline = JsonParser.parseString(undo.baseline ?: throw IOException("baseline_unavailable"))
-                    .asJsonObject.apply { addProperty("expectedRevision", before.revision) }
-                val candidate = io.nekohasekai.sagernet.group.editor.CandidateSnapshot(baseline.toString(), "", before.revision)
-                sendGroupCandidate("config validate", candidate)
-                val applied = sendGroupCandidate("config apply", candidate)
-                val confirmed = callFreshStatus()
-                if (confirmed.revision != applied.revision || confirmed.phase != before.phase ||
-                    (before.phase == "connected" && confirmed.runningRevision != applied.revision))
-                    throw IOException("rollback_not_confirmed")
-                store.clearRecord()
-                confirmed
-            } catch (error: Exception) { throw IOException("cleanup_required", error) }
+                var confirmed: Status? = null
+                val host = object : io.nekohasekai.sagernet.group.editor.GroupRecoveryHost {
+                    override fun pending() = store.pending()
+                    override fun baseline() = store.undoRecord().baseline
+                    override fun restoreLocal() = store.restorePendingLocal()
+                    override fun clearJournal() = store.clearRecord()
+                    override suspend fun status(): io.nekohasekai.sagernet.group.editor.CandidateStatus {
+                        val status = callFreshStatus()
+                        confirmed = status
+                        return io.nekohasekai.sagernet.group.editor.CandidateStatus(status.revision, status.phase, status.runningRevision)
+                    }
+                    override suspend fun command(command: String, candidate: io.nekohasekai.sagernet.group.editor.CandidateSnapshot) =
+                        sendGroupCandidate(command, candidate)
+                }
+                io.nekohasekai.sagernet.group.editor.GroupDraftRecovery.recover(host)
+                confirmed ?: throw IOException("rollback_not_confirmed")
+            } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+            catch (error: Exception) { throw IOException("group_editor_recovery_required", error) }
         }
     }
 
@@ -622,7 +622,7 @@ object RootModuleClient {
     suspend fun applyGroupDraft(rawDraft: io.nekohasekai.sagernet.group.editor.GroupDraft, creating: Boolean = false): Status =
         withContext(Dispatchers.IO) {
             changes.withLock {
-                if (io.nekohasekai.sagernet.group.editor.GroupLocalPreparation.pending()) throw IOException("cleanup_required")
+                if (io.nekohasekai.sagernet.group.editor.GroupLocalPreparation.pending()) throw IOException("group_editor_recovery_required")
                 val draft = rawDraft.normalized()
                 if (creating && SagerDatabase.groupDao.getById(draft.id) != null) throw IOException("input_version_conflict")
                 val issues = io.nekohasekai.sagernet.group.editor.GroupEditorService.validate(draft)
@@ -658,7 +658,7 @@ object RootModuleClient {
                         if (draft.name in baselineTags && (creating || draft.name != runtimeTag)) throw IOException("duplicate_tag")
                         val candidate = io.nekohasekai.sagernet.group.editor.GroupEditor.patchSnapshot(
                             baseline, draft, runtimeTag,
-                            DataStore.connectionTestURL)
+                            DataStore.connectionTestURL, profile.id.takeIf { draft.id == profile.groupId })
                             .apply { addProperty("expectedRevision", expectedRevision) }
                         fun canonical(value: com.google.gson.JsonElement): com.google.gson.JsonElement = when {
                             value.isJsonObject -> JsonObject().apply {
@@ -675,7 +675,11 @@ object RootModuleClient {
                         return sendGroupCandidate(command, candidate)
                     }
                 }
-                io.nekohasekai.sagernet.group.editor.GroupCandidateCommit.apply(host)
+                try { io.nekohasekai.sagernet.group.editor.GroupCandidateCommit.apply(host) }
+                catch (error: IOException) {
+                    if (error.message == "cleanup_required") throw IOException("group_editor_recovery_required", error)
+                    throw error
+                }
                 confirmedStatus ?: throw IOException("apply_not_confirmed")
             }
         }
