@@ -52,12 +52,34 @@ class PolicyGroupsActivity : ThemedActivity(R.layout.layout_policy_groups) {
         toolbar.setNavigationIcon(androidx.appcompat.R.drawable.abc_ic_ab_back_material)
         toolbar.setNavigationOnClickListener { finish() }
         toolbar.menu.add(R.string.policy_refresh).setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
-        toolbar.setOnMenuItemClickListener { refresh(); true }
+        val editItem = toolbar.menu.add(R.string.group_editor_local)
+        toolbar.setOnMenuItemClickListener {
+            if (it === editItem) openLocalEditor() else refresh()
+            true
+        }
         val scroll = findViewById<View>(R.id.policy_scroll)
         ViewCompat.setOnApplyWindowInsetsListener(scroll) { view, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
             view.updatePadding(left = bars.left, right = bars.right, bottom = bars.bottom)
             insets
+        }
+    }
+
+    private fun openLocalEditor() {
+        lifecycleScope.launch {
+            val (local, loadBalanceIds) = withContext(Dispatchers.IO) {
+                val local = SagerDatabase.groupDao.allGroups()
+                local to local.filter { DataStore.isGroupLoadBalance(it.id) }.map { it.id }.toSet()
+            }
+            val entries = arrayOf(getString(R.string.group_editor_create)) + local.map { "${it.displayName()} (#${it.id})" }
+            androidx.appcompat.app.AlertDialog.Builder(this@PolicyGroupsActivity)
+                .setTitle(R.string.group_editor_local)
+                .setItems(entries) { _, index ->
+                    val id = if (index == 0) 0L else local[index - 1].id
+                    val activity = if (id != 0L && id in loadBalanceIds)
+                        GroupSettingsActivity::class.java else GroupEditorActivity::class.java
+                    startActivity(android.content.Intent(this@PolicyGroupsActivity, activity).putExtra("id", id))
+                }.setNegativeButton(android.R.string.cancel, null).show()
         }
     }
 
@@ -197,7 +219,9 @@ class PolicyGroupsActivity : ThemedActivity(R.layout.layout_policy_groups) {
         group.members.forEach { results.remove(group.tag to it) }
         measurement = lifecycleScope.launch {
             try {
-                val target = runCatching { DataStore.connectionTestURL }.getOrNull()?.takeIf { it.isNotBlank() }
+                val target = withContext(Dispatchers.IO) {
+                    runCatching { DataStore.connectionTestURL }.getOrNull()?.takeIf { it.isNotBlank() }
+                }
                     ?: "https://www.gstatic.com/generate_204"
                 for (member in group.members) {
                     val result = try {

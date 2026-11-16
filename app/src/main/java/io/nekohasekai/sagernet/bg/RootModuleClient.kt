@@ -502,6 +502,7 @@ object RootModuleClient {
                 warning.startIfStopped != confirmedWarning?.startIfStopped)) throw OutboundReferenceWarningRequired(warning)
         if (warning != null && !pendingOutboundWarning.compareAndSet(warning, null))
             throw IOException("outbound_confirmation_expired")
+        if (io.nekohasekai.sagernet.group.editor.GroupLocalPreparation.pending()) throw IOException("cleanup_required")
         val before = beforeStatus ?: callFreshStatus()
         // @author 雾晚: rule edits use module truth, never a stale UI/Binder state.
         if (RootModuleDataUpdate.pending()) throw IOException("data_update_pending")
@@ -538,6 +539,146 @@ object RootModuleClient {
             applyBackend(RootInboundBackend.TUN, current.revision)
         }
     }
+
+    internal var editorSnapshotProcess: (String) -> Process = { revision ->
+        // revision is strictly validated below; never interpolate user names or paths.
+        ProcessBuilder("su", "-c", "test \"\$(cat /data/adb/wanbox/current)\" = '$revision' && " +
+            "cat /data/adb/wanbox/generations/$revision/snapshot.json && " +
+            "test \"\$(cat /data/adb/wanbox/current)\" = '$revision'").redirectErrorStream(true).start()
+    }
+
+    private suspend fun readEditorBaseline(revision: String): JsonObject {
+        if (!revision.matches(Regex("[a-f0-9]{64}"))) throw IOException("baseline_revision_invalid")
+        val process = editorSnapshotProcess(revision)
+        return coroutineScope {
+            val output = async(Dispatchers.IO) { process.inputStream.use { it.readBytesLimited(192 * 1024 * 1024) } }
+            try {
+                val bytes = withCallTimeout("status") {
+                    val exit = runInterruptible(Dispatchers.IO) { process.waitFor() }
+                    val bytes = output.await()
+                    if (exit != 0) throw IOException("baseline_unavailable")
+                    bytes
+                }
+                if (callFreshStatus().revision != revision) throw IOException("revision_conflict")
+                JsonParser.parseString(String(bytes, Charsets.UTF_8)).asJsonObject.apply {
+                    addProperty("expectedRevision", revision)
+                }
+            } finally {
+                process.destroy()
+                runCatching { process.inputStream.close() }
+                output.cancel()
+            }
+        }
+    }
+
+    private fun java.io.InputStream.readBytesLimited(limit: Int): ByteArray {
+        val output = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(8192)
+        while (true) {
+            val count = read(buffer)
+            if (count < 0) break
+            if (output.size() > limit - count) throw IOException("snapshot_too_large")
+            output.write(buffer, 0, count)
+        }
+        return output.toByteArray()
+    }
+
+    /** Explicit recovery of an interrupted editor transaction; no core start. */
+    suspend fun recoverGroupDraft(): Status = withContext(Dispatchers.IO) {
+        changes.withLock {
+            val store = io.nekohasekai.sagernet.group.editor.GroupLocalPreparation
+            if (!store.pending()) return@withLock callFreshStatus()
+            try {
+                val undo = store.undoRecord()
+                val before = callFreshStatus()
+                if (before.phase !in setOf("connected", "stopped", "suspended")) throw IOException("module_not_ready")
+                store.restoreRecord(undo)
+                val baseline = JsonParser.parseString(undo.baseline ?: throw IOException("baseline_unavailable"))
+                    .asJsonObject.apply { addProperty("expectedRevision", before.revision) }
+                val candidate = io.nekohasekai.sagernet.group.editor.CandidateSnapshot(baseline.toString(), "", before.revision)
+                sendGroupCandidate("config validate", candidate)
+                val applied = sendGroupCandidate("config apply", candidate)
+                val confirmed = callFreshStatus()
+                if (confirmed.revision != applied.revision || confirmed.phase != before.phase ||
+                    (before.phase == "connected" && confirmed.runningRevision != applied.revision))
+                    throw IOException("rollback_not_confirmed")
+                store.clearRecord()
+                confirmed
+            } catch (error: Exception) { throw IOException("cleanup_required", error) }
+        }
+    }
+
+    private suspend fun sendGroupCandidate(command: String,
+        candidate: io.nekohasekai.sagernet.group.editor.CandidateSnapshot): io.nekohasekai.sagernet.group.editor.CandidateStatus {
+        val file = File.createTempFile("group-candidate-", ".json", SagerNet.application.cacheDir)
+        try {
+            file.writeText(candidate.json, Charsets.UTF_8)
+            val result = call(command, file)
+            return io.nekohasekai.sagernet.group.editor.CandidateStatus(result.revision, result.phase, result.runningRevision)
+        } finally { file.delete() }
+    }
+
+    /** Editor-only branch: no confirmation token, no implicit start, no fallback rebuild after validation. */
+    suspend fun applyGroupDraft(rawDraft: io.nekohasekai.sagernet.group.editor.GroupDraft, creating: Boolean = false): Status =
+        withContext(Dispatchers.IO) {
+            changes.withLock {
+                if (io.nekohasekai.sagernet.group.editor.GroupLocalPreparation.pending()) throw IOException("cleanup_required")
+                val draft = rawDraft.normalized()
+                if (creating && SagerDatabase.groupDao.getById(draft.id) != null) throw IOException("input_version_conflict")
+                val issues = io.nekohasekai.sagernet.group.editor.GroupEditorService.validate(draft)
+                if (issues.isNotEmpty()) throw IOException("group_validation_failed")
+                if (RootModuleDataUpdate.pending()) throw IOException("data_update_pending")
+                var confirmedStatus: Status? = null
+                val local = io.nekohasekai.sagernet.group.editor.GroupLocalPreparation(draft)
+                val host = object : io.nekohasekai.sagernet.group.editor.CandidateHost {
+                    override suspend fun prepare(candidate: io.nekohasekai.sagernet.group.editor.CandidateSnapshot) = local.prepare(candidate.baselineJson)
+                    override suspend fun restore() = local.restore()
+                    override suspend fun finish() = local.finish()
+                    override suspend fun inputVersion() = io.nekohasekai.sagernet.group.editor.GroupEditorService.inputVersion()
+                    override suspend fun freshStatus(): io.nekohasekai.sagernet.group.editor.CandidateStatus {
+                        val status = callFreshStatus()
+                        confirmedStatus = status
+                        return io.nekohasekai.sagernet.group.editor.CandidateStatus(status.revision, status.phase, status.runningRevision)
+                    }
+                    override suspend fun capture(expectedRevision: String, inputVersion: String): io.nekohasekai.sagernet.group.editor.CandidateSnapshot {
+                        val routes = io.nekohasekai.sagernet.route.RootRouteBuildSnapshot.capture()
+                        // Editor errors never enter the global confirmation path or drop unresolved rules.
+                        if (routes.issues().isNotEmpty()) throw IOException("missing_outbound_reference")
+                        // No export command exists: read the module-owned complete
+                        // snapshot. Never rebuild from possibly unapplied App settings.
+                        if (expectedRevision.isEmpty()) throw IOException("baseline_unavailable")
+                        val baseline = readEditorBaseline(expectedRevision)
+                        val profile = routes.allProfiles().firstOrNull { it.id == baseline["profileId"]?.asLong }
+                            ?: throw IOException("profile_missing")
+                        val baselineConfig = baseline["config"].asJsonObject
+                        val baselineTags = (baselineConfig.getAsJsonArray("outbounds").toList() +
+                            baselineConfig.getAsJsonArray("endpoints")?.toList().orEmpty())
+                            .mapNotNull { it.asJsonObject["tag"]?.asString }
+                        val runtimeTag = if (draft.id == profile.groupId) "proxy" else draft.name
+                        if (draft.name in baselineTags && (creating || draft.name != runtimeTag)) throw IOException("duplicate_tag")
+                        val candidate = io.nekohasekai.sagernet.group.editor.GroupEditor.patchSnapshot(
+                            baseline, draft, runtimeTag,
+                            DataStore.connectionTestURL)
+                            .apply { addProperty("expectedRevision", expectedRevision) }
+                        fun canonical(value: com.google.gson.JsonElement): com.google.gson.JsonElement = when {
+                            value.isJsonObject -> JsonObject().apply {
+                                value.asJsonObject.entrySet().sortedBy { it.key }.forEach { (key, child) -> add(key, canonical(child)) }
+                            }
+                            value.isJsonArray -> com.google.gson.JsonArray().apply { value.asJsonArray.forEach { add(canonical(it)) } }
+                            else -> value.deepCopy()
+                        }
+                        val json = canonical(candidate).toString()
+                        if (json.toByteArray(Charsets.UTF_8).size > 192L * 1024 * 1024) throw IOException("snapshot_too_large")
+                        return io.nekohasekai.sagernet.group.editor.CandidateSnapshot(json, inputVersion, expectedRevision, baseline.toString())
+                    }
+                    override suspend fun command(command: String, candidate: io.nekohasekai.sagernet.group.editor.CandidateSnapshot): io.nekohasekai.sagernet.group.editor.CandidateStatus {
+                        return sendGroupCandidate(command, candidate)
+                    }
+                }
+                io.nekohasekai.sagernet.group.editor.GroupCandidateCommit.apply(host)
+                confirmedStatus ?: throw IOException("apply_not_confirmed")
+            }
+        }
 
     suspend fun stop() = changes.withLock { call("stop") }
     suspend fun resume() = changes.withLock { call("resume") }

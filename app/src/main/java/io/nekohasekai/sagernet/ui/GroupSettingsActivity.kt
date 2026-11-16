@@ -81,7 +81,8 @@ class GroupSettingsActivity(
     }
 
     fun ProxyGroup.serialize() {
-        val rawName = DataStore.groupName.trim()
+        val lockedIdentity = io.nekohasekai.sagernet.group.editor.GroupEditorStore.read(id)
+        val rawName = lockedIdentity?.name ?: DataStore.groupName.trim()
         name = if (rawName.isNotBlank() && !RawUpdater.isDefaultGroupName(rawName)) {
             rawName
         } else if (type == GroupType.SUBSCRIPTION) {
@@ -92,11 +93,11 @@ class GroupSettingsActivity(
         } else {
             if (rawName.isNotBlank()) rawName else "My group"
         }
-        type = DataStore.groupType
+        if (lockedIdentity == null) type = DataStore.groupType
         order = DataStore.groupOrder
         isSelector = DataStore.groupIsSelector
-        DataStore.setGroupIsUrlTest(id, false)
-        DataStore.setGroupIsLoadBalance(id, false)
+        DataStore.setGroupIsUrlTest(id, DataStore.groupIsUrlTest)
+        DataStore.setGroupIsLoadBalance(id, DataStore.groupIsLoadBalance)
         DataStore.setGroupUrlTestUrl(id, DataStore.groupUrlTestUrlOverride)
         DataStore.setGroupUrlTestInterval(id, DataStore.groupUrlTestInterval.toLong())
         DataStore.setGroupUrlTestTolerance(id, DataStore.groupUrlTestTolerance)
@@ -136,6 +137,7 @@ class GroupSettingsActivity(
         }
     }
 
+    private var editorIdentityLocked = false
     private var isFromClipboard = false
 
     fun needSave(): Boolean {
@@ -147,6 +149,11 @@ class GroupSettingsActivity(
         rootKey: String?,
     ) {
         addPreferencesFromResource(R.xml.group_preferences)
+        if (editorIdentityLocked) {
+            findPreference<Preference>(Key.GROUP_NAME)?.isEnabled = false
+            findPreference<Preference>(Key.GROUP_TYPE)?.isEnabled = false
+            findPreference<Preference>(Key.GROUP_IS_SELECTOR)?.isEnabled = false
+        }
 
         frontProxyPreference = findPreference(Key.GROUP_FRONT_PROXY)!!
         frontProxyPreference.apply {
@@ -307,6 +314,7 @@ class GroupSettingsActivity(
 
     @SuppressLint("CommitTransaction")
     override fun onCreate(savedInstanceState: Bundle?) {
+        editorIdentityLocked = savedInstanceState?.getBoolean("editorIdentityLocked", true) ?: true
         super.onCreate(savedInstanceState)
         setSupportActionBar(findViewById(R.id.toolbar))
         supportActionBar?.apply {
@@ -346,6 +354,7 @@ class GroupSettingsActivity(
                     entity.init()
                 }
 
+                editorIdentityLocked = io.nekohasekai.sagernet.group.editor.GroupEditorStore.read(editingId) != null
                 onMainDispatcher {
                     supportFragmentManager.beginTransaction()
                         .replace(R.id.settings, MyPreferenceFragmentCompat())
@@ -358,6 +367,11 @@ class GroupSettingsActivity(
 
         }
 
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean("editorIdentityLocked", editorIdentityLocked)
+        super.onSaveInstanceState(outState)
     }
 
     suspend fun saveAndExit() {

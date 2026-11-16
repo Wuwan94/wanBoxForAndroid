@@ -381,7 +381,12 @@ fun buildConfig(
     val balancerMemberMap = HashMap<Long, List<Long>>()
     val globalOutbounds = HashMap<Long, String>()
     val readableNames = mutableSetOf(TAG_DIRECT, TAG_BYPASS, TAG_BLOCK, TAG_FRAGMENT, TAG_MIXED, TAG_PROXY)
-    val group = SagerDatabase.groupDao.getById(proxy.groupId)
+    val editorDrafts = if (forTest || forExport) emptyMap() else rootRouteSnapshot?.editorDrafts()
+        ?: SagerDatabase.groupDao.allGroups().mapNotNull { owner ->
+            io.nekohasekai.sagernet.group.editor.GroupEditorStore.read(owner.id)?.let { owner.id to it }
+        }.toMap()
+    val group = if (rootRouteSnapshot != null) rootRouteSnapshot.allGroups().firstOrNull { it.id == proxy.groupId }
+        else SagerDatabase.groupDao.getById(proxy.groupId)
     val groupTag = group?.name?.trim()?.takeIf { it.isNotBlank() } ?: TAG_PROXY
     readableNames.add(groupTag)
 
@@ -922,7 +927,7 @@ fun buildConfig(
                         else -> emptyList()
                     }
                     var list = targetGids.flatMap { gid ->
-                        profilesByGroup(gid)
+                        editorDrafts[gid]?.members?.mapNotNull(::profileById) ?: profilesByGroup(gid)
                     }.distinctBy { it.id }
 
                     if (!balancerBean.nameInclude.isNullOrBlank()) {
@@ -1382,6 +1387,16 @@ fun buildConfig(
         // build outbounds from route item
         extraProxies.forEach { (key, p) ->
             tagMap[key] = buildChain(key, p)
+        }
+
+        // Build by stable IDs before patching group outbounds. Existing chain tag generation stays authoritative.
+        editorDrafts.values.forEach { draft ->
+            draft.members.forEach { memberId ->
+                if (memberId !in tagMap) {
+                    val member = profileById(memberId) ?: throw IllegalArgumentException("missing_entity")
+                    tagMap[memberId] = buildChain(memberId, member)
+                }
+            }
         }
 
         val mainProxyTag = (if (buildSelector || useAutoSelect || useLoadBalance) TAG_PROXY else tagMap[proxy.id]) ?: TAG_PROXY
@@ -2146,8 +2161,17 @@ fun buildConfig(
                 "endpoints=$endpointTags outbounds=$outboundTags " +
                 "references=$references unresolved=$unresolvedTargets"
         )
+        var editorConfig = com.google.gson.JsonParser.parseString(gson.toJson(configMap)).asJsonObject
+        editorDrafts.values.forEach { draft ->
+            editorConfig = io.nekohasekai.sagernet.group.editor.GroupEditor.patchOutbounds(
+                editorConfig, draft.copy(parameters = draft.parameters.copy(
+                    url = DataStore.resolvedGroupUrlTestUrl(draft.id))),
+                if (draft.id == proxy.groupId) TAG_PROXY else draft.name,
+                tagMap, DataStore.connectionTestURL,
+            )
+        }
         ConfigBuildResult(
-            gson.toJson(configMap),
+            gson.toJson(editorConfig),
             externalIndexMap,
             proxy.id,
             trafficMap,
