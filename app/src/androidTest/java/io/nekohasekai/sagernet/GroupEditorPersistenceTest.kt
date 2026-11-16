@@ -43,7 +43,11 @@ class GroupEditorPersistenceTest {
             val after = GroupEditor.patchSnapshot(baseline, draft, "proxy", DataStore.connectionTestURL)["config"].asJsonObject
             val group = after["outbounds"].asJsonArray.first { it.asJsonObject["tag"].asString == "proxy" }.asJsonObject
             assertEquals("urltest", group["type"].asString)
-            assertEquals(listOf("g-99126", "g-99125"), group["outbounds"].asJsonArray.map { it.asString })
+            val baselineTags = com.google.gson.JsonParser.parseString(String(
+                java.util.Base64.getDecoder().decode(baseline["files"].asJsonObject["files/profile_tags.json"].asString),
+                Charsets.UTF_8)).asJsonObject
+            val expectedMembers = listOf("99126", "99125").map { baselineTags[it].asJsonObject["tag"].asString }
+            assertEquals(expectedMembers, group["outbounds"].asJsonArray.map { it.asString })
             assertEquals("https://example.test/probe", group["url"].asString)
             assertEquals("31s", group["interval"].asString)
             assertEquals(12, group["tolerance"].asInt)
@@ -121,7 +125,10 @@ class GroupEditorPersistenceTest {
                 val group = ProxyGroup(id = 99121, name = "fixture")
                 DataStore.setGroupIsUrlTest(group.id, mode.first)
                 DataStore.setGroupIsLoadBalance(group.id, mode.second)
-                val activity = GroupSettingsActivity()
+                lateinit var activity: GroupSettingsActivity
+                androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                    activity = GroupSettingsActivity()
+                }
                 with(activity) { group.init(); group.serialize() }
                 assertEquals(mode.first, DataStore.groupIsUrlTest(group.id))
                 assertEquals(mode.second, DataStore.groupIsLoadBalance(group.id))
@@ -151,11 +158,13 @@ class GroupEditorPersistenceTest {
                 targetGroupIds = arrayListOf(draft.id); targetGroupId = draft.id
             })
         try {
-            BackupRestore.apply(BackupRestore.Plan(listOf(node, balancer),
+            BackupRestore.apply(BackupRestore.Plan(listOf(node),
                 listOf(ProxyGroup(id = 99124, name = "fixture", isSelector = true)), emptyList(), null), true, true, false)
             val preparation = GroupLocalPreparation(draft)
             try { preparation.prepare(); preparation.finish() }
             catch (error: Exception) { preparation.restore(); preparation.finish(); throw error }
+            // Only reference the new group after the editor has actually created it.
+            SagerDatabase.proxyDao.insert(listOf(balancer))
             assertTrue(SagerDatabase.groupDao.allGroups().any { it.id == draft.id })
             val snapshot = io.nekohasekai.sagernet.route.RootRouteBuildSnapshot.capture()
             assertTrue(snapshot.allGroups().any { it.id == draft.id })
@@ -167,11 +176,16 @@ class GroupEditorPersistenceTest {
                 rootRouteSnapshot = snapshot, persistBuildMetadata = false)
             try {
                 instance.init()
-                val config = io.nekohasekai.sagernet.bg.RootModuleSnapshot(instance, "fixture-revision").build()["config"].asJsonObject
+                val baseline = io.nekohasekai.sagernet.bg.RootModuleSnapshot(instance, "fixture-revision").build()
+                val baselineTags = com.google.gson.JsonParser.parseString(String(
+                    java.util.Base64.getDecoder().decode(baseline["files"].asJsonObject["files/profile_tags.json"].asString),
+                    Charsets.UTF_8)).asJsonObject
+                val expectedMembers = listOf(baselineTags["99125"].asJsonObject["tag"].asString)
+                val config = baseline["config"].asJsonObject
                 val outbounds = config["outbounds"].asJsonArray.map { it.asJsonObject }
                 assertTrue(outbounds.any { it["tag"]?.asString == "created" })
                 val loadbalance = outbounds.first { it["type"]?.asString == "loadbalance" }
-                assertEquals(listOf("g-99125"), loadbalance["outbounds"].asJsonArray.map { it.asString })
+                assertEquals(expectedMembers, loadbalance["outbounds"].asJsonArray.map { it.asString })
             } finally { instance.close() }
         } finally { BackupRestore.apply(original, true, true, true) }
     }

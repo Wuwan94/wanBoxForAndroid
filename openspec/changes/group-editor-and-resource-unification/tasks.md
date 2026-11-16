@@ -2,6 +2,8 @@
 
 ## 4a 图形化策略组编辑
 
+- 统筹裁决（2026-11-16）：CI 第二轮第 4 条最终定性为测试期望错误，推翻生产缺陷定性；依据本变更 android-application/spec.md 第 23/41 行及 GroupEditor.patchSnapshot 从基线 profile_tags 解析实际运行时 tag 的设计，成员期望改从基线文件按草稿顺序（99126、99125）读取。ConfigBuilder 不改，恢复 HEAD；第 1、2、3 条修复保留。
+
 - [x] 1.1 核查模式标志读写、现有开关与 Balancer 字段，完成对照表
 - [x] 1.2 定义成员/参数、身份锁定、outbounds 隔离、Root 校验及故障测试缝
 - [ ] 2.1 实现 Selector/URLTest 创建和 tag/type 锁定
@@ -72,3 +74,5 @@
 - 测试先行新增真实页面/持久 journal 的空成员与非法 interval 重复提交用例；Kotlin/instrumentation 待 CI，不勾选验收。该测试从 durable cleanup 边界进入，不模拟模块 apply 故障；完整进程恢复链仍待 CI/Root 真机。
 - H2（S1·P2）：GroupSettings 身份锁定标志合入后台加载并保存重建状态；PolicyGroups 后台加载负载均衡组 ID 集合，选择回调只消费结果。同页探测 URL 的配置库读取也移入 IO。线程/交互效果待 instrumentation/真机。
 - 修正 G4 旧判断：双语文案修改并不足以闭环，SP1 指出的后续本地校验确有同类假报，本轮补阻断状态处理。未推进 4b/4c。
+
+- CI 第二轮补充裁决（统筹方，2026-11-16）：接受 astra 复审 P1；第 3 条用例第 183 行硬编码 g-99125 与第 4 条同属测试期望错误，已按同一份基线 files/profile_tags.json 记录的节点 99125 运行时 tag 修正精确单成员列表期望。CI2B 当时要求前三条保持原样，本次为统筹简报未覆盖处的补充裁决；其余断言与夹具修法保持不动，插桩待 CI。

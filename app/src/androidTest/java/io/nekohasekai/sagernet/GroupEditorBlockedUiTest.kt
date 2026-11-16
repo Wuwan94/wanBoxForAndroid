@@ -52,8 +52,12 @@ class GroupEditorBlockedUiTest {
             activity = instrumentation.startActivitySync(Intent(context, GroupEditorActivity::class.java)
                 .putExtra("id", group.id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as GroupEditorActivity
             awaitPage { page().filterIsInstance<Button>().any { it.text == context.getString(R.string.group_editor_apply) } }
+            var staleRemove: Button? = null
             instrumentation.runOnMainSync {
-                if (emptyMembers) button(R.string.group_editor_remove).performClick()
+                if (emptyMembers) {
+                    staleRemove = button(R.string.group_editor_remove)
+                    staleRemove!!.performClick()
+                }
                 else page().filterIsInstance<EditText>()[2].setText("0")
             }
             // A durable interrupted transaction is the production cleanup_required boundary.
@@ -64,7 +68,7 @@ class GroupEditorBlockedUiTest {
                 assertFalse(button(R.string.group_editor_apply).isEnabled)
                 assertTrue(button(R.string.group_editor_recover).isEnabled)
                 // Programmatic stale callbacks must be safe even though user input is disabled.
-                if (emptyMembers) button(R.string.group_editor_remove).performClick()
+                if (emptyMembers) staleRemove!!.performClick()
                 else page().filterIsInstance<EditText>()[2].setText("0")
                 button(R.string.group_editor_apply).performClick()
             }
