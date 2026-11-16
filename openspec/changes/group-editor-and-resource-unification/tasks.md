@@ -2,6 +2,8 @@
 
 ## 4a 图形化策略组编辑
 
+- CI 第三轮（2026-11-16，Verify 43801611674）：69 项、仅 createdGroupIsInSnapshotAndBalancerUsesItsStableNodeMembers 失败、2 跳过。诊断为夹具默认 leastPing 合法生成 urltest，而断言要求 loadbalance；仅显式设置 UI 支持并会保存的 STRATEGY_ROUND_ROBIN，生产代码零改动，成员仍精确等于同一 build 的 profile_tags[99125].tag，其余已通过测试不动。插桩未本地验证，以后续 CI 为准；详见 BATCH4_4A_IMPLEMENTATION_LOG.md。
+
 - 统筹裁决（2026-11-16）：CI 第二轮第 4 条最终定性为测试期望错误，推翻生产缺陷定性；依据本变更 android-application/spec.md 第 23/41 行及 GroupEditor.patchSnapshot 从基线 profile_tags 解析实际运行时 tag 的设计，成员期望改从基线文件按草稿顺序（99126、99125）读取。ConfigBuilder 不改，恢复 HEAD；第 1、2、3 条修复保留。
 
 - [x] 1.1 核查模式标志读写、现有开关与 Balancer 字段，完成对照表

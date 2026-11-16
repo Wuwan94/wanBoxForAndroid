@@ -155,6 +155,8 @@ class GroupEditorPersistenceTest {
             io.nekohasekai.sagernet.fmt.internal.BalancerBean().apply {
                 initializeDefaultValues()
                 balancerType = io.nekohasekai.sagernet.fmt.internal.BalancerBean.TYPE_GROUP
+                // Match the UI's round-robin choice; the default leastPing emits urltest.
+                strategy = io.nekohasekai.sagernet.fmt.internal.BalancerBean.STRATEGY_ROUND_ROBIN
                 targetGroupIds = arrayListOf(draft.id); targetGroupId = draft.id
             })
         try {
