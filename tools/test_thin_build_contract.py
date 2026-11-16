@@ -36,6 +36,15 @@ class ThinBuildContractTest(unittest.TestCase):
             self.assertIn(signature, rules)
         self.assertNotIn('class io.nekohasekai.sagernet.core.**', rules)
 
+    def test_release_instrumentation_retains_editor_default_bridge_and_profile_delete(self):
+        rules = (ROOT / 'app/proguard-release-tests.pro').read_text()
+        for signature in (
+            'public java.lang.Object deleteProfile(long, long, kotlin.coroutines.Continuation);',
+            'public com.google.gson.JsonObject patchSnapshot(com.google.gson.JsonObject, io.nekohasekai.sagernet.group.editor.GroupDraft, java.lang.String, java.lang.String, java.lang.Long);',
+            'public static com.google.gson.JsonObject patchSnapshot$default(io.nekohasekai.sagernet.group.editor.GroupEditor, com.google.gson.JsonObject, io.nekohasekai.sagernet.group.editor.GroupDraft, java.lang.String, java.lang.String, java.lang.Long, int, java.lang.Object);',
+        ):
+            self.assertIn(signature, rules)
+
 
 if __name__ == '__main__':
     unittest.main()
