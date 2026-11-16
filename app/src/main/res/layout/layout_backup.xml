@@ -116,6 +116,15 @@
                         android:text="@string/action_import_throne_desktop"
  />
 
+                    <Button
+                        android:id="@+id/action_export_legacy"
+                        style="@style/Widget.WanBox.Ui.SecondaryButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:cornerRadius="@dimen/button_corner_radius"
+                        android:text="@string/backup_export_legacy"
+ />
+
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>

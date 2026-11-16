@@ -10,12 +10,12 @@ import java.util.*
 
 object BackupHelper {
 
-    fun doBackup(
+    fun currentPlan(
         profile: Boolean = true,
         rule: Boolean = true,
         setting: Boolean = true
-    ): ByteArray {
-        val plan = SagerDatabase.instance.runInTransaction(java.util.concurrent.Callable {
+    ): io.nekohasekai.sagernet.database.BackupRestore.Plan =
+        SagerDatabase.instance.runInTransaction(java.util.concurrent.Callable {
             io.nekohasekai.sagernet.database.BackupRestore.Plan(
                 if (profile) SagerDatabase.proxyDao.getAll() else null,
                 if (profile) SagerDatabase.groupDao.allGroups() else null,
@@ -23,7 +23,13 @@ object BackupHelper {
                 if (setting) PublicDatabase.kvPairDao.all() else null,
             )
         })
-        return io.nekohasekai.sagernet.database.PortableBackup.encode(plan)
+
+    fun doBackup(
+        profile: Boolean = true,
+        rule: Boolean = true,
+        setting: Boolean = true
+    ): ByteArray {
+        return io.nekohasekai.sagernet.database.PortableBackup.encode(currentPlan(profile, rule, setting))
     }
 
     fun autoBackupLocal(): Boolean {

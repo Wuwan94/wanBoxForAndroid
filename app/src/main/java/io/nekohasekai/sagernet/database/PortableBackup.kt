@@ -59,6 +59,9 @@ object PortableBackup {
         Key.ROOT_UID_POLICY to "0",
         Key.ALLOW_ACCESS to false,
     )
+    /** Core setting keys that [withCoreSettingDefaults] would fill for [explicitKeys]. */
+    internal fun defaultedCoreSettingKeys(explicitKeys: Set<String>): List<String> =
+        coreSettingDefaults.keys.filter { it !in explicitKeys }
     internal fun withCoreSettingDefaults(settings: List<KeyValuePair>): List<KeyValuePair> {
         require(settings.map { it.key }.distinct().size == settings.size) { "设置键重复" }
         val merged = LinkedHashMap<String, KeyValuePair>(settings.size + coreSettingDefaults.size)
