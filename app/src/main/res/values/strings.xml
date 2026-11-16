@@ -1432,4 +1432,7 @@
     <string name="group_editor_url">Enter an HTTP(S) URL, or leave blank to inherit.</string>
     <string name="group_editor_recover">Recover previous group configuration</string>
     <string name="group_editor_baseline_error">Not applied: the current configuration cannot be read or does not contain these members. Apply a regular configuration first, then reopen this editor.</string>
+    <string name="backup_legacy_unavailable">Legacy export is not available yet</string>
+    <string name="group_editor_stability_limits">Locked off; interval ≥ 10s and idle timeout ≥ 30m</string>
+    <string name="group_editor_recovery_required">The previous policy-group edit did not finish. Open Policy groups → Recover previous group configuration to restore it before connecting.</string>
 </resources>

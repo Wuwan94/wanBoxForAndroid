@@ -118,11 +118,12 @@
 
                     <Button
                         android:id="@+id/action_export_legacy"
+                        android:enabled="false"
                         style="@style/Widget.WanBox.Ui.SecondaryButton"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         app:cornerRadius="@dimen/button_corner_radius"
-                        android:text="@string/backup_export_legacy"
+                        android:text="@string/backup_legacy_unavailable"
  />
 
                 </LinearLayout>

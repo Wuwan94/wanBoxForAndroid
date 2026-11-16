@@ -22,7 +22,7 @@ class GroupEditorValidationTest {
 
     @Test fun urlTestParametersHaveExactValuesAndAcceptInheritedUrlAndCoreDurations() {
         assertTrue(errors(draft()).isEmpty())
-        for (duration in listOf("0", "0s", "1.5s", "2h30m", "10ms", "5us", "5µs", "1ns")) {
+        for (duration in listOf("30m", "1800s", "2h30m", "30m0.1s")) {
             assertTrue(duration, errors(draft().copy(parameters = draft().parameters.copy(idleTimeout = duration))).isEmpty())
         }
         for (url in listOf("ftp://example.test", "http://", "https://a b", "https:opaque")) {
@@ -103,5 +103,60 @@ class GroupEditorValidationTest {
                 fail("invalid outbound topology accepted")
             } catch (_: IllegalArgumentException) { }
         }
+    }
+
+    @Test fun candidateSnapshotUsesSelectedMainProfileTag() {
+        val baseline = com.google.gson.JsonParser.parseString("""{"config":{"outbounds":[{"tag":"proxy","type":"selector","default":"a","outbounds":["a","b"]},{"tag":"a","type":"socks"},{"tag":"b","type":"socks"}]},"files":{}}""").asJsonObject
+        baseline.getAsJsonObject("files").addProperty("files/profile_tags.json",
+            java.util.Base64.getEncoder().encodeToString("""{"2":{"tag":"a"},"3":{"tag":"b"}}""".toByteArray()))
+        val patched = GroupEditor.patchSnapshot(baseline, draft().copy(mode = GroupMode.SELECTOR),
+            "proxy", "", selectedProfileId = 3L)
+        assertEquals("b", patched["config"].asJsonObject["outbounds"].asJsonArray[0].asJsonObject["default"].asString)
+        assertEquals("a", baseline["config"].asJsonObject["outbounds"].asJsonArray[0].asJsonObject["default"].asString)
+    }
+
+    @Test fun selectorKeepsExplicitCurrentSelectionInsteadOfFirstMember() {
+        val before = com.google.gson.JsonParser.parseString("""{"outbounds":[{"tag":"proxy","type":"selector","default":"b","outbounds":["a","b"]},{"tag":"a","type":"socks"},{"tag":"b","type":"socks"}]}""").asJsonObject
+        val selector = draft().copy(mode = GroupMode.SELECTOR)
+        fun patch(selected: String? = null) = GroupEditor.patchOutbounds(before, selector, "proxy",
+            mapOf(2L to "a", 3L to "b"), "", selected)["outbounds"].asJsonArray[0].asJsonObject
+        assertEquals("b", patch()["default"].asString)
+        assertEquals("a", patch("a")["default"].asString)
+        assertFalse(patch("removed").has("default"))
+        val removed = GroupEditor.patchOutbounds(before, selector.copy(members = listOf(2)), "proxy",
+            mapOf(2L to "a", 3L to "b"), "")["outbounds"].asJsonArray[0].asJsonObject
+        assertFalse(removed.has("default"))
+        assertEquals("b", before["outbounds"].asJsonArray[0].asJsonObject["default"].asString)
+    }
+
+    @Test fun nodeTagCollisionFailsClosedWithoutMutatingInput() {
+        val before = com.google.gson.JsonParser.parseString("""{"outbounds":[{"tag":"Work","type":"socks"},{"tag":"a","type":"socks"}]}""").asJsonObject
+        assertEquals("duplicate_tag", assertThrows(IllegalArgumentException::class.java) {
+            GroupEditor.patchOutbounds(before, draft().copy(members = listOf(2)), "Work", mapOf(2L to "a"), "")
+        }.message)
+        assertEquals("socks", before["outbounds"].asJsonArray[0].asJsonObject["type"].asString)
+    }
+
+    @Test fun editorCannotBypassUrlTestStabilityLimits() {
+        val params = draft().parameters.copy(intervalSeconds = 1, idleTimeout = "2m", interruptExisting = true)
+        val issues = errors(draft().copy(parameters = params))
+        assertTrue(issues.any { it.code == "minimum_10_seconds" })
+        assertTrue(issues.any { it.code == "minimum_30_minutes" })
+        assertTrue(issues.any { it.code == "interrupt_locked_off" })
+        val before = com.google.gson.JsonParser.parseString("""{"outbounds":[{"tag":"a","type":"socks"},{"tag":"b","type":"socks"}]}""").asJsonObject
+        val out = GroupEditor.patchOutbounds(before, draft().copy(parameters = params), "Work",
+            mapOf(2L to "a", 3L to "b"), "")["outbounds"].asJsonArray.last().asJsonObject
+        assertEquals("10s", out["interval"].asString)
+        assertEquals("30m", out["idle_timeout"].asString)
+        assertFalse(out["interrupt_exist_connections"].asBoolean)
+        for (duration in listOf("0", "1ns", "1.5s", "29m59s"))
+            assertTrue(errors(draft().copy(parameters = params.copy(intervalSeconds = 600,
+                idleTimeout = duration, interruptExisting = false))).any { it.field == "idleTimeout" })
+    }
+
+    @Test fun deletingNodesPrunesOnlySelectedIdsAndRemovesEmptyOverride() {
+        assertEquals(listOf(3L), withoutDeletedMembers(draft(), setOf(2))!!.members)
+        assertEquals(draft(), withoutDeletedMembers(draft(), setOf(99)))
+        assertNull(withoutDeletedMembers(draft(), setOf(2, 3)))
     }
 }

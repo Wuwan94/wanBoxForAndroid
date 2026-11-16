@@ -1659,6 +1659,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                                             }
 
                                             SagerDatabase.proxyDao.deleteProxy(toClear)
+                                            io.nekohasekai.sagernet.group.editor.GroupEditorStore.removeDeletedMembers(toClear.map { it.id }.toSet())
                                             val affectedGroupIds = toClear.map { it.groupId }.distinct().filter { it > 0L }
                                             if (isAll) {
                                                 affectedGroupIds.forEach { gid ->

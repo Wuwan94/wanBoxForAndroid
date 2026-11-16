@@ -51,7 +51,7 @@ class GroupEditorActivity : ThemedActivity() {
                 else if (id != 0L) GroupEditorService.load(id)
                 else GroupDraft((SagerDatabase.groupDao.allGroups().maxOfOrNull { it.id } ?: 0) + 1,
                     "", GroupMode.SELECTOR, emptyList(), UrlTestParameters("", 600, 100, "30m", false))
-                loadedDraft to (GroupEditorStore.read(loadedDraft.id) != null)
+                loadedDraft to (SagerDatabase.groupDao.getById(loadedDraft.id) != null)
             }
             } catch (error: CancellationException) { throw error }
             catch (_: Exception) {
@@ -98,7 +98,7 @@ class GroupEditorActivity : ThemedActivity() {
         toleranceField = field(R.string.urltest_tolerance, draft.parameters.toleranceMs.toString(), true)
         idleField = field(R.string.urltest_idle_timeout, draft.parameters.idleTimeout)
         interruptField = CheckBox(this).apply {
-            setText(R.string.urltest_interrupt_exist); isChecked = draft.parameters.interruptExisting; form.addView(this)
+            setText(R.string.group_editor_stability_limits); isChecked = false; isEnabled = false; form.addView(this)
         }
         result = TextView(this).apply { form.addView(this) }
         save = button(R.string.group_editor_apply) { applyDraft() }.also { form.addView(it) }
@@ -165,6 +165,7 @@ class GroupEditorActivity : ThemedActivity() {
         enableForm(form, !busy && !blocked)
         nameField.isEnabled = !busy && !blocked && !locked
         modeField.isEnabled = !busy && !blocked && !locked
+        interruptField.isEnabled = false
         recover.visibility = if (blocked) View.VISIBLE else View.GONE
         // Recovery remains available while every draft control stays blocked.
         recover.isEnabled = !busy
@@ -206,6 +207,7 @@ class GroupEditorActivity : ThemedActivity() {
                             "missing_entity" -> R.string.group_editor_missing_entity
                             "cycle" -> R.string.group_editor_cycle
                             "duplicate_member" -> R.string.group_editor_duplicate_member
+                            "minimum_10_seconds", "minimum_30_minutes", "interrupt_locked_off" -> R.string.group_editor_stability_limits
                             "positive_seconds_required" -> R.string.group_editor_positive_seconds
                             "nonnegative_required" -> R.string.group_editor_nonnegative
                             "invalid_duration" -> R.string.group_editor_duration

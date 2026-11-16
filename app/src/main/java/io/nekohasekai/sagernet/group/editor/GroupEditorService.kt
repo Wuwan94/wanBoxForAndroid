@@ -49,12 +49,13 @@ object GroupEditorService {
             addAll(setOf("proxy", "direct", "block", "bypass", "fragment", "mixed"))
             addAll(groups.filter { it.id != draft.id }.mapNotNull { it.name?.trim() })
             addAll(profiles.map { "g-${it.id}" })
+            addAll(profiles.mapNotNull { it.displayName().trim().takeIf(String::isNotEmpty) })
         }
         val errors = GroupEditor.validate(draft, existing, graph, occupied).toMutableList()
         // Inspect every edge, including nodes hidden by a saved member list.
         val candidateGraph = graph + (EntityId.Group(draft.id) to draft.members.map { EntityId.Node(it) })
         errors += GroupEditor.referenceIssues(existing + EntityId.Group(draft.id), candidateGraph)
-        val original = GroupEditorStore.read(draft.id)
+        val original = groups.firstOrNull { it.id == draft.id }?.let { load(it.id) }
         if (original != null && GroupEditor.identityError(original, draft) != null)
             errors += GroupEditor.Issue("name", "identity_locked")
         return errors

@@ -219,6 +219,10 @@ jobs:
           if-no-files-found: error
       - name: Validate unpublished candidate assets
         run: |
+          python3 tools/diagnostics/check_current_version_docs.py
+          python3 tools/version_code.py --check-kotlin --check-app-tag
+          git diff --exit-code -- nb4a.properties
+          python3 tools/size_budget.py --module module-artifacts/wanbox-root-module-arm64-v8a.zip --apk public-apks/*arm64-v8a*.apk --enforce-limit --json candidate-size-budget.json
           mkdir candidate
           cp public-apks/*.apk module-artifacts/*.zip candidate/
           AAPT=$(find "${ANDROID_HOME}/build-tools" -name aapt | sort -V | tail -n 1)
@@ -248,6 +252,7 @@ jobs:
           name: preview-validation-reports
           path: |
             candidate-validation.json
+            candidate-size-budget.json
             formal-apk-badging.txt
             formal-apk-signature.txt
             app/build/test-results
@@ -302,7 +307,7 @@ jobs:
           arch: x86_64
           profile: pixel_7_pro
           script: |
-            ./gradlew app:connectedPreviewDebugAndroidTest -PwanboxThin=true -PwanboxInternalTestAbi=x86_64 -Pandroid.testInstrumentationRunnerArguments.class=io.nekohasekai.sagernet.PortableBackupCompatibilityTest
+            ./gradlew app:connectedPreviewDebugAndroidTest -PwanboxThin=true -PwanboxInternalTestAbi=x86_64 -Pandroid.testInstrumentationRunnerArguments.class=io.nekohasekai.sagernet.PortableBackupCompatibilityTest,io.nekohasekai.sagernet.GroupEditorPersistenceTest
             ./gradlew :benchmark:connectedOssBenchmarkAndroidTest -PwanboxBenchmark=true -PwanboxThin=true -PwanboxInternalTestAbi=x86_64 -Pandroid.testInstrumentationRunnerArguments.class=com.lit008834.wanbox.benchmark.StartupBenchmark#coldStartNoProfile -Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.suppressErrors=EMULATOR
       - uses: actions/upload-artifact@v4
         if: always()

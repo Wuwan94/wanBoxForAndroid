@@ -55,7 +55,9 @@ object GroupManager {
 
     suspend fun clearGroup(groupId: Long) {
         DataStore.selectedProxy = 0L
+        val removed = SagerDatabase.proxyDao.getIdsByGroup(groupId).toSet()
         SagerDatabase.proxyDao.deleteAll(groupId)
+        io.nekohasekai.sagernet.group.editor.GroupEditorStore.removeDeletedMembers(removed)
         iterator { groupUpdated(groupId) }
     }
 
@@ -98,15 +100,19 @@ object GroupManager {
     }
 
     suspend fun deleteGroup(groupId: Long) {
+        val removed = SagerDatabase.proxyDao.getIdsByGroup(groupId).toSet()
         SagerDatabase.groupDao.deleteById(groupId)
         SagerDatabase.proxyDao.deleteByGroup(groupId)
+        io.nekohasekai.sagernet.group.editor.GroupEditorStore.removeDeletedMembers(removed)
         iterator { groupRemoved(groupId) }
         SubscriptionUpdater.reconfigureUpdater()
     }
 
     suspend fun deleteGroup(group: List<ProxyGroup>) {
+        val removed = group.flatMap { SagerDatabase.proxyDao.getIdsByGroup(it.id) }.toSet()
         SagerDatabase.groupDao.deleteGroup(group)
         SagerDatabase.proxyDao.deleteByGroup(group.map { it.id }.toLongArray())
+        io.nekohasekai.sagernet.group.editor.GroupEditorStore.removeDeletedMembers(removed)
         for (proxyGroup in group) iterator { groupRemoved(proxyGroup.id) }
         SubscriptionUpdater.reconfigureUpdater()
     }

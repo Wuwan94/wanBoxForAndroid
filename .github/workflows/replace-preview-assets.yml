@@ -1,0 +1,182 @@
+# Preparation is read-only. Execute is a separate explicit dispatch of the reviewed plan.
+name: Replace Existing Preview Assets
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [prepare, execute]
+        default: prepare
+        required: true
+      approved_sha:
+        description: 'Reviewed main SHA, exactly 40 lowercase hex characters'
+        required: true
+        type: string
+      candidate_run_id:
+        description: 'Successful Preview Build on that exact main SHA (including emulator gates)'
+        required: true
+        type: string
+      old_tag_sha:
+        description: 'Prepare only: current unchanged preview tag commit'
+        type: string
+        required: false
+      old_manifest_sha256:
+        description: 'Prepare only: current Release SHA256SUMS SHA-256'
+        type: string
+        required: false
+      preparation_run_id:
+        description: 'Execute only: successful read-only preparation run on approved_sha'
+        type: string
+        required: false
+      approved_plan_sha256:
+        description: 'Execute only: reviewed replacement-plan.json SHA-256 from preparation'
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: wanbox-release-publication
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: inputs.mode == 'prepare'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require exact reviewed main source and unchanged versions
+        env:
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+          CANDIDATE_RUN: ${{ inputs.candidate_run_id }}
+          OLD_TAG_SHA: ${{ inputs.old_tag_sha }}
+          OLD_MANIFEST: ${{ inputs.old_manifest_sha256 }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          [[ "$APPROVED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$GITHUB_SHA" = "$APPROVED_SHA"
+          [[ "$CANDIDATE_RUN" =~ ^[0-9]+$ ]]
+          [[ "$OLD_TAG_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$OLD_MANIFEST" =~ ^[0-9a-f]{64}$ ]]
+          python3 tools/version_code.py --check-kotlin --check-app-tag
+      - uses: actions/download-artifact@v4
+        with:
+          name: preview-candidate
+          path: candidate
+          run-id: ${{ inputs.candidate_run_id }}
+          github-token: ${{ github.token }}
+      - name: Verify signed candidate and preserve complete rollback copy (no remote writes)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+          CANDIDATE_RUN: ${{ inputs.candidate_run_id }}
+          OLD_TAG_SHA: ${{ inputs.old_tag_sha }}
+          OLD_MANIFEST: ${{ inputs.old_manifest_sha256 }}
+        run: |
+          set -euo pipefail
+          TAG="v$(grep '^PRE_VERSION_NAME=' nb4a.properties | cut -d= -f2 | tr -d '\r\n')"
+          test "$TAG" = v3.0.16-preview.3
+          AAPT=$(find "${ANDROID_HOME}/build-tools" -name aapt | sort -V | tail -n 1)
+          APKSIGNER=$(find "${ANDROID_HOME}/build-tools" -name apksigner | sort -V | tail -n 1)
+          python3 tools/preview_replacement.py prepare --repo "$GITHUB_REPOSITORY" --candidate candidate --backup rollback --source-sha "$APPROVED_SHA" --run-id "$CANDIDATE_RUN" --tag "$TAG" --old-tag-sha "$OLD_TAG_SHA" --old-manifest-sha256 "$OLD_MANIFEST" --aapt "$AAPT" --apksigner "$APKSIGNER" | tee replacement-preparation.txt
+          sha256sum rollback/replacement-plan.json >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: preview-replacement-rollback
+          path: rollback/
+          if-no-files-found: error
+          retention-days: 90
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: preview-replacement-preparation-report
+          path: replacement-preparation.txt
+          if-no-files-found: warn
+
+  execute:
+    if: inputs.mode == 'execute'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # Configure required reviewers for this environment in repository settings.
+    # The exact approved plan digest is required even if environment protection is unset.
+    environment: preview-asset-replacement
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify reviewed source and successful preparation run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+          PREPARATION_RUN: ${{ inputs.preparation_run_id }}
+          CANDIDATE_RUN: ${{ inputs.candidate_run_id }}
+          PLAN_SHA: ${{ inputs.approved_plan_sha256 }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          [[ "$APPROVED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$GITHUB_SHA" = "$APPROVED_SHA"
+          [[ "$PREPARATION_RUN" =~ ^[0-9]+$ ]]
+          [[ "$CANDIDATE_RUN" =~ ^[0-9]+$ ]]
+          [[ "$PLAN_SHA" =~ ^[0-9a-f]{64}$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PREPARATION_RUN" > preparation-run.json
+          python3 - <<'PY'
+          import json, os
+          run = json.load(open('preparation-run.json'))
+          assert run['head_sha'] == os.environ['APPROVED_SHA']
+          assert run['head_branch'] == 'main' and run['conclusion'] == 'success'
+          assert run['path'].split('@')[0] == '.github/workflows/replace-preview-assets.yml'
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: preview-candidate
+          path: candidate
+          run-id: ${{ inputs.candidate_run_id }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: preview-replacement-rollback
+          path: rollback
+          run-id: ${{ inputs.preparation_run_id }}
+          github-token: ${{ github.token }}
+      - name: Verify exact reviewed plan matches dispatch before mutation
+        env:
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+          CANDIDATE_RUN: ${{ inputs.candidate_run_id }}
+          PLAN_SHA: ${{ inputs.approved_plan_sha256 }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          data = Path('rollback/replacement-plan.json').read_bytes()
+          assert hashlib.sha256(data).hexdigest() == os.environ['PLAN_SHA']
+          plan = json.loads(data)
+          assert plan['source_sha'] == os.environ['APPROVED_SHA']
+          assert plan['candidate_run_id'] == int(os.environ['CANDIDATE_RUN'])
+          assert plan['tag'] == 'v3.0.16-preview.3'
+          PY
+      - name: Replace verified assets without moving the original tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLAN_SHA: ${{ inputs.approved_plan_sha256 }}
+        run: |
+          set -euo pipefail
+          AAPT=$(find "${ANDROID_HOME}/build-tools" -name aapt | sort -V | tail -n 1)
+          APKSIGNER=$(find "${ANDROID_HOME}/build-tools" -name apksigner | sort -V | tail -n 1)
+          python3 tools/preview_replacement.py execute --repo "$GITHUB_REPOSITORY" --candidate candidate --backup rollback --approved-plan-sha256 "$PLAN_SHA" --aapt "$AAPT" --apksigner "$APKSIGNER"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: preview-replacement-result-and-rollback
+          path: rollback/
+          if-no-files-found: error
+          retention-days: 90

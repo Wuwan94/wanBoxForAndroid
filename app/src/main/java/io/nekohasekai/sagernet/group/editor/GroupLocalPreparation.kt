@@ -29,7 +29,7 @@ class GroupLocalPreparation(private val draft: GroupDraft) {
         }
         fun clearRecord() {
             AtomicFile(journal).delete()
-            if (pending()) throw IOException("cleanup_required")
+            if (pending()) throw IOException("group_editor_recovery_required")
         }
         fun restorePendingLocal() {
             if (!pending()) return
@@ -42,7 +42,7 @@ class GroupLocalPreparation(private val draft: GroupDraft) {
     private var originalRecord: UndoRecord? = null
 
     fun prepare(baselineJson: String? = null) {
-        if (pending()) throw IOException("cleanup_required")
+        if (pending()) throw IOException("group_editor_recovery_required")
         val atomic = AtomicFile(journal)
         val output = atomic.startWrite()
         try {
