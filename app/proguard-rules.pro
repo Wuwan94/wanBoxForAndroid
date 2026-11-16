@@ -17,6 +17,13 @@
 -keep class io.nekohasekai.sagernet.database.RuleEntity { *; }
 -keep class io.nekohasekai.sagernet.database.SubscriptionBean { *; }
 -keep class io.nekohasekai.sagernet.database.preference.KeyValuePair { *; }
+# Verify 43812842528 release instrumentation: members became Double; journal recovery ClassCast.
+# Draft/recovery JSON is a persistent contract: renaming fields breaks historical data.
+# Keep fields and generic signatures together with the existing Signature attribute rule.
+-keep class io.nekohasekai.sagernet.group.editor.GroupDraft { *; }
+-keep class io.nekohasekai.sagernet.group.editor.UrlTestParameters { *; }
+-keep class io.nekohasekai.sagernet.group.editor.GroupLocalPreparation$Companion$UndoRecord { *; }
+-keep enum io.nekohasekai.sagernet.group.editor.GroupMode { *; }
 # Generated Room implementations are loaded by class name.
 -keep class * extends androidx.room.RoomDatabase { *; }
 -keep class **_Impl { *; }

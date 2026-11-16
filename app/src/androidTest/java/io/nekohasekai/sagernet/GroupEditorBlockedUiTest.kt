@@ -21,9 +21,13 @@ class GroupEditorBlockedUiTest {
     private fun blockedResubmit(emptyMembers: Boolean) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
-        check(!GroupLocalPreparation.pending()) { "Requires a clean editor transaction" }
+        val foreignJournalExisted = GroupLocalPreparation.pending()
+        check(!foreignJournalExisted) { "Requires a clean editor transaction" }
         val original = BackupRestore.parse(org.json.JSONObject(
             io.nekohasekai.sagernet.utils.BackupHelper.doBackup().toString(Charsets.UTF_8)))
+        val draft = GroupDraft(99124, "blocked-ui", GroupMode.URL_TEST, listOf(99125),
+            UrlTestParameters("", 600, 100, "30m", false))
+        var preparation: GroupLocalPreparation? = null
         var activity: GroupEditorActivity? = null
         fun views(view: View): List<View> = listOf(view) +
             if (view is ViewGroup) (0 until view.childCount).flatMap { views(view.getChildAt(it)) } else emptyList()
@@ -39,6 +43,7 @@ class GroupEditorBlockedUiTest {
             }
             fail("Editor did not reach expected UI state")
         }
+        var failure: Throwable? = null
         try {
             val group = ProxyGroup(id = 99124, name = "blocked-ui", isSelector = true)
             val node = ProxyEntity(id = 99125, groupId = group.id).putBean(
@@ -46,8 +51,6 @@ class GroupEditorBlockedUiTest {
                     initializeDefaultValues(); serverAddress = "192.0.2.1"; serverPort = 1080
                 })
             BackupRestore.apply(BackupRestore.Plan(listOf(node), listOf(group), emptyList(), null), true, true, false)
-            val draft = GroupDraft(group.id, "blocked-ui", GroupMode.URL_TEST, listOf(node.id),
-                UrlTestParameters("", 600, 100, "30m", false))
             GroupEditorStore.write(draft)
             activity = instrumentation.startActivitySync(Intent(context, GroupEditorActivity::class.java)
                 .putExtra("id", group.id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as GroupEditorActivity
@@ -61,7 +64,8 @@ class GroupEditorBlockedUiTest {
                 else page().filterIsInstance<EditText>()[2].setText("0")
             }
             // A durable interrupted transaction is the production cleanup_required boundary.
-            GroupLocalPreparation(draft).prepare("{}")
+            preparation = GroupLocalPreparation(draft)
+            preparation.prepare("{}")
             instrumentation.runOnMainSync { button(R.string.group_editor_apply).performClick() }
             awaitPage { page().filterIsInstance<TextView>().any { it.text == context.getString(R.string.group_editor_cleanup) } }
             instrumentation.runOnMainSync {
@@ -79,13 +83,21 @@ class GroupEditorBlockedUiTest {
                 assertFalse(texts.any { it.contains(context.getString(R.string.group_editor_not_applied)) })
             }
             assertTrue(GroupLocalPreparation.pending())
+        } catch (error: Throwable) {
+            failure = error
         } finally {
-            instrumentation.runOnMainSync { activity?.finish() }
-            if (GroupLocalPreparation.pending()) {
-                GroupLocalPreparation.restorePendingLocal()
-                GroupLocalPreparation.clearRecord()
+            fun cleanup(step: () -> Unit) {
+                try { step() } catch (error: Throwable) {
+                    if (failure == null) failure = error else failure!!.addSuppressed(error)
+                }
             }
-            BackupRestore.apply(original, true, true, true)
+            cleanup { instrumentation.runOnMainSync { activity?.finish() } }
+            cleanup {
+                preparation?.restore()
+                preparation?.finish()
+            }
+            cleanup { BackupRestore.apply(original, true, true, true) }
         }
+        failure?.let { throw it }
     }
 }

@@ -432,6 +432,9 @@
 # GroupEditorPersistenceTest:130-132 exercises the ordinary settings round trip.
 -keep class io.nekohasekai.sagernet.ui.GroupSettingsActivity {
     public <init>();
+    # Verify 43812842528: Kotlin default-argument calls cross the APK boundary.
+    public <init>(int);
+    public <init>(int, int, kotlin.jvm.internal.DefaultConstructorMarker);
     public void init(io.nekohasekai.sagernet.database.ProxyGroup);
     public void serialize(io.nekohasekai.sagernet.database.ProxyGroup);
 }

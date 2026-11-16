@@ -2,6 +2,12 @@
 
 ## 4a 图形化策略组编辑
 
+- cifix5b astra S1（2026-11-16）：Standards PASS 0、Spec FAIL 1，统筹接受；BlockedUi 记录外来 journal 所有权快照，仅清理本轮 journal，首个失败传播、后续清理失败 addSuppressed。Persistence 实例 restore/finish 受 started 保护，外来 journal 在 prepare 前置拒绝时 started=false，无同类风险，保持原样。生产及两份 proguard 本轮不动，断言/用例不变；发布版插桩未本地验证，以 CI 为准，不勾选门禁。
+
+- CI 第五轮统筹裁决后（2026-11-16，Verify 43812842528）：裁决为生产缺陷，采用候选 A（正式精确保留），本轮允许仅为指定持久模型修改 app/proguard-rules.pro；候选 B 显式 TypeAdapter/schema 暂缓。保留 GroupDraft、UrlTestParameters、实际嵌套 UndoRecord 与 GroupMode，沿用 Signature 和 KeyValuePair 正式保留以维护历史 JSON 契约。独立将创建 journal 的 BlockedUi 失败用例 finally 改为嵌套 try/finally，保证备份归还、恢复异常传播，不删除外来 journal，不改断言。#1/#3/#4/#7 归属正式保留；#2/#5/#6/#9/#11 为预期随根因消失的级联；#8 沿用 cifix5 构造器 keep；#10 为夹具污染顺序依赖，若残留下轮诊断，12 节点要求不变。发布版插桩未本地验证，以 CI 为准，门禁不勾选；完整裁决原文与逐条归属见 BATCH4_4A_IMPLEMENTATION_LOG.md。
+
+- CI 第五轮（2026-11-16，Verify 43812842528）：debug 69 项零失败，release 11 失败。逐条诊断及证据边界见 BATCH4_4A_IMPLEMENTATION_LOG.md；仅补测试专用 GroupSettingsActivity 的 int 主构造器和 Kotlin 默认参数构造器精确 keep。Gson 草稿成员 Double / journal 恢复 ClassCast 涉及正式包反射模型保留风险，已标红停修待统筹裁决；cleanup_required 及 UI 夹具污染符合首个恢复失败后的级联，完整 mapping/时序仍待补证。未修改生产代码、正式 proguard-rules.pro 或测试断言，发布版插桩未本地验证，以 CI 为准，门禁不勾选。
+
 - CI 第四轮（2026-11-16，Verify 43807329236）：debug 69 项零失败、2 跳过，cifix3 保留；release 插桩 12 条跨 APK 链接错误。仅在 wanboxReleaseTests 专用 proguard-release-tests.pro 精确保留缺失成员，并全扫本批四个测试的调用边界补齐后续缺口；生产/测试代码与正式 proguard-rules.pro 零改动。发布插桩未本地验证，以 CI 为准；逐条映射、扫描及本地门禁见 BATCH4_4A_IMPLEMENTATION_LOG.md。
 
 - CI 第三轮（2026-11-16，Verify 43801611674）：69 项、仅 createdGroupIsInSnapshotAndBalancerUsesItsStableNodeMembers 失败、2 跳过。诊断为夹具默认 leastPing 合法生成 urltest，而断言要求 loadbalance；仅显式设置 UI 支持并会保存的 STRATEGY_ROUND_ROBIN，生产代码零改动，成员仍精确等于同一 build 的 profile_tags[99125].tag，其余已通过测试不动。插桩未本地验证，以后续 CI 为准；详见 BATCH4_4A_IMPLEMENTATION_LOG.md。
@@ -80,3 +86,12 @@
 - 修正 G4 旧判断：双语文案修改并不足以闭环，SP1 指出的后续本地校验确有同类假报，本轮补阻断状态处理。未推进 4b/4c。
 
 - CI 第二轮补充裁决（统筹方，2026-11-16）：接受 astra 复审 P1；第 3 条用例第 183 行硬编码 g-99125 与第 4 条同属测试期望错误，已按同一份基线 files/profile_tags.json 记录的节点 99125 运行时 tag 修正精确单成员列表期望。CI2B 当时要求前三条保持原样，本次为统筹简报未覆盖处的补充裁决；其余断言与夹具修法保持不动，插桩待 CI。
+
+## 4a cifix5c S1 窄化修复留痕（2026-11-16）
+
+- astra 复审：Standards PASS（0 发现）；Spec FAIL（S1 仍开但已窄化）。入口无 journal 的快照不能证明本测试取得 journal 所有权；并发事务可在快照后先创建 journal，使本测试 prepare 被拒，而旧 finally 仍可能恢复并删除外来 journal。
+- 统筹裁决：仅测试侧修复，生产代码及两份 proguard 不动。保留入口 foreignJournalExisted 检查与 pending 断言，不改断言、不删或跳过用例。
+- 修法：保留实际 GroupLocalPreparation 实例，prepare 后 finally 经实例 restore()/finish() 清理。实例内部 started 守卫确保 prepare 因 pending 检查失败时两者为 no-op；成功 prepare 后实例才恢复并清除其 journal。保持原 cleanup 错误处理及首错/suppressed 优先级。
+- 门禁：Python 工具测试 108 项、版本文档检查及空白检查执行结果见本轮交付说明；Kotlin 红绿与发布版插桩待 CI，不作本地通过声明。
+
+- 4a cifix5e（2026-11-16）：astra cifix5d 再审 Standards PASS/0，Spec FAIL/S1：提前构造快照 existed=false，夹具创建 99124 后 prepare 重复插入，核心断言不可达；原外来 journal 竞态已闭合。统筹接受，仅修测试：try 前声明可空 preparation，在夹具及初始草稿写入后、prepare 前构造，finally 原 cleanup 内用 ?.restore()/?.finish()，保持异常优先级。入口 foreignJournalExisted、pending 及所有断言保留，不删/跳过用例；生产与两份 proguard 本轮不动。门禁结果见实现日志；Kotlin 红绿、发布版插桩以 CI 为准，未本地验证，未提交/推送。
