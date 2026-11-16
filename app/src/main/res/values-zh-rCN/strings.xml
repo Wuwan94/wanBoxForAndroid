@@ -1098,6 +1098,28 @@
     <string name="backup_access_error">文件访问被拒绝，请重新选择备份并授权读取。</string>
     <string name="backup_choose_json">选择的是日志文件。请选择 OwnBox_backup_*.json 或备份 ZIP；不要把日志改名为 JSON。</string>
     <string name="backup_invalid_or_unreadable">无法读取此备份。请选择实际导出的 JSON/ZIP，检查文件权限，或用原版本重新导出。</string>
+    <!-- @author 雾晚: batch 4c migration notes -->
+    <string name="backup_export_legacy">兼容导出（旧版本）</string>
+    <string name="migration_reading_title">恢复前必读</string>
+    <string name="migration_reading_schemas">备份格式：%1$s\n目标格式：%2$s\n应用版本：%3$s</string>
+    <string name="migration_reading_counts">内容：配置 %1$d 条、分组 %2$d 个、规则 %3$d 条、设置 %4$d 项。引用检查已通过；仅覆盖你勾选的类别。</string>
+    <string name="migration_reading_verified">该备份文件已读取并通过完整校验。在确认恢复成功前，请勿删除源备份与原应用数据。</string>
+    <string name="migration_reading_needs_conversion">这是旧格式备份：恢复时会把数据转换到当前格式。旧格式从未保存的字段将按明确缺省语义补齐，并在结果报告中标注，不会声称其来自备份。</string>
+    <string name="migration_reading_no_conversion">该备份已是当前格式：本次恢复无需数据转换。</string>
+    <string name="migration_reading_defaulted">按缺省补齐（非来自备份）：%1$s</string>
+    <string name="migration_reading_confirm">已阅读，继续恢复</string>
+    <string name="migration_report_title">恢复结果</string>
+    <string name="migration_report_schemas">源格式：%1$s\n目标格式：%2$s</string>
+    <string name="migration_report_counts">配置 %1$d 条、分组 %2$d 个、规则 %3$d 条、设置 %4$d 项。引用检查：通过。</string>
+    <string name="migration_report_database_completed">数据库恢复：已完成。</string>
+    <string name="migration_report_database_rolled_back">数据库恢复：已回滚，现有数据未改变。原因：%1$s</string>
+    <string name="migration_report_database_blocked">数据库恢复：写入前已阻断，现有数据未改变。原因：%1$s</string>
+    <string name="migration_report_core_separate">核心配置应用：恢复步骤未执行核心应用。重启后服务按现有流程加载恢复数据，其结果在那边单独呈现，不与数据库恢复混称。</string>
+    <string name="migration_report_defaulted">按缺省补齐（非来自备份）：%1$s</string>
+    <string name="migration_report_recovery">如发现异常，可重新导入原始备份，或用原版本重新导出；请勿先删除源数据。</string>
+    <string name="migration_legacy_blocked_title">兼容导出已拒绝</string>
+    <string name="migration_legacy_field">字段 %1$s 无法由旧格式表示。</string>
+    <string name="migration_legacy_reader_unverified">旧版本应用能否读取新写出的旧格式文件尚未验证，故在写入前按 Fail-Closed 拒绝，不静默丢弃数据。请改用标准版本化导出。</string>
     <!-- @author 雾晚 -->
     <string name="notification_member_pending">等待活动节点</string>
     <string name="notification_direct_speed">直连 ↑%1$s ↓%2$s</string>

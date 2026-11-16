@@ -73,6 +73,29 @@ class PortableBackupCompatibilityTest {
             assertEquals(plan.rules,migrated.rules)
         }
     }
+    @Test fun historicalImportDefaultsGroupFieldsMissingFromLegacyRecords() {
+        // Batch 4c direction matrix: the legacy group record never carried
+        // isSelector/frontProxy/landingProxy, so import must surface the explicit
+        // defaults (false/-1/-1) while representable fields stay equal.
+        val source = BackupRestore.Plan(
+            listOf(ProxyEntity(id=812, groupId=811, tx=22, speedTestMode="download").putBean(SOCKSBean().apply {
+                initializeDefaultValues(); serverAddress="192.0.2.2"; name="虚构节点"; username="fictional"; password="test-only"
+            })),
+            listOf(ProxyGroup(id=811, name="跨设备虚构分组", isSelector=true, frontProxy=812, landingProxy=812)),
+            null, null)
+        val root = JSONObject().put("version", 1)
+            .put("profiles", JSONArray().put(parcel(source.profiles!!.single())))
+            .put("groups", JSONArray().put(parcel(source.groups!!.single())))
+        val migrated = BackupRestore.parse(BackupFiles.read(root.toString().byteInputStream(), "old.JSON"))
+        val group = migrated.groups!!.single()
+        assertEquals(811L, group.id)
+        assertEquals("跨设备虚构分组", group.name)
+        assertFalse(group.isSelector)
+        assertEquals(-1L, group.frontProxy)
+        assertEquals(-1L, group.landingProxy)
+        assertEquals("download", migrated.profiles!!.single().speedTestMode)
+        assertEquals("test-only", migrated.profiles.single().socksBean!!.password)
+    }
     @Test fun historicalSettingsImportCompletesMissingCoreDefaults() {
         val root = JSONObject().put("version", 1)
             .put("settings", JSONArray().put(parcel(KeyValuePair(Key.MTU).put("1450"))))
