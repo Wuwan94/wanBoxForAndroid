@@ -331,3 +331,111 @@
 -keep,allowobfuscation class io.nekohasekai.sagernet.core.WanHttpRequest {
     public io.nekohasekai.sagernet.core.WanHttpRequest setURL(java.lang.String);
 }
+
+# Batch 4a / Verify 43807329236: exact cross-APK APIs, verification builds only.
+# GroupEditorPersistenceTest:116,138,209,293,310 restores preference fixtures.
+-keep interface io.nekohasekai.sagernet.database.preference.KeyValuePair$Dao {
+    public void insert(java.util.List);
+    public int reset();
+}
+# GroupEditorPersistenceTest:28,111,172-173 freezes and inspects editor inputs.
+-keep class io.nekohasekai.sagernet.route.RootRouteBuildSnapshot {
+    public io.nekohasekai.sagernet.route.RootRouteBuildSnapshot withEditorDrafts(java.util.Map);
+    public java.util.Map editorDrafts();
+    public java.util.List allGroups();
+}
+# GroupEditorPersistenceTest:122,139-140 saves/restores the temporary profile cache.
+-keep class moe.matsuri.nb4a.TempDatabase$Companion {
+    public io.nekohasekai.sagernet.database.preference.KeyValuePair$Dao getProfileCacheDao();
+}
+# GroupEditorBlockedUiTest:24,64,81-86 and PersistenceTest:165-167,218-235,243-266:
+# durable preparation, fault compensation and pending-journal cleanup.
+-keep class io.nekohasekai.sagernet.group.editor.GroupLocalPreparation {
+    public static final io.nekohasekai.sagernet.group.editor.GroupLocalPreparation$Companion Companion;
+    public <init>(io.nekohasekai.sagernet.group.editor.GroupDraft);
+    public void prepare(java.lang.String);
+    public static void prepare$default(io.nekohasekai.sagernet.group.editor.GroupLocalPreparation, java.lang.String, int, java.lang.Object);
+    public void restore();
+    public void finish();
+}
+-keep class io.nekohasekai.sagernet.group.editor.GroupLocalPreparation$Companion {
+    public boolean pending();
+    public io.nekohasekai.sagernet.group.editor.GroupLocalPreparation$Companion$UndoRecord undoRecord();
+    public void restoreRecord(io.nekohasekai.sagernet.group.editor.GroupLocalPreparation$Companion$UndoRecord);
+    public void restorePendingLocal();
+    public void clearRecord();
+}
+# GroupEditorPersistenceTest:222-224 inspects the durable undo record.
+-keep class io.nekohasekai.sagernet.group.editor.GroupLocalPreparation$Companion$UndoRecord {
+    public long getId();
+    public boolean getExisted();
+    public java.lang.String getBaseline();
+}
+# GroupEditorBlockedUiTest:48-51; PersistenceTest:41-43,84-112,152-174,215-305:
+# construct, copy, persist and compare stable-ID drafts / five URL-test parameters.
+-keep class io.nekohasekai.sagernet.group.editor.GroupDraft {
+    public <init>(long, java.lang.String, io.nekohasekai.sagernet.group.editor.GroupMode, java.util.List, io.nekohasekai.sagernet.group.editor.UrlTestParameters);
+    public long getId();
+    public java.lang.String getName();
+    public java.util.List getMembers();
+    public io.nekohasekai.sagernet.group.editor.UrlTestParameters getParameters();
+    public static io.nekohasekai.sagernet.group.editor.GroupDraft copy$default(io.nekohasekai.sagernet.group.editor.GroupDraft, long, java.lang.String, io.nekohasekai.sagernet.group.editor.GroupMode, java.util.List, io.nekohasekai.sagernet.group.editor.UrlTestParameters, int, java.lang.Object);
+    public boolean equals(java.lang.Object);
+}
+-keep class io.nekohasekai.sagernet.group.editor.UrlTestParameters {
+    public <init>(java.lang.String, long, int, java.lang.String, boolean);
+    public static io.nekohasekai.sagernet.group.editor.UrlTestParameters copy$default(io.nekohasekai.sagernet.group.editor.UrlTestParameters, java.lang.String, long, int, java.lang.String, boolean, int, java.lang.Object);
+}
+-keep enum io.nekohasekai.sagernet.group.editor.GroupMode {
+    public static final io.nekohasekai.sagernet.group.editor.GroupMode SELECTOR;
+    public static final io.nekohasekai.sagernet.group.editor.GroupMode URL_TEST;
+}
+# GroupEditorPersistenceTest:86-112,228,276,304-307; BlockedUiTest:50:
+# persist and reopen accepted drafts (including the object INSTANCE cross-APK field).
+-keep class io.nekohasekai.sagernet.group.editor.GroupEditorStore {
+    public static final io.nekohasekai.sagernet.group.editor.GroupEditorStore INSTANCE;
+    public void write(io.nekohasekai.sagernet.group.editor.GroupDraft);
+    public io.nekohasekai.sagernet.group.editor.GroupDraft read(long);
+}
+# GroupEditorPersistenceTest:43,93 patches the real producer snapshot.
+-keep class io.nekohasekai.sagernet.group.editor.GroupEditor {
+    public static final io.nekohasekai.sagernet.group.editor.GroupEditor INSTANCE;
+    public com.google.gson.JsonObject patchSnapshot(com.google.gson.JsonObject, io.nekohasekai.sagernet.group.editor.GroupDraft, java.lang.String, java.lang.String);
+}
+# GroupEditorPersistenceTest:174,279,282 validates references and reopens saved state.
+-keep class io.nekohasekai.sagernet.group.editor.GroupEditorService {
+    public static final io.nekohasekai.sagernet.group.editor.GroupEditorService INSTANCE;
+    public java.util.List validate(io.nekohasekai.sagernet.group.editor.GroupDraft);
+    public io.nekohasekai.sagernet.group.editor.GroupDraft load(long);
+}
+-keep class io.nekohasekai.sagernet.group.editor.GroupEditor$Issue {
+    public java.lang.String getCode();
+}
+# GroupEditorPersistenceTest:279-281 cancels an edited in-memory session.
+-keep class io.nekohasekai.sagernet.group.editor.GroupEditSession {
+    public <init>(io.nekohasekai.sagernet.group.editor.GroupDraft);
+    public void setDraft(io.nekohasekai.sagernet.group.editor.GroupDraft);
+    public io.nekohasekai.sagernet.group.editor.GroupDraft cancel();
+}
+# GroupEditorPersistenceTest:103-114,170,217-227,242-254,273-308:
+# actual entity lookup, creation, snapshot enumeration and fixture cleanup.
+-keep interface io.nekohasekai.sagernet.database.ProxyGroup$Dao {
+    public io.nekohasekai.sagernet.database.ProxyGroup getById(long);
+    public long createGroup(io.nekohasekai.sagernet.database.ProxyGroup);
+    public int deleteById(long);
+    public java.util.List allGroups();
+}
+# GroupEditorPersistenceTest:169 inserts the balancer after real group creation.
+-keep interface io.nekohasekai.sagernet.database.ProxyEntity$Dao {
+    public void insert(java.util.List);
+}
+# GroupEditorPersistenceTest:130-132 exercises the ordinary settings round trip.
+-keep class io.nekohasekai.sagernet.ui.GroupSettingsActivity {
+    public <init>();
+    public void init(io.nekohasekai.sagernet.database.ProxyGroup);
+    public void serialize(io.nekohasekai.sagernet.database.ProxyGroup);
+}
+# GroupEditorPersistenceTest:244-248 registers a cross-APK preference fault callback.
+-keep interface io.nekohasekai.sagernet.database.preference.OnPreferenceDataStoreChangeListener {
+    public void onPreferenceDataStoreChanged(androidx.preference.PreferenceDataStore, java.lang.String);
+}
