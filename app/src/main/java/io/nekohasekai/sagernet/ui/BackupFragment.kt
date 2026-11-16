@@ -183,6 +183,34 @@ class BackupFragment : NamedFragment(R.layout.layout_backup) {
             startFilesForResult(importThroneDesktopFile, "*/*")
         }
 
+        // @author 雾晚: batch 4c — legacy-targeted export is guarded pre-write by
+        // BackupCompatibility; the verdict dialog is shown and no file is written
+        // while the guard refuses (unrepresentable fields and/or unverified
+        // historical-reader capability). A future verified reader must add the
+        // actual legacy writer together with flipping the guard.
+        binding.actionExportLegacy.setOnClickListener {
+            runOnDefaultDispatcher {
+                val verdict = BackupCompatibility.checkLegacyExport(BackupHelper.currentPlan())
+                onMainDispatcher {
+                    if (!isAdded) return@onMainDispatcher
+                    val message = buildString {
+                        verdict.unrepresentableFields.forEach { field ->
+                            append(getString(R.string.migration_legacy_field, field))
+                            append("\n")
+                        }
+                        if (!verdict.readerCapabilityVerified) {
+                            append(getString(R.string.migration_legacy_reader_unverified))
+                        }
+                    }
+                    MaterialAlertDialogBuilder(requireContext())
+                        .setTitle(R.string.migration_legacy_blocked_title)
+                        .setMessage(message.trim())
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show()
+                }
+            }
+        }
+
         setupWebDAV(binding)
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.backup)
@@ -475,40 +503,10 @@ class BackupFragment : NamedFragment(R.layout.layout_backup) {
                             val restoreProfiles = import.backupConfigurations.isChecked
                             val restoreRules = import.backupRules.isChecked
                             val restoreSettings = import.backupSettings.isChecked
-                            SagerNet.stopService()
-
-                            val binding = LayoutProgressBinding.inflate(layoutInflater)
-                            binding.content.text = getString(R.string.backup_importing)
-                            val dialog = AlertDialog.Builder(requireContext())
-                                .setView(binding.root)
-                                .setCancelable(false)
-                                .show()
-                            runOnDefaultDispatcher {
-                                runCatching {
-                                    // 再次检查是否已被取消
-                                    if (!isAdded) {
-                                        MessageStore.showMessage(app.getString(R.string.restore_cancelled))
-                                        return@runOnDefaultDispatcher
-                                    }
-                                    finishImport(
-                                        json,
-                                        restoreProfiles,
-                                        restoreRules,
-                                        restoreSettings
-                                    )
-                                    ProcessPhoenix.triggerRebirth(
-                                        activity, Intent(activity, MainActivity::class.java)
-                                    )
-                                }.onFailure {
-                                    Logs.w("Backup operation failed: ${it.javaClass.simpleName}")
-                                    onMainDispatcher {
-                                        MessageStore.showMessage(backupError(it))
-                                    }
-                                }
-
-                                onMainDispatcher {
-                                    dialog.dismiss()
-                                }
+                            confirmAndRestore(json, restoreProfiles, restoreRules, restoreSettings) {
+                                ProcessPhoenix.triggerRebirth(
+                                    activity, Intent(activity, MainActivity::class.java)
+                                )
                             }
                         }
                         .setNegativeButton(android.R.string.cancel, null)
@@ -656,30 +654,8 @@ class BackupFragment : NamedFragment(R.layout.layout_backup) {
                         val restoreProfiles = import.backupConfigurations.isChecked
                         val restoreRules = import.backupRules.isChecked
                         val restoreSettings = import.backupSettings.isChecked
-                        SagerNet.stopService()
-
-                        val binding = LayoutProgressBinding.inflate(layoutInflater)
-                        binding.content.text = getString(R.string.backup_importing)
-                        val dialog = AlertDialog.Builder(requireContext())
-                            .setView(binding.root)
-                            .setCancelable(false)
-                            .show()
-                        runOnDefaultDispatcher {
-                            runCatching {
-                                finishImport(
-                                    json,
-                                    restoreProfiles,
-                                    restoreRules,
-                                    restoreSettings
-                                )
-                                triggerFullRestart(app)
-                            }.onFailure {
-                                Logs.w("Backup operation failed: ${it.javaClass.simpleName}")
-                                onMainDispatcher {
-                                    dialog.dismiss()
-                                    MessageStore.showMessage(backupError(it))
-                                }
-                            }
+                        confirmAndRestore(json, restoreProfiles, restoreRules, restoreSettings) {
+                            triggerFullRestart(app)
                         }
                     }
                     .setNegativeButton(android.R.string.cancel, null)
@@ -694,11 +670,128 @@ class BackupFragment : NamedFragment(R.layout.layout_backup) {
     }
 
     suspend fun finishImport(
-        content: JSONObject, profile: Boolean, rule: Boolean, setting: Boolean
+        plan: BackupRestore.Plan, profile: Boolean, rule: Boolean, setting: Boolean
     ) {
-        val plan = BackupRestore.parse(content)
         val context = currentCoroutineContext()
         BackupRestore.apply(plan, profile, rule, setting) { context.ensureActive() }
+    }
+
+    // @author 雾晚: batch 4c — required-reading gate and separated result report,
+    // shared by the SAF and WebDAV restore entry points. Parse runs first and is
+    // non-destructive (full-section and reference validation before any write);
+    // without the user's confirmation nothing is applied.
+    private fun requiredReadingMessage(reading: BackupMigrationNotes.RequiredReading): String = buildString {
+        append(getString(R.string.migration_reading_schemas, reading.sourceSchema, reading.targetSchema, reading.targetAppVersion))
+        append("\n\n")
+        append(getString(R.string.migration_reading_counts, reading.profileCount, reading.groupCount, reading.ruleCount, reading.settingCount))
+        append("\n\n")
+        append(getString(if (reading.needsConversion) R.string.migration_reading_needs_conversion else R.string.migration_reading_no_conversion))
+        if (reading.defaultedFields.isNotEmpty()) {
+            append("\n\n")
+            append(getString(R.string.migration_reading_defaulted, reading.defaultedFields.joinToString(", ")))
+        }
+        append("\n\n")
+        append(getString(R.string.migration_reading_verified))
+    }
+
+    private fun restoreReportMessage(report: BackupMigrationNotes.RestoreReport): String = buildString {
+        append(getString(R.string.migration_report_schemas, report.sourceSchema, report.targetSchema))
+        append("\n\n")
+        append(getString(R.string.migration_report_counts, report.profileCount, report.groupCount, report.ruleCount, report.settingCount))
+        append("\n\n")
+        append(
+            when (report.status) {
+                BackupMigrationNotes.RestoreStatus.COMPLETED -> getString(R.string.migration_report_database_completed)
+                BackupMigrationNotes.RestoreStatus.BLOCKED ->
+                    getString(R.string.migration_report_database_blocked, report.reason ?: "")
+                BackupMigrationNotes.RestoreStatus.ROLLED_BACK ->
+                    getString(R.string.migration_report_database_rolled_back, report.reason ?: "")
+            }
+        )
+        if (report.defaultedFields.isNotEmpty()) {
+            append("\n\n")
+            append(getString(R.string.migration_report_defaulted, report.defaultedFields.joinToString(", ")))
+        }
+        append("\n\n")
+        append(getString(R.string.migration_report_core_separate))
+        append("\n\n")
+        append(getString(R.string.migration_report_recovery))
+    }
+
+    private fun confirmAndRestore(
+        json: JSONObject, restoreProfiles: Boolean, restoreRules: Boolean, restoreSettings: Boolean,
+        restart: () -> Unit,
+    ) {
+        runOnDefaultDispatcher {
+            val plan = try {
+                BackupRestore.parse(json)
+            } catch (e: Exception) {
+                Logs.w("Backup operation failed: ${e.javaClass.simpleName}")
+                onMainDispatcher { if (isAdded) safeSnackbar(backupError(e)) }
+                return@runOnDefaultDispatcher
+            }
+            onMainDispatcher {
+                if (!isAdded) return@onMainDispatcher
+                val reading = BackupMigrationNotes.requiredReading(json, plan, BuildConfig.VERSION_NAME)
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(R.string.migration_reading_title)
+                    .setMessage(requiredReadingMessage(reading))
+                    .setPositiveButton(R.string.migration_reading_confirm) { _, _ ->
+                        if (!BackupMigrationNotes.canStartConversion(
+                                confirmed = true, backupReadable = true, validationPassed = reading.backupVerified,
+                            )
+                        ) return@setPositiveButton
+                        SagerNet.stopService()
+                        val binding = LayoutProgressBinding.inflate(layoutInflater)
+                        binding.content.text = getString(R.string.backup_importing)
+                        val dialog = AlertDialog.Builder(requireContext())
+                            .setView(binding.root)
+                            .setCancelable(false)
+                            .show()
+                        runOnDefaultDispatcher {
+                            val result = runCatching {
+                                finishImport(plan, restoreProfiles, restoreRules, restoreSettings)
+                            }
+                            result.exceptionOrNull()?.let {
+                                Logs.w("Backup operation failed: ${it.javaClass.simpleName}")
+                            }
+                            onMainDispatcher {
+                                dialog.dismiss()
+                                if (!isAdded) return@onMainDispatcher
+                                val report = if (result.isSuccess) {
+                                    BackupMigrationNotes.restoreReport(
+                                        json, plan, BackupMigrationNotes.RestoreStatus.COMPLETED, null,
+                                    )
+                                } else {
+                                    // BackupRestore.apply validates (IllegalArgumentException)
+                                    // before opening its transaction: that is a pre-write
+                                    // block; later failures roll the transaction back.
+                                    val failure = result.exceptionOrNull()
+                                    BackupMigrationNotes.restoreReport(
+                                        json, plan,
+                                        if (failure is IllegalArgumentException) {
+                                            BackupMigrationNotes.RestoreStatus.BLOCKED
+                                        } else {
+                                            BackupMigrationNotes.RestoreStatus.ROLLED_BACK
+                                        },
+                                        failure?.let { backupError(it) } ?: "",
+                                    )
+                                }
+                                MaterialAlertDialogBuilder(requireContext())
+                                    .setTitle(R.string.migration_report_title)
+                                    .setMessage(restoreReportMessage(report))
+                                    .setPositiveButton(android.R.string.ok) { _, _ ->
+                                        if (result.isSuccess) restart()
+                                    }
+                                    .setCancelable(false)
+                                    .show()
+                            }
+                        }
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }
+        }
     }
 
     private fun backupError(error: Throwable): String = when {
