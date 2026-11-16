@@ -63,12 +63,32 @@ class BackupCompatibilityTest {
         val root = PortableBackup.document(PortableBackup.encode(
             BackupRestore.Plan(null, null, null, listOf(KeyValuePair(Key.MTU).put("1450")))
         ))
+        // Simulate a pre-default v2 export, as PortableBackupTest does: only the
+        // explicit MTU entry survives in the document. A current export cannot be
+        // used here: the main spec requires encode to materialize core defaults,
+        // so the round-trip document genuinely carries those keys and reports
+        // none of them as defaulted (see the next test).
+        val allSettings = root.getJSONArray("settings")
+        val mtu = (0 until allSettings.length()).map { allSettings.getJSONObject(it) }
+            .single { it.getString("key") == Key.MTU }
+        root.put("settings", JSONArray().put(mtu))
         val plan = BackupRestore.parse(root)
         val fields = BackupCompatibility.defaultedFields(BackupCompatibility.SourceFormat.PORTABLE_V2, plan, root)
         assertTrue(fields.contains("settings." + Key.REMOTE_DNS))
         assertTrue(fields.contains("settings." + Key.DIRECT_DNS))
         assertFalse(fields.contains("settings." + Key.MTU))
         assertFalse(fields.any { it.startsWith("groups.") })
+    }
+
+    @Test fun portableImportFromCurrentExportReportsNoDefaultedSettings() {
+        val root = PortableBackup.document(PortableBackup.encode(
+            BackupRestore.Plan(null, null, null, listOf(KeyValuePair(Key.MTU).put("1450")))
+        ))
+        val plan = BackupRestore.parse(root)
+        val fields = BackupCompatibility.defaultedFields(BackupCompatibility.SourceFormat.PORTABLE_V2, plan, root)
+        // Every core default was materialized into the document by encode (main
+        // spec), so none of them is "missing from the source" to report.
+        assertFalse(fields.any { it.startsWith("settings.") })
     }
 
     @Test fun legacyExportRejectsUnrepresentableGroupFieldsBeforeWriting() {
