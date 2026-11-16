@@ -27,6 +27,7 @@ import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.widget.PopupMenu
@@ -405,6 +406,192 @@ class ConfigurationFragment @JvmOverloads constructor(
     // preview.18 UI 改造：显示设置变更后刷新
     fun onDisplaySettingsChanged() {
         refreshListPrefs(forceLayout = true)
+    }
+
+    // Batch 4b: display-layer source label for a group (never a routing key).
+    internal fun groupSourceLabel(type: Int): String = getString(
+        if (type == GroupType.SUBSCRIPTION) R.string.resource_source_subscription
+        else R.string.resource_source_local
+    )
+
+    // Batch 4b: pager tab labels with duplicate group names disambiguated by
+    // source, then by stable group ID. The "All" sentinel keeps its own name.
+    internal fun groupTabLabels(): Map<Long, String> {
+        if (pagerAdapter == null) return emptyMap()
+        val items = adapter.groupList
+            .filter { it.id != ALL_GROUPS_SENTINEL_ID }
+            .map { ResourceDisplayLabels.Item(it.id, it.displayName(), groupSourceLabel(it.type)) }
+        return ResourceDisplayLabels.labels(items)
+    }
+
+    // Batch 4b: pager groups without throwing when the pager is not ready.
+    internal fun pagerGroupsOrEmpty(): List<ProxyGroup> =
+        if (pagerAdapter == null) emptyList() else adapter.groupList
+
+    // Batch 4b: subscription updates (single / selected / all) reachable from
+    // the unified resource page. Only the presentation entry is new; the
+    // update itself always goes through GroupUpdater like the subscriptions
+    // tab does, and local groups are never planned as targets.
+    private fun currentPagerGroup(): ProxyGroup? {
+        if (pagerAdapter == null) return null
+        val pos = if (groupPagerView != null) groupPager.currentItem else adapter.selectedGroupIndex
+        return adapter.groupList.getOrNull(pos)
+    }
+
+    private fun planTargets(
+        groups: List<ProxyGroup>,
+        scope: ResourceDisplayLabels.UpdateScope,
+        currentGroupId: Long = 0L,
+        selectedGroupIds: Set<Long> = emptySet(),
+    ): List<ProxyGroup> {
+        val targetIds = ResourceDisplayLabels.planUpdateTargets(
+            groups.filter { it.id != ALL_GROUPS_SENTINEL_ID }
+                .map { ResourceDisplayLabels.GroupRef(it.id, it.type) },
+            scope, currentGroupId, selectedGroupIds,
+        )
+        return groups.filter { it.id in targetIds }
+    }
+
+    private fun updateCurrentSubscription() {
+        val group = currentPagerGroup()
+        val targets = if (group == null) emptyList() else planTargets(
+            adapter.groupList, ResourceDisplayLabels.UpdateScope.SINGLE, currentGroupId = group.id,
+        )
+        if (targets.isEmpty()) {
+            snackbar(getString(R.string.resource_update_not_subscription)).show()
+        } else {
+            runSubscriptionUpdates(targets)
+        }
+    }
+
+    private fun updateSelectedSubscriptions() {
+        runOnDefaultDispatcher {
+            val groups = SagerDatabase.groupDao.subscriptions()
+            onMainDispatcher {
+                if (groups.isEmpty()) {
+                    snackbar(getString(R.string.resource_no_subscriptions)).show()
+                    return@onMainDispatcher
+                }
+                val labels = ResourceDisplayLabels.labels(
+                    groups.map {
+                        ResourceDisplayLabels.Item(it.id, it.displayName(), groupSourceLabel(it.type))
+                    }
+                )
+                val names = groups.map { labels[it.id] ?: it.displayName() }.toTypedArray()
+                val checked = BooleanArray(groups.size)
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(R.string.resource_update_selected_subscriptions)
+                    .setMultiChoiceItems(names, checked) { _, which, isChecked ->
+                        checked[which] = isChecked
+                    }
+                    .setPositiveButton(R.string.yes) { _, _ ->
+                        val selectedIds = groups.filterIndexed { index, _ -> checked[index] }
+                            .map { it.id }.toSet()
+                        val targets = planTargets(
+                            groups, ResourceDisplayLabels.UpdateScope.SELECTED,
+                            selectedGroupIds = selectedIds,
+                        )
+                        if (targets.isEmpty()) {
+                            snackbar(getString(R.string.resource_select_none)).show()
+                        } else {
+                            runSubscriptionUpdates(targets)
+                        }
+                    }
+                    .setNegativeButton(R.string.no, null)
+                    .show()
+            }
+        }
+    }
+
+    private fun updateAllSubscriptions() {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.confirm)
+            .setMessage(R.string.update_all_subscription)
+            .setPositiveButton(R.string.yes) { _, _ ->
+                runOnDefaultDispatcher {
+                    val groups = SagerDatabase.groupDao.subscriptions()
+                    val targets = planTargets(groups, ResourceDisplayLabels.UpdateScope.ALL)
+                    onMainDispatcher {
+                        if (targets.isEmpty()) {
+                            snackbar(getString(R.string.resource_no_subscriptions)).show()
+                        } else {
+                            runSubscriptionUpdates(targets)
+                        }
+                    }
+                }
+            }
+            .setNegativeButton(R.string.no, null)
+            .show()
+    }
+
+    private fun runSubscriptionUpdates(targets: List<ProxyGroup>) {
+        if (targets.isEmpty()) return
+        val ctx = context ?: return
+        val labels = ResourceDisplayLabels.labels(
+            targets.map {
+                ResourceDisplayLabels.Item(it.id, it.displayName(), groupSourceLabel(it.type))
+            }
+        )
+        val messageView = TextView(ctx).apply {
+            setPadding(dp2px(24), dp2px(20), dp2px(24), 0)
+        }
+        val container = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(messageView)
+            addView(
+                ProgressBar(ctx).apply { isIndeterminate = true },
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply {
+                    gravity = android.view.Gravity.CENTER_HORIZONTAL
+                    topMargin = dp2px(12)
+                    bottomMargin = dp2px(20)
+                },
+            )
+        }
+        val dialog = MaterialAlertDialogBuilder(ctx)
+            .setView(container)
+            .setCancelable(false)
+            .create()
+        dialog.show()
+        runOnDefaultDispatcher {
+            var success = 0
+            val failures = mutableListOf<String>()
+            targets.forEachIndexed { index, group ->
+                val label = labels[group.id] ?: group.displayName()
+                onMainDispatcher {
+                    messageView.text = getString(
+                        R.string.resource_update_progress, label, index + 1, targets.size,
+                    )
+                }
+                val ok = try {
+                    GroupUpdater.executeUpdate(group, true)
+                } catch (e: Exception) {
+                    Logs.w("Resource page update failed for ${group.displayName()}: ${e.readableMessage}")
+                    false
+                }
+                if (ok) success++ else failures += label
+            }
+            onMainDispatcher {
+                dialog.dismiss()
+                if (failures.isEmpty()) {
+                    safeSnackbar(getString(R.string.resource_update_all_done, success))
+                } else {
+                    val resultCtx = context ?: MessageStore.getCurrentActivity()
+                    if (resultCtx != null) {
+                        MaterialAlertDialogBuilder(resultCtx)
+                            .setTitle(R.string.resource_update_failed_title)
+                            .setMessage(
+                                getString(R.string.resource_update_result, success, failures.size) +
+                                    "\n" + failures.joinToString("\n")
+                            )
+                            .setPositiveButton(android.R.string.ok, null)
+                            .show()
+                    }
+                }
+            }
+        }
     }
 
     private fun refreshListPrefs(forceLayout: Boolean = false) {
@@ -875,7 +1062,12 @@ class ConfigurationFragment @JvmOverloads constructor(
         val touchSlop = ViewConfiguration.get(requireContext()).scaledTouchSlop
         tabMediator = TabLayoutMediator(tabLayout, groupPager) { tab, position ->
             if (adapter.groupList.size > position) {
-                tab.text = adapter.groupList[position].displayName()
+                val group = adapter.groupList[position]
+                tab.text = if (group.id == ALL_GROUPS_SENTINEL_ID) {
+                    group.displayName()
+                } else {
+                    groupTabLabels()[group.id] ?: group.displayName()
+                }
             }
             tab.view.setOnLongClickListener { // clear toast
                 true
@@ -1212,6 +1404,18 @@ class ConfigurationFragment @JvmOverloads constructor(
                         }
                     }
                 }
+            }
+
+            R.id.action_update_current_subscription -> {
+                updateCurrentSubscription()
+            }
+
+            R.id.action_update_selected_subscriptions -> {
+                updateSelectedSubscriptions()
+            }
+
+            R.id.action_update_all_subscriptions -> {
+                updateAllSubscriptions()
             }
 
             R.id.action_import_file -> {
@@ -3293,6 +3497,32 @@ class ConfigurationFragment @JvmOverloads constructor(
             private var diffGeneration = 0
             private var listRevision = 0
 
+            // Batch 4b: node labels disambiguated within the displayed list;
+            // the source is the owning group's display name. Cached per list
+            // revision and keyed by stable profile ID.
+            private var nodeLabelCacheRevision = -1
+            private var nodeLabelCache: Map<Long, String> = emptyMap()
+
+            fun displayLabel(entity: ProxyEntity): String {
+                if (nodeLabelCacheRevision != listRevision) {
+                    val pf = parentFragment as? ConfigurationFragment
+                    val groupNames = pf?.pagerGroupsOrEmpty()
+                        ?.filter { it.id != ALL_GROUPS_SENTINEL_ID }
+                        ?.associate { it.id to it.displayName() }
+                        .orEmpty()
+                    val items = configurationList.values.map { profile ->
+                        ResourceDisplayLabels.Item(
+                            profile.id,
+                            profile.displayName(),
+                            groupNames[profile.groupId] ?: proxyGroup.displayName(),
+                        )
+                    }
+                    nodeLabelCache = ResourceDisplayLabels.labels(items)
+                    nodeLabelCacheRevision = listRevision
+                }
+                return nodeLabelCache[entity.id] ?: entity.displayName()
+            }
+
             private fun submitIdChange(
                 requestedIds: List<Long>,
                 newEntities: Map<Long, ProxyEntity>? = null,
@@ -3932,7 +4162,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                 val bean = proxyEntity.requireBean()
                 cardStyle.apply(ProfileListPrefs.gridLayout)
 
-                profileName.text = bean.displayName()
+                profileName.text = adapter?.displayLabel(proxyEntity) ?: bean.displayName()
                 profileName.contentDescription = profileName.text
                 profileType.text = proxyEntity.displayType()
                 profileType.background = null

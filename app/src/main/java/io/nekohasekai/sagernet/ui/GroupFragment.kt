@@ -347,7 +347,36 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
 
         override fun onBindViewHolder(holder: GroupHolder, position: Int) {
             val group = groupList[position]
-            holder.bind(group, groupCounts[group.id] ?: 0L)
+            holder.bind(group, groupCounts[group.id] ?: 0L, groupRowLabel(group))
+        }
+
+        // Batch 4b: group row labels with duplicate names disambiguated by
+        // source, then by stable group ID (display layer only).
+        private var groupLabelCacheKey: Int = Int.MIN_VALUE
+        private var groupLabelCache: Map<Long, String> = emptyMap()
+
+        private fun groupRowLabel(group: ProxyGroup): String {
+            val key = groupList.fold(17) { acc, item ->
+                acc * 31 + item.id.hashCode() * 3 + item.displayName().hashCode() * 5 + item.type
+            }
+            if (key != groupLabelCacheKey) {
+                groupLabelCache = ResourceDisplayLabels.labels(
+                    groupList.map {
+                        ResourceDisplayLabels.Item(
+                            it.id, it.displayName(),
+                            getString(
+                                if (it.type == GroupType.SUBSCRIPTION) {
+                                    R.string.resource_source_subscription
+                                } else {
+                                    R.string.resource_source_local
+                                }
+                            ),
+                        )
+                    }
+                )
+                groupLabelCacheKey = key
+            }
+            return groupLabelCache[group.id] ?: group.displayName()
         }
 
         override fun getItemCount(): Int {
@@ -590,7 +619,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
         }
 
 
-        fun bind(group: ProxyGroup, size: Long) {
+        fun bind(group: ProxyGroup, size: Long, displayLabel: String = group.displayName()) {
             proxyGroup = group
 
             itemView.setOnClickListener {
@@ -616,7 +645,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
 
             val isDisabled = DataStore.isGroupDisabled(proxyGroup.id)
             updateButton.isInvisible = proxyGroup.type != GroupType.SUBSCRIPTION
-            groupName.text = if (isDisabled) "${proxyGroup.displayName()} ${getString(R.string.group_disabled_status)}" else proxyGroup.displayName()
+            groupName.text = if (isDisabled) "$displayLabel ${getString(R.string.group_disabled_status)}" else displayLabel
             itemView.alpha = if (isDisabled) 0.6f else 1.0f
 
             updateButton.setOnClickListener {

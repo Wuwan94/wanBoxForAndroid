@@ -1367,6 +1367,17 @@
     <string name="module_diagnostics_retry_count">Retry count</string>
     <string name="module_diagnostics_event">Recent module event</string>
     <string name="group_editor_local">Edit local strategy groups</string>
+    <string name="resource_source_local">Local</string>
+    <string name="resource_source_subscription">Subscription</string>
+    <string name="resource_update_current_subscription">Update current subscription</string>
+    <string name="resource_update_selected_subscriptions">Update selected subscriptions</string>
+    <string name="resource_update_not_subscription">The current group is not a subscription</string>
+    <string name="resource_no_subscriptions">No subscriptions to update</string>
+    <string name="resource_select_none">Select at least one subscription</string>
+    <string name="resource_update_progress">Updating %1$s (%2$d/%3$d)…</string>
+    <string name="resource_update_all_done">All %1$d subscription(s) updated</string>
+    <string name="resource_update_result">Updated: %1$d succeeded, %2$d failed</string>
+    <string name="resource_update_failed_title">Some subscriptions failed to update</string>
     <string name="group_editor_create">Create Selector / URLTest</string>
     <string name="group_editor_add_member">Add member</string>
     <string name="group_editor_up">Up</string>

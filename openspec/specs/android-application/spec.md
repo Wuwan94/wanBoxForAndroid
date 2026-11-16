@@ -552,3 +552,19 @@ Before enabling Smart Auto-stop on every supported Android version, Android MUST
 - **GIVEN** 编辑器进入 cleanup_required，应用状态尚未确认
 - **WHEN** 再次提交空成员或非法 interval 草稿，或页面重建
 - **THEN** MUST 保持不确定/阻断文案，MUST NOT 被普通校验的“未应用”覆盖；恢复确认前 MUST NOT 重新启用草稿表单。仅恢复完成、journal 清除且 fresh status 确认模块已回到已知状态后，才允许解除阻断。
+
+### Requirement: 统一资源页与稳定身份
+
+本地节点、订阅及订阅节点 MUST 在同一资源页可见、可访问其既有节点操作；订阅单项/所选/全部更新、进度及失败反馈 MUST 可达。重名 MUST 仅以来源后缀在界面消歧，来源也相同时 MUST 增加实体 ID。节点/资源改名 MUST 不删除节点、不改实体 ID、组成员及路由引用，MUST NOT 将显示名用作 Provider/tag 或引用键；涉及组 tag 的改名遵循身份锁定规则。
+
+#### Scenario: 同名与改名
+
+- **GIVEN** 本地与订阅各有同名节点，路由与组成员引用其 ID
+- **WHEN** 用户查看并修改节点显示名
+- **THEN** 同名项可由来源/ID 区分，改名后节点数量、ID、成员及路由引用不变
+
+#### Scenario: 订阅更新入口
+
+- **GIVEN** 两个订阅和本地节点同时显示
+- **WHEN** 用户分别更新单项、所选和全部订阅
+- **THEN** 更新范围准确，进度/失败可见，本地节点不会被作为订阅更新
