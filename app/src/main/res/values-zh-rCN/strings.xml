@@ -1252,6 +1252,17 @@
     <string name="module_diagnostics_retry_count">重试次数</string>
     <string name="module_diagnostics_event">最近模块事件</string>
     <string name="group_editor_local">编辑本地策略组</string>
+    <string name="resource_source_local">本地</string>
+    <string name="resource_source_subscription">订阅</string>
+    <string name="resource_update_current_subscription">更新当前订阅</string>
+    <string name="resource_update_selected_subscriptions">更新所选订阅</string>
+    <string name="resource_update_not_subscription">当前分组不是订阅</string>
+    <string name="resource_no_subscriptions">没有可更新的订阅</string>
+    <string name="resource_select_none">请至少选择一个订阅</string>
+    <string name="resource_update_progress">正在更新 %1$s（%2$d/%3$d）…</string>
+    <string name="resource_update_all_done">%1$d 个订阅全部更新完成</string>
+    <string name="resource_update_result">更新完成：%1$d 个成功，%2$d 个失败</string>
+    <string name="resource_update_failed_title">部分订阅更新失败</string>
     <string name="group_editor_create">创建 Selector / URLTest</string>
     <string name="group_editor_add_member">添加成员</string>
     <string name="group_editor_up">上移</string>
