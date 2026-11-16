@@ -15,7 +15,8 @@ class ProxyInstance(
     var service: BaseService.Interface? = null,
     rootInboundBackend: RootInboundBackend = RootInboundBackend.TUN,
     rootRouteSnapshot: io.nekohasekai.sagernet.route.RootRouteBuildSnapshot? = null,
-) : BoxInstance(profile, rootInboundBackend, rootRouteSnapshot) {
+    persistBuildMetadata: Boolean = true,
+) : BoxInstance(profile, rootInboundBackend, rootRouteSnapshot, persistBuildMetadata) {
 
     var notTmp = true
 
