@@ -27,11 +27,11 @@
 
 - [x] 1.3 核查两个 Fragment 的分组/节点及订阅单项/所选/全部更新入口
 - [x] 1.4 定义同页呈现、来源消歧、改名不丢节点/引用及 pager/UI 测试缝
-- [ ] 2.7 统一资源页并保留节点操作与三类订阅更新、进度和失败反馈
-- [ ] 2.8 实现显示层消歧及稳定 ID 改名规则
-- [ ] 2.9 在 pager/Android UI 测试缝验证重名、改名、更新范围与路由/成员引用不变
-- [ ] 2.10 同步主规范并执行静态/Python 门禁
-- [ ] 2.11 留痕：区分无需新增 Go 专项测试与 CI 仍运行既有 Go 门禁。实现后运行 Verify CI 的 verify-android（含工作流级 Build LibCore/Go 门禁）；真机用虚构同名本地/订阅节点验证一页可达、三类更新及改名前后 ID/路由一致，回传 run/job、截图与脱敏 ID 对比。失败时只修复 4b、不得进入 4c；回传失败 job/步骤及脱敏 revision/state（适用时）和截图/ID 证据，CI/真机均通过且证据完整后方可推进。
+- [x] 2.7 统一资源页并保留节点操作与三类订阅更新、进度和失败反馈（节点页 ConfigurationFragment 新增订阅更新菜单组：当前/所选/全部，复用 GroupUpdater.executeUpdate，带进度对话框与失败反馈；节点操作与订阅页入口不变）
+- [x] 2.8 实现显示层消歧及稳定 ID 改名规则（ResourceDisplayLabels：重名仅追加来源后缀、来源同再加实体 ID；应用于页签标题、节点行、订阅页组行与更新选择框；标签按实体 ID 索引，显示名不作任何引用键）
+- [x] 2.9 在 pager/Android UI 测试缝验证重名、改名、更新范围与路由/成员引用不变（JVM 测试 ResourceDisplayLabelsTest 9 例覆盖消歧/改名/更新范围；页面渲染按项目惯例列未验证真机风险，见 2.11）
+- [x] 2.10 同步主规范并执行静态/Python 门禁（「统一资源页与稳定身份」已同步进 openspec/specs/android-application/spec.md；Python 108 与版本文档检查、git diff --check 见实施日志）
+- [ ] 2.11 留痕：区分无需新增 Go 专项测试与 CI 仍运行既有 Go 门禁。实现后运行 Verify CI 的 verify-android（含工作流级 Build LibCore/Go 门禁）；真机用虚构同名本地/订阅节点验证一页可达、三类更新及改名前后 ID/路由一致，回传 run/job、截图与脱敏 ID 对比。失败时只修复 4b、不得进入 4c；回传失败 job/步骤及脱敏 revision/state（适用时）和截图/ID 证据，CI/真机均通过且证据完整后方可推进。（进行中：本批未改 rootmodule，无需新增 Go 专项测试，CI 仍跑既有 Build LibCore/Go 门禁；Verify CI 结果待推送后回填；真机验证按用户 2026-11-16 批准的 4b 方案列为未验证风险随带、不作合并前置，回归步骤已写入 BATCH4_4B_IMPLEMENTATION_LOG.md。本批由小晚亲自实施——星驰中继 401 后用户授权破例，astra 复审缺席待补，不自称复审通过。）
 
 ## 4c 迁移说明规范化
 

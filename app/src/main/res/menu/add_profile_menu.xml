@@ -98,6 +98,17 @@
         android:title=""
         app:showAsAction="always">
         <menu>
+            <group android:id="@+id/group_actions_subscriptions">
+                <item
+                    android:id="@+id/action_update_current_subscription"
+                    android:title="@string/resource_update_current_subscription" />
+                <item
+                    android:id="@+id/action_update_selected_subscriptions"
+                    android:title="@string/resource_update_selected_subscriptions" />
+                <item
+                    android:id="@+id/action_update_all_subscriptions"
+                    android:title="@string/update_all_subscription" />
+            </group>
             <group android:id="@+id/group_actions_ops">
                 <item
                     android:id="@+id/action_export"
