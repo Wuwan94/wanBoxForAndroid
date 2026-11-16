@@ -37,12 +37,12 @@
 
 - [x] 1.5 核查 BackupFragment、PortableBackup、BackupRestore、备份文档与升级约定，区分显式恢复与重置式迁移
 - [x] 1.6 定义双向兼容、结果检测、备份优先、回滚/Fail-Closed 与必读说明
-- [ ] 2.12 实现必读说明及备份前置确认
-- [ ] 2.13 保持版本化双向备份；旧导出→新导入时旧格式可表示字段等值、旧格式没有的字段采用明确缺省语义；新导出→旧导入时，字段无法完整表示或目标读取能力未验证，须在写入前明确拒绝并报告具体字段及原因
-- [ ] 2.14 实现迁移结果报告、事务失败恢复与核心结果分开呈现
-- [ ] 2.15 复用备份兼容/跨版本/故障注入测试按方向矩阵验证旧→新可表示字段等值及缺失字段缺省语义、新→旧无法完整表示或读取能力未验证时写入前拒绝、未知格式拒绝、取消及晚期错误两库回滚
-- [ ] 2.16 同步主规范并执行静态/Python 门禁
-- [ ] 2.17 留痕：没有新增模块逻辑时无需新增 Go 专项测试，但 Verify CI 仍运行工作流级 Build LibCore/Go 门禁。实现后运行 verify-android 迁移与 instrumentation 门禁；用批次前后配套 APK/模块及虚构备份在真机按兼容矩阵双向导入，旧→新核对可表示字段等值及旧格式没有字段的明确缺省语义，新→旧核对全部待保真字段等值，无法完整表示或读取能力未验证则核对写入前拒绝，并注入备份失败/取消/事务失败检查原数据；回传 run/job、字段比对、错误与恢复证据。失败时只修复 4c、不得推进后续批次；回传失败 job/步骤、脱敏 revision/state（适用时）及恢复证据，CI/真机均通过且证据完整后方可完成。
+- [x] 2.12 实现必读说明及备份前置确认（SAF 与 WebDAV 恢复共用 confirmAndRestore 链：先 parse 全栏目+引用校验，再展示 BackupMigrationNotes 必读确认——源/目标格式、应用版本、各类计数、兼容口径、缺省字段、保留源数据时点；未确认不 apply、无需转换时明示「无需数据转换」；Throne 异格式链不在本批范围）
+- [x] 2.13 保持版本化双向备份；旧导出→新导入时旧格式可表示字段等值、旧格式没有的字段采用明确缺省语义；新导出→旧导入时，字段无法完整表示或目标读取能力未验证，须在写入前明确拒绝并报告具体字段及原因（BackupCompatibility.checkLegacyExport 纯函数守卫 + 备份页「兼容导出（旧版本）」入口：旧分组记录不可表示的 isSelector/frontProxy/landingProxy 逐项列出；旧客户端读取能力未验证时按 Fail-Closed 恒拒绝、不写出文件、不静默降级；schemaVersion=2 保持优先，备份格式默认值未改）
+- [x] 2.14 实现迁移结果报告、事务失败恢复与核心结果分开呈现（BackupMigrationNotes.restoreReport：源/目标 schema、各类计数、引用检查、缺省字段、COMPLETED/ROLLED_BACK 状态与原因、恢复指引；报告不含凭据；databaseRestored 与 coreApplyPerformed 分开字段、分开文案，恢复步骤不执行核心应用并明示重启后单独呈现；apply 失败显示回滚报告且不重启）
+- [x] 2.15 复用备份兼容/跨版本/故障注入测试按方向矩阵验证旧→新可表示字段等值及缺失字段缺省语义、新→旧无法完整表示或读取能力未验证时写入前拒绝、未知格式拒绝、取消及晚期错误两库回滚（新增 JVM BackupCompatibilityTest 11 例覆盖格式识别/缺省报告/导出拒绝/确认门/报告分离；PortableBackupCompatibilityTest 新增 1 例旧记录分组字段缺省导入；未知版本拒绝与取消/晚期故障两库回滚由既有 PortableBackupTest/PortableBackupCompatibilityTest 用例覆盖，未重复造例；Kotlin 红/绿以 CI 为准）
+- [x] 2.16 同步主规范并执行静态/Python 门禁（三条 delta 要求「版本化双向备份兼容」「迁移必须备份优先、可检测与可恢复」「升级前必读说明」已同步进 openspec/specs/android-application/spec.md；Python 108 与版本文档检查、git diff --check 结果见 BATCH4_4C_IMPLEMENTATION_LOG.md）
+- [ ] 2.17 留痕：没有新增模块逻辑时无需新增 Go 专项测试，但 Verify CI 仍运行工作流级 Build LibCore/Go 门禁。实现后运行 verify-android 迁移与 instrumentation 门禁；用批次前后配套 APK/模块及虚构备份在真机按兼容矩阵双向导入，旧→新核对可表示字段等值及旧格式没有字段的明确缺省语义，新→旧核对全部待保真字段等值，无法完整表示或读取能力未验证则核对写入前拒绝，并注入备份失败/取消/事务失败检查原数据；回传 run/job、字段比对、错误与恢复证据。失败时只修复 4c、不得推进后续批次；回传失败 job/步骤、脱敏 revision/state（适用时）及恢复证据，CI/真机均通过且证据完整后方可完成。（进行中：本批未改 rootmodule，无需新增 Go 专项测试，CI 仍跑既有 Build LibCore/Go 门禁；Verify CI 结果待推送后回填；真机双向导入按用户 2026-11-16 批准的 4c 方案列为未验证风险随带、不作合并前置，回归步骤已写入 BATCH4_4C_IMPLEMENTATION_LOG.md。本批由小晚亲自实施——星驰中继已删、用户授权破例，astra 复审缺席待补，不自称复审通过。）
 
 本轮规范验收：五个文件齐全，所有 1.x 仅表示规范完成；全部 2.x 未实现。本轮只运行用户指定 Python 工具与空白检查，不执行 Android/Go 构建，不提交；CI/真机结果不得预先勾选。双轴审查与本地门禁的实际结果见复审/修复日志。
 

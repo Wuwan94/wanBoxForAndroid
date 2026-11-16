@@ -1186,6 +1186,28 @@
     <string name="backup_access_error">File access was denied. Select the backup again and grant read access.</string>
     <string name="backup_choose_json">This is a log file. Select OwnBox_backup_*.json or a supported backup ZIP. Do not rename a log to JSON.</string>
     <string name="backup_invalid_or_unreadable">Cannot read this backup. Select an exported backup JSON/ZIP, check file access, or re-export with the original app version.</string>
+    <!-- @author 雾晚: batch 4c migration notes -->
+    <string name="backup_export_legacy">Legacy-compatible export</string>
+    <string name="migration_reading_title">Read before restoring</string>
+    <string name="migration_reading_schemas">Backup format: %1$s\nTarget format: %2$s\nApp version: %3$s</string>
+    <string name="migration_reading_counts">Contents: %1$d profile(s), %2$d group(s), %3$d rule(s), %4$d setting(s). Reference check passed; only the categories you selected will be overwritten.</string>
+    <string name="migration_reading_verified">This backup file was read and fully validated. Keep the source backup and the original app data until the restore is confirmed successful.</string>
+    <string name="migration_reading_needs_conversion">This is a legacy backup: restoring converts its data to the current format. Fields the old format never stored are filled with explicit defaults and listed in the result report; they are not claimed to come from the backup.</string>
+    <string name="migration_reading_no_conversion">This backup already uses the current format: no data conversion is needed for this restore.</string>
+    <string name="migration_reading_defaulted">Filled with defaults (not from the backup): %1$s</string>
+    <string name="migration_reading_confirm">I have read this, continue</string>
+    <string name="migration_report_title">Restore result</string>
+    <string name="migration_report_schemas">Source format: %1$s\nTarget format: %2$s</string>
+    <string name="migration_report_counts">Profiles: %1$d, groups: %2$d, rules: %3$d, settings: %4$d. Reference check: passed.</string>
+    <string name="migration_report_database_completed">Database restore: completed.</string>
+    <string name="migration_report_database_rolled_back">Database restore: rolled back; existing data is unchanged. Reason: %1$s</string>
+    <string name="migration_report_database_blocked">Database restore: blocked before writing; existing data is unchanged. Reason: %1$s</string>
+    <string name="migration_report_core_separate">Core configuration apply: not performed by the restore step. After the restart, the service loads the restored data through the existing flow; its result is reported separately there.</string>
+    <string name="migration_report_defaulted">Filled with defaults (not from the backup): %1$s</string>
+    <string name="migration_report_recovery">If anything looks wrong, re-import the original backup or re-export with the original app version; do not delete the source data first.</string>
+    <string name="migration_legacy_blocked_title">Legacy-compatible export refused</string>
+    <string name="migration_legacy_field">Field %1$s cannot be represented by the legacy format.</string>
+    <string name="migration_legacy_reader_unverified">Whether historical app versions can read a newly written legacy file has not been verified, so the export is refused before writing (fail-closed) instead of silently dropping data. Use the standard versioned export instead.</string>
     <!-- @author 雾晚 -->
     <string name="notification_member_pending">Waiting for active node</string>
     <string name="notification_direct_speed">Direct ↑%1$s ↓%2$s</string>
