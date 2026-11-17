@@ -250,3 +250,21 @@ Enabled `files/smart_auto_stop.json` MUST include `userId`, the current Android 
 - **WHEN** a lifecycle notification is dispatched
 - **THEN** the explicit broadcast targets that user/profile and application package only
 - **AND** an enabled snapshot without user identity is rejected while disabled legacy snapshots remain compatible
+
+### Requirement: 网关缓存返回值必须是独立深拷贝
+
+Root 模块的网关缓存（`gatewayCache`）返回给调用方的网关表 MUST 是独立深拷贝：外层 map、每个接口的 `[]net.IP` 切片以及每个 `net.IP` 的字节 MUST 与缓存内部存储不共享底层内存。调用方对返回值做出的任意修改 MUST NOT 改变缓存内容，后续在同一指纹与 TTL 内的读取 MUST 返回与缓存一致的原始发现结果。缓存的指纹键、TTL、单飞刷新与锁外发现行为 MUST 保持不变。
+
+#### Scenario: 调用方变异返回值不影响缓存
+
+- **GIVEN** 网关缓存已通过发现函数存入包含至少一个接口与一个网关 IP 的网关表
+- **WHEN** 调用方取得返回值后新增或删除 map 键、替换某个 `[]net.IP` 切片的成员、并改写某个 `net.IP` 的字节
+- **THEN** 缓存内容保持不变
+- **AND** 在同一指纹与 TTL 内再次读取得到与最初发现结果逐项一致的网关表
+
+#### Scenario: 刷新路径同样返回深拷贝
+
+- **GIVEN** 网关缓存未命中（指纹变化或 TTL 过期）并完成一次新的发现
+- **WHEN** 调用方变异刷新路径返回的网关表
+- **THEN** 刚存入缓存的网关表不被污染
+- **AND** 紧随其后的缓存命中读取返回未被变异的结果
