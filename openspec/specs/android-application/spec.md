@@ -700,3 +700,33 @@ Discarding an unfinished edit MUST first restore journaled local values while re
 - **GIVEN** 组内成员从 M1 切换到 M2
 - **WHEN** 首页读取落地 IP 缓存
 - **THEN** 不得返回 M1 的旧出口 IP，应重新查询
+
+### Requirement: 订阅自动更新间隔预设、自定义弹窗与人性化摘要（B2 已落地）
+
+订阅设置 MUST 提供常用间隔单选预设（15 分钟、30 分钟、1 小时、3 小时、6 小时、12 小时、24 小时/1 天），
+并支持自定义弹窗：纯数字软键盘、「分钟 / 小时 / 天」单位切换、明确的有效性校验与最小 15 分钟限制提示。
+设置项摘要 MUST 人性化展示（例如“每 24 小时 (1天)”、“每 12 小时”），关闭自动更新时 MUST 明确显示“已关闭自动更新”。
+`autoUpdateDelay` 的分钟值语义 MUST 不变（默认 360）。
+
+- **GIVEN** 用户打开订阅自动更新设置
+- **WHEN** 选择“24 小时”预设
+- **THEN** 摘要显示“每 24 小时 (1天)”，且 `autoUpdateDelay` 存为 1440
+- **GIVEN** 用户在自定义弹窗输入 10 分钟
+- **WHEN** 确认
+- **THEN** 提示最小为 15 分钟并拒绝保存
+- **GIVEN** 用户关闭自动更新
+- **WHEN** 返回订阅设置页
+- **THEN** 摘要显示“已关闭自动更新”
+
+### Requirement: 订阅到期补更触发（B2 已落地）
+
+进入订阅分组页及代理连接成功时，管理器 MUST 检查到期订阅并触发补更。
+补更 MUST 尊重既有 per-group 失败退避与 `updateWhenConnectedOnly`；
+未到期的订阅 MUST NOT 被提前更新。
+
+- **GIVEN** 某订阅已到期且未处于失败退避期
+- **WHEN** 用户进入订阅分组页或代理连接成功
+- **THEN** 触发该订阅的更新
+- **GIVEN** 某订阅处于失败退避期
+- **WHEN** 触发补更检查
+- **THEN** 跳过该订阅，不打断退避

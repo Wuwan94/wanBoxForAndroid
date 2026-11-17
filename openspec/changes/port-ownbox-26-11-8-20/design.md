@@ -213,3 +213,46 @@ O1 上游三条（8.20）对表 wanBox 自家约束：
 
 - B4 的 Go 侧毫秒 0 预选与批量探针流式就绪、O1/O5/O6/O7 与 N 系均不在本批。
 - 1.14 验证阶段未跑：CI（`verify-android.yml`）与真机结果待用户回传，不得勾选。
+
+## B2 实施记录（2026-11-18，O5）
+
+### 已拍板值
+
+- 2.4 主进程 WorkManager 迁移**未拍板，不做**：调度继续走 `:bg` 跨进程
+  `RemoteWorkManager`，`UpdateTask` 仍在 `:bg` 读 `DataStore.serviceState`。
+  保留理由已写进 `SubscriptionUpdater.reconfigureUpdater` 注释与提交说明。
+
+### 落地内容（2.1–2.3）
+
+- 2.2：新增 `SubscriptionAutoUpdateDialog`（预设 15/30 分钟、1/3/6/12 小时、
+  24 小时/1 天 + 自定义单位弹窗 + 人性化摘要），`autoUpdateDelay` 分钟值
+  语义不变（默认 360）；`GroupSettingsActivity` 的间隔项由 `EditTextPreference`
+  改为点开弹窗的 `Preference`，摘要随开关状态刷新；加载/保存时对历史
+  <15 分钟值钳制到 15。文案按本文件末尾双语表落地（en + zh-rCN）。
+- 2.3：新增 `SubscriptionUpdater.checkPendingUpdates(onlyIfConnected)`：
+  进订阅分组页（`GroupFragment.onResume`，`onlyIfConnected = false`）与
+  代理连接成功（`SagerConnection.stateChanged` 到 `Connected`，
+  `onlyIfConnected = true`）时检查到期并补更。
+- 2.1：新增 `SubscriptionAutoUpdateTest`（预设、自定义换算、最小值校验、
+  摘要映射、初始延迟精确值无 60 秒截断回归断言、`isDue` 判定）；
+  `SubscriptionSchedule` 新增纯函数 `isDue`（未更新过视为到期，间隔钳制 ≥15 分钟）。
+
+### 与上游原文的差异（均有意为之）
+
+- 补更尊重失败退避：上游 8.6 的 `checkPendingUpdates` 不查退避，直接调更新；
+  wanBox 版先查 `shouldBackoff`，退避期内跳过、成功/失败后调
+  `recordUpdateResult` 维护退避计数，与既有 `UpdateTask` 行为一致。
+- 未做 `SagerNet.onCreate` 的冷启动补更调用：tasks.md 2.3 只定两个触发点
+  （进订阅页、连接成功），应用启动触发不在本批范围，不擅自加。
+- 摘要文案：上游 en 串照搬（"Every 24 hours (1 day)" 等），zh 按本文件双语表；
+  `auto_update_delay` 标题按双语表取 "Auto-update interval" / "自动更新间隔"。
+- `toMinutes`/`describeInterval`/`initialValueAndUnit` 抽为纯函数：
+  上游的换算与摘要逻辑与 `Context` 耦合，无法进 JVM 单测；wanBox 版把纯逻辑
+  抽出来测，`formatSummary`/`formatInterval` 只做字符串装配。
+
+### 本批未做
+
+- 2.4 主进程 WorkManager 迁移（未拍板）。
+- 2.7 验证阶段未跑：CI（`verify-android.yml`，workflow_dispatch，推分支不触发，
+  该分支上 0 次运行）与真机结果待用户回传，不得勾选；Kotlin 侧未经本地编译
+  （沙箱 Gradle 插件解析失败，见提交说明），待 CI 验证。
