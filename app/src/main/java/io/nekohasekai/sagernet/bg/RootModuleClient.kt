@@ -495,14 +495,14 @@ object RootModuleClient {
         }
     }
 
-    private suspend fun startOrReloadLocked(startIfStopped: Boolean, beforeStatus: Status? = null, confirmedWarning: OutboundReferenceWarning? = null): Status {
+    private suspend fun startOrReloadLocked(startIfStopped: Boolean, beforeStatus: Status? = null, confirmedWarning: OutboundReferenceWarning? = null, restoringGroupDraft: Boolean = false): Status {
         val routeSnapshot = io.nekohasekai.sagernet.route.RootRouteBuildSnapshot.capture()
         val warning = prepareOutboundWarningLocked(startIfStopped, routeSnapshot)
         if (warning != null && (warning.issues != confirmedWarning?.issues ||
                 warning.startIfStopped != confirmedWarning?.startIfStopped)) throw OutboundReferenceWarningRequired(warning)
         if (warning != null && !pendingOutboundWarning.compareAndSet(warning, null))
             throw IOException("outbound_confirmation_expired")
-        if (io.nekohasekai.sagernet.group.editor.GroupLocalPreparation.pending()) throw IOException("group_editor_recovery_required")
+        if (!restoringGroupDraft && io.nekohasekai.sagernet.group.editor.GroupLocalPreparation.pending()) throw IOException("group_editor_recovery_required")
         val before = beforeStatus ?: callFreshStatus()
         // @author 雾晚: rule edits use module truth, never a stale UI/Binder state.
         if (RootModuleDataUpdate.pending()) throw IOException("data_update_pending")
@@ -610,8 +610,8 @@ object RootModuleClient {
 
     /**
      * P1-7 escape hatch when [recoverGroupDraft] cannot restore (e.g. the saved baseline no longer
-     * validates): restore the journaled local state, clear the recovery marker, then rebuild the
-     * module from the current configuration. Never starts a stopped module.
+     * validates): restore the journaled local state, rebuild if running, and confirm fresh status
+     * before clearing the recovery marker. Never starts a stopped or suspended module.
      */
     suspend fun abandonGroupDraft(): Status = withContext(Dispatchers.IO) {
         changes.withLock {
@@ -621,7 +621,23 @@ object RootModuleClient {
                 override fun pending() = store.pending()
                 override fun restoreLocal() = store.restorePendingLocal()
                 override fun clearJournal() = store.clearRecord()
-                override suspend fun rebuild() { rebuilt = startOrReloadLocked(startIfStopped = false) }
+                override suspend fun rebuild() {
+                    val before = callFreshStatus()
+                    if (before.installData != null || before.phase !in setOf("connected", "stopped", "suspended"))
+                        throw IOException("module_not_ready")
+                    if (before.phase != "connected") {
+                        rebuilt = before
+                        return
+                    }
+                    // Only this locked recovery path may rebuild while retaining its journal.
+                    val applied = startOrReloadLocked(startIfStopped = false, beforeStatus = before, restoringGroupDraft = true)
+                    val confirmed = callFreshStatus()
+                    if (applied.revision.isBlank() || confirmed.installData != null ||
+                        confirmed.phase !in setOf("connected", "suspended") ||
+                        confirmed.revision != applied.revision || confirmed.runningRevision != applied.revision)
+                        throw IOException("rollback_not_confirmed")
+                    rebuilt = confirmed
+                }
             })
             rebuilt ?: callFreshStatus()
         }

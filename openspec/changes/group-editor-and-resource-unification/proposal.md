@@ -35,3 +35,7 @@
 不改 SINGBOX_VERSION、版本元数据、workflow、NetProxy 代码/结构/升级行为、路由顺序、用户规则顺序、Root-only/管理器轻量边界；不做清库或重置式迁移；本变更不包含生产代码、测试代码或提交。
 
 受影响能力为 openspec/specs/android-application。本轮不修改生产能力，因此暂不需同步主规范；任何实现批次完成前 MUST 将已实现状态同步到受影响的主规范。不修改 libcore、构建链或开发工具布局，NetProxy-Magisk v8.7.0 仅为功能参考。现状、参数合法性、身份冲突和失败语义以 design 的核查表与数据流为准。
+
+## preview.4 review correction (2026-11-17)
+
+Limit this correction to subscription-node takeover and premature discard-journal deletion at source `9283ccb0886805bddbd6856835d23a548f20b9d6`. Keep `groupId` as the single membership/ownership truth: reject ordinary-editor takeover of subscription nodes rather than introducing another membership table. Retain the recovery barrier until local restore, any required running-module rebuild and fresh-status confirmation complete. No Go, stable version, sing-box version or unrelated release changes are included. The user explicitly authorized applicable local Kotlin/Android verification for this task; results and unsupported environments are recorded in tasks, not inferred as passes.

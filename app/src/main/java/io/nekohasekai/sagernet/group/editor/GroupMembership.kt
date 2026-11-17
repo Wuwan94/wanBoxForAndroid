@@ -29,19 +29,20 @@ internal object GroupMembership {
 
     /**
      * Ownership changes that make the database match the saved members.
-     * Subscription groups are owned by their subscription: reorder only, because a node moved
+     * Subscription nodes cannot be taken over by any other group. Subscription groups allow
+     * reorder only, because a node moved
      * in would be deleted as an orphan and a node moved out would be re-inserted by the next update.
      * Nodes dropped from an ordinary group go to the ungrouped group; the ungrouped group itself
      * has nowhere to drop nodes to.
      */
-    fun plan(draft: GroupDraft, target: Target?, ownerOf: Map<Long, Long>, ungroupedId: Long?): Sync {
+    fun plan(draft: GroupDraft, target: Target?, ownerOf: Map<Long, Long>, ungroupedId: Long?, subscriptionGroupIds: Set<Long> = emptySet()): Sync {
         val members = draft.members
         val memberSet = members.toSet()
         val moves = linkedMapOf<Long, Long>()
         val issues = mutableListOf<GroupEditor.Issue>()
         members.forEachIndexed { index, id ->
             if (ownerOf[id] == draft.id) return@forEachIndexed
-            if (target?.subscription == true) issues += GroupEditor.Issue("members[$index]", "subscription_member_locked", EntityId.Node(id))
+            if (target?.subscription == true || ownerOf[id] in subscriptionGroupIds) issues += GroupEditor.Issue("members[$index]", "subscription_member_locked", EntityId.Node(id))
             else moves[id] = draft.id
         }
         val dropped = ownerOf.filter { (id, owner) -> owner == draft.id && id !in memberSet }.keys.sorted()

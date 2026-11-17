@@ -149,3 +149,41 @@
 - **GIVEN** 编辑器进入 cleanup_required，应用状态尚未确认
 - **WHEN** 再次提交空成员或非法 interval 草稿，或页面重建
 - **THEN** MUST 保持不确定/阻断文案，MUST NOT 被普通校验的“未应用”覆盖；恢复确认前 MUST NOT 重新启用草稿表单。仅恢复完成、journal 清除且 fresh status 确认模块已回到已知状态后，才允许解除阻断。
+
+### Requirement: Subscription ownership survives ordinary policy-group edits
+
+`ProxyEntity.groupId` MUST remain the single ownership and membership truth. A subscription-owned node MUST remain owned by its subscription when edited through a policy-group editor. Ordinary groups, including newly created groups, MUST NOT take over subscription nodes. The editor MUST reject that candidate with an explanation before either database/preferences or the recovery journal is written; a rejected candidate MUST NOT partially move its other nodes. Subscription groups MUST continue allowing reorder/parameter edits but MUST NOT add foreign nodes or remove owned nodes through this editor. This restriction MUST NOT change stable node IDs, subscription ownership or existing route references. Subsequent subscription refresh MUST match the original node within its subscription rather than insert a duplicate.
+
+#### Scenario: Import, reject takeover, refresh without duplicate
+
+- **GIVEN** a node imported by a subscription, a route referencing its ID, and an ordinary group with local nodes
+- **WHEN** the user adds the subscription node to the ordinary group and submits, then refreshes the subscription
+- **THEN** the editor MUST visibly explain that subscription nodes cannot move to ordinary groups, both stores and the recovery journal MUST remain unchanged by the rejected save, and subscription refresh MUST retain the original node ID, ownership and route reference without a duplicate
+
+#### Scenario: New group cannot bypass subscription ownership
+
+- **GIVEN** a subscription-owned node
+- **WHEN** an editor candidate creates a new ordinary group containing that node
+- **THEN** validation and local preparation MUST reject it before any persistent write
+
+### Requirement: Discard retains its recovery barrier until confirmed complete
+
+Discarding an unfinished edit MUST first restore journaled local values while retaining the durable journal. If fresh module status reports connected, the current local configuration MUST be rebuilt under the existing mutation lock without removing that journal; a subsequent cache-bypassing fresh status MUST confirm the applied revision, the matching running revision and a known connected/suspended state before journal deletion or success. A rebuild failure, timeout, unknown state or mismatched revision MUST retain the journal, recovery entry and connection/editing barrier. The same persisted journal MUST keep recovery available after Activity destruction/recreation and MUST support retry. Discard MUST NOT use its narrow locked recovery permission to bypass the journal barrier for normal startup or reload. Fresh stopped or suspended status MUST result only in local restoration/marker cleanup, with no rebuild or start and no change to module running intent. Other initial module states or installer selection MUST remain blocked.
+
+#### Scenario: Failed rebuild survives page recreation and retry
+
+- **GIVEN** a durable unfinished-edit journal and a connected module
+- **WHEN** discard restores locally but rebuilding fails, or its fresh status times out, is unknown or confirms a different revision
+- **THEN** discard MUST report failure, the durable journal MUST remain readable, and reopening the policy-group Activity MUST still offer recovery/discard; retry MUST be able to complete
+
+#### Scenario: Confirmed rebuild releases the barrier
+
+- **GIVEN** a durable journal and a connected module
+- **WHEN** local restoration and the required rebuild succeed and fresh status confirms matching applied/current/running revisions in a known state
+- **THEN** and only then the journal MUST be removed, success MAY be shown, and the recovery barrier MUST be released
+
+#### Scenario: Non-running module remains non-running
+
+- **GIVEN** a durable journal and fresh stopped or suspended module status
+- **WHEN** the user discards the unfinished edit
+- **THEN** local restoration MUST complete before journal cleanup and the module MUST NOT be rebuilt or started

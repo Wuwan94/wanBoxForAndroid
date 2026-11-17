@@ -43,17 +43,17 @@ internal interface GroupAbandonHost {
     suspend fun rebuild()
 }
 
-/** Explicit "discard unfinished edit": local state first, then the marker, then a normal rebuild. */
+/** Discard restores locally, confirms the required module rebuild, then releases the durable barrier. */
 internal object GroupDraftAbandon {
     /** Must run under the module mutation lock. A failed local restore keeps the journal. */
     suspend fun abandon(host: GroupAbandonHost) {
         if (!host.pending()) return
         try {
             host.restoreLocal()
+            host.rebuild()
             host.clearJournal()
         } catch (error: kotlinx.coroutines.CancellationException) { throw error }
         catch (error: Exception) { throw IOException("group_editor_recovery_required", error) }
-        host.rebuild()
     }
 }
 

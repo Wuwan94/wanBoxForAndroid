@@ -493,17 +493,19 @@ class OutboundReferenceAlarmTest {
             fun containsError(node: android.view.accessibility.AccessibilityNodeInfo?): Boolean {
                 if (node == null) return false
                 try {
-                    if (node.text?.toString() == errorMessage) return true
+                    // The app's error message appends a stable code after its localized text.
+                    if (node.text?.toString()?.contains("installer_journal_corrupt") == true) return true
                     return (0 until node.childCount).any { containsError(node.getChild(it)) }
                 } finally { node.recycle() }
             }
-            // Accessibility queries stay off the app main thread that serves them.
+            // Dialogs can live in a separate accessibility window from MainActivity.
+            // Inspect all visible roots off the app main thread that serves them.
             var reported = false
             for (attempt in 0 until 100) {
-                if (containsError(instrumentation.uiAutomation.rootInActiveWindow)) {
-                    reported = true
-                    break
-                }
+                val roots = instrumentation.uiAutomation.windows.mapNotNull { it.root }
+                    .ifEmpty { listOfNotNull(instrumentation.uiAutomation.rootInActiveWindow) }
+                roots.forEach { root -> reported = containsError(root) || reported }
+                if (reported) break
                 Thread.sleep(100)
             }
             assertTrue("Installer restoration must report the corrupt journal", reported)

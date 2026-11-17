@@ -31,6 +31,13 @@ class GroupMembershipTest {
         assertEquals(mapOf(7L to 10L, 2L to 1L), sync.moves)
     }
 
+    @Test fun ordinarySaveRejectsSubscriptionOwnershipWithoutAnyMoves() {
+        val sync = GroupMembership.plan(draft(7), basic, mapOf(1L to 10L, 7L to 20L),
+            ungroupedId = 1, subscriptionGroupIds = setOf(20))
+        assertTrue("Subscription ownership must be locked", sync.issues.any { it.code == "subscription_member_locked" })
+        assertTrue("No partial moves after rejection", sync.moves.isEmpty())
+    }
+
     @Test fun newGroupTakesOwnershipOfEveryMember() {
         val sync = GroupMembership.plan(draft(7, 8), null, mapOf(7L to 20L, 8L to 1L), ungroupedId = 1)
         assertTrue(sync.issues.isEmpty())

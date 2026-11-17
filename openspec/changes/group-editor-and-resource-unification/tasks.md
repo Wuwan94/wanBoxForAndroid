@@ -95,3 +95,31 @@
 - 门禁：Python 工具测试 108 项、版本文档检查及空白检查执行结果见本轮交付说明；Kotlin 红绿与发布版插桩待 CI，不作本地通过声明。
 
 - 4a cifix5e（2026-11-16）：astra cifix5d 再审 Standards PASS/0，Spec FAIL/S1：提前构造快照 existed=false，夹具创建 99124 后 prepare 重复插入，核心断言不可达；原外来 journal 竞态已闭合。统筹接受，仅修测试：try 前声明可空 preparation，在夹具及初始草稿写入后、prepare 前构造，finally 原 cleanup 内用 ?.restore()/?.finish()，保持异常优先级。入口 foreignJournalExisted、pending 及所有断言保留，不删/跳过用例；生产与两份 proguard 本轮不动。门禁结果见实现日志；Kotlin 红绿、发布版插桩以 CI 为准，未本地验证，未提交/推送。
+
+## 5 preview.4 订阅节点归属修复
+
+- [x] 5.1 保护原工作区；在 `fix/preview4-subscription-recovery`、基线 `9283ccb` 独立 worktree 实施；阅读本地 Matt Pocock TDD/implement/code-review 与适用主规范/change。
+- [x] 5.2 沿 GroupEditorService/GroupLocalPreparation 保存和 RawUpdater 刷新确认问题；先 RED（planner 8 项中归属断言失败），再最小修复，GREEN 8/8；新增真实导入→编辑器拒绝→保存边界→刷新→ID/路由不变 instrumentation 源码。
+- [x] 5.3 同步主/delta MUST 要求和 GIVEN/WHEN/THEN、proposal/design、英/简中文案；本地静态检查见 6.1。
+
+## 6 紧随批次 5 的订阅修复验证
+
+- [x] 6.1 本地 planner 8/8、完整 app JVM 543/543（含本批）、Debug APK/AndroidTest APK assemble 通过；`:core-domain:test` 为 NO-SOURCE，无可计数用例。治理/离线版本文档/版本代码检查与 `git diff --check` 通过。
+- [ ] 6.2 精确修复提交运行 Verify Android Build（`verify-android.yml`）并回传 Build LibCore、Android debug/release instrumentation job/报告。已实际尝试本地 `connectedOssDebugAndroidTest`，失败于 `No connected devices!`，没有 instrumentation 用例执行；JVM 不是 instrumentation 证据。失败只修复批次 5，不推进新功能/发布。
+- [ ] 6.3 真机验证订阅导入→普通组拒绝/不部分写入→刷新，回传提示和持久化 ID/归属/路由对照；未执行。
+- [ ] 6.4 最终 Standards/Spec 两轴复审完成并处理全部发现。此前单人分轴两项 P2 已修；最终 Standards 指出批次仍混合，现按两切片分列；Spec 尚待完整结论，不能提前宣称通过。
+
+## 7 preview.4 放弃编辑恢复修复
+
+- [x] 7.1 追踪公开 abandon/持久 journal；先 RED（coordinator 10 项中保留 journal 断言失败），后将 journal 清理改为本地恢复、所需重建及 fresh status 确认后的提交点，GREEN 10/10。
+- [x] 7.2 新增公开 Root action/Room/journal/Activity 测试源码：失败、未知/超时/旧 fresh revision、成功、停止/暂停不启动，失败后重开页面与用户重试；仅外部 Root CLI 进程伪造。
+- [x] 7.3 同步主/delta MUST 和场景、proposal/design、英/简中文案；本地静态检查见 8.1。
+
+## 8 紧随批次 7 的恢复修复验证
+
+- [x] 8.1 本地 coordinator 10/10、完整 app JVM 543/543（含本批）、Debug APK/AndroidTest APK assemble 通过；治理/离线版本文档/版本代码检查与 `git diff --check` 通过。没有 Go 改动，不新增本地 Go/-race 执行，CI 仍保留其既有 Go 门禁。
+- [ ] 8.2 精确修复提交运行 Verify Android Build（`verify-android.yml`）并检查 debug/release instrumentation；本地 connected 测试已实际尝试但无设备，未执行测试用例。任何失败只修本批，不发布。
+- [ ] 8.3 Root 真机验证重建失败/超时后仍可重试、fresh 成功后清理、停止/暂停不启动；回传 UI、持久 journal、脱敏 revision/phase；未执行，伪造 CLI 的模拟器用例不能代替真机。
+- [ ] 8.4 最终双轴复审完成并处理发现；Spec 初步指出测试 finally 复用旧 preparation 的竞态，现移除旧实例清理，失败路径通过公开 abandon 成功重试收尾；意外 pending journal 不做清除或备份覆盖。完整复审仍待返回。
+
+过程偏离留痕：实际先完成两项实现及各自窄 JVM RED/GREEN，再统一运行完整本地构建，未在订阅切片取得 CI/真机结果后才进入恢复切片；此偏离 config.yaml 的阶段门禁，重排任务文本不能追溯消除。当前仅重组后续验收归属，未取得的 CI/instrumentation/真机/最终复审仍不勾选，全部门禁返回前不进入发布。两新增公开边界测试尚无旧实现上的 instrumentation RED 执行证据。
