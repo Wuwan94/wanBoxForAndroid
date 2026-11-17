@@ -14,8 +14,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 STABLE_TAG = "v3.0.14"
-PUBLISHED_PREVIEW = "v3.0.16-preview.3"
-PUBLISHED_PREVIEW_COMMIT = "fa6b95b9a39d2d441280021968d4b914eb5b20d3"
+PUBLISHED_PREVIEW = "v3.0.16-preview.4"
+PUBLISHED_PREVIEW_COMMIT = "9283ccb0886805bddbd6856835d23a548f20b9d6"
+# 发布后源码预览线与已发布预览相同：nb4a.properties 在下一预览升版前仍指向刚发布的
+# preview.4，此时发行说明的当前区段必须按「已发布」写，不能留「未发布候选」。
 SOURCE_PREVIEW = "v3.0.16-preview.4"
 SOURCE_PREVIEW_CODE = "2030"
 ARCHIVED_PREVIEW = "v3.0.15-preview.4"

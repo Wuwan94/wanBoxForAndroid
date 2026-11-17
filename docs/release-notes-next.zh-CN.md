@@ -1,6 +1,6 @@
-# v3.0.16-preview.4 发行说明（候选）
+# v3.0.16-preview.4 发行说明
 
-**状态：未发布的稳定性预览版候选。**
+**状态：已发布的稳定性预览版。**
 
 本版是 preview.3 的收口修复，面向已 Root 的 Android 12+ arm64 设备：策略组成员只认节点归属一个真相、订阅节点与组重名不再导致连接失败，并让源码 tag 与发布二进制重新同源。稳定版 `v3.0.14` / Root 模块码 `2026` 与 sing-box pin `v1.15.0-alpha.13-reF1nd` 均未改变；预览名为 `3.0.16-preview.4`，APK `versionCode=10154`，Root 模块码 `2030`（preview.3 为 `10148` / `2029`）。
 
@@ -25,7 +25,7 @@ URLTest 稳定性约束、`default` 保真、候选应用的版本 CAS 与恢复
 
 ## 升级与验证边界
 
-同一 Release 的瘦管理器 APK 与 Root 模块必须成套安装。回退时使用正式版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 和配套模块。本地已通过的测试与构建范围见 [PREVIEW_NOTES.md](../PREVIEW_NOTES.md) 的验证边界；instrumentation 执行、发行双产物体积与 CI run 号以 Verify Android Build / Preview Build 的实际结果为准，发布后写入[版本对照](current-version.zh-CN.md)。未执行 Magisk / KernelSU / APatch 真机矩阵，自动化结果不等同于真实 Root 设备验证。
+同一 Release 的瘦管理器 APK 与 Root 模块必须成套安装。回退时使用正式版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 和配套模块。本地已通过的测试与构建范围见 [PREVIEW_NOTES.md](../PREVIEW_NOTES.md) 的验证边界；instrumentation 执行、发行双产物体积与 CI run 号以 Verify Android Build / Preview Build 的实际结果为准（`44011037428` / `44013891166`），已回填[版本对照](current-version.zh-CN.md)。未执行 Magisk / KernelSU / APatch 真机矩阵，自动化结果不等同于真实 Root 设备验证。
 
 ---
 

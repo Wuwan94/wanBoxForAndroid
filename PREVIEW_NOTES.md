@@ -1,6 +1,6 @@
-# v3.0.16-preview.4 发行说明（候选）
+# v3.0.16-preview.4 发行说明
 
-**状态：未发布的稳定性预览版候选。**
+**状态：已发布的稳定性预览版。**
 
 本版是 preview.3 的收口修复：消除策略组成员的「双真相」、修复订阅节点与组重名导致的连接失败，并让源码 tag 与发布二进制重新同源。正式稳定版 `v3.0.14`（`VERSION_CODE=2026`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 不变；预览元数据码升为 `PRE_VERSION_CODE=2030`，派生 APK `versionCode=10154`、Root 模块码 `2030`，均高于 preview.3 的 `10148` / `2029`，已安装 preview.3 的用户可同时收到 APK 与模块更新。
 
@@ -11,7 +11,7 @@
 | 内容 | 四批次汇总：策略组浏览选择测速、模块诊断上屏、图形化组编辑、统一资源页与重名消歧、备份迁移规范化、网关缓存深拷贝 | 收口修复：组成员单一真相、订阅撞名不再断连、选中节点显式回落、恢复失败逃生口、设置与编辑器口径一致 |
 | APK `versionCode` | 10148 | 10154 |
 | Root 模块码 | 2029 | 2030 |
-| 源码与二进制 | 资产由 main `000d302` 重建替换，tag 仍指向 `fa6b95b` | 由同一 main 提交出版，tag 与资产同源 |
+| 源码与二进制 | 资产由 main `000d302` 重建替换，tag 仍指向 `fa6b95b` | tag、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与 CI `APPROVED_SHA` 四者同为 `9283ccb` |
 
 URLTest 稳定性约束（检测间隔 ≥ 10 秒、空闲超时 ≥ 30 分钟、切换时不中断现有连接）、`default` 保真、候选应用的版本 CAS 与恢复校验链本版均未放宽。
 
@@ -44,7 +44,7 @@ URLTest 稳定性约束（检测间隔 ≥ 10 秒、空闲超时 ≥ 30 分钟�
 
 ## 🛡️ 验证边界
 
-源码基于 main `000d3023571153d975d2868eeb7083da57b1a9e4`（PR #61）。本地（aarch64 沙盒，JDK 17，build-tools 原生工具经 qemu 转译）已通过：`testPreviewDebugUnitTest` 与 `testOssDebugUnitTest` 各 541 项 JVM 单元测试（较 preview.3 的 528 项新增 13 项）；AndroidTest Kotlin 编译；Python 工具 124 项、`version_code.py --check-kotlin --check-app-tag`、版本文档一致性检查与 `git diff --check`。新增 JVM 用例覆盖组成员归属与订阅更新/跨组移动后的成员一致、撞名后缀避让、`duplicate_tag` 提示映射、选中节点回落与放弃编辑的执行顺序；新增的 `GroupEditorPersistenceTest.countRuntimeAndExportShareOneMembershipTruth` 等 instrumentation 用例只在本地编译，执行结果以 Verify Android Build CI 为准。本地 `assemblePreviewDebug` 可出 APK；以 R8 压缩、调试签名的 `assemblePreviewBenchmark` APK（4881949 字节）加 preview.3 同版 Root 模块 ZIP 试算 `size_budget --enforce-limit` 合计 21.78 MiB，低于 26 MiB，仅作体积参考，正式发行双产物体积以 Preview Build 为准。发布证据（PR、合并提交、Preview Build 与 verify-android run 号）在发布后写入版本对照，不以本地结果替代。未执行 Magisk / KernelSU / APatch 真机矩阵：组编辑应用链、订阅更新后的组成员与放弃编辑的真机表现仍未验证；自动化结果不等同于真实 Root 设备验证。
+源码基于 main `9283ccb0886805bddbd6856835d23a548f20b9d6`（PR #62「fix: v3.0.16-preview.4 收口组成员单一真相与重名避让」，合并于 2026-11-17T03:58:26Z），tag `v3.0.16-preview.4` 与该提交同源。本地（aarch64 沙盒，JDK 17，build-tools 原生工具经 qemu 转译）已通过：`testPreviewDebugUnitTest` 与 `testOssDebugUnitTest` 各 541 项 JVM 单元测试（较 preview.3 的 528 项新增 13 项）；AndroidTest Kotlin 编译；Python 工具 124 项、`version_code.py --check-kotlin --check-app-tag`、版本文档一致性检查与 `git diff --check`。新增 JVM 用例覆盖组成员归属与订阅更新/跨组移动后的成员一致、撞名后缀避让、`duplicate_tag` 提示映射、选中节点回落与放弃编辑的执行顺序；新增的 `GroupEditorPersistenceTest.countRuntimeAndExportShareOneMembershipTruth` 等 instrumentation 用例只在本地编译，执行结果以 Verify Android Build CI 为准。本地 `assemblePreviewDebug` 可出 APK；以 R8 压缩、调试签名的 `assemblePreviewBenchmark` APK（4881949 字节）加 preview.3 同版 Root 模块 ZIP 试算 `size_budget --enforce-limit` 合计 21.78 MiB，低于 26 MiB，仅作体积参考，正式发行双产物体积以 Preview Build 为准。发布证据：PR #62 的 `Verify Android Build` run `44011037428`（`1ce7d7f`，instrumented debug/release 各 70 项 0 失败 2 skip，internal 变体 2 项 0 skip）通过；main `9283ccb` 上的 `Preview Build` run `44013891166` 完成候选构建与发布（发布 job 断言 `APPROVED_SHA=9283ccb`，回读 tag 一致，并以 `prune_prereleases.py --keep-tag v3.0.16-preview.4` 清理 preview.3 的 Release/tag）。发布后回读四件套（`sha256sum -c SHA256SUMS` 三件 OK）：APK `6300006` B / `ee36f3ba…a244b`、普通模块 `17956386` B / `10ff382f…f0def`、合一模块 `23548016` B / `f3570d64…d6d2b3a`、`SHA256SUMS` `333` B / `1fa84511…acfb8`；APK + 普通模块合计 `24256392` B（23.13 MiB），上限 27262976 B，余量 3006584 B，`size_budget --enforce-limit` PASS。逐项数据见[版本对照](https://github.com/Wuwan94/wanBoxForAndroid/blob/main/docs/current-version.zh-CN.md)。未执行 Magisk / KernelSU / APatch 真机矩阵：组编辑应用链、订阅更新后的组成员与放弃编辑的真机表现仍未验证；自动化结果不等同于真实 Root 设备验证。
 
 ---
 
@@ -52,7 +52,7 @@ URLTest 稳定性约束（检测间隔 ≥ 10 秒、空闲超时 ≥ 30 分钟�
 
 ### v3.0.16-preview.3 已发布说明
 
-[v3.0.16-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.3) 已作为稳定性预览版发布（tag `fa6b95b`，首发 `Preview Build` run `43906481811`；资产于 2026-11-17 由 main `000d302` 的候选 run `43939217515` 经受审查流程替换）。内容为四批次汇总：图形化策略组编辑、策略组浏览/选择/测速、统一资源页与重名消歧、备份与迁移规范化（「兼容旧版」导出未开放：尚无经真实旧版读取器验证的写入器，入口禁用并明确说明）、模块退出诊断上屏、网关缓存深拷贝；APK `10148` / 模块 `2029`。未执行 Root 真机矩阵。资产快照见[版本对照](docs/current-version.zh-CN.md)。
+[v3.0.16-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.3) 已作为稳定性预览版发布（tag `fa6b95b`，首发 `Preview Build` run `43906481811`；资产于 2026-11-17 由 main `000d302` 的候选 run `43939217515` 经受审查流程替换）。内容为四批次汇总：图形化策略组编辑、策略组浏览/选择/测速、统一资源页与重名消歧、备份与迁移规范化（「兼容旧版」导出未开放：尚无经真实旧版读取器验证的写入器，入口禁用并明确说明）、模块退出诊断上屏、网关缓存深拷贝；APK `10148` / 模块 `2029`。未执行 Root 真机矩阵。资产快照见[版本对照](docs/current-version.zh-CN.md)。preview.4 发布后，preview.3 的 Release/tag 已按单预览策略清理，上述 tag 与下载链接不再可用。
 
 ### 更早预览
 
