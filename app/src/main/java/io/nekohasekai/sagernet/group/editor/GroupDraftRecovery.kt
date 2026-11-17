@@ -36,6 +36,27 @@ internal object GroupDraftRecovery {
     }
 }
 
+internal interface GroupAbandonHost {
+    fun pending(): Boolean
+    fun restoreLocal()
+    fun clearJournal()
+    suspend fun rebuild()
+}
+
+/** Explicit "discard unfinished edit": local state first, then the marker, then a normal rebuild. */
+internal object GroupDraftAbandon {
+    /** Must run under the module mutation lock. A failed local restore keeps the journal. */
+    suspend fun abandon(host: GroupAbandonHost) {
+        if (!host.pending()) return
+        try {
+            host.restoreLocal()
+            host.clearJournal()
+        } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+        catch (error: Exception) { throw IOException("group_editor_recovery_required", error) }
+        host.rebuild()
+    }
+}
+
 /** A second status read closes the race between snapshot transport and capture. */
 internal object EditorBaselineReader {
     suspend fun read(revision: String, bytes: suspend () -> ByteArray,

@@ -31,13 +31,14 @@ class RootRouteBuildSnapshot private constructor(
             io.nekohasekai.sagernet.database.ProfileManager.getRules()
             return SagerDatabase.instance.runInTransaction(
                 java.util.concurrent.Callable {
+                    val profiles = SagerDatabase.proxyDao.getAll()
+                    val groups = SagerDatabase.groupDao.allGroups()
                     RootRouteBuildSnapshot(
                         SagerDatabase.rulesDao.enabledRules().map { it.copy(packages = it.packages.toSet()) },
-                        SagerDatabase.proxyDao.getAll().associate { it.id to KryoConverters.serialize(it) },
-                        SagerDatabase.groupDao.allGroups().map { com.google.gson.Gson().toJson(it) },
-                        SagerDatabase.groupDao.allGroups().mapNotNull { group ->
-                            io.nekohasekai.sagernet.group.editor.GroupEditorStore.read(group.id)?.let { group.id to it }
-                        }.toMap(),
+                        profiles.associate { it.id to KryoConverters.serialize(it) },
+                        groups.map { com.google.gson.Gson().toJson(it) },
+                        // One read per table; drafts are reconciled with the captured ownership (N5).
+                        io.nekohasekai.sagernet.group.editor.GroupEditorStore.effectiveDrafts(groups, profiles),
                     )
                 }
             )

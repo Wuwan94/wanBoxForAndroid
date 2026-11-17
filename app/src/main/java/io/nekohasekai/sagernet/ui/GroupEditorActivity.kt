@@ -26,7 +26,7 @@ class GroupEditorActivity : ThemedActivity() {
     private lateinit var intervalField: EditText
     private lateinit var toleranceField: EditText
     private lateinit var idleField: EditText
-    private lateinit var interruptField: CheckBox
+    private lateinit var modeLockedHint: TextView
     private lateinit var result: TextView
     private lateinit var save: Button
     private lateinit var recover: Button
@@ -90,6 +90,12 @@ class GroupEditorActivity : ThemedActivity() {
                 listOf("Selector", "URLTest"))
             setSelection(draft.mode.ordinal); isEnabled = !locked; form.addView(this)
         }
+        // N7: say where an existing group's type can be changed instead of a silently disabled spinner.
+        modeLockedHint = TextView(this).apply {
+            setText(R.string.group_editor_mode_locked_hint)
+            visibility = if (locked) View.VISIBLE else View.GONE
+            form.addView(this)
+        }
         memberRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; form.addView(this) }
         renderMembers()
         form.addView(button(R.string.group_editor_add_member) { chooseMember() })
@@ -97,8 +103,11 @@ class GroupEditorActivity : ThemedActivity() {
         intervalField = field(R.string.balancer_interval, draft.parameters.intervalSeconds.toString(), true)
         toleranceField = field(R.string.urltest_tolerance, draft.parameters.toleranceMs.toString(), true)
         idleField = field(R.string.urltest_idle_timeout, draft.parameters.idleTimeout)
-        interruptField = CheckBox(this).apply {
-            setText(R.string.group_editor_stability_limits); isChecked = false; isEnabled = false; form.addView(this)
+        // N6: a locked policy is plain text, not a disabled control that looks editable.
+        TextView(this).apply {
+            text = getString(R.string.group_editor_interrupt_locked) + "\n" + getString(R.string.group_editor_stability_limits)
+            contentDescription = text
+            form.addView(this)
         }
         result = TextView(this).apply { form.addView(this) }
         save = button(R.string.group_editor_apply) { applyDraft() }.also { form.addView(it) }
@@ -154,7 +163,7 @@ class GroupEditorActivity : ThemedActivity() {
     private fun collect(): GroupDraft = draft.copy(name = nameField.text.toString(),
         mode = GroupMode.values()[modeField.selectedItemPosition], members = members.toList(),
         parameters = UrlTestParameters(urlField.text.toString(), intervalField.text.toString().toLongOrNull() ?: 0,
-            toleranceField.text.toString().toIntOrNull() ?: -1, idleField.text.toString(), interruptField.isChecked)).normalized()
+            toleranceField.text.toString().toIntOrNull() ?: -1, idleField.text.toString(), false)).normalized()
 
     private fun enableForm(view: View, enabled: Boolean) {
         view.isEnabled = enabled
@@ -165,7 +174,7 @@ class GroupEditorActivity : ThemedActivity() {
         enableForm(form, !busy && !blocked)
         nameField.isEnabled = !busy && !blocked && !locked
         modeField.isEnabled = !busy && !blocked && !locked
-        interruptField.isEnabled = false
+        modeLockedHint.visibility = if (locked) View.VISIBLE else View.GONE
         recover.visibility = if (blocked) View.VISIBLE else View.GONE
         // Recovery remains available while every draft control stays blocked.
         recover.isEnabled = !busy
@@ -207,6 +216,8 @@ class GroupEditorActivity : ThemedActivity() {
                             "missing_entity" -> R.string.group_editor_missing_entity
                             "cycle" -> R.string.group_editor_cycle
                             "duplicate_member" -> R.string.group_editor_duplicate_member
+                            "subscription_member_locked" -> R.string.group_editor_subscription_member_locked
+                            "ungrouped_member_locked" -> R.string.group_editor_ungrouped_member_locked
                             "minimum_10_seconds", "minimum_30_minutes", "interrupt_locked_off" -> R.string.group_editor_stability_limits
                             "positive_seconds_required" -> R.string.group_editor_positive_seconds
                             "nonnegative_required" -> R.string.group_editor_nonnegative
@@ -230,6 +241,7 @@ class GroupEditorActivity : ThemedActivity() {
                 } else {
                     withContext(Dispatchers.IO) { RootModuleClient.applyGroupDraft(draft, creating) }
                     creating = false; locked = true; nameField.isEnabled = false; modeField.isEnabled = false
+                    modeLockedHint.visibility = View.VISIBLE
                     result.setText(R.string.group_editor_applied)
                 }
             } catch (error: CancellationException) { throw error }

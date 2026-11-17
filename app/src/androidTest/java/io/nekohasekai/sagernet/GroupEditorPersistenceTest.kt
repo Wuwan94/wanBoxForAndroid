@@ -93,6 +93,54 @@ class GroupEditorPersistenceTest {
         } finally { BackupRestore.apply(original, true, true, true) }
     }
 
+    /** P1-3 + N2: save -> subscription insert -> cross-group move keeps count, runtime and export equal,
+     * and a node named like a non-main group no longer breaks the ordinary build. */
+    @Test fun countRuntimeAndExportShareOneMembershipTruth() = kotlinx.coroutines.runBlocking {
+        val original = BackupRestore.parse(org.json.JSONObject(
+            io.nekohasekai.sagernet.utils.BackupHelper.doBackup().toString(Charsets.UTF_8)))
+        fun node(id: Long, group: Long, label: String) = ProxyEntity(id = id, groupId = group, userOrder = id).putBean(
+            io.nekohasekai.sagernet.fmt.socks.SOCKSBean().apply {
+                initializeDefaultValues(); name = label; serverAddress = "192.0.2.1"; serverPort = 1080
+            })
+        val main = node(99125, 99124, "main")
+        try {
+            BackupRestore.apply(BackupRestore.Plan(
+                listOf(main, node(99142, 99124, "moved"), node(99141, 99140, "hk-1")),
+                listOf(ProxyGroup(id = 99124, name = "订阅A", isSelector = true, userOrder = 1),
+                    ProxyGroup(id = 99140, name = "香港", isSelector = true, userOrder = 2)), emptyList(), null), true, true, false)
+            DataStore.serviceMode = Key.MODE_ROOT
+            DataStore.globalCustomConfig = ""; DataStore.globalMode = false; DataStore.enableClashAPI = false
+            DataStore.selectedProxy = main.id
+            // Save "香港" with node 99142 taken over from "订阅A", ordered first.
+            val draft = GroupDraft(99140, "香港", GroupMode.SELECTOR, listOf(99142, 99141),
+                UrlTestParameters("", 600, 100, "30m", false))
+            assertEquals(emptyList<GroupEditor.Issue>(), GroupEditorService.validate(draft))
+            val preparation = GroupLocalPreparation(draft)
+            try { preparation.prepare(); preparation.finish() }
+            catch (error: Exception) { preparation.restore(); preparation.finish(); throw error }
+            assertEquals(99140L, SagerDatabase.proxyDao.getById(99142)!!.groupId)
+            // Subscription-style updates only write groupId: a new "香港" member arrives, and the main
+            // group's subscription brings a node whose name equals the group name (N2). 99141 moves away.
+            SagerDatabase.proxyDao.insert(listOf(node(99143, 99140, "hk-new"), node(99126, 99124, "香港")))
+            SagerDatabase.proxyDao.getById(99141)!!.also { it.groupId = 99124; SagerDatabase.proxyDao.updateProxy(it) }
+            val expected = listOf(99142L, 99143L)
+            assertEquals(expected.size.toLong(), SagerDatabase.proxyDao.countByGroup(99140))
+            fun members(result: io.nekohasekai.sagernet.fmt.ConfigBuildResult): List<Long> {
+                val byTag = result.profileTagMap.entries.associate { (id, tag) -> tag to id }
+                return com.google.gson.JsonParser.parseString(result.config).asJsonObject["outbounds"].asJsonArray
+                    .map { it.asJsonObject }.single { it["tag"].asString == "香港" }["outbounds"].asJsonArray
+                    .map { byTag.getValue(it.asString) }
+            }
+            val runtime = io.nekohasekai.sagernet.fmt.buildConfig(main,
+                rootRouteSnapshot = io.nekohasekai.sagernet.route.RootRouteBuildSnapshot.capture())
+            val export = io.nekohasekai.sagernet.fmt.buildConfig(main, forExport = true)
+            assertEquals(expected, members(runtime))
+            assertEquals(expected, members(export))
+            // N2: the node named "香港" kept its own suffixed tag next to the group.
+            assertEquals("香港-1", runtime.profileTagMap[99126])
+        } finally { BackupRestore.apply(original, true, true, true) }
+    }
+
     @Test fun ordinaryOutputMigratesLegacyDraftUrlAndClearedOverrideMatchesCandidate() = kotlinx.coroutines.runBlocking {
         val original = BackupRestore.parse(org.json.JSONObject(
             io.nekohasekai.sagernet.utils.BackupHelper.doBackup().toString(Charsets.UTF_8)))
@@ -136,16 +184,24 @@ class GroupEditorPersistenceTest {
         val settings = io.nekohasekai.sagernet.database.preference.PublicDatabase.kvPairDao.all()
         val id = 99123L
         val previous = SagerDatabase.groupDao.getById(id)
+        // Drafts only order nodes the group owns (P1-3), so the fixture group owns both members.
+        val owned = listOf(99131L, 99130L).map { node -> ProxyEntity(id = node, groupId = id).putBean(
+            io.nekohasekai.sagernet.fmt.socks.SOCKSBean().apply {
+                initializeDefaultValues(); serverAddress = "192.0.2.1"; serverPort = 1080
+            }) }
         try {
             if (previous == null) SagerDatabase.groupDao.createGroup(ProxyGroup(id = id, name = "fixture"))
-            val draft = GroupDraft(id, "fixture", GroupMode.URL_TEST, listOf(7, 5),
+            SagerDatabase.proxyDao.insert(owned)
+            val name = SagerDatabase.groupDao.getById(id)!!.displayName()
+            val draft = GroupDraft(id, name, GroupMode.URL_TEST, listOf(99131, 99130),
                 UrlTestParameters("", 31, 12, "2m", true))
             GroupEditorStore.write(draft)
             val snapshot = io.nekohasekai.sagernet.route.RootRouteBuildSnapshot.capture()
-            GroupEditorStore.write(draft.copy(members = listOf(5, 7)))
+            GroupEditorStore.write(draft.copy(members = listOf(99130, 99131)))
             assertEquals(draft, snapshot.editorDrafts()[id])
-            assertEquals(listOf(5L, 7L), GroupEditorStore.read(id)?.members)
+            assertEquals(listOf(99130L, 99131L), GroupEditorStore.read(id)?.members)
         } finally {
+            SagerDatabase.proxyDao.deleteProxy(owned)
             if (previous == null) SagerDatabase.groupDao.deleteById(id)
             io.nekohasekai.sagernet.database.preference.PublicDatabase.kvPairDao.reset()
             io.nekohasekai.sagernet.database.preference.PublicDatabase.kvPairDao.insert(settings)
@@ -303,16 +359,21 @@ class GroupEditorPersistenceTest {
 
     @Test fun cancelEditedSessionKeepsEveryStoredValueAndEntity() {
         val previousSettings = io.nekohasekai.sagernet.database.preference.PublicDatabase.kvPairDao.all()
-        val original = GroupDraft(99122, "fixture", GroupMode.URL_TEST, listOf(7, 5),
+        val original = GroupDraft(99122, "fixture", GroupMode.URL_TEST, listOf(99128, 99127),
             UrlTestParameters("", 31, 12, "2m", true))
         val previousGroup = SagerDatabase.groupDao.getById(original.id)
+        val owned = original.members.map { node -> ProxyEntity(id = node, groupId = original.id).putBean(
+            io.nekohasekai.sagernet.fmt.socks.SOCKSBean().apply {
+                initializeDefaultValues(); serverAddress = "192.0.2.1"; serverPort = 1080
+            }) }
         try {
             if (previousGroup == null) SagerDatabase.groupDao.createGroup(ProxyGroup(id = original.id, name = original.name))
+            SagerDatabase.proxyDao.insert(owned)
             GroupEditorStore.write(original)
             val settings = io.nekohasekai.sagernet.database.preference.PublicDatabase.kvPairDao.all()
             val entities = SagerDatabase.groupDao.allGroups()
             val session = GroupEditSession(GroupEditorService.load(original.id))
-            session.draft = original.copy(members = listOf(5, 7), parameters = original.parameters.copy(intervalSeconds = 99))
+            session.draft = original.copy(members = listOf(99127, 99128), parameters = original.parameters.copy(intervalSeconds = 99))
             assertEquals(original, session.cancel())
             assertEquals(original, GroupEditorService.load(original.id))
             assertEquals(entities, SagerDatabase.groupDao.allGroups())
@@ -323,6 +384,7 @@ class GroupEditorPersistenceTest {
                 assertArrayEquals(old.value, after.getValue(old.key).value)
             }
         } finally {
+            SagerDatabase.proxyDao.deleteProxy(owned)
             if (previousGroup == null) SagerDatabase.groupDao.deleteById(original.id)
             io.nekohasekai.sagernet.database.preference.PublicDatabase.kvPairDao.reset()
             io.nekohasekai.sagernet.database.preference.PublicDatabase.kvPairDao.insert(previousSettings)

@@ -1117,9 +1117,6 @@
     <string name="migration_report_core_separate">核心配置应用：恢复步骤未执行核心应用。重启后服务按现有流程加载恢复数据，其结果在那边单独呈现，不与数据库恢复混称。</string>
     <string name="migration_report_defaulted">按缺省补齐（非来自备份）：%1$s</string>
     <string name="migration_report_recovery">如发现异常，可重新导入原始备份，或用原版本重新导出；请勿先删除源数据。</string>
-    <string name="migration_legacy_blocked_title">兼容导出已拒绝</string>
-    <string name="migration_legacy_field">字段 %1$s 无法由旧格式表示。</string>
-    <string name="migration_legacy_reader_unverified">旧版本应用能否读取新写出的旧格式文件尚未验证，故在写入前按 Fail-Closed 拒绝，不静默丢弃数据。请改用标准版本化导出。</string>
     <!-- @author 雾晚 -->
     <string name="notification_member_pending">等待活动节点</string>
     <string name="notification_direct_speed">直连 ↑%1$s ↓%2$s</string>
@@ -1320,4 +1317,13 @@
     <string name="backup_legacy_unavailable">兼容旧版导出暂未开放</string>
     <string name="group_editor_stability_limits">锁定关闭；检测间隔至少 10 秒，空闲超时至少 30 分钟</string>
     <string name="group_editor_recovery_required">上次策略组编辑未完成。请打开“策略组”，点击菜单中的“恢复编辑前的组配置”，恢复成功后再连接。</string>
+    <string name="root_module_duplicate_tag">组名与节点名称重复，请重命名冲突条目后重试</string>
+    <string name="group_editor_subscription_member_locked">订阅组的成员由订阅决定：此处可调整顺序与参数，增删节点请在订阅或节点页操作。</string>
+    <string name="group_editor_ungrouped_member_locked">该节点无处可移，不能直接移出本组；请先把它移入其他分组。</string>
+    <string name="group_editor_interrupt_locked">切换时中断现有连接：锁定关闭（保护长连接稳定）</string>
+    <string name="group_editor_mode_locked_hint">已有组的类型请在组设置页修改</string>
+    <string name="group_editor_abandon">放弃未完成编辑</string>
+    <string name="group_editor_abandon_confirm">将把本机组配置恢复到编辑前，清除恢复标记，并按当前配置重建 Root 模块（模块未运行时只清除标记）。仅在“恢复编辑前的组配置”无法完成时使用。</string>
+    <string name="group_editor_abandon_done">已放弃未完成编辑，可重新连接。</string>
+    <string name="group_editor_recovery_failed_choice">无法恢复编辑前的组配置（保存的基线可能已失效）。可以稍后重试，或放弃未完成编辑。</string>
 </resources>

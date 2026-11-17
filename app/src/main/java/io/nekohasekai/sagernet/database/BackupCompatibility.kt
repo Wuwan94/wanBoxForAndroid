@@ -64,6 +64,10 @@ object BackupCompatibility {
      * Historical clients' ability to read newly written legacy files has not
      * been verified on a real old client, so the export is refused Fail-Closed
      * even when every field is representable; nothing is silently degraded.
+     *
+     * N8: the compatible export entry is disabled in this release, so no UI path calls this
+     * guard (its unused refusal strings were removed). It stays as the pre-write contract any
+     * future legacy export must call first, pinned by BackupCompatibilityTest.
      */
     fun checkLegacyExport(plan: BackupRestore.Plan): LegacyExportVerdict {
         val unrepresentable = buildList {
