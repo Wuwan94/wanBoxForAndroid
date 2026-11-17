@@ -2,6 +2,8 @@ package io.nekohasekai.sagernet
 
 import android.content.Intent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.graphics.Rect
+import android.view.MotionEvent
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.android.material.appbar.MaterialToolbar
 import io.nekohasekai.sagernet.bg.RootModuleClient
@@ -61,9 +63,39 @@ class GroupDraftAbandonPersistenceTest {
                 val candidates = instrumentation.uiAutomation.rootInActiveWindow
                     ?.findAccessibilityNodeInfosByText(text).orEmpty()
                 candidates.any { node ->
-                    node.text?.toString()?.trim()?.equals(text.trim(), ignoreCase = true) == true &&
-                        (node.performAction(AccessibilityNodeInfo.ACTION_CLICK) ||
-                            node.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true)
+                    if (node.text?.toString()?.trim()?.equals(text.trim(), ignoreCase = true) != true) {
+                        false
+                    } else {
+                        // Popup menu text nodes are not consistently clickable across Android
+                        // versions. Prefer the nearest clickable row, then tap the visible label.
+                        var clickable: AccessibilityNodeInfo? = node
+                        var depth = 0
+                        var clicked = false
+                        while (clickable != null && depth < 3 && !clicked) {
+                            clicked = clickable.isClickable && clickable.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                            clickable = clickable.parent
+                            depth++
+                        }
+                        if (clicked) true else {
+                            val bounds = Rect()
+                            node.getBoundsInScreen(bounds)
+                            if (bounds.isEmpty) false else {
+                                val x = bounds.exactCenterX()
+                                val y = bounds.exactCenterY()
+                                val downTime = android.os.SystemClock.uptimeMillis()
+                                val down = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, x, y, 0)
+                                val up = MotionEvent.obtain(downTime, downTime + 1, MotionEvent.ACTION_UP, x, y, 0)
+                                try {
+                                    val injectedDown = instrumentation.uiAutomation.injectInputEvent(down, true)
+                                    val injectedUp = instrumentation.uiAutomation.injectInputEvent(up, true)
+                                    injectedDown && injectedUp
+                                } finally {
+                                    down.recycle()
+                                    up.recycle()
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
