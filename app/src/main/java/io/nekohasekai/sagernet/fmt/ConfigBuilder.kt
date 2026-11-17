@@ -1494,11 +1494,12 @@ fun buildConfig(
                 }
                 val uidList = rule.packages.flatMap { pkg ->
                     if (!useTun) {
-                        Toast.makeText(
-                            SagerNet.application,
-                            SagerNet.application.getString(R.string.route_need_vpn, rule.displayName()),
-                            Toast.LENGTH_SHORT
-                        ).show()
+                        // @author 雾晚: config building runs on IO coroutines, so show it on main.
+                        runOnMainDispatcher {
+                            Toast.makeText(SagerNet.application,
+                                SagerNet.application.getString(R.string.route_need_vpn, rule.displayName()),
+                                Toast.LENGTH_SHORT).show()
+                        }
                     }
                     // @author 雾晚: match the package on all users (cloned/dual apps).
                     PackageCache.uidsForPackage(pkg).filter { uid -> uid >= 1000 }
@@ -1733,11 +1734,13 @@ fun buildConfig(
                 }
                 for (subRule in generatedSubRules) {
                     if (subRule.action !in setOf("reject", "sniff", "resolve", "hijack-dns", "route-options") && subRule.outbound.isNullOrBlank()) {
-                        Toast.makeText(
-                            SagerNet.application,
-                            "Warning: " + rule.displayName() + ": A non-existent outbound was specified.",
-                            Toast.LENGTH_LONG
-                        ).show()
+                        // @author 雾晚: connect and the locked discard rebuild build on IO; a toast
+                        // created off the main looper throws and used to fail the whole rebuild.
+                        runOnMainDispatcher {
+                            Toast.makeText(SagerNet.application,
+                                "Warning: " + rule.displayName() + ": A non-existent outbound was specified.",
+                                Toast.LENGTH_LONG).show()
+                        }
                     } else {
                         route.rules.add(subRule)
                         route.rule_set.addAll(ruleSets)

@@ -629,7 +629,7 @@ Before enabling Smart Auto-stop on every supported Android version, Android MUST
 
 ### Requirement: Discard retains its recovery barrier until confirmed complete
 
-Discarding an unfinished edit MUST first restore journaled local values while retaining the durable journal. If fresh module status reports connected, the current local configuration MUST be rebuilt under the existing mutation lock without removing that journal; a subsequent cache-bypassing fresh status MUST confirm the applied revision, the matching running revision and a known connected/suspended state before journal deletion or success. A rebuild failure, timeout, unknown state or mismatched revision MUST retain the journal, recovery entry and connection/editing barrier. The same persisted journal MUST keep recovery available after Activity destruction/recreation and MUST support retry. Discard MUST NOT use its narrow locked recovery permission to bypass the journal barrier for normal startup or reload. Fresh stopped or suspended status MUST result only in local restoration/marker cleanup, with no rebuild or start and no change to module running intent. Other initial module states or installer selection MUST remain blocked.
+Discarding an unfinished edit MUST first restore journaled local values while retaining the durable journal. If fresh module status reports connected, the current local configuration MUST be rebuilt under the existing mutation lock without removing that journal; a subsequent cache-bypassing fresh status MUST confirm the applied revision, the matching running revision and a known connected/suspended state before journal deletion or success. A rebuild failure, timeout, unknown state or mismatched revision MUST retain the journal, recovery entry and connection/editing barrier. The same persisted journal MUST keep recovery available after Activity destruction/recreation and MUST support retry. Discard MUST NOT use its narrow locked recovery permission to bypass the journal barrier for normal startup or reload. An unresolved outbound-reference warning about the configuration being reapplied MUST NOT block that locked rebuild: discard restores the pre-edit configuration the module was already running, so the warning computed from the same build snapshot MUST stand in for that rebuild's confirmation, while the next normal start or reload MUST still require explicit confirmation. Fresh stopped or suspended status MUST result only in local restoration/marker cleanup, with no rebuild or start and no change to module running intent. Other initial module states or installer selection MUST remain blocked.
 
 #### Scenario: Failed rebuild survives page recreation and retry
 
@@ -648,3 +648,9 @@ Discarding an unfinished edit MUST first restore journaled local values while re
 - **GIVEN** a durable journal and fresh stopped or suspended module status
 - **WHEN** the user discards the unfinished edit
 - **THEN** local restoration MUST complete before journal cleanup and the module MUST NOT be rebuilt or started
+
+#### Scenario: Dangling outbound reference does not deadlock discard
+
+- **GIVEN** an enabled rule whose node was deleted, so the current configuration raises an outbound-reference warning, and a durable unfinished-edit journal
+- **WHEN** the user discards the unfinished edit while the module is connected
+- **THEN** the locked rebuild MUST apply the configuration that same snapshot describes, the confirmed applied/current/running revisions MUST still gate journal deletion, and the next normal start or reload MUST ask for that warning again
