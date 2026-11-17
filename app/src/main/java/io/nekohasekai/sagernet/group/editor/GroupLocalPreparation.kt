@@ -59,7 +59,8 @@ class GroupLocalPreparation(private val draft: GroupDraft) {
             GroupMembership.Target(it.id, it.type == io.nekohasekai.sagernet.GroupType.SUBSCRIPTION, it.ungrouped)
         }
         val sync = GroupMembership.plan(draft, target,
-            SagerDatabase.proxyDao.getAll().associate { it.id to it.groupId }, groups.firstOrNull { it.ungrouped }?.id)
+            SagerDatabase.proxyDao.getAll().associate { it.id to it.groupId }, groups.firstOrNull { it.ungrouped }?.id,
+            groups.filter { it.type == io.nekohasekai.sagernet.GroupType.SUBSCRIPTION }.map { it.id }.toSet())
         if (sync.issues.isNotEmpty()) throw IOException("group_validation_failed")
         sync.moves
     }

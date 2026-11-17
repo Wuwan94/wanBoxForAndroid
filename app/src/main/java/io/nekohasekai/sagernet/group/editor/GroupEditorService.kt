@@ -66,7 +66,7 @@ object GroupEditorService {
             GroupMembership.Target(it.id, subscription = it.type == GroupType.SUBSCRIPTION, ungrouped = it.ungrouped)
         }
         errors += GroupMembership.plan(draft.normalized(), target, profiles.associate { it.id to it.groupId },
-            groups.firstOrNull { it.ungrouped }?.id).issues
+            groups.firstOrNull { it.ungrouped }?.id, groups.filter { it.type == GroupType.SUBSCRIPTION }.map { it.id }.toSet()).issues
         val original = groups.firstOrNull { it.id == draft.id }?.let { load(it.id) }
         if (original != null && GroupEditor.identityError(original, draft) != null)
             errors += GroupEditor.Issue("name", "identity_locked")

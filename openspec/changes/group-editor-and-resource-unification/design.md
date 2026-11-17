@@ -46,3 +46,11 @@
 
 
 4a 修复轮遵循统筹 F1–F6 裁决：编辑器从模块 current 指针对应的 generations/<revision>/snapshot.json 捕获完整有效基准，只补 outbounds，不以 EBPF 双重建替代。无有效基准或成员运行时 tag 不可取得时拒绝，要求先正常应用配置。提交先记录可恢复旧值/实体存在性/基准快照，完成本地准备后 validate→apply→绕缓存确认；失败补偿两库并经相同命令通道回滚基准，无法确认保留日志且 Fail-Closed。显式恢复入口在确认基准恢复后解除阻断。新建组进入既有实体与快照组集合，负载均衡从目标组编辑器成员 ID 取节点；不改规则或成员模型。
+
+## preview.4 review correction: ownership and discard commit point
+
+Both `GroupEditorService.validate` and `GroupLocalPreparation` supply the set of subscription group IDs to the same membership planner. A source subscription owner is locked even when the target is ordinary/new; rejection returns no moves and happens before journal or database writes. Existing ordinary-to-ordinary moves and subscription reorder remain unchanged. `RawUpdater.doUpdate` continues to find nodes in `getByGroup(subscription.id)`; keeping ownership therefore preserves its existing identity matching and route IDs.
+
+Discard's commit point is journal deletion, not local restoration. `GroupDraftAbandon` restores local values, waits for its host's verified rebuild and only then clears the journal. The Root host reads fresh status: connected requires rebuilding, followed by matching applied/current/running revision and connected/suspended confirmation; stopped/suspended completes local recovery only. Installer/unknown/failed states reject. A private default-off `restoringGroupDraft` permission admits only this locked rebuild while the journal remains; every normal startup/reload retains the pending-journal guard. Any failure/cancellation leaves idempotently restorable local undo data and the persisted retry entry. Default and Simplified Chinese explanations describe the rejection and the actual discard commit point.
+
+Tests use public editor validation/local-preparation, actual Room/preferences, real `RawUpdater` content-provider import/refresh, and the public Root abandon action plus real Activity destruction/reopening. Only the external Root CLI process is faked; journal visibility during fresh confirmation, restored values, preserved identity/routes and visible retry entries are observed. JVM planner/coordinator tests additionally give narrow RED/GREEN feedback; they do not substitute for Android instrumentation or real Root-device validation.

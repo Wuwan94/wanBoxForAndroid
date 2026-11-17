@@ -59,18 +59,23 @@ class GroupDraftRecoveryTest {
         assertFalse(host.restored)
         assertTrue(host.commands.isEmpty())
     }
-    private class AbandonHost(private val failRestore: Boolean = false) : GroupAbandonHost {
+    private class AbandonHost(private val failRestore: Boolean = false, private val failRebuild: Boolean = false) : GroupAbandonHost {
         val steps = mutableListOf<String>()
         var journal = true
         override fun pending() = journal
         override fun restoreLocal() { if (failRestore) throw IOException("restore_failed"); steps += "restore" }
         override fun clearJournal() { journal = false; steps += "clear" }
-        override suspend fun rebuild() { steps += "rebuild" }
+        override suspend fun rebuild() { steps += "rebuild"; if (failRebuild) throw IOException("rebuild_failed") }
     }
-    @Test fun abandonRestoresLocalThenClearsJournalThenRebuildsFromCurrentConfig() = runTest {
+    @Test fun abandonRetainsRecoveryAfterModuleRebuildFailure() = runTest {
+        val host = AbandonHost(failRebuild = true)
+        try { GroupDraftAbandon.abandon(host); fail() } catch (_: IOException) {}
+        assertTrue("Rebuild failure must retain a durable retry", host.journal)
+    }
+    @Test fun abandonClearsJournalOnlyAfterRebuildCompletes() = runTest {
         val host = AbandonHost()
         GroupDraftAbandon.abandon(host)
-        assertEquals(listOf("restore", "clear", "rebuild"), host.steps)
+        assertEquals(listOf("restore", "rebuild", "clear"), host.steps)
         assertFalse(host.journal)
     }
     @Test fun abandonKeepsJournalWhenLocalRestoreFails() = runTest {
