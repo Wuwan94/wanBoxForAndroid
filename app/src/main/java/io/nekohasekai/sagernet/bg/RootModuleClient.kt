@@ -608,6 +608,25 @@ object RootModuleClient {
         }
     }
 
+    /**
+     * P1-7 escape hatch when [recoverGroupDraft] cannot restore (e.g. the saved baseline no longer
+     * validates): restore the journaled local state, clear the recovery marker, then rebuild the
+     * module from the current configuration. Never starts a stopped module.
+     */
+    suspend fun abandonGroupDraft(): Status = withContext(Dispatchers.IO) {
+        changes.withLock {
+            val store = io.nekohasekai.sagernet.group.editor.GroupLocalPreparation
+            var rebuilt: Status? = null
+            io.nekohasekai.sagernet.group.editor.GroupDraftAbandon.abandon(object : io.nekohasekai.sagernet.group.editor.GroupAbandonHost {
+                override fun pending() = store.pending()
+                override fun restoreLocal() = store.restorePendingLocal()
+                override fun clearJournal() = store.clearRecord()
+                override suspend fun rebuild() { rebuilt = startOrReloadLocked(startIfStopped = false) }
+            })
+            rebuilt ?: callFreshStatus()
+        }
+    }
+
     private suspend fun sendGroupCandidate(command: String,
         candidate: io.nekohasekai.sagernet.group.editor.CandidateSnapshot): io.nekohasekai.sagernet.group.editor.CandidateStatus {
         val file = File.createTempFile("group-candidate-", ".json", SagerNet.application.cacheDir)
@@ -629,6 +648,7 @@ object RootModuleClient {
                 if (issues.isNotEmpty()) throw IOException("group_validation_failed")
                 if (RootModuleDataUpdate.pending()) throw IOException("data_update_pending")
                 var confirmedStatus: Status? = null
+                var capturedProfile: io.nekohasekai.sagernet.database.ProxyEntity? = null
                 val local = io.nekohasekai.sagernet.group.editor.GroupLocalPreparation(draft)
                 val host = object : io.nekohasekai.sagernet.group.editor.CandidateHost {
                     override suspend fun prepare(candidate: io.nekohasekai.sagernet.group.editor.CandidateSnapshot) = local.prepare(candidate.baselineJson)
@@ -650,6 +670,7 @@ object RootModuleClient {
                         val baseline = readEditorBaseline(expectedRevision)
                         val profile = routes.allProfiles().firstOrNull { it.id == baseline["profileId"]?.asLong }
                             ?: throw IOException("profile_missing")
+                        capturedProfile = profile
                         val baselineConfig = baseline["config"].asJsonObject
                         val baselineTags = (baselineConfig.getAsJsonArray("outbounds").toList() +
                             baselineConfig.getAsJsonArray("endpoints")?.toList().orEmpty())
@@ -679,6 +700,12 @@ object RootModuleClient {
                 catch (error: IOException) {
                     if (error.message == "cleanup_required") throw IOException("group_editor_recovery_required", error)
                     throw error
+                }
+                // N3: only after the module confirmed the candidate, the UI selection follows the
+                // explicit fallback member so it never shows A while traffic uses another node.
+                capturedProfile?.let { profile ->
+                    io.nekohasekai.sagernet.group.editor.GroupEditor.selectionAfterApply(draft, profile.id, profile.groupId)
+                        ?.let { DataStore.selectedProxy = it }
                 }
                 confirmedStatus ?: throw IOException("apply_not_confirmed")
             }

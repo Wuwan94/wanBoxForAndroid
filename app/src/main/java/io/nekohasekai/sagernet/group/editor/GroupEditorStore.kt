@@ -2,20 +2,29 @@ package io.nekohasekai.sagernet.group.editor
 
 import com.google.gson.Gson
 import io.nekohasekai.sagernet.database.DataStore
+import io.nekohasekai.sagernet.database.ProxyEntity
+import io.nekohasekai.sagernet.database.ProxyGroup
 
 /** Only explicitly accepted drafts reach configurationStore; UI edits stay in memory. */
 object GroupEditorStore {
     private val gson = Gson()
+
+    /** The draft exactly as saved (order + URLTest parameters). Never queries SagerDatabase, so
+     * callers inside a snapshot transaction or on the main thread do no nested I/O. */
     fun read(id: Long): GroupDraft? = DataStore.configurationStore.getString("group_${id}_editor")
-        ?.let {
-            val draft = gson.fromJson(it, GroupDraft::class.java).normalized()
-            // Existing group identity has one source of truth: the database list.
-            // Normalize legacy drafts that were saved before name locking existed.
-            val group = io.nekohasekai.sagernet.database.SagerDatabase.groupDao.getById(id)
-            if (group == null) draft else draft.copy(name = group.displayName())
-        }
-    /** Editor membership is an explicit subset, not ownership of subscription nodes.
-     * Lifecycle deletion/update paths prune that subset before the next build/export. */
+        ?.let { gson.fromJson(it, GroupDraft::class.java).normalized() }
+
+    /** Saved drafts reconciled with database ownership: the name comes from the group row and the
+     * members are exactly the nodes whose `groupId` is that group, in saved order then database order. */
+    fun effectiveDrafts(groups: List<ProxyGroup>, profiles: List<ProxyEntity>): Map<Long, GroupDraft> {
+        val owned = profiles.sortedBy { it.userOrder }.groupBy({ it.groupId }, { it.id })
+        return groups.mapNotNull { group ->
+            read(group.id)?.let { saved -> GroupMembership.reconcile(saved, group.displayName(), owned[group.id].orEmpty()) }
+                ?.let { group.id to it }
+        }.toMap()
+    }
+
+    /** Deleted nodes leave every saved order; a saved order with no node left is no override. */
     fun removeDeletedMembers(ids: Set<Long>) {
         if (ids.isEmpty()) return
         val store = DataStore.configurationStore

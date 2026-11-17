@@ -21,6 +21,8 @@ object RootModuleErrors {
         "retry_limit_reached" -> R.string.module_reason_retry_limit
         "startup_timeout" -> R.string.module_reason_startup_timeout
         "group_editor_recovery_required" -> R.string.group_editor_recovery_required
+        // N2 fail-closed fallback: name the fix instead of a generic failure.
+        "duplicate_tag" -> R.string.root_module_duplicate_tag
         "cleanup_required" -> R.string.module_reason_cleanup_required
         "root_required" -> R.string.module_reason_root_required
         "module_protocol_mismatch" -> R.string.module_reason_protocol_mismatch

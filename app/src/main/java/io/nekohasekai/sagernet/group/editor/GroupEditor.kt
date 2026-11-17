@@ -136,13 +136,23 @@ object GroupEditor {
                 addProperty("idle_timeout", parameters.idleTimeout)
                 addProperty("interrupt_exist_connections", parameters.interruptExisting)
             } else {
-                (defaultTag ?: previousDefault)?.takeIf { it in selectedTags }?.let { addProperty("default", it) }
+                // A main-group selection (defaultTag) that left the members falls back explicitly to
+                // the first member; never leave the core to pick outbounds[0] behind the UI's back.
+                val selected = when {
+                    defaultTag != null -> defaultTag.takeIf { it in selectedTags } ?: selectedTags.first()
+                    else -> previousDefault?.takeIf { it in selectedTags }
+                }
+                selected?.let { addProperty("default", it) }
             }
         }
         if (index >= 0) outbounds.set(index, replacement) else outbounds.add(replacement)
         return result
     }
     private fun JsonArray?.orEmpty(): List<com.google.gson.JsonElement> = this?.toList().orEmpty()
+
+    /** The node `DataStore.selectedProxy` must follow once a main-group draft is applied, or null. */
+    fun selectionAfterApply(draft: GroupDraft, selectedProfileId: Long, mainGroupId: Long): Long? =
+        draft.members.firstOrNull()?.takeIf { draft.id == mainGroupId && selectedProfileId !in draft.members }
 }
 
 /** One stability policy for the normal builder AND editor snapshot patches. */

@@ -54,16 +54,30 @@ class PolicyGroupsActivity : ThemedActivity(R.layout.layout_policy_groups) {
         toolbar.menu.add(R.string.policy_refresh).setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
         val editItem = toolbar.menu.add(R.string.group_editor_local)
         val recoveryItem = toolbar.menu.add(R.string.group_editor_recover)
-        recoveryItem.isVisible = io.nekohasekai.sagernet.group.editor.GroupLocalPreparation.pending()
+        // P1-7: secondary escape hatch so a stale baseline can never lock editing forever.
+        val abandonItem = toolbar.menu.add(R.string.group_editor_abandon)
+        fun syncRecoveryItems() {
+            val pending = io.nekohasekai.sagernet.group.editor.GroupLocalPreparation.pending()
+            recoveryItem.isVisible = pending
+            abandonItem.isVisible = pending
+        }
+        syncRecoveryItems()
         toolbar.setOnMenuItemClickListener {
             if (it === recoveryItem) lifecycleScope.launch {
                 try {
                     RootModuleClient.recoverGroupDraft()
-                    recoveryItem.isVisible = false
+                    syncRecoveryItems()
                     refresh()
                 } catch (error: CancellationException) { throw error }
-                catch (_: Exception) { showMessage(R.string.group_editor_recovery_required, retry = false) }
-            } else if (it === editItem) openLocalEditor() else refresh()
+                catch (_: Exception) {
+                    showMessage(R.string.group_editor_recovery_required, retry = false)
+                    androidx.appcompat.app.AlertDialog.Builder(this@PolicyGroupsActivity)
+                        .setMessage(R.string.group_editor_recovery_failed_choice)
+                        .setPositiveButton(R.string.group_editor_abandon) { _, _ -> confirmAbandon { syncRecoveryItems() } }
+                        .setNegativeButton(android.R.string.cancel, null).show()
+                }
+            } else if (it === abandonItem) confirmAbandon { syncRecoveryItems() }
+            else if (it === editItem) openLocalEditor() else refresh()
             true
         }
         val scroll = findViewById<View>(R.id.policy_scroll)
@@ -72,6 +86,25 @@ class PolicyGroupsActivity : ThemedActivity(R.layout.layout_policy_groups) {
             view.updatePadding(left = bars.left, right = bars.right, bottom = bars.bottom)
             insets
         }
+    }
+
+    private fun confirmAbandon(after: () -> Unit) {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.group_editor_abandon)
+            .setMessage(R.string.group_editor_abandon_confirm)
+            .setPositiveButton(R.string.group_editor_abandon) { _, _ ->
+                lifecycleScope.launch {
+                    try {
+                        RootModuleClient.abandonGroupDraft()
+                        Toast.makeText(this@PolicyGroupsActivity, R.string.group_editor_abandon_done, Toast.LENGTH_SHORT).show()
+                        refresh()
+                    } catch (error: CancellationException) { throw error }
+                    catch (error: Exception) {
+                        content.removeAllViews()
+                        content.addView(text(io.nekohasekai.sagernet.bg.RootModuleErrors.message(this@PolicyGroupsActivity, error)))
+                    } finally { after() }
+                }
+            }.setNegativeButton(android.R.string.cancel, null).show()
     }
 
     private fun openLocalEditor() {

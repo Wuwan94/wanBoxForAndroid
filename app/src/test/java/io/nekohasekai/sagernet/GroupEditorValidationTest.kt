@@ -122,11 +122,26 @@ class GroupEditorValidationTest {
             mapOf(2L to "a", 3L to "b"), "", selected)["outbounds"].asJsonArray[0].asJsonObject
         assertEquals("b", patch()["default"].asString)
         assertEquals("a", patch("a")["default"].asString)
-        assertFalse(patch("removed").has("default"))
+        // N3: the main group's selection left the members -> explicit fallback to the first member.
+        assertEquals("a", patch("removed")["default"].asString)
         val removed = GroupEditor.patchOutbounds(before, selector.copy(members = listOf(2)), "proxy",
             mapOf(2L to "a", 3L to "b"), "")["outbounds"].asJsonArray[0].asJsonObject
         assertFalse(removed.has("default"))
         assertEquals("b", before["outbounds"].asJsonArray[0].asJsonObject["default"].asString)
+    }
+
+    @Test fun mainGroupSelectionOutsideMembersFallsBackExplicitlyAndSyncsSelection() {
+        val before = com.google.gson.JsonParser.parseString("""{"outbounds":[{"tag":"proxy","type":"selector","default":"b","outbounds":["a","b"]},{"tag":"a","type":"socks"},{"tag":"b","type":"socks"}]}""").asJsonObject
+        val selector = draft().copy(mode = GroupMode.SELECTOR, members = listOf(2))
+        val main = GroupEditor.patchOutbounds(before, selector, "proxy", mapOf(2L to "a", 3L to "b"), "", "b")
+        assertEquals("a", main["outbounds"].asJsonArray[0].asJsonObject["default"].asString)
+        // The selection follows only when it is the main group and the node left the members.
+        assertEquals(2L, GroupEditor.selectionAfterApply(selector, selectedProfileId = 3, mainGroupId = 1))
+        assertNull(GroupEditor.selectionAfterApply(selector, selectedProfileId = 2, mainGroupId = 1))
+        assertNull(GroupEditor.selectionAfterApply(selector, selectedProfileId = 3, mainGroupId = 9))
+        // A dropped selection would otherwise move the main group to wherever the node went.
+        assertEquals(2L, GroupEditor.selectionAfterApply(draft().copy(mode = GroupMode.URL_TEST, members = listOf(2)),
+            selectedProfileId = 3, mainGroupId = 1))
     }
 
     @Test fun nodeTagCollisionFailsClosedWithoutMutatingInput() {

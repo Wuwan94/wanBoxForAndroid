@@ -55,7 +55,8 @@ class GroupSettingsActivity(
         DataStore.groupUrlTestInterval = DataStore.groupUrlTestInterval(id).toInt()
         DataStore.groupUrlTestTolerance = DataStore.groupUrlTestTolerance(id)
         DataStore.groupUrlTestIdleTimeout = DataStore.groupUrlTestIdleTimeout(id)
-        DataStore.groupUrlTestInterruptExist = DataStore.groupUrlTestInterruptExist(id)
+        // N4: interrupt_exist_connections is locked off (clampUrlTestParams); never surface a stale true.
+        DataStore.groupUrlTestInterruptExist = false
 
         DataStore.frontProxy = frontProxy
         DataStore.landingProxy = landingProxy
@@ -81,8 +82,9 @@ class GroupSettingsActivity(
     }
 
     fun ProxyGroup.serialize() {
+        // An edited group's identity is locked to its database row; the saved draft carries no name truth.
         val lockedIdentity = io.nekohasekai.sagernet.group.editor.GroupEditorStore.read(id)
-        val rawName = lockedIdentity?.name ?: DataStore.groupName.trim()
+        val rawName = if (lockedIdentity != null) displayName() else DataStore.groupName.trim()
         name = if (rawName.isNotBlank() && !RawUpdater.isDefaultGroupName(rawName)) {
             rawName
         } else if (type == GroupType.SUBSCRIPTION) {
@@ -102,7 +104,8 @@ class GroupSettingsActivity(
         DataStore.setGroupUrlTestInterval(id, DataStore.groupUrlTestInterval.toLong())
         DataStore.setGroupUrlTestTolerance(id, DataStore.groupUrlTestTolerance)
         DataStore.setGroupUrlTestIdleTimeout(id, DataStore.groupUrlTestIdleTimeout)
-        DataStore.setGroupUrlTestInterruptExist(id, DataStore.groupUrlTestInterruptExist)
+        // N4: locked off, matching the builder and the editor; saving normalizes legacy values.
+        DataStore.setGroupUrlTestInterruptExist(id, false)
 
         frontProxy =
             if (DataStore.frontProxyTmp == OutboundPreference.VALUE_SELECT_PROFILE.toInt()) {

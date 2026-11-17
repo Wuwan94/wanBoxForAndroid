@@ -1205,9 +1205,6 @@
     <string name="migration_report_core_separate">Core configuration apply: not performed by the restore step. After the restart, the service loads the restored data through the existing flow; its result is reported separately there.</string>
     <string name="migration_report_defaulted">Filled with defaults (not from the backup): %1$s</string>
     <string name="migration_report_recovery">If anything looks wrong, re-import the original backup or re-export with the original app version; do not delete the source data first.</string>
-    <string name="migration_legacy_blocked_title">Legacy-compatible export refused</string>
-    <string name="migration_legacy_field">Field %1$s cannot be represented by the legacy format.</string>
-    <string name="migration_legacy_reader_unverified">Whether historical app versions can read a newly written legacy file has not been verified, so the export is refused before writing (fail-closed) instead of silently dropping data. Use the standard versioned export instead.</string>
     <!-- @author 雾晚 -->
     <string name="notification_member_pending">Waiting for active node</string>
     <string name="notification_direct_speed">Direct ↑%1$s ↓%2$s</string>
@@ -1435,4 +1432,13 @@
     <string name="backup_legacy_unavailable">Legacy export is not available yet</string>
     <string name="group_editor_stability_limits">Locked off; interval ≥ 10s and idle timeout ≥ 30m</string>
     <string name="group_editor_recovery_required">The previous policy-group edit did not finish. Open Policy groups → Recover previous group configuration to restore it before connecting.</string>
+    <string name="root_module_duplicate_tag">A group name duplicates a node name. Rename the conflicting entry and try again.</string>
+    <string name="group_editor_subscription_member_locked">Subscription group members come from the subscription: reorder and tune them here, add or remove nodes on the subscription or node page.</string>
+    <string name="group_editor_ungrouped_member_locked">This node has nowhere to go, so it cannot be removed from this group. Move it to another group first.</string>
+    <string name="group_editor_interrupt_locked">Interrupt existing connections: locked off (keeps long connections stable)</string>
+    <string name="group_editor_mode_locked_hint">Change an existing group\'s type on its group settings page</string>
+    <string name="group_editor_abandon">Discard unfinished edit</string>
+    <string name="group_editor_abandon_confirm">Restores the local group configuration from before the edit, clears the recovery marker and rebuilds the root module from the current configuration (only the marker is cleared when the module is not running). Use this only when recovering the previous group configuration cannot finish.</string>
+    <string name="group_editor_abandon_done">The unfinished edit was discarded. You can connect again.</string>
+    <string name="group_editor_recovery_failed_choice">The previous group configuration could not be recovered (its saved baseline may be stale). Retry later or discard the unfinished edit.</string>
 </resources>

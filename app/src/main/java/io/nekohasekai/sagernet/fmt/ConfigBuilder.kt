@@ -325,6 +325,29 @@ fun clashModeStringOf(dashboardMode: Int): String = when (dashboardMode) {
 
 enum class RootInboundBackend { EBPF, TUN }
 
+/** Readable outbound tags: the first free name, else `name-1`, `name-2`, ... */
+internal class ReadableTags(reserved: Iterable<String>) {
+    private val taken = reserved.toMutableSet()
+
+    fun allocate(name: String): String {
+        var candidate = name
+        var count = 0
+        while (!taken.add(candidate)) {
+            count++
+            candidate = "$name-$count"
+        }
+        return candidate
+    }
+
+    companion object {
+        /** Core tags plus every group name and editor draft name (their runtime tags). */
+        fun reservedFor(groupNames: Iterable<String?>, draftNames: Iterable<String>): Set<String> = buildSet {
+            addAll(listOf(TAG_DIRECT, TAG_BYPASS, TAG_BLOCK, TAG_FRAGMENT, TAG_MIXED, TAG_PROXY))
+            (groupNames + draftNames).mapNotNull { it?.trim()?.takeIf(String::isNotEmpty) }.forEach(::add)
+        }
+    }
+}
+
 fun buildConfig(
     proxy: ProxyEntity, forTest: Boolean = false, forExport: Boolean = false,
     rootInboundBackend: RootInboundBackend = RootInboundBackend.TUN,
@@ -361,15 +384,16 @@ fun buildConfig(
     val tagMap = HashMap<Long, String>()
     val balancerMemberMap = HashMap<Long, List<Long>>()
     val globalOutbounds = HashMap<Long, String>()
-    val readableNames = mutableSetOf(TAG_DIRECT, TAG_BYPASS, TAG_BLOCK, TAG_FRAGMENT, TAG_MIXED, TAG_PROXY)
-    val editorDrafts = if (forTest || forExport) emptyMap() else rootRouteSnapshot?.editorDrafts()
-        ?: SagerDatabase.groupDao.allGroups().mapNotNull { owner ->
-            io.nekohasekai.sagernet.group.editor.GroupEditorStore.read(owner.id)?.let { owner.id to it }
-        }.toMap()
-    val group = if (rootRouteSnapshot != null) rootRouteSnapshot.allGroups().firstOrNull { it.id == proxy.groupId }
-        else SagerDatabase.groupDao.getById(proxy.groupId)
+    val allGroups = rootRouteSnapshot?.allGroups() ?: SagerDatabase.groupDao.allGroups()
+    // Export keeps editor drafts too, so exported group members match the runtime build (P1-3).
+    val editorDrafts = if (forTest) emptyMap() else rootRouteSnapshot?.editorDrafts()
+        ?: io.nekohasekai.sagernet.group.editor.GroupEditorStore.effectiveDrafts(allGroups, allProfiles())
+    val group = allGroups.firstOrNull { it.id == proxy.groupId }
     val groupTag = group?.name?.trim()?.takeIf { it.isNotBlank() } ?: TAG_PROXY
-    readableNames.add(groupTag)
+    // N2: every group / draft runtime tag is taken before any node is named, so a subscription node
+    // named like an existing group gets a suffix instead of failing the build with duplicate_tag.
+    val readableTags = ReadableTags(ReadableTags.reservedFor(allGroups.map { it.name } + groupTag,
+        editorDrafts.values.map { it.name }))
 
     fun ProxyEntity.resolveChainInternal(): MutableList<ProxyEntity> {
         val bean = requireBean()
@@ -386,15 +410,7 @@ fun buildConfig(
         return mutableListOf(this)
     }
 
-    fun readableTag(name_: String): String {
-        var name = name_
-        var count = 0
-        while (!readableNames.add(name)) {
-            count++
-            name = "$name_-$count"
-        }
-        return name
-    }
+    fun readableTag(name_: String): String = readableTags.allocate(name_)
 
     fun ProxyEntity.resolveChain(useGroupFront: Boolean = true, useGroupLanding: Boolean = true): MutableList<ProxyEntity> {
         val thisGroup = SagerDatabase.groupDao.getById(groupId)

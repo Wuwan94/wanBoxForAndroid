@@ -59,6 +59,33 @@ class GroupDraftRecoveryTest {
         assertFalse(host.restored)
         assertTrue(host.commands.isEmpty())
     }
+    private class AbandonHost(private val failRestore: Boolean = false) : GroupAbandonHost {
+        val steps = mutableListOf<String>()
+        var journal = true
+        override fun pending() = journal
+        override fun restoreLocal() { if (failRestore) throw IOException("restore_failed"); steps += "restore" }
+        override fun clearJournal() { journal = false; steps += "clear" }
+        override suspend fun rebuild() { steps += "rebuild" }
+    }
+    @Test fun abandonRestoresLocalThenClearsJournalThenRebuildsFromCurrentConfig() = runTest {
+        val host = AbandonHost()
+        GroupDraftAbandon.abandon(host)
+        assertEquals(listOf("restore", "clear", "rebuild"), host.steps)
+        assertFalse(host.journal)
+    }
+    @Test fun abandonKeepsJournalWhenLocalRestoreFails() = runTest {
+        val host = AbandonHost(failRestore = true)
+        try { GroupDraftAbandon.abandon(host); fail() } catch (error: IOException) {
+            assertEquals("group_editor_recovery_required", error.message)
+        }
+        assertTrue(host.journal)
+        assertTrue(host.steps.isEmpty())
+    }
+    @Test fun abandonWithoutJournalDoesNothing() = runTest {
+        val host = AbandonHost().apply { journal = false }
+        GroupDraftAbandon.abandon(host)
+        assertTrue(host.steps.isEmpty())
+    }
     @Test fun baselineReadChecksRevisionAndInjectsCas() = runTest {
         val rev = "a".repeat(64)
         val result = EditorBaselineReader.read(rev, { "{}".toByteArray() }, { rev })
