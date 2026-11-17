@@ -196,6 +196,33 @@ internal fun buildUrlTestOutbound(
         interrupt_exist_connections = parameters.interruptExisting
     }
 
+/** B1/O3 冷启动预排序（OwnBox 8.13 BalancerMemberResolver.sortForColdStart 的
+ * wanBox 本地等价实现；wanBox 无 BalancerMemberResolver 解析层）。
+ * status 语义与 ConfigurationFragment 的测速写回一致：
+ * 1 健康、0 未测、2 不支持、3 失败。
+ * 排序：健康有延迟在前（按延迟升序）、有延迟但未确认健康其次、未测再次、
+ * 已知失败（2/3）在后。只改成员顺序，不改任何持久化数据；仅 leastPing
+ * 策略调用，failover 等策略保持原有成员顺序（上游只对 blank/leastPing 排序）。 */
+internal fun sortBalancerMembersForColdStart(entities: List<ProxyEntity>): List<ProxyEntity> {
+    if (entities.size <= 1) return entities
+    return entities.sortedWith(
+        compareBy<ProxyEntity> { entity ->
+            when {
+                entity.status == 1 && entity.ping > 0 -> 0
+                entity.status != 2 && entity.status != 3 && entity.status >= 0 && entity.ping > 0 -> 1
+                entity.status != 2 && entity.status != 3 && entity.status >= 0 -> 2
+                else -> 3
+            }
+        }.thenBy { entity ->
+            if (entity.ping > 0 && entity.status != 2 && entity.status != 3 && entity.status >= 0) {
+                entity.ping
+            } else {
+                Int.MAX_VALUE
+            }
+        },
+    )
+}
+
 private fun endpointTag(value: Any?): String? {
     return (value as? Map<*, *>)?.get("tag")?.toString()?.takeIf { it.isNotBlank() }
 }
@@ -951,12 +978,23 @@ fun buildConfig(
                     !DataStore.isGroupDisabled(it.groupId)
                 }
 
+                // B1/O3: leastPing 组冷启动预排序（见 sortBalancerMembersForColdStart）；
+                // 上游 8.13 只对 blank/leastPing 排序，wanBox 的 strategy 空值已在
+                // BalancerBean 内归一化为 leastPing，此处沿用同一守卫。
+                val sortedMemberEntities = if (balancerBean.strategy.isNullOrBlank() ||
+                    balancerBean.strategy == BalancerBean.STRATEGY_LEAST_PING ||
+                    balancerBean.strategy == "least_ping") {
+                    sortBalancerMembersForColdStart(memberEntities)
+                } else {
+                    memberEntities
+                }
+
                 val useFront = if (balancerBean.balancerType == BalancerBean.TYPE_GROUP) balancerBean.useFrontProxy else true
                 val useLanding = if (balancerBean.balancerType == BalancerBean.TYPE_GROUP) balancerBean.useLandingProxy else true
 
                 val memberEffectiveDetour = balancerFrontTag ?: externalDetour
 
-                val memberTags = memberEntities.mapNotNull { member ->
+                val memberTags = sortedMemberEntities.mapNotNull { member ->
                     val customKey = if (memberEffectiveDetour != null) {
                         -member.id
                     } else if (balancerBean.balancerType == BalancerBean.TYPE_GROUP && (!useFront || !useLanding)) {

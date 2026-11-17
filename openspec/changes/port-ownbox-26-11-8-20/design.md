@@ -152,3 +152,64 @@ O1 上游三条（8.20）对表 wanBox 自家约束：
   （5.2.1 保持不变）。
 - 不在 APK 另造出站模型；不为统计页另开核心直连；不把凭据、地址或原始 stderr 放入 issue/日志。
 - 不删除底部 StatsBar 之外的既有 UI（它已不存在）；不改动稳定版 v3.0.14 行为。
+
+## B1 实施记录（2026-11-17，O2+O3+O4）
+
+### 已拍板值
+
+- 单步建连超时取 **3 秒**（用户 2026-11-17 22:16 拍板，与 wanBox 现有探针超时对齐，
+  不用上游 8.13 的动态 2–4.5 秒）。落地为固定 3 秒，仅用于“还有后备候选可试”的尝试，
+  最后一个候选不限时（照抄上游的 bounded 规则，避免单节点组里一次慢握手被直接掐断）。
+
+### 与上游原文的差异（均有意为之）
+
+- O2d：上游是广播 `SWITCH_PROFILE` → `BaseService.reload(allowSelector = true)`；
+  wanBox 是 Root 模块架构，无 `BaseService.reload` 落点，改为 `SagerNet.switchProfileService`：
+  运行时走既有 `selectProfile` → `RootModuleClient.selectNode` 热切换通道
+  （确认后才持久化，失败保持旧连接与旧选择）；停止时保存选择并连接。
+  `QuickToggleShortcut` 的 `toggleService` START 分支在运行中切另一节点时直接
+  `call("node select …")` 热切（已持有 `changes` 锁，不得调 `selectNode()`，会死锁）；
+  确认失败抛 `node_switch_not_confirmed`，不静默回退到全量重建。
+- O3 惩罚增量：沿用 wanBox 既有 +300，不照抄上游的 5000 下限。
+- **O3 Time 续期冲突（B1 实施中发现，2026-11-17）**：第一阶段规格按上游 8.13 要求
+  惩罚写入“保留旧 Time、不续期”，但本地构建跑测试时既有测试
+  `TestMemberTimeoutStillPenalizesRecentHistory`（`startup_probe_test.go`，启动探针
+  路径）失败——它明确断言失败后 `got.Time.After(before.Time)`，即 wanBox 自家
+  的失败策略就是“+300 惩罚并续期 Time”。按工作词“与上游冲突时以自家为准”，
+  B1 改为：惩罚写入仍续期 `Time` 为当前时间，只修真正缺陷——`Delay+300` 的
+  uint16 回绕（饱和封顶 65000）。delta spec 与主 spec 的对应 requirement、
+  tasks.md 1.1/1.7、`b1_regression_test.go` 的 Time 断言已同步改回续期。
+  若用户希望改为上游的“不续期”，须同步改该既有测试，待用户拍板（B1 不动它）。
+- O3 连续失败计数：落在持久的 `URLTestGroup` 上（`failCount`，probe 与 dial 超时共用）；
+  `URLTestOutbounds` 新增 `WithGroup` 变体接线；`loadbalance` 调用方无归属组，
+  只做饱和惩罚、不做连续失败清史。
+- O3 冷启动预排序：上游是 `BalancerMemberResolver.sortForColdStart`；
+  wanBox 无该解析层，改为 `ConfigBuilder.kt` 内的本地等价函数
+  `sortBalancerMembersForColdStart`，只对 leastPing 策略排序（上游的 blank/leastPing
+  守卫照搬；wanBox 的 strategy 空值已在 `BalancerBean` 内归一化为 leastPing）。
+  Go 侧毫秒 0 预选（`URLTestGroup` 按 `HistoryStorage` 预选）是 B4 的 4.2/4.3，
+  不在本批。
+- O3 切网 DNS 重置：按上游 8.13 移植 `routerResetTarget`/`setRouterReset`/
+  `resetRouterNetwork`（`Start` 注册、`Close` 清除）；`networkChangeResetConnections=false`
+  的分支仍保留长连接，但重置路由器 DNS/HTTP 连接池。
+- O9a：组内成员切换的缺口真实存在（模块侧 `node select` 后 state.json 的 ProfileID
+  即成员 id，`cbSelectorUpdate(新成员)` 上报时 `id != selectedProxy（组 id）`，
+  旧条件跳过 `clearCache()`，而 `getCachedInfo()` 按 selectedProxy 读缓存，
+  60 秒内返回旧成员出口 IP）。修两处：`getCachedInfo()` 改按 `currentProfile` 读；
+  `cbSelectorUpdate` 改为任何上报都清缓存。
+
+### 核查关闭（不改实现）
+
+- O2b：`protect.go` 的 `defer` 关闭全部 fd 已存在（另有 MSG_CTRUNC 守卫与 panic 恢复，
+  比上游多）；回归断言 `TestProtectClosesReceivedCopyAndKeepsSender` 已存在。
+- O4：wanBox 无 autoselect，`URLTest` 继续实现 `adapter.OutboundGroup`；
+  防护断言 `TestURLTestImplementsOutboundGroup`，不得照抄上游 8.15 对 AutoSelect 的移除。
+- RawUpdater：共享 OkHttpClient 的 `close()` 是有文档的 no-op，上游泄漏不适用。
+- ServiceDiagnosticsManager：wanBox 不存在，`WanHttp.kt` 的共享 base 设计已满足复用。
+- O9b：StatsBar 已删除，无落点。O9c：WebDAV 默认路径 `"OwnBox"` 与回退检索真实存在。
+- yacd.zip 分支不移植（wanBox 已移除 yacd 网页面板）。
+
+### 本批未做
+
+- B4 的 Go 侧毫秒 0 预选与批量探针流式就绪、O1/O5/O6/O7 与 N 系均不在本批。
+- 1.14 验证阶段未跑：CI（`verify-android.yml`）与真机结果待用户回传，不得勾选。

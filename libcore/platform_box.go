@@ -38,6 +38,11 @@ import (
 // 多个 box 的 Initialize 互相覆盖，导致 interfaceMonitor.UpdateDefaultInterface 里
 // UpdateInterfaces() 刷错 NetworkManager，落选 box 的接口缓存永远为空，
 // 其所有拨号秒报 "no available network interface"。
+// B1/O3: 路由器网络重置目标（切网时只清 DNS/HTTP 连接池，不拆出站）。
+type routerNetworkResetTarget struct {
+	reset func()
+}
+
 type boxPlatformInterfaceWrapper struct {
 	networkManager    adapter.NetworkManager
 	myTunName         string
@@ -46,6 +51,33 @@ type boxPlatformInterfaceWrapper struct {
 	diagnosticTag     string
 	isURLTest         bool
 	ownerDiagnosticAt atomic.Int64
+	// B1/O3: 切网 DNS 重置钩子（BoxInstance.Start 注册、Close 清除）。
+	routerResetTarget atomic.Pointer[routerNetworkResetTarget]
+}
+
+func (w *boxPlatformInterfaceWrapper) setRouterReset(resetFn func()) {
+	if w == nil {
+		return
+	}
+	if resetFn == nil {
+		w.routerResetTarget.Store(nil)
+		return
+	}
+	w.routerResetTarget.Store(&routerNetworkResetTarget{reset: resetFn})
+}
+
+// resetRouterNetwork 只重置路由器的 DNS/HTTP 连接池（不断现有代理长连接）。
+// 未注册钩子时返回 false，调用方按“未重置”记录。
+func (w *boxPlatformInterfaceWrapper) resetRouterNetwork() bool {
+	if w == nil {
+		return false
+	}
+	target := w.routerResetTarget.Load()
+	if target == nil || target.reset == nil {
+		return false
+	}
+	target.reset()
+	return true
 }
 
 func (w *boxPlatformInterfaceWrapper) urlTestTrace(stage string, format string, args ...any) {

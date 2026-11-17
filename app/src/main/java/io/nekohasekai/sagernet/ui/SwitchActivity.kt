@@ -4,9 +4,6 @@ package io.nekohasekai.sagernet.ui
 import android.os.Bundle
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
-import io.nekohasekai.sagernet.database.DataStore
-import io.nekohasekai.sagernet.database.ProfileManager
-import io.nekohasekai.sagernet.ktx.runOnMainDispatcher
 
 class SwitchActivity : ThemedActivity(R.layout.layout_empty),
     ConfigurationFragment.SelectCallback {
@@ -25,14 +22,9 @@ class SwitchActivity : ThemedActivity(R.layout.layout_empty),
     }
 
     override fun returnProfile(profileId: Long) {
-        val old = DataStore.selectedProxy
-        DataStore.selectedProxy = profileId
-        runOnMainDispatcher {
-            ProfileManager.postUpdate(old, true)
-            ProfileManager.postUpdate(profileId, true)
-        }
-        // Explicit shortcut selection retains its existing ability to connect when stopped.
-        SagerNet.startService()
+        // B1/O2d: 纯节点切换走热切换通道（运行时热切不断现有连接，
+        // 停止时保存选择并连接，保留快捷选择原有的“停止时也能连上”的能力）。
+        SagerNet.switchProfileService(profileId)
         finish()
     }
 }

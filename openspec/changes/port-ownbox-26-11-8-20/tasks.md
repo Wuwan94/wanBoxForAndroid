@@ -19,41 +19,84 @@ Python 辅助脚本如需写只放 `tools/diagnostics/`、用 `uv run` 跑，禁
 
 ## 1. B1：O2 + O3 + O4 核查修复
 
-- [ ] 1.1 先写可复现测试（Go 单测为主，Android 侧为单测）：
+B1 追加规则（用户 2026-11-17 22:18，覆盖“本地只做静态检查”）：做完后先在本地
+构建成功再推送分支（只推 `port/ownbox-26.11.8.20`，不碰 main）；构建没过不许 push；
+推送后仍不开 PR、不跑发布工作流（开 PR / 跑发布工作流前先问用户）。
+
+- [x] 1.1 先写可复现测试（Go 单测为主，Android 侧为单测）：
   `ExchangeContext.Success` 后 `done()` 被调用（DNS 不挂起）；
   `speedInterval` 未设置时读到 1000；
-  探测失败不续期旧时间戳、惩罚饱和封顶 65000（`oldHist.Delay + 300` 不回绕）、
+  探测失败续期时间戳（既有测试要求）、惩罚饱和封顶 65000（`oldHist.Delay + 300` 不回绕）、
   连续两次探测失败清故障史、建连单步超时后转移且计入失败；
   `URLTest` 继续实现 `adapter.OutboundGroup`（O4 防护断言）。
-- [ ] 1.2 O2a：`libcore/dns_box.go` 的 `Success()` 补 `c.done()`，与 `RawSuccess`/`ErrorCode`/`ErrnoCode` 对齐。
-- [ ] 1.3 O2c：`DataStore.kt:136` 的 `speedInterval` 默认改为 `{ 1000 }`，与设置页一致。
-- [ ] 1.4 O2d：新增纯节点热切换通道（`switchProfileService` 等价物）：`SwitchActivity` 与
+  （已落地：`libcore/dns_box_test.go`、`libcore/protocol/urltest/b1_regression_test.go`、
+  `SwitchProfileHotSwitchTest.kt`、`ColdStartMemberOrderTest.kt`、`RouteReorderTest.kt`、
+  `LandingIpCacheInvalidationTest.kt`、`libcore/io_test.go`、`libcore/interface_monitor_test.go`。）
+- [x] 1.2 O2a：`libcore/dns_box.go` 的 `Success()` 补 `c.done()`，与 `RawSuccess`/`ErrorCode`/`ErrnoCode` 对齐。
+- [x] 1.3 O2c：`DataStore.kt:136` 的 `speedInterval` 默认改为 `{ 1000 }`，与设置页一致。
+- [x] 1.4 O2d：新增纯节点热切换通道（`switchProfileService` 等价物）：`SwitchActivity` 与
   `QuickToggleShortcut` 的纯节点切换走热切换；路由规则、代理模式及分组设置等配置类变更仍走
   配置重建。先核查 `ProfileSelection.kt`/`CoalescedReload.kt` 的既有去重逻辑，避免双重重载。
-- [ ] 1.5 O2 其余 8.7 项逐项核查，存在才修：GeoSite/GeoIP 读取器关闭与流式过滤
+  （已落地：`SagerNet.switchProfileService`——运行时走既有 `selectProfile` 热切换通道，
+  停止时保存选择并连接；`SwitchActivity.returnProfile` 改走该通道；
+  `RootModuleClient.toggleService` 的 START 分支在运行中切另一节点时直接
+  `call("node select …")` 热切——已持有 changes 锁，不得调 `selectNode()`。）
+- [x] 1.5 O2 其余 8.7 项逐项核查，存在才修：GeoSite/GeoIP 读取器关闭与流式过滤
   （`libcore/geoip.go`、`geosite.go`）、Unxz/assets 句柄与版本路径（`libcore/io.go`、
   `assets_android.go`）、路由拖拽排序索引（`RouteFragment.kt`）、订阅拉取 HTTP 连接池关闭
   （`RawUpdater.kt`）、诊断 OkHttp 复用（`ServiceDiagnosticsManager.kt`）。
   核查结果（存在/不存在 + 证据）写入提交说明；不存在的项关闭，不留空头任务。
-- [ ] 1.6 O2b 核查关闭：确认 `libcore/protect.go` 的 `defer` 关闭 FD 副本已存在，
+  （核查结论：geoip 全量建表且无 `networks.Err()` 检查——已修为流式过滤；
+  geosite `loadGeoSiteRules` 从不关闭读取器——已修；Unxz 不关闭输出文件且丢弃关闭错误——已修；
+  assets 三处（日志写死 geoipDat、`RemoveAll(version)` 缺 dir 前缀、`.xz` 错误被忽略）——已修，
+  yacd.zip 分支不移植（wanBox 已移除 yacd）；RouteFragment from>to range 错位——已提取
+  `reorderRuleItems`；RawUpdater 的共享 OkHttpClient `close()` 是有文档的 no-op，
+  上游泄漏不适用——无改动；ServiceDiagnosticsManager 在 wanBox 不存在，
+  `WanHttp.kt` 的共享 base 设计已满足复用——无改动。）
+- [x] 1.6 O2b 核查关闭：确认 `libcore/protect.go` 的 `defer` 关闭 FD 副本已存在，
   加回归测试断言该行为，不改实现。
-- [ ] 1.7 O3：`libcore/protocol/urltest/outbound.go` 探测失败路径改为饱和惩罚
-  （`penalizeURLTestDelay` 等价物，uint32 求和、封顶 65000）且不续期旧时间戳；
+  （已确认：`handleProtectConn` 已有 defer 循环关闭全部 fd + MSG_CTRUNC 守卫；
+  回归断言已存在：`TestProtectClosesReceivedCopyAndKeepsSender`，不改实现。）
+- [x] 1.7 O3：`libcore/protocol/urltest/outbound.go` 探测失败路径改为饱和惩罚
+  （`penalizeURLTestDelay` 等价物，uint32 求和、封顶 65000），`Time` 仍按既有测试
+  要求续期为当前时间（见下文 B1 实施记录“Time 续期冲突”）；
   连续两次探测失败清理故障史；`URLTest.DialContext`/`ListenPacket` 增加单步黑洞超时
-  （超时取值沿用 B4 前置结论，未定则先按 3 秒探针超时对齐并在提交说明里标注待用户拍板）；
+  （单步超时取 3 秒——用户 2026-11-17 已拍板，与 wanBox 现有探针超时对齐）；
   `ConfigBuilder.kt` 的 leastPing 组按缓存延迟冷启动预排序。
-- [ ] 1.8 O3 切网 DNS 恢复核查：确认 `networkChangeResetConnections` 关闭时，
+  （已落地：惩罚增量沿用 wanBox 既有 +300；连续失败计数落在持久的 `URLTestGroup`
+  上（`failCount`，probe 与 dial 超时共用），`URLTestOutboundsWithGroup` 接线，
+  loadbalance 调用方无归属组、只做饱和惩罚不清史；单步超时仅用于“还有后备可试”
+  的尝试，最后一个候选不限时；预排序为 wanBox 本地 `sortBalancerMembersForColdStart`，
+  只对 leastPing 策略排序。）
+- [x] 1.8 O3 切网 DNS 恢复核查：确认 `networkChangeResetConnections` 关闭时，
   切网后是否清理底层 DoH/HTTP 客户端连接池；缺口确认才补，否则关闭。
-- [ ] 1.9 O9a 核查：确认 `LandingIpManager.clearCache()` 在节点切换、策略组切换、服务重启时
+  （缺口已确认并补：`UpdateDefaultInterface` 的 false 分支原来只更新默认接口直接返回；
+  已按上游 8.13 移植 `routerResetTarget`/`setRouterReset`/`resetRouterNetwork`，
+  false 分支仍保留长连接，但重置路由器 DNS/HTTP 连接池；Start 注册、Close 清除。）
+- [x] 1.9 O9a 核查：确认 `LandingIpManager.clearCache()` 在节点切换、策略组切换、服务重启时
   是否被调用；组内切换成员（profile 不变）60 秒内是否可能读到旧出口信息。
   缺口确认才补节点/outbound 级校验，否则关闭。
-- [ ] 1.10 O9c 核查关闭：确认 `BackupFragment.kt` 的 WebDAV 默认路径 `"OwnBox"` 与
+  （缺口已确认并补：组内成员切换时 `cbSelectorUpdate(新成员)` 上报，但
+  `id != selectedProxy（组 id）` 使 clearCache() 被跳过，而 `getCachedInfo()` 按
+  selectedProxy 读缓存，60 秒内返回旧成员出口 IP。已修两处：
+  `getCachedInfo()` 改按 `currentProfile`（实际在跑的成员）读；
+  `cbSelectorUpdate` 改为任何上报都清缓存。）
+- [x] 1.10 O9c 核查关闭：确认 `BackupFragment.kt` 的 WebDAV 默认路径 `"OwnBox"` 与
   404/空目录回退检索（`OwnBox|ownbox|throne`）真实存在，不改实现。
-- [ ] 1.11 O9b 核查关闭：确认底部 StatsBar 已删除（D3），8.9/8.10 三连修无落点，不改实现。
-- [ ] 1.12 同步主规范（`android-application`、`libcore-integration`）与 change delta/design；
-  `git diff --check` 通过；确认版本文件与 `SINGBOX_VERSION` 未变；未在本地运行 Go/Android 编译。
-- [ ] 1.13 提交到 `port/ownbox-26.11.8.20` 分支（不推远程），提交说明标注上游 commit
+  （已确认存在：默认路径两处 `:239`、`:369`，回退正则 `:406–408`、`:417`，不改实现。）
+- [x] 1.11 O9b 核查关闭：确认底部 StatsBar 已删除（D3），8.9/8.10 三连修无落点，不改实现。
+  （已确认：StatsBar 只剩注释提及，无改实现。）
+- [x] 1.12 同步主规范（`android-application`、`libcore-integration`）与 change delta/design；
+  `git diff --check` 通过；确认版本文件与 `SINGBOX_VERSION` 未变。
+  （同步已完成：B1 需求合入 `openspec/specs/` 两主规范；delta 的 dial 超时取值更新为已拍板 3 秒；
+  geoip/geosite/Unxz 的 B1 核查结论写入 delta；design.md 增加“B1 实施记录”。
+  注意：用户 2026-11-17 22:18 曾要求“本地构建成功后再推送”，2026-11-18 01:25 又改为
+  “本地构建完成不了就直接推、用 CI 认证”，以后者为准；`git diff --check` 通过，版本未变。）
+- [x] 1.13 提交到 `port/ownbox-26.11.8.20` 分支并推送（用户 2026-11-18 01:25 改主意：
+  本地构建完成不了就直接推，改由 CI 验证；不开 PR、不跑 release 工作流），提交说明标注上游 commit
   `4eef8d9`（8.7）、`3edc4eb`（8.13）、`61080e9`（8.15）、`449b35f`（8.5）。
+  （已提交并推送；本地构建未通过：2026-11-18 00:19 Gradle 阶段插件
+  org.gradle.kotlin.kotlin-dsl-plugins:5.2.0 解析不到，见提交说明与汇报；Go 侧本地已验证通过。）
 - [ ] 1.14 B1 验证阶段（未通过前不得开始 B2）：
   CI 为 `.github/workflows/verify-android.yml`（workflow_dispatch），预期 Build LibCore、
   Android build/unit/security、Root module tests、迁移/manifest/下载预算检查均通过；

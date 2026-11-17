@@ -24,8 +24,8 @@ func (g *geoip) Open(path string) error {
 
 func (g *geoip) Rules(countryCode string) ([]option.HeadlessRule, error) {
 	networks := g.geoipReader.Networks(maxminddb.SkipAliasedNetworks)
-	countryMap := make(map[string][]*net.IPNet)
 	var (
+		ipNets          []*net.IPNet
 		ipNet           *net.IPNet
 		nextCountryCode string
 		err             error
@@ -35,10 +35,15 @@ func (g *geoip) Rules(countryCode string) ([]option.HeadlessRule, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to get network: %w", err)
 		}
-		countryMap[nextCountryCode] = append(countryMap[nextCountryCode], ipNet)
+		// B1/O2: 直接按目标国家码流式过滤，不再全量构建全球国家映射。
+		if strings.EqualFold(nextCountryCode, countryCode) {
+			ipNets = append(ipNets, ipNet)
+		}
+	}
+	if err = networks.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate geoip networks: %w", err)
 	}
 
-	ipNets := countryMap[strings.ToLower(countryCode)]
 	if len(ipNets) == 0 {
 		return nil, fmt.Errorf("no networks found for country code: %s", countryCode)
 	}

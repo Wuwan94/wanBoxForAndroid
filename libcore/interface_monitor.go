@@ -220,7 +220,7 @@ func interfaceIPFingerprint(ifIndex int) string {
 }
 
 // UpdateSSID 由 Kotlin 侧在 Wi-Fi SSID 变化时调用。同接口切 SSID
-//（如双频合一路由器的 2.4G/5G 切换）时网关/IP 通常已变，必须触发 ResetNetwork。
+// （如双频合一路由器的 2.4G/5G 切换）时网关/IP 通常已变，必须触发 ResetNetwork。
 // 无位置权限时 Kotlin 侧不调用，保持原有行为。
 func (m *interfaceMonitor) UpdateSSID(ssid string) {
 	m.access.Lock()
@@ -312,14 +312,17 @@ func (m *interfaceMonitor) UpdateDefaultInterface(interfaceName string, interfac
 		return
 	}
 
-	// 设置项 networkChangeResetConnections=false：只更新默认接口，不拆出站。
+	// 设置项 networkChangeResetConnections=false：保留现有代理长连接（不通知
+	// NetworkManager 拆出站），但仍重置路由器的 DNS/HTTP 连接池，避免 DoH 等
+	// 持久化 DNS 连接继续挂在旧物理网卡上卡死；
 	// 例外：old==nil（曾 Lost/pause）必须通知以 NetworkWake，否则会一直暂停。
 	if oldInterface != nil && !networkChangeResetConnections.Load() {
 		m.access.Unlock()
+		dnsReset := m.wrapper.resetRouterNetwork()
 		m.logger.Info("updated default interface ", newInterface.Name,
 			" index ", newInterface.Index, " source ", source,
-			" skip ResetNetwork (networkChangeResetConnections=false)")
-		m.wrapper.urlTestTrace("interface-update", "applied value=%s#%d source=%s callbacks=0 reset=false refreshElapsed=%s totalElapsed=%s", newInterface.Name, newInterface.Index, source, updateElapsed, time.Since(totalStarted))
+			" skip full ResetNetwork (networkChangeResetConnections=false, dnsReset=", dnsReset, ")")
+		m.wrapper.urlTestTrace("interface-update", "applied value=%s#%d source=%s callbacks=0 reset=false dnsReset=%v refreshElapsed=%s totalElapsed=%s", newInterface.Name, newInterface.Index, source, dnsReset, updateElapsed, time.Since(totalStarted))
 		return
 	}
 

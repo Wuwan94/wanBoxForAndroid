@@ -26,6 +26,33 @@ import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.widget.ListListener
 import io.nekohasekai.sagernet.widget.UndoSnackbarManager
 
+/** B1/O2: 路由拖拽排序的纯函数实现（OwnBox 8.7 提取）。from/to 为 1 起始的界面位置；
+ * 越界或原地移动返回空列表，不动原列表。旧实现 from>to 分支的 range
+ *（`to downTo from - 1`）会错位一个元素并可能越界。 */
+internal fun reorderRuleItems(ruleList: MutableList<RuleEntity>, from: Int, to: Int): List<RuleEntity> {
+    if (from == to || from <= 0 || to <= 0) return emptyList()
+    val fromIdx = from - 1
+    val toIdx = to - 1
+    if (fromIdx !in ruleList.indices || toIdx !in ruleList.indices) return emptyList()
+
+    val first = ruleList[fromIdx]
+    var previousOrder = first.userOrder
+    val (step, range) = if (from < to) Pair(1, fromIdx until toIdx) else Pair(-1, fromIdx downTo to)
+    val changed = ArrayList<RuleEntity>(kotlin.math.abs(to - from) + 1)
+    for (i in range) {
+        val next = ruleList[i + step]
+        val order = next.userOrder
+        next.userOrder = previousOrder
+        previousOrder = order
+        ruleList[i] = next
+        changed.add(next)
+    }
+    first.userOrder = previousOrder
+    ruleList[toIdx] = first
+    changed.add(first)
+    return changed
+}
+
 class RouteFragment : ToolbarFragment(R.layout.layout_route), Toolbar.OnMenuItemClickListener {
 
     companion object {
@@ -343,20 +370,8 @@ class RouteFragment : ToolbarFragment(R.layout.layout_route), Toolbar.OnMenuItem
 
         private val updated = HashSet<RuleEntity>()
         fun move(from: Int, to: Int) {
-            val first = ruleList[from - 1]
-            var previousOrder = first.userOrder
-            val (step, range) = if (from < to) Pair(1, from - 1 until to - 1) else Pair(-1, to downTo from - 1)
-            for (i in range) {
-                val next = ruleList[i + step]
-                val order = next.userOrder
-                next.userOrder = previousOrder
-                previousOrder = order
-                ruleList[i] = next
-                updated.add(next)
-            }
-            first.userOrder = previousOrder
-            ruleList[to - 1] = first
-            updated.add(first)
+            if (from == to) return
+            updated.addAll(reorderRuleItems(ruleList, from, to))
             notifyItemMoved(from, to)
         }
 

@@ -4,11 +4,11 @@ import (
 	"archive/zip"
 	"io"
 	"os"
-        "path/filepath"
+	"path/filepath"
 
-	"github.com/ulikunitz/xz"
 	"github.com/sagernet/sing/common"
-        E "github.com/sagernet/sing/common/exceptions"
+	E "github.com/sagernet/sing/common/exceptions"
+	"github.com/ulikunitz/xz"
 )
 
 func Unxz(archive string, path string) error {
@@ -27,7 +27,11 @@ func Unxz(archive string, path string) error {
 		return err
 	}
 	_, err = io.Copy(o, r)
-	i.Close()
+	_ = i.Close()
+	// B1/O2: 输出文件必须关闭，且关闭错误不得丢弃（否则解压失败会被静默吞掉）。
+	if closeErr := o.Close(); err == nil {
+		err = closeErr
+	}
 	return err
 }
 

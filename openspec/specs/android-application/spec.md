@@ -654,3 +654,49 @@ Discarding an unfinished edit MUST first restore journaled local values while re
 - **GIVEN** an enabled rule whose node was deleted, so the current configuration raises an outbound-reference warning, and a durable unfinished-edit journal
 - **WHEN** the user discards the unfinished edit while the module is connected
 - **THEN** the locked rebuild MUST apply the configuration that same snapshot describes, the confirmed applied/current/running revisions MUST still gate journal deletion, and the next normal start or reload MUST ask for that warning again
+
+### Requirement: 测速刷新间隔未设置时默认 1000ms（B1 已落地）
+
+`speedInterval` 未读取到用户设置时 MUST 默认 1000ms，与设置页一致，MUST NOT 回退为 0ms
+导致高频无效测速开销。
+
+- **GIVEN** 用户从未设置过测速刷新间隔
+- **WHEN** 管理器读取 `speedInterval`
+- **THEN** 读到 1000，且测速刷新按 1000ms 节奏执行
+
+### Requirement: 纯节点切换走热切换通道，配置类变更仍走配置重建（B1 已落地）
+
+纯节点切换 MUST 独立走热切换通道（`switchProfileService` 等价物），不得触发完整配置重建；
+路由规则、代理模式及分组设置等配置类变更 MUST 严格触发配置重建生效。
+热切换 MUST NOT 中断现有连接。
+
+- **GIVEN** 服务已连接，当前节点为 A
+- **WHEN** 用户在 SwitchActivity 或快捷切换里把节点切到 B（未改任何配置项）
+- **THEN** 只做节点热切换，现有连接不断，B 在秒级接管新连接
+- **GIVEN** 用户改了路由规则或代理模式
+- **WHEN** 保存并应用
+- **THEN** 触发配置重建，而不是热切换
+
+### Requirement: leastPing 组冷启动按缓存延迟预排序（B1 已落地）
+
+配置生成时，leastPing 策略组的成员顺序 MUST 按缓存延迟预排序：健康有延迟
+（status 1 且 ping > 0）在前并按延迟升序、有延迟但未确认健康其次、未测再次、
+已知失败（status 2/3）在后；使内核首包不盲连列表首位。排序只改变生成配置里的
+成员顺序，不改变任何持久化数据；failover 等其他策略 MUST 保持原有成员顺序。
+
+- **GIVEN** leastPing 组内节点 A 健康延迟 80ms、节点 B 健康延迟 900ms、节点 C 未测、节点 D 已知失败
+- **WHEN** 生成配置
+- **THEN** 成员顺序为 A、B、C、D（失败在后）
+- **GIVEN** failover 策略组
+- **WHEN** 生成配置
+- **THEN** 成员顺序保持原有顺序，不做冷启动预排序
+
+### Requirement: 组内成员切换后落地 IP 缓存必须失效（B1 已落地）
+
+落地 IP 缓存 MUST 按实际在跑的节点（`currentProfile`）键入，而不是按选中项
+（`selectedProxy`，组内切换时仍是组 id）；选择器上报的任何变化 MUST 清空缓存，
+否则组内成员切换后 60 秒 TTL 内仍会返回旧成员的出口 IP。
+
+- **GIVEN** 组内成员从 M1 切换到 M2
+- **WHEN** 首页读取落地 IP 缓存
+- **THEN** 不得返回 M1 的旧出口 IP，应重新查询

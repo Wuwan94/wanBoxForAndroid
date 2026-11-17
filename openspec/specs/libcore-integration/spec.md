@@ -250,3 +250,98 @@ Enabled `files/smart_auto_stop.json` MUST include `userId`, the current Android 
 - **WHEN** a lifecycle notification is dispatched
 - **THEN** the explicit broadcast targets that user/profile and application package only
 - **AND** an enabled snapshot without user identity is rejected while disabled legacy snapshots remain compatible
+
+### Requirement: DNS ExchangeContext.Success 必须发送完成信号（B1 已落地）
+
+`ExchangeContext.Success()` MUST 在写入解析地址后调用 `c.done()`，与 `RawSuccess`、
+`ErrorCode`、`ErrnoCode` 的行为一致；DNS 解析流程 MUST NOT 因缺少完成信号而挂起直至超时。
+
+- **GIVEN** 平台 DNS 回调走 `Success(result)` 返回地址列表
+- **WHEN** `Success` 返回
+- **THEN** 等待该次解析的调用方收到完成信号并继续，不再挂起至超时
+
+### Requirement: 探测失败惩罚写入续期时间戳，惩罚必须饱和封顶（B1 已落地）
+
+`URLTest` 批量探测失败时，对已有历史的惩罚写入 MUST 续期 `Time` 为当前时间
+（wanBox 既有测试 `TestMemberTimeoutStillPenalizesRecentHistory` 明确要求
+`got.Time.After(before.Time)`；与上游 8.13“保持旧 Time”不同，按“自家约束优先”
+保留续期——B1 实施时发现此冲突并按既有测试修正，见 design.md B1 实施记录），
+惩罚延迟 MUST 用 uint32 求和后饱和封顶 65000（`penalizeURLTestDelay` 等价语义），
+MUST NOT 发生 uint16 回绕。单次超时或网络瞬态抖动 MUST NOT 直接抹除历史；
+仅当历史已超过 `3 * interval` 时才可删除。
+
+- **GIVEN** 节点历史延迟为 65000 且探测失败
+- **WHEN** 写入惩罚历史
+- **THEN** 延迟仍为 65000（不回绕为小值），`Time` 续期为当前时间
+- **GIVEN** 节点历史延迟为 100 且探测失败
+- **WHEN** 写入惩罚历史
+- **THEN** 延迟为 1100 以内（单次惩罚增量），`Time` 续期为当前时间
+
+### Requirement: 连续两次探测失败清理故障史（B1 已落地）
+
+同一成员连续两次探测失败时，`URLTest` MUST 清理其故障历史，防止假死节点被重新选回。
+单次失败 MUST 只记惩罚，不得清史；失败计数 MUST 在探测成功后复位。
+
+- **GIVEN** 节点连续两次探测失败
+- **WHEN** 第二次失败处理完成
+- **THEN** 该节点故障史被清理，下一次选择不再把它当作“近期可用”候选
+- **GIVEN** 节点失败一次后探测成功
+- **WHEN** 成功结果写入
+- **THEN** 连续失败计数复位为 0
+
+### Requirement: 建连单步超时与故障转移（B1 已落地）
+
+`URLTest.DialContext` 与 `ListenPacket` 对单个候选的尝试 MUST 带 3 秒单步超时
+（用户 2026-11-17 已拍板，与 wanBox 现有探针超时对齐；仅用于“还有后备候选可试”
+的尝试，最后一个候选不限时）。超时 MUST 只掐断当次尝试，MUST 保留
+`interrupt_exist_connections = false`，现有连接 MUST NOT 被打断；
+超时失败 MUST 计入该候选的连续失败并触发备用候选转移。
+
+- **GIVEN** 主选节点建连黑洞（不响应）
+- **WHEN** 单步超时到达
+- **THEN** 当次尝试被掐断并转移到备用候选，前台流量不在该节点上无限等待
+- **GIVEN** 建连正在转移
+- **WHEN** 检查既有连接
+- **THEN** 既有连接不受影响
+
+### Requirement: URLTest 必须继续实现 OutboundGroup（B1 已落地，O4 防护）
+
+wanBox 的 `URLTest` MUST 继续实现 `adapter.OutboundGroup`，不得照抄上游 8.15
+对 `AutoSelect` 的移除。wanBox 无 autoselect 出站，不存在“解包绕过学习/记忆/故障转移”的
+同类缺陷；移除将破坏 sing-box 路由对 URLTest 组的既有选路契约。
+
+- **GIVEN** 任意 `URLTest` 出站实例
+- **WHEN** 做 `adapter.OutboundGroup` 类型断言
+- **THEN** 断言成立，且路由仍经由组接口选路
+
+### Requirement: GeoSite/GeoIP 读取器关闭与流式过滤（B1 已落地）
+
+GeoSite 底层读取器 MUST 在使用后关闭释放；GeoIP 提取 MUST 直接按目标国家码流式过滤，
+MUST NOT 全量构建全球国家映射导致额外内存峰值。
+
+- **GIVEN** 加载 GeoSite/GeoIP 规则集
+- **WHEN** 提取完成
+- **THEN** 底层读取器已关闭，且未出现全量国家映射构建的内存峰值
+
+### Requirement: 内嵌资源解压失败不得静默吞掉（B1 已落地）
+
+内嵌资源解压（`Unxz` / assets）MUST 正确关闭文件句柄、正确拼接版本文件清理路径，
+解压失败 MUST 返回错误，不得静默吞掉。
+
+- **GIVEN** 内嵌资源解压失败
+- **WHEN** 解压流程返回
+- **THEN** 调用方收到明确错误，而不是静默成功
+
+### Requirement: 切网时重置路由器 DNS/HTTP 连接池（B1 已落地）
+
+`networkChangeResetConnections=false` 时，切网 MUST 保留现有代理长连接
+（不通知 NetworkManager 拆出站），但 MUST 仍重置路由器的 DNS/HTTP 连接池，
+避免 DoH 等持久化 DNS 连接继续挂在旧物理网卡上卡死；首次出现接口
+（曾 Lost/pause 后恢复）仍 MUST 通知回调以 NetworkWake。
+
+- **GIVEN** 设置关闭了“切网重置连接”，当前接口为 wlan0
+- **WHEN** 默认接口切到 rmnet0
+- **THEN** 不通知出站回调拆连接，但路由器的 DNS/HTTP 连接池被重置一次
+- **GIVEN** 同一接口重复上报
+- **WHEN** 再次收到相同接口事件
+- **THEN** 不重复重置、不重复通知

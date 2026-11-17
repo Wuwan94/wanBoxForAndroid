@@ -52,7 +52,10 @@ object LandingIpManager {
     private val queries = Mutex()
     @Volatile private var isQuerying = false
     fun clearCache() = cache.clear()
-    fun getCachedInfo(): LandingIpInfo? = cache.get(DataStore.selectedProxy)
+    // B1/O9a: 缓存按“实际在跑的节点”（currentProfile）键入，而不是按选中项
+    //（selectedProxy）。组内成员切换时 selectedProxy（组 id）不变、currentProfile
+    //（成员 id）变了，按 selectedProxy 读会在 60 秒 TTL 内返回旧成员的出口 IP。
+    fun getCachedInfo(): LandingIpInfo? = cache.get(DataStore.currentProfile)
     fun isCurrentlyQuerying(): Boolean = isQuerying
     fun updateCachedDuration(duration: Long) = cache.duration(duration)
 

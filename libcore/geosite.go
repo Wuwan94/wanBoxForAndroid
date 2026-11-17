@@ -2,6 +2,7 @@ package libcore
 
 import (
 	"fmt"
+	"io"
 
 	geosites "github.com/sagernet/sing-box/common/geosite"
 	C "github.com/sagernet/sing-box/constant"
@@ -47,6 +48,14 @@ func loadGeoSiteRules(dbPath string, code string) ([]option.HeadlessRule, error)
 	g := new(geosite)
 	if err := g.Open(dbPath); err != nil {
 		return nil, err
+	}
+	// B1/O2: 底层读取器用完必须关闭释放，否则每次加载都泄漏一个文件句柄。
+	if g.geositeReader != nil {
+		defer func() {
+			if closer, ok := g.geositeReader.Upstream().(io.Closer); ok {
+				_ = closer.Close()
+			}
+		}()
 	}
 	return g.Rules(code)
 }

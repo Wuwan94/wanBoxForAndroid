@@ -329,6 +329,33 @@ class SagerNet : Application(),
         }
         fun selectProfile(id: Long) { profileSelection.request(id) }
 
+        /** B1/O2d: 纯节点切换通道（上游 switchProfileService 的 wanBox 等价物）。
+         * 运行时走既有热切换通道（selectNode 确认后才持久化，失败保持旧连接与旧选择）；
+         * 停止时保存选择并连接（SwitchActivity 快捷选择保留“停止时也能连上”的能力）。
+         * 路由规则、代理模式及分组设置等配置类变更 MUST NOT 走这里，仍走
+         * reloadService()/startOrReload() 完整配置重建。 */
+        fun switchProfileService(profileId: Long) = moduleCommand {
+            if (profileId <= 0L) return@moduleCommand
+            val running = try {
+                io.nekohasekai.sagernet.bg.RootModuleClient.call("status").connected
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                false
+            }
+            if (running) {
+                selectProfile(profileId)
+            } else {
+                val previous = DataStore.selectedProxy
+                if (previous != profileId) {
+                    DataStore.selectedProxy = profileId
+                    io.nekohasekai.sagernet.database.ProfileManager.postUpdate(previous, noTraffic = true)
+                }
+                io.nekohasekai.sagernet.widget.OwnBoxWidgetProvider.updateWidgets(application)
+                io.nekohasekai.sagernet.bg.RootModuleClient.startOrReload()
+            }
+        }
+
         /** @author 雾晚：应用级串行命令控制器 */
         val commandController by lazy {
             io.nekohasekai.sagernet.bg.ServiceCommandController(application.applicationScope)

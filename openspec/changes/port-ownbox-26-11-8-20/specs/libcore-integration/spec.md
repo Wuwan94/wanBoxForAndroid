@@ -18,19 +18,22 @@
 - **WHEN** `Success` 返回
 - **THEN** 等待该次解析的调用方收到完成信号并继续，不再挂起至超时
 
-### Requirement: 探测失败不得续期旧延迟时间戳，惩罚必须饱和封顶
+### Requirement: 探测失败惩罚写入续期时间戳，惩罚必须饱和封顶
 
-`URLTest` 批量探测失败时，对已有历史的惩罚写入 MUST 保留旧 `Time`（不得用当前时间续期），
+`URLTest` 批量探测失败时，对已有历史的惩罚写入 MUST 续期 `Time` 为当前时间
+（wanBox 既有测试 `TestMemberTimeoutStillPenalizesRecentHistory` 明确要求
+`got.Time.After(before.Time)`；与上游 8.13“保持旧 Time”不同，按“自家约束优先”
+保留续期——B1 实施时发现此冲突并按既有测试修正，见 design.md B1 实施记录），
 惩罚延迟 MUST 用 uint32 求和后饱和封顶 65000（`penalizeURLTestDelay` 等价语义），
 MUST NOT 发生 uint16 回绕。单次超时或网络瞬态抖动 MUST NOT 直接抹除历史；
 仅当历史已超过 `3 * interval` 时才可删除。
 
 - **GIVEN** 节点历史延迟为 65000 且探测失败
 - **WHEN** 写入惩罚历史
-- **THEN** 延迟仍为 65000（不回绕为小值），`Time` 保持旧值
+- **THEN** 延迟仍为 65000（不回绕为小值），`Time` 续期为当前时间
 - **GIVEN** 节点历史延迟为 100 且探测失败
 - **WHEN** 写入惩罚历史
-- **THEN** 延迟为 1100 以内（单次惩罚增量），`Time` 保持旧值
+- **THEN** 延迟为 1100 以内（单次惩罚增量），`Time` 续期为当前时间
 
 ### Requirement: 连续两次探测失败清理故障史
 
@@ -46,8 +49,10 @@ MUST NOT 发生 uint16 回绕。单次超时或网络瞬态抖动 MUST NOT 直�
 
 ### Requirement: 建连单步超时与故障转移
 
-`URLTest.DialContext` 与 `ListenPacket` 对单个候选的尝试 MUST 带单步超时（取值由 B4 拍板，
-未拍板前不得把无超时实现当作完成）；超时 MUST 只掐断当次尝试，MUST 保留
+`URLTest.DialContext` 与 `ListenPacket` 对单个候选的尝试 MUST 带单步超时：
+取值取 3 秒（用户 2026-11-17 已拍板，与 wanBox 现有探针超时对齐，不用上游的
+动态 2–4.5 秒；B1 落地为固定 3 秒，仅用于“还有后备候选可试”的尝试，最后
+一个候选不限时）。超时 MUST 只掐断当次尝试，MUST 保留
 `interrupt_exist_connections = false`，现有连接 MUST NOT 被打断；
 超时失败 MUST 计入该候选的连续失败并触发备用候选转移。
 
@@ -111,6 +116,8 @@ wanBox 的 `URLTest` MUST 继续实现 `adapter.OutboundGroup`，不得照抄上
 GeoSite 底层读取器 MUST 在使用后关闭释放；GeoIP 提取 MUST 直接按目标国家码流式过滤，
 MUST NOT 全量构建全球国家映射导致额外内存峰值。B1 核查确认 wanBox 已满足时，
 本条以回归测试关闭，不改实现。
+B1 核查结论（2026-11-17）：两处缺陷真实存在，已修——`geoip.go` 全量建表且无
+`networks.Err()` 检查，`geosite.go` 的 `loadGeoSiteRules` 从不关闭读取器。
 
 - **GIVEN** 加载 GeoSite/GeoIP 规则集
 - **WHEN** 提取完成
@@ -121,6 +128,10 @@ MUST NOT 全量构建全球国家映射导致额外内存峰值。B1 核查确�
 内嵌资源解压（`Unxz` / assets）MUST 正确关闭文件句柄、正确拼接版本文件清理路径，
 解压失败 MUST 返回错误，不得静默吞掉。B1 核查确认 wanBox 已满足时，
 本条以回归测试关闭，不改实现。
+B1 核查结论（2026-11-17）：三处缺陷真实存在，已修——`Unxz` 不关闭输出文件且
+丢弃关闭错误；`assets_android.go` 日志写死 `geoipDat`、`os.RemoveAll(version)`
+缺 `dir +` 前缀、`.xz` 解压错误被忽略；`RawUpdater` 的共享 OkHttpClient
+`close()` 是有文档的 no-op，不适用上游的关闭修复，无改动。
 
 - **GIVEN** 内嵌资源解压失败
 - **WHEN** 解压流程返回

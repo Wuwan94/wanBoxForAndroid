@@ -1,0 +1,44 @@
+// @author 雾晚
+// SPDX-License-Identifier: GPL-3.0-or-later
+package io.nekohasekai.sagernet
+
+import io.nekohasekai.sagernet.database.ProxyEntity
+import io.nekohasekai.sagernet.fmt.sortBalancerMembersForColdStart
+import org.junit.Assert.*
+import org.junit.Test
+import java.io.File
+
+/** B1/O3 冷启动预排序测试：健康低延迟在前、失败在后。@author 雾晚 */
+class ColdStartMemberOrderTest {
+
+    private fun member(id: Long, status: Int, ping: Int) =
+        ProxyEntity(id = id, status = status, ping = ping)
+
+    @Test fun healthyLowPingFirstFailedLast() {
+        val sorted = sortBalancerMembersForColdStart(
+            listOf(
+                member(1, 3, 50),    // 失败（低延迟也不应排前）
+                member(2, 0, 0),     // 未测
+                member(3, 1, 900),   // 健康慢
+                member(4, 1, 80),    // 健康快
+                member(5, 2, 30),    // 不支持
+                member(6, 0, 120),   // 未测但有延迟记录
+            )
+        ).map { it.id }
+        assertEquals(listOf(4L, 3L, 6L, 2L, 1L, 5L), sorted)
+    }
+
+    @Test fun singleOrEmptyListUnchanged() {
+        assertEquals(emptyList<ProxyEntity>(), sortBalancerMembersForColdStart(emptyList()))
+        val one = listOf(member(1, 1, 10))
+        assertEquals(one, sortBalancerMembersForColdStart(one))
+    }
+
+    @Test fun buildChainAppliesSortForLeastPingOnly() {
+        val source = File("src/main/java/io/nekohasekai/sagernet/fmt/ConfigBuilder.kt").readText()
+        assertTrue(source.contains("sortBalancerMembersForColdStart(memberEntities)"))
+        assertTrue(source.contains("BalancerBean.STRATEGY_LEAST_PING"))
+        // 成员顺序进入 urltest 出站的是排序后的列表
+        assertTrue(source.contains("val memberTags = sortedMemberEntities.mapNotNull"))
+    }
+}
