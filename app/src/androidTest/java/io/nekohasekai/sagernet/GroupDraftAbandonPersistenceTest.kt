@@ -68,6 +68,9 @@ class GroupDraftAbandonPersistenceTest {
             }
         }
         val fixtureGroupId = 99124L
+        // A unique persisted marker distinguishes this test's journal from any record that happens
+        // to use the same fixture group ID; teardown must never infer ownership from the ID alone.
+        val fixtureBaseline = """{"testJournalOwner":"${java.util.UUID.randomUUID()}"}"""
         try {
             val group = ProxyGroup(id = fixtureGroupId, name = "abandon-fixture", isSelector = true)
             val node = ProxyEntity(id = 99125, groupId = group.id).putBean(
@@ -80,7 +83,7 @@ class GroupDraftAbandonPersistenceTest {
             DataStore.selectedProxy = node.id
             val initial = GroupEditorService.load(group.id)
             GroupEditorStore.write(initial)
-            GroupLocalPreparation(initial.copy(parameters = initial.parameters.copy(toleranceMs = 321))).prepare("{}")
+            GroupLocalPreparation(initial.copy(parameters = initial.parameters.copy(toleranceMs = 321))).prepare(fixtureBaseline)
             assertEquals(321, GroupEditorService.load(group.id).parameters.toleranceMs)
             RootModuleClient.invalidateStatusCache()
             RootModuleClient.commandProcess = { command ->
@@ -149,11 +152,12 @@ class GroupDraftAbandonPersistenceTest {
             instrumentation.waitForIdleSync()
             RootModuleClient.commandProcess = oldLauncher
             RootModuleClient.invalidateStatusCache()
-            // If an assertion interrupts the UI retry, clean only this fixture's journal so later
-            // instrumentation cases do not inherit its recovery barrier. Never touch another record.
-            if (GroupLocalPreparation.pending() &&
-                runCatching { GroupLocalPreparation.undoRecord().id == fixtureGroupId }.getOrDefault(false)) {
-                GroupLocalPreparation.restorePendingLocal()
+            // If an assertion interrupts the UI retry, clean only the journal whose unique marker
+            // this fixture persisted. A matching group ID by itself is not proof of ownership.
+            val pendingRecord = if (GroupLocalPreparation.pending())
+                runCatching { GroupLocalPreparation.undoRecord() }.getOrNull() else null
+            if (pendingRecord?.id == fixtureGroupId && pendingRecord.baseline == fixtureBaseline) {
+                GroupLocalPreparation.restoreRecord(pendingRecord)
                 GroupLocalPreparation.clearRecord()
             }
             if (!GroupLocalPreparation.pending()) BackupRestore.apply(original, true, true, true)
