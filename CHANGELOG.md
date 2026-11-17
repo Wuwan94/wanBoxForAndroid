@@ -4,11 +4,14 @@
 
 ## wanBox 3.0.x 发布记录
 
-### v3.0.16-preview.4（源码候选，尚未发布）
+### v3.0.16-preview.4（已发布预览）
 
-- 收口 preview.3 复审遗留：组成员以节点归属为唯一真相（组草稿只负责顺序与 URLTest 参数，保存时同步节点归属）、订阅节点与组重名时自动加后缀并补 `duplicate_tag` 明确提示、选中节点移出主组时显式回落并同步、恢复失败时可放弃未完成编辑、组设置页与编辑器统一锁定「中断现有连接」。元数据升为模块 `2030` / APK `10154`；稳定版 v3.0.14 与 `SINGBOX_VERSION` 不变。发布证据待发布后补齐。
+- [GitHub Release v3.0.16-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.4) 由 `Preview Build` run `44013891166` 在 main commit/tag `9283ccb0886805bddbd6856835d23a548f20b9d6`（PR #62，2026-11-17T03:58:26Z 合并，`Verify Android Build` run `44011037428`）发布；tag、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `9283ccb`，源码与二进制重新同源。
+- 收口 preview.3 复审遗留：组成员以节点归属为唯一真相（组草稿只负责顺序与 URLTest 参数，保存时同步节点归属）、订阅节点与组重名时自动加后缀并补 `duplicate_tag` 明确提示、选中节点移出主组时显式回落并同步、恢复失败时可放弃未完成编辑、组设置页与编辑器统一锁定「中断现有连接」。元数据升为模块 `2030` / APK `10154`；稳定版 v3.0.14 与 `SINGBOX_VERSION` 不变。
+- 发布四件套经 API digest 与公开 `SHA256SUMS` 回读一致（本地 `sha256sum -c` 三件 OK）：APK `6300006` 字节 / `ee36f3ba…a244b`、普通 Root ZIP `17956386` 字节 / `10ff382f…f0def`、合一 ZIP `23548016` 字节 / `f3570d64…d6d2b3a`、`SHA256SUMS` `333` 字节；APK + 普通 Root ZIP 为 `24256392` 字节（23.13 MiB），`size_budget --enforce-limit` PASS。逐项数据见[版本对照](docs/current-version.zh-CN.md)。
+- `Verify Android Build` 的 instrumented 实测：debug / release（thin）各 70 项 0 失败 2 skip，internal 变体 2 项 0 skip；发布 run 的四个 job 全部成功，发布后 `prune_prereleases.py --keep-tag v3.0.16-preview.4` 清理了 preview.3 的 Release/tag。Root 真机矩阵未执行（CI 自标 `runtime_regression: not_verified`），仍未验证。
 
-### v3.0.16-preview.3（已发布预览）
+### v3.0.16-preview.3（历史预览，Release/tag 已在 preview.4 发布后清理）
 
 - [GitHub Release v3.0.16-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.3) 由 `Preview Build` run `43906481811` 在 main commit/tag `fa6b95b9a39d2d441280021968d4b914eb5b20d3`（PR #60，`verify-android` run `43897997343`）首发。PR #61（合并提交 `000d3023571153d975d2868eeb7083da57b1a9e4`，`verify-android` run `43934149499`）修复策略组编辑与备份恢复后，资产经 `Preview Build` run `43939217515` 与 `Replace Existing Preview Assets` run `43942306964` / `43942569933` 受审查替换，tag 未移动。
 - 四批次汇总：图形化策略组编辑、策略组浏览/选择/测速、统一资源页与重名消歧、备份与迁移规范化（「兼容旧版」导出禁用）、模块退出诊断上屏、网关缓存深拷贝。元数据为模块 `2029` / APK `10148`。

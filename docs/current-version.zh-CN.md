@@ -5,14 +5,16 @@
 | 对象 | 版本与状态 | 版本码及来源 |
 |---|---|---|
 | 已发布正式版 | [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14)，非 prerelease；由 3.0.14 预览线晋升 | APK / Root 模块 `10130 / 2026`（源码正式线 `VERSION_NAME=3.0.14`、`VERSION_CODE=2026`）；四件套文件名与发布回读数据见下文 |
-| 已发布预览版 | [v3.0.16-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.3)，prerelease；tag/commit `fa6b95b9a39d2d441280021968d4b914eb5b20d3`；资产已由 main `000d3023571153d975d2868eeb7083da57b1a9e4` 重建替换 | APK `versionCode=10148` / Root 模块码 `2029`；首发 `Preview Build` run `43906481811`，替换候选 run `43939217515`，替换执行 run `43942569933` |
+| 已发布预览版 | [v3.0.16-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.4)，prerelease；tag/commit `9283ccb0886805bddbd6856835d23a548f20b9d6`（PR #62，2026-11-17T03:58:26Z 合并）；资产与 tag 同源出版 | APK `versionCode=10154` / Root 模块码 `2030`；PR 验证 `Verify Android Build` run `44011037428`，`Preview Build` run `44013891166`（发布 job 断言 `APPROVED_SHA=9283ccb`，回读 tag 一致） |
 | 上一正式版 | [v3.0.11](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11)，非 prerelease，保留；tag `03c6eb70854c797ee1e4069e378145be5ca56b0d` | APK / Root 模块 `10065 / 2013`（历史资产核验记录，归档语境） |
-| 发布基线 | [v3.0.16-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.3) 的 tag/commit `fa6b95b9a39d2d441280021968d4b914eb5b20d3`（当前资产来源提交 `000d3023571153d975d2868eeb7083da57b1a9e4`） | 固定发布基线，不等同于后续 main HEAD |
-| 源码预览线 | `3.0.16-preview.4`（源码候选，尚未发布） | `PRE_VERSION_NAME=3.0.16-preview.4`、`PRE_VERSION_CODE=2030`；共享向量计算 APK `versionCode=10154`、Root 模块码 `2030` |
+| 发布基线 | [v3.0.16-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.4) 的 tag/commit `9283ccb0886805bddbd6856835d23a548f20b9d6`（Release `targetCommitish` 与 APK 内 `version-control-info.textproto` 同为该提交） | 固定发布基线，不等同于后续 main HEAD |
+| 源码预览线 | `3.0.16-preview.4`（已发布，与上一行同一提交；下一预览升版前源码预览线保持该值） | `PRE_VERSION_NAME=3.0.16-preview.4`、`PRE_VERSION_CODE=2030`；共享向量计算 APK `versionCode=10154`、Root 模块码 `2030` |
 
-源码元数据正式线保持 `VERSION_NAME=3.0.14`、`VERSION_CODE=2026`；preview.3 是当前已发布预览（APK `10148` / 模块 `2029`）。源码预览线已升为 `PRE_VERSION_NAME=3.0.16-preview.4`、`PRE_VERSION_CODE=2030`，派生 APK `versionCode=10154`、Root 模块码 `2030`，使已安装 preview.3 的用户能同时收到 APK 与模块更新；该版本未发布前不作为下载入口。稳定版与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变。
+源码元数据正式线保持 `VERSION_NAME=3.0.14`、`VERSION_CODE=2026`；preview.4 是当前已发布预览（APK `10154` / 模块 `2030`），其源码预览线同为 `PRE_VERSION_NAME=3.0.16-preview.4`、`PRE_VERSION_CODE=2030`。稳定版与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变。下一预览升版时，`PRE_VERSION_NAME` 前移后本文的「源码预览线」才与「已发布预览版」分离。
 
-preview.3 由 PR #60（合并提交/tag `fa6b95b9a39d2d441280021968d4b914eb5b20d3`，`verify-android` run `43897997343`）首发，`Preview Build` run `43906481811` 发布。随后 PR #61（合并提交 `000d3023571153d975d2868eeb7083da57b1a9e4`，`verify-android` run `43934149499`）修复策略组编辑与备份恢复，并以受审查流程重发同名资产：`Preview Build` run `43939217515` 在 `000d302` 产出候选，`Replace Existing Preview Assets` prepare run `43942306964` 与 execute run `43942569933` 替换 Release 资产。tag 未移动，因此 preview.3 的二进制来自 `000d302` 而 tag 指向 `fa6b95b`；preview.4 从 main 重新出版以恢复源码 tag 与二进制同源。preview.2 Release/tag 已按单预览策略清理，其历史证据见下文归档。正式版 v3.0.14 与上一正式版 v3.0.11 保留。
+preview.4 由 PR #62（合并提交/tag `9283ccb0886805bddbd6856835d23a548f20b9d6`，2026-11-17T03:58:26Z）发布：PR 验证 `Verify Android Build` run `44011037428` 在 PR head `1ce7d7f` 通过，main `9283ccb` 上的 `Preview Build` run `44013891166`（2026-11-17T03:58:28Z → 04:19:07Z）四个 job 全部成功并在 04:18:56Z 发布 Release；tag、`targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `9283ccb`，上一版「tag 指向旧代码、二进制来自另一提交」的溯源断裂已消除。发布后 `prune_prereleases.py --keep-tag v3.0.16-preview.4` 删除 preview.3 的 Release 与 tag，稳定版与更早正式版未受影响。
+
+preview.3 由 PR #60（tag `fa6b95b9a39d2d441280021968d4b914eb5b20d3`，`verify-android` run `43897997343`）首发，`Preview Build` run `43906481811` 发布。随后 PR #61（合并提交 `000d3023571153d975d2868eeb7083da57b1a9e4`，`verify-android` run `43934149499`）修复策略组编辑与备份恢复，并以受审查流程重发同名资产：`Preview Build` run `43939217515` 在 `000d302` 产出候选，`Replace Existing Preview Assets` prepare run `43942306964` 与 execute run `43942569933` 替换 Release 资产。tag 未移动，因此 preview.3 的二进制来自 `000d302` 而 tag 指向 `fa6b95b`；preview.4 从 main 重新出版，恢复了源码 tag 与二进制同源。preview.2 及更早预览的 Release/tag 已按单预览策略清理，其历史证据见下文归档。正式版 v3.0.14 与上一正式版 v3.0.11 保留。
 
 ## v3.0.14 正式版四件套（文件名）
 
@@ -36,9 +38,22 @@ preview.3 由 PR #60（合并提交/tag `fa6b95b9a39d2d441280021968d4b914eb5b20d
 
 APK 与普通 Root 模块合计 `23937506` 字节（22.83 MiB）；带管理器模块包为 22.17 MiB，均低于 26 MiB。候选构建的跨版本身份检查已核对包名与正式证书（SHA-256 `80ecee1c42d861d59cdc460447335fc4bfdf80103d6225a17c1bdf83a33521f6`），且 APK `versionCode 10130` 高于 v3.0.11 基线 `10065`。本次发布未执行任何清理：`v3.0.11` 正式版与 `v3.0.14-preview.1` 预览版均保留。
 
-## v3.0.16-preview.3 已发布资产快照
+## v3.0.16-preview.4 已发布资产快照
 
-来源：[GitHub Release v3.0.16-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.3)，tag/commit `fa6b95b9a39d2d441280021968d4b914eb5b20d3`。下表为 2026-11-17 替换后的资产（由 main `000d3023571153d975d2868eeb7083da57b1a9e4` 的 `Preview Build` run `43939217515` 产出，`Replace Existing Preview Assets` run `43942569933` 写入）；字节数与 SHA-256 取自 GitHub Release API digest，并与公开 `SHA256SUMS` 三行逐项一致。
+来源：[GitHub Release v3.0.16-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.4)，tag/commit `9283ccb0886805bddbd6856835d23a548f20b9d6`，`Preview Build` run `44013891166` 于 2026-11-17T04:18:56Z 发布（prerelease，`targetCommitish=9283ccb`）。字节数与 SHA-256 取自 GitHub Release API 的 asset digest，并与公开 `SHA256SUMS` 三行逐项一致；本地下载后 `sha256sum -c SHA256SUMS` 三件均 OK。
+
+| 文件 | 字节数 | SHA-256 |
+|---|---:|---|
+| `wanBoxForAndroid-3.0.16-preview.4-arm64-v8a-release.apk` | 6300006 | `ee36f3bae60987a69c24b3280677520144e435923e2d24ce63be47e49d1a244b` |
+| `wanbox-root-module-arm64-v8a.zip` | 17956386 | `10ff382fd326ed151fc382b5d1e4bfac7b2a045a1cefd6a1564b87cee3df0def` |
+| `wanbox-root-module-with-manager-arm64-v8a.zip` | 23548016 | `f3570d644b56bb539280e8dfd84e66f233724ce61e30d79cc54460e7cf6d2b3a` |
+| `SHA256SUMS` | 333 | `1fa845110deba902dca7b01bb2d90a0233799117db33e90c0062ee92eb6acfb8` |
+
+APK 与普通 Root 模块合计 `24256392` 字节（23.13 MiB），`tools/size_budget.py --enforce-limit` 上限 `27262976` 字节，余量 `3006584` 字节（2.87 MiB）→ PASS。两个 ZIP 通过 `zipfile.testzip()`（12 / 13 项，无损坏）；`module.prop` 为 `version=3.0.16-preview.4`、`versionCode=2030`。APK 内 `META-INF/version-control-info.textproto` 的 `revision` 为 `9283ccb0886805bddbd6856835d23a548f20b9d6`，与 tag 同源。CI `verify_preview_candidate.py` 的 badging/签名结论（本环境无 `aapt`/`apksigner`，未独立复验）：包名 `com.lit008834.pixel.wanboxforandroid`、`versionName=3.0.16-preview.4`、`versionCode=10154`、证书 SHA-256 `80ecee1c42d861d59cdc460447335fc4bfdf80103d6225a17c1bdf83a33521f6`（与正式版 v3.0.14 同证书）、`signer_count=1`、`thin=true`；同一份 CI 报告显式标注 `runtime_regression: not_verified`。
+
+## 历史归档：v3.0.16-preview.3 已发布资产快照（Release/tag 已清理）
+
+preview.3 的 Release/tag 已在 preview.4 发布后由 `prune_prereleases.py --keep-tag v3.0.16-preview.4` 删除（发布 run `44013891166` 日志：「Deleted older prerelease and tag: v3.0.16-preview.3」），下载链接现已 404，下表仅作历史记录。来源为原 [GitHub Release v3.0.16-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.3)，tag/commit `fa6b95b9a39d2d441280021968d4b914eb5b20d3`；下表为 2026-11-17 替换后的资产（由 main `000d3023571153d975d2868eeb7083da57b1a9e4` 的 `Preview Build` run `43939217515` 产出，`Replace Existing Preview Assets` run `43942569933` 写入）；字节数与 SHA-256 取自当时的 GitHub Release API digest，并与公开 `SHA256SUMS` 三行逐项一致。
 
 | 文件 | 字节数 | SHA-256 |
 |---|---:|---|
@@ -157,20 +172,22 @@ APK 与普通 Root 模块合计 `23938787` 字节（22.83 MiB）；带管理器�
 
 ## 资产与兼容信息
 
-历史机器可读记录 [preview3-version-evidence.json](preview3-version-evidence.json) 对应 v3.0.11 正式版与 v3.0.11-preview.2，**不是本轮 v3.0.16-preview.3 的核验结果**。其中包括 Release digest、SHA256SUMS、ZIP 清单、带管理器模块内 APK 与外部 APK 的字节一致性、`aapt` 身份与 `apksigner` 验证。
+历史机器可读记录 [preview3-version-evidence.json](preview3-version-evidence.json) 对应 v3.0.11 正式版与 v3.0.11-preview.2，**不是本轮 v3.0.16-preview.4 的核验结果**。其中包括 Release digest、SHA256SUMS、ZIP 清单、带管理器模块内 APK 与外部 APK 的字节一致性、`aapt` 身份与 `apksigner` 验证。
 
-历史共同包名为 `com.lit008834.pixel.wanboxforandroid`，证书 SHA-256 为 `80ecee1c42d861d59cdc460447335fc4bfdf80103d6225a17c1bdf83a33521f6`；这是历史记录，不代表本轮 preview.3 资产已验签。
+共同包名为 `com.lit008834.pixel.wanboxforandroid`，证书 SHA-256 为 `80ecee1c42d861d59cdc460447335fc4bfdf80103d6225a17c1bdf83a33521f6`；本轮 preview.4 的包名、`versionCode=10154`、单签名与证书指纹来自 CI `verify_preview_candidate.py` 的 build-tools 实测输出（发布 run `44013891166`），本机无 `aapt`/`apksigner`，未独立复验签名。
 
 Android 12+（minSdk 31）、arm64-v8a、Root；瘦管理器和 Root 模块必须使用同一发布页的同版资产。下载通过同一 Release 的 SHA256SUMS 后才可提示安装，禁止静默安装；资产不全时明确提示并引导至发布页，不拼凑不同 Release 的文件。
 
 ## 发布来源与边界
 
-当前已发布预览以本文表格中的 v3.0.16-preview.3 为准；`PREVIEW_NOTES.md` 与[说明快照](release-notes-next.zh-CN.md)的当前区段记录源码候选 preview.4（未发布），preview.3 说明移入其历史归档。preview.2 及更早预览的 Release/tag 已清理，其 workflow run、commit 与资产快照作为历史记录保留，均不作为当前下载入口或本轮新测试结果。
+当前已发布预览以本文表格中的 v3.0.16-preview.4 为准；`PREVIEW_NOTES.md` 与[说明快照](release-notes-next.zh-CN.md)的当前区段同为 preview.4 的已发布说明，preview.3 及其更早说明移入各自的历史归档。preview.3 与 preview.2 及更早预览的 Release/tag 均已按单预览策略清理，其 workflow run、commit 与资产快照作为历史记录保留，均不作为当前下载入口或本轮新测试结果。
 
-preview.3 首发证据：`verify-android` run `43897997343`（PR #60，提交 `70f90c4ef1`）与 `Preview Build` run `43906481811`（tag/commit `fa6b95b9a39d2d441280021968d4b914eb5b20d3`）。资产重发证据：`verify-android` run `43934149499`（PR #61，提交 `6a456e420c`）、main `000d3023571153d975d2868eeb7083da57b1a9e4` 上的 `Preview Build` run `43939217515`，以及 `Replace Existing Preview Assets` prepare run `43942306964` / execute run `43942569933`。上表四件套字节数与 SHA-256 为替换后的 API 回读值。
+preview.4 发布证据：PR #62（合并提交/tag `9283ccb0886805bddbd6856835d23a548f20b9d6`）的 `Verify Android Build` run `44011037428`（PR head `1ce7d7f`）通过；main `9283ccb` 上的 `Preview Build` run `44013891166` 的 `Native Build (LibCore)`、`Build OSS APK`、`Candidate cold-start measurement (emulator only)` 与 `Publish Preview Release` 四个 job 全部成功，发布 job 断言 `APPROVED_SHA=9283ccb`、创建 Release 后回读 tag 对象并复核为同一提交，最后由 `prune_prereleases.py --keep-tag v3.0.16-preview.4` 清理 preview.3。上表四件套字节数与 SHA-256 为发布后 API 回读值。
 
-[发布清单](release-checklist.zh-CN.md) 保留分阶段门槛与正式版发布清单。preview.3 未执行 Magisk / KernelSU / APatch 真机矩阵，该项仍未验证；稳定版 v3.0.14 保持不变，任何自动化结果都不代替真机验证。
+preview.3 历史证据：`verify-android` run `43897997343`（PR #60，提交 `70f90c4ef1`）与 `Preview Build` run `43906481811`（tag/commit `fa6b95b9a39d2d441280021968d4b914eb5b20d3`）首发；资产经 `verify-android` run `43934149499`（PR #61，提交 `6a456e420c`）、main `000d3023571153d975d2868eeb7083da57b1a9e4` 上的 `Preview Build` run `43939217515` 与 `Replace Existing Preview Assets` prepare run `43942306964` / execute run `43942569933` 受审查替换。
 
-上一正式版 v3.0.11 与稳定版 v3.0.14 的 Release 与 tag 均保留，正式发布不执行 prune；当前预览渠道只保留最新的 prerelease，即 v3.0.16-preview.3。后续发布仍须使用获批精确提交及同次核验的四件套资产，并在清理旧预览前完成回读验证。
+[发布清单](release-checklist.zh-CN.md) 保留分阶段门槛与正式版发布清单。preview.4 未执行 Magisk / KernelSU / APatch 真机矩阵，该项仍未验证；稳定版 v3.0.14 保持不变，任何自动化结果都不代替真机验证。
+
+上一正式版 v3.0.11 与稳定版 v3.0.14 的 Release 与 tag 均保留，正式发布不执行 prune；当前预览渠道只保留最新的 prerelease，即 v3.0.16-preview.4（preview.3 的 Release/tag 已在本次发布后清理）。后续发布仍须使用获批精确提交及同次核验的四件套资产，并在清理旧预览前完成回读验证。
 
 正式版说明见 [RELEASE_NOTES.md](../RELEASE_NOTES.md)（v3.0.14；原 v3.0.11 说明正文已被替换，保留在其 Release 页与 git 历史中）。

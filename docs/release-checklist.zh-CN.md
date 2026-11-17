@@ -1,6 +1,6 @@
-# v3.0.16-preview.3 分阶段发布清单
+# v3.0.16-preview.4 分阶段发布清单
 
-本版 **v3.0.16-preview.3 已作为稳定性预览版发布**：[Release](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.3)，tag/commit `fa6b95b9a39d2d441280021968d4b914eb5b20d3`，首发由 `Preview Build` run `43906481811` 完成（`verify-android` run `43897997343`，PR #60）。PR #61 合入后，资产由 main `000d3023571153d975d2868eeb7083da57b1a9e4` 的候选 run `43939217515` 经 `Replace Existing Preview Assets` run `43942306964`（prepare）/ `43942569933`（execute）受审查替换，tag 未移动。下一预览 `3.0.16-preview.4`（模块 `2030` / APK `10154`）为源码候选，尚未发布。已发布正式版仍为 v3.0.14（正式版发布清单见本文件下文专节）。preview.2 Release/tag 已按单预览策略清理。Root 真机矩阵未执行，仍未验证。
+本版 **v3.0.16-preview.4 已作为稳定性预览版发布**：[Release](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.4)（prerelease），tag/commit `9283ccb0886805bddbd6856835d23a548f20b9d6`（PR #62，2026-11-17T03:58:26Z 合并），PR 验证 `Verify Android Build` run `44011037428`，`Preview Build` run `44013891166` 于 2026-11-17T04:18:56Z 发布；tag、`targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `9283ccb`。本版元数据为模块 `2030` / APK `10154`，无待发布候选。已发布正式版仍为 v3.0.14（正式版发布清单见本文件下文专节）。preview.3 与 preview.2 Release/tag 已按单预览策略清理（本次发布后 `prune_prereleases.py --keep-tag v3.0.16-preview.4`）。Root 真机矩阵未执行，仍未验证。
 
 ## 当前基线与不可变约束
 
@@ -9,7 +9,7 @@
 - 内核 `reF1nd/sing-box v1.15.0-alpha.13-reF1nd`。内核和 targetSdk 阶段只评估，升级须另获确认。
 - 模块拥有代理生命周期；管理器为瘦 APK，不引入多内核、不恢复 VPN、不重做 UI。
 - 不删除或改名设置键、不改默认值；TLS 默认验证证书；日志不得含备份内容、节点凭据、订阅原文。
-- 当前已发布预览为 preview.3：Root 模块 `2029` / APK `10148`（源码候选 preview.4 为 `2030` / `10154`）；正式线元数据保持 `3.0.14 / 2026` 不变，`SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 不变。
+- 当前已发布预览为 preview.4：Root 模块 `2030` / APK `10154`（源码预览线同为 `PRE_VERSION_NAME=3.0.16-preview.4`、`PRE_VERSION_CODE=2030`）；正式线元数据保持 `3.0.14 / 2026` 不变，`SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 不变。
 
 ## 阶段与验收
 
@@ -35,7 +35,7 @@
 - [x] 中文发行说明如实区分自动化与真机边界；只发布 prerelease，不宣称正式版可用。
 - [x] 发布后回读四件套名称、数量、大小、SHA256 与 tag；preview.1 Release/tag 已按单预览保留策略清理，稳定版 v3.0.14 与 v3.0.11 保留。
 
-任何一项发布前门禁失败都应停止发布，保留构件、日志和失败现场。preview.3 已按上述门禁发布并回读验证（资产替换后亦经 API digest 与 `SHA256SUMS` 回读一致）；Root 真机矩阵未执行，不视为通过。正式版发布已由用户另行明确授权，门禁按下文「v3.0.14 正式版发布清单」执行。
+任何一项发布前门禁失败都应停止发布，保留构件、日志和失败现场。preview.4 已按上述门禁发布并回读验证：发布 run `44013891166` 先断言 `APPROVED_SHA=9283ccb`，四件套经 API digest 与公开 `SHA256SUMS` 回读一致（本地 `sha256sum -c` 三件 OK），APK + 普通模块 `24256392` 字节低于 `27262976` 字节上限；Root 真机矩阵未执行，不视为通过。正式版发布已由用户另行明确授权，门禁按下文「v3.0.14 正式版发布清单」执行。
 
 ## 真机待签核矩阵（不能用模拟器代替）
 
