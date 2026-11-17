@@ -446,3 +446,32 @@
 -keep interface io.nekohasekai.sagernet.database.preference.OnPreferenceDataStoreChangeListener {
     public void onPreferenceDataStoreChanged(androidx.preference.PreferenceDataStore, java.lang.String);
 }
+# preview.4 subscription/discard regressions: exact new cross-APK public boundaries only.
+# These rules are used solely by -PwanboxReleaseTests, never shipping APKs.
+-keep class io.nekohasekai.sagernet.group.RawUpdater {
+    public static final io.nekohasekai.sagernet.group.RawUpdater INSTANCE;
+    public java.lang.Object doUpdate(io.nekohasekai.sagernet.database.ProxyGroup, io.nekohasekai.sagernet.database.SubscriptionBean, io.nekohasekai.sagernet.database.GroupManager$Interface, boolean, kotlin.coroutines.Continuation);
+}
+-keep class io.nekohasekai.sagernet.group.editor.GroupEditorService {
+    public java.lang.String inputVersion();
+}
+-keep class io.nekohasekai.sagernet.group.editor.GroupEditor$Issue {
+    public io.nekohasekai.sagernet.group.editor.EntityId getMember();
+}
+-keep class io.nekohasekai.sagernet.group.editor.EntityId$Node {
+    public <init>(long);
+    public boolean equals(java.lang.Object);
+}
+-keep class io.nekohasekai.sagernet.bg.RootModuleClient {
+    public java.lang.Object abandonGroupDraft(kotlin.coroutines.Continuation);
+}
+-keep class io.nekohasekai.sagernet.bg.RootModuleClient$Status {
+    public java.lang.String getPhase();
+}
+-keep interface io.nekohasekai.sagernet.database.ProxyEntity$Dao {
+    public java.util.List getAll();
+    public java.util.List getByGroup(long);
+}
+-keep interface io.nekohasekai.sagernet.database.RuleEntity$Dao {
+    public long createRule(io.nekohasekai.sagernet.database.RuleEntity);
+}
