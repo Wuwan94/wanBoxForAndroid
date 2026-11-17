@@ -45,7 +45,7 @@ class GroupDraftAbandonPersistenceTest {
         fun recoveryVisible(): Boolean {
             val menu = activity!!.findViewById<MaterialToolbar>(R.id.policy_toolbar).menu
             return (0 until menu.size()).any {
-                menu.getItem(it).title == context.getString(R.string.group_editor_recover) && menu.getItem(it).isVisible
+                menu.getItem(it).title == activity!!.getString(R.string.group_editor_recover) && menu.getItem(it).isVisible
             }
         }
         fun openPage(): PolicyGroupsActivity = instrumentation.startActivitySync(
@@ -60,22 +60,30 @@ class GroupDraftAbandonPersistenceTest {
         }
         fun clickVisibleText(text: String) {
             awaitCondition {
-                val candidates = instrumentation.uiAutomation.rootInActiveWindow
-                    ?.findAccessibilityNodeInfosByText(text).orEmpty()
-                    .filter { it.text?.toString()?.trim()?.equals(text.trim(), ignoreCase = true) == true }
-                candidates.any { node ->
-                    run {
-                        // Popup menu text nodes are not consistently clickable across Android
-                        // versions. Prefer the nearest clickable row, then tap the visible label.
-                        var clickable: AccessibilityNodeInfo? = node
+                val roots = instrumentation.uiAutomation.windows.mapNotNull { it.root }
+                    .ifEmpty { listOfNotNull(instrumentation.uiAutomation.rootInActiveWindow) }
+                val candidates = try {
+                    roots.flatMap { root ->
+                        try {
+                            root.findAccessibilityNodeInfosByText(text).orEmpty()
+                                .filter { it.text?.toString()?.trim()?.equals(text.trim(), ignoreCase = true) == true }
+                        } finally { root.recycle() }
+                    }
+                } catch (_: RuntimeException) { emptyList() }
+                try {
+                    candidates.any { node ->
+                        var current: AccessibilityNodeInfo? = node
                         var depth = 0
                         var clicked = false
-                        while (clickable != null && depth < 3 && !clicked) {
-                            clicked = clickable.isClickable && clickable.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                            clickable = clickable.parent
+                        while (current != null && depth < 4 && !clicked) {
+                            clicked = current.isClickable && current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                            val parent = current.parent
+                            if (current !== node) current.recycle()
+                            current = parent
                             depth++
                         }
-                        if (clicked) true else if (candidates.size > 1) false else {
+                        if (current !== node) current?.recycle()
+                        if (clicked || candidates.size != 1) clicked else {
                             val bounds = Rect()
                             node.getBoundsInScreen(bounds)
                             if (bounds.isEmpty) false else {
@@ -85,9 +93,8 @@ class GroupDraftAbandonPersistenceTest {
                                 val down = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, x, y, 0)
                                 val up = MotionEvent.obtain(downTime, downTime + 1, MotionEvent.ACTION_UP, x, y, 0)
                                 try {
-                                    val injectedDown = instrumentation.uiAutomation.injectInputEvent(down, true)
-                                    val injectedUp = instrumentation.uiAutomation.injectInputEvent(up, true)
-                                    injectedDown && injectedUp
+                                    instrumentation.uiAutomation.injectInputEvent(down, true) &&
+                                        instrumentation.uiAutomation.injectInputEvent(up, true)
                                 } finally {
                                     down.recycle()
                                     up.recycle()
@@ -95,7 +102,7 @@ class GroupDraftAbandonPersistenceTest {
                             }
                         }
                     }
-                }
+                } finally { candidates.forEach { it.recycle() } }
             }
         }
         val fixtureGroupId = 99124L
@@ -161,12 +168,15 @@ class GroupDraftAbandonPersistenceTest {
                     activity = openPage()
                     instrumentation.runOnMainSync { assertTrue(recoveryVisible()) }
                     outcome = Outcome.SUCCESS
+                    val abandonLabel = activity!!.getString(R.string.group_editor_abandon)
+                    var overflowShown = false
                     instrumentation.runOnMainSync {
-                        activity!!.findViewById<MaterialToolbar>(R.id.policy_toolbar).showOverflowMenu()
+                        overflowShown = activity!!.findViewById<MaterialToolbar>(R.id.policy_toolbar).showOverflowMenu()
                     }
-                    clickVisibleText(context.getString(R.string.group_editor_abandon))
+                    assertTrue("The abandon action must be available in the overflow menu", overflowShown)
+                    clickVisibleText(abandonLabel)
                     // Confirm the real dialog, rather than bypassing the user's retry path.
-                    clickVisibleText(context.getString(R.string.group_editor_abandon))
+                    clickVisibleText(abandonLabel)
                     awaitCondition { !GroupLocalPreparation.pending() }
                     instrumentation.waitForIdleSync()
                     instrumentation.runOnMainSync { assertFalse(recoveryVisible()) }

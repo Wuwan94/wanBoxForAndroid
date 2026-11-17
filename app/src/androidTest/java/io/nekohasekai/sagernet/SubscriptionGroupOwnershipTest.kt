@@ -42,6 +42,37 @@ class SubscriptionGroupOwnershipTest {
             }
             fail("Editor did not show the subscription ownership rejection")
         }
+        fun clickAccessibleText(text: String) {
+            val deadline = android.os.SystemClock.uptimeMillis() + 8000
+            while (android.os.SystemClock.uptimeMillis() < deadline) {
+                val roots = instrumentation.uiAutomation.windows.mapNotNull { it.root }
+                    .ifEmpty { listOfNotNull(instrumentation.uiAutomation.rootInActiveWindow) }
+                val nodes = try {
+                    roots.flatMap { root ->
+                        try {
+                            root.findAccessibilityNodeInfosByText(text).orEmpty()
+                                .filter { it.text?.toString()?.trim() == text.trim() }
+                        } finally { root.recycle() }
+                    }
+                } catch (_: RuntimeException) { emptyList() }
+                try {
+                    for (node in nodes) {
+                        var current: AccessibilityNodeInfo? = node
+                        var depth = 0
+                        while (current != null && depth < 4) {
+                            if (current.isClickable && current.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return
+                            val parent = current.parent
+                            if (current !== node) current.recycle()
+                            current = parent
+                            depth++
+                        }
+                        current?.takeIf { it !== node }?.recycle()
+                    }
+                } finally { nodes.forEach { it.recycle() } }
+                android.os.SystemClock.sleep(40)
+            }
+            fail("Subscription node choice did not become accessible: $text")
+        }
         try {
             source.writeText("socks://192.0.2.1:1080#subscription-node")
             val subscription = SubscriptionBean().apply {
@@ -70,9 +101,7 @@ class SubscriptionGroupOwnershipTest {
             }
             instrumentation.waitForIdleSync()
             val label = "${imported.displayName()} (#${imported.id})"
-            val choice = instrumentation.uiAutomation.rootInActiveWindow.findAccessibilityNodeInfosByText(label).first()
-            assertTrue(choice.performAction(AccessibilityNodeInfo.ACTION_CLICK) ||
-                choice.parent.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+            clickAccessibleText(label)
             instrumentation.waitForIdleSync()
             instrumentation.runOnMainSync {
                 page().filterIsInstance<Button>().single { it.text == context.getString(R.string.group_editor_apply) }.performClick()
