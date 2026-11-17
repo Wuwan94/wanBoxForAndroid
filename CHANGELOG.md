@@ -4,12 +4,15 @@
 
 ## wanBox 3.0.x 发布记录
 
-### v3.0.17-preview.1（未发布候选）
+### v3.0.17-preview.1（已发布预览）
 
-- 修复 preview.4 复审发现的 P1 回归：存在悬空出站引用（启用规则指向已删除节点）且恢复标记仍在时，首页连接被出站告警与恢复屏障双重拦住，「放弃未完成编辑」又在锁内重建的同一条告警上失败并被包成「需要恢复」，恢复标记永不释放，形成死循环。现由**同一次构建快照**算出的告警替代该次重建的确认：放弃重建的正是编辑前那套在跑的配置，快照与告警一一对应；正常启动/重连/重载仍照旧要求确认。回归用例 `GroupDraftAbandonPersistenceTest.danglingOutboundRuleDoesNotDeadlockDiscard` 使用真 Room、真恢复标记与真 `abandonGroupDraft()`，只伪造外部 Root CLI。
-- 元数据升为模块 `2031` / APK `10156`（preview.4 为 `2030` / `10154`）；稳定版 v3.0.14、正式元数据 `3.0.14 / 2026` 与 `SINGBOX_VERSION` 不变。本条目在候选阶段记录，发布后由文档同步 PR 翻转状态并回填 CI run 号。
+- [GitHub Release v3.0.17-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.1) 由 `Preview Build` run `44076008956` 在 main commit/tag `33391d1dfa851fce7998431eb4ab614407ffbb25`（PR #65，2026-11-17T11:39:26Z 合并，`Verify Android Build` run `44071339331`）于 2026-11-17T12:01:45Z 发布；tag 对象、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `33391d1`。
+- 修复 preview.4 复审发现的 P1 回归：存在悬空出站引用（启用规则指向已删除节点）且恢复标记仍在时，首页连接被出站告警与恢复屏障双重拦住，「放弃未完成编辑」又在锁内重建的同一条告警上失败并被包成「需要恢复」，恢复标记永不释放，形成死循环。现由**同一次构建快照**算出的告警替代该次重建的确认；正常启动/重连/重载仍照旧要求确认，提交点（确认成功才清标记）未放宽。
+- 同批修复同一状态下的第二层缺陷：配置构建在 IO 线程创建 Toast 抛 `NullPointerException: Can't toast on a thread that has not called Looper.prepare()`，用户确认告警后的重建同样被打回失败；两处规则告警改为主线程分发，文案与「丢弃该规则」的判定不变。
+- 回归证据：纯测试提交 `419fdc5` 的 run `44064100226` 只红一项（`GroupDraftAbandonPersistenceTest.danglingOutboundRuleDoesNotDeadlockDiscard` → `group_editor_recovery_required`）；未修 Toast 的 `624fc8e` run `44067193911` 在同一用例上红于上述 `NullPointerException`；修复后 run `44071339331` 全绿（debug / release 各 79 项 0 失败 2 skip，internal 2 项）。
+- 元数据为模块 `2031` / APK `10156`；四件套经 API digest 与公开 `SHA256SUMS` 回读一致（本地 `sha256sum -c` 三件 OK）：APK `6301506` 字节 / `4d7fe5f5…f6cd48`、普通 Root ZIP `17956394` 字节 / `82a3e48e…c21f1f`、合一 ZIP `23549099` 字节 / `f16dff37…7fdc8e`、`SHA256SUMS` `333` 字节；APK + 普通 Root ZIP 为 `24257900` 字节（23.13 MiB），`size_budget --enforce-limit` PASS。发布后 `prune_prereleases.py --keep-tag v3.0.17-preview.1` 清理了 preview.4 的 Release/tag。Root 真机矩阵未执行（CI 自标 `runtime_regression: not_verified`），仍未验证。
 
-### v3.0.16-preview.4（已发布预览）
+### v3.0.16-preview.4（历史预览，Release/tag 已在 preview.1 发布后清理）
 
 - [GitHub Release v3.0.16-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.4) 由 `Preview Build` run `44013891166` 在 main commit/tag `9283ccb0886805bddbd6856835d23a548f20b9d6`（PR #62，2026-11-17T03:58:26Z 合并，`Verify Android Build` run `44011037428`）发布；tag、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `9283ccb`，源码与二进制重新同源。
 - 收口 preview.3 复审遗留：组成员以节点归属为唯一真相（组草稿只负责顺序与 URLTest 参数，保存时同步节点归属）、订阅节点与组重名时自动加后缀并补 `duplicate_tag` 明确提示、选中节点移出主组时显式回落并同步、恢复失败时可放弃未完成编辑、组设置页与编辑器统一锁定「中断现有连接」。元数据升为模块 `2030` / APK `10154`；稳定版 v3.0.14 与 `SINGBOX_VERSION` 不变。

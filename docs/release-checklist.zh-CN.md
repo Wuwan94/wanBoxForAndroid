@@ -1,6 +1,6 @@
-# v3.0.16-preview.4 分阶段发布清单
+# v3.0.17-preview.1 分阶段发布清单
 
-本版 **v3.0.16-preview.4 已作为稳定性预览版发布**：[Release](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.4)（prerelease），tag/commit `9283ccb0886805bddbd6856835d23a548f20b9d6`（PR #62，2026-11-17T03:58:26Z 合并），PR 验证 `Verify Android Build` run `44011037428`，`Preview Build` run `44013891166` 于 2026-11-17T04:18:56Z 发布；tag、`targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `9283ccb`。本版元数据为模块 `2030` / APK `10154`，无待发布候选。已发布正式版仍为 v3.0.14（正式版发布清单见本文件下文专节）。preview.3 与 preview.2 Release/tag 已按单预览策略清理（本次发布后 `prune_prereleases.py --keep-tag v3.0.16-preview.4`）。Root 真机矩阵未执行，仍未验证。
+本版 **v3.0.17-preview.1 已作为稳定性预览版发布**：[Release](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.1)（prerelease），tag/commit `33391d1dfa851fce7998431eb4ab614407ffbb25`（PR #65，2026-11-17T11:39:26Z 合并），PR 验证 `Verify Android Build` run `44071339331`，`Preview Build` run `44076008956` 于 2026-11-17T12:01:45Z 发布；tag、`targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `33391d1`。本版元数据为模块 `2031` / APK `10156`，无待发布候选。已发布正式版仍为 v3.0.14（正式版发布清单见本文件下文专节）。preview.4 与 preview.3 Release/tag 已按单预览策略清理（本次发布后 `prune_prereleases.py --keep-tag v3.0.17-preview.1`）。Root 真机矩阵未执行，仍未验证。
 
 ## 当前基线与不可变约束
 
@@ -9,7 +9,7 @@
 - 内核 `reF1nd/sing-box v1.15.0-alpha.13-reF1nd`。内核和 targetSdk 阶段只评估，升级须另获确认。
 - 模块拥有代理生命周期；管理器为瘦 APK，不引入多内核、不恢复 VPN、不重做 UI。
 - 不删除或改名设置键、不改默认值；TLS 默认验证证书；日志不得含备份内容、节点凭据、订阅原文。
-- 当前已发布预览为 preview.4：Root 模块 `2030` / APK `10154`（源码预览线同为 `PRE_VERSION_NAME=3.0.16-preview.4`、`PRE_VERSION_CODE=2030`）；正式线元数据保持 `3.0.14 / 2026` 不变，`SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 不变。
+- 当前已发布预览为 preview.1：Root 模块 `2031` / APK `10156`（源码预览线同为 `PRE_VERSION_NAME=3.0.17-preview.1`、`PRE_VERSION_CODE=2031`）；正式线元数据保持 `3.0.14 / 2026` 不变，`SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 不变。
 
 ## 阶段与验收
 
