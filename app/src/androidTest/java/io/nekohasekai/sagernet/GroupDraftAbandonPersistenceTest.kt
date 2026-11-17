@@ -28,9 +28,12 @@ class GroupDraftAbandonPersistenceTest {
     @Test fun confirmedRebuildAloneClearsJournal() = fixture(Outcome.SUCCESS)
     @Test fun stoppedModuleOnlyRestoresLocalStateAndClearsMarker() = fixture(Outcome.SUCCESS, phase = "stopped")
     @Test fun suspendedModuleIsNotStartedByDiscard() = fixture(Outcome.SUCCESS, phase = "suspended")
+    @Test fun danglingOutboundRuleDoesNotDeadlockDiscard() = fixture(Outcome.SUCCESS, danglingOutbound = true)
 
-    private fun fixture(initialOutcome: Outcome, phase: String = "connected", recreate: Boolean = false) = runBlocking {
+    private fun fixture(initialOutcome: Outcome, phase: String = "connected", recreate: Boolean = false,
+        danglingOutbound: Boolean = false) = runBlocking {
         check(!GroupLocalPreparation.pending())
+        val originalRules = SagerDatabase.rulesDao.allRules()
         val original = BackupRestore.parse(org.json.JSONObject(
             io.nekohasekai.sagernet.utils.BackupHelper.doBackup().toString(Charsets.UTF_8)))
         val oldLauncher = RootModuleClient.commandProcess
@@ -106,6 +109,9 @@ class GroupDraftAbandonPersistenceTest {
             }
         }
         val fixtureGroupId = 99124L
+        // An enabled rule whose node was deleted is the state that used to deadlock discard: the
+        // locked rebuild raised its outbound warning and the journal kept the barrier up forever.
+        val danglingRuleId = 99126L
         // A unique persisted marker distinguishes this test's journal from any record that happens
         // to use the same fixture group ID; teardown must never infer ownership from the ID alone.
         val fixtureBaseline = """{"testJournalOwner":"${java.util.UUID.randomUUID()}"}"""
@@ -119,6 +125,12 @@ class GroupDraftAbandonPersistenceTest {
             DataStore.serviceMode = Key.MODE_ROOT
             DataStore.globalCustomConfig = ""; DataStore.globalMode = false; DataStore.enableClashAPI = false
             DataStore.selectedProxy = node.id
+            if (danglingOutbound) {
+                SagerDatabase.rulesDao.insert(listOf(RuleEntity(id = danglingRuleId,
+                    name = "abandon-fixture.invalid dangling outbound", userOrder = 1L, enabled = true,
+                    outbound = 99127L, domains = "domain:abandon-fixture.invalid",
+                    config = """{"action":"route"}""")))
+            }
             val initial = GroupEditorService.load(group.id)
             GroupEditorStore.write(initial)
             GroupLocalPreparation(initial.copy(parameters = initial.parameters.copy(toleranceMs = 321))).prepare(fixtureBaseline)
@@ -147,12 +159,26 @@ class GroupDraftAbandonPersistenceTest {
                     else -> throw AssertionError("Discard must not issue $command")
                 }
             }
+            if (danglingOutbound) {
+                // Arm and release the token first: the fixture must really be in the warned state,
+                // otherwise this case would pass without ever reaching the discard barrier.
+                val armed = RootModuleClient.prepareOutboundWarning(false)
+                assertNotNull("Fixture must raise the outbound warning that blocked discard", armed)
+                armed?.let { RootModuleClient.cancelOutboundWarning(it.requestToken) }
+            }
             if (outcome == Outcome.SUCCESS) {
                 val status = RootModuleClient.abandonGroupDraft()
                 assertEquals(phase, status.phase)
                 assertFalse(GroupLocalPreparation.pending())
                 if (phase == "connected") assertTrue("Fresh confirmation must precede journal deletion", confirmationSawJournal)
                 else assertTrue("Non-running modules must not be rebuilt or started", mutations.isEmpty())
+                if (danglingOutbound) {
+                    assertTrue("Discard must rebuild the pre-edit configuration", mutations.contains("config apply"))
+                    // The escape hatch skips only its own rebuild; the normal path still asks.
+                    val stillRequired = RootModuleClient.prepareOutboundWarning(false)
+                    assertNotNull("The normal connect path must still require this warning", stillRequired)
+                    stillRequired?.let { RootModuleClient.cancelOutboundWarning(it.requestToken) }
+                }
             } else {
                 try { RootModuleClient.abandonGroupDraft(); fail("Discard must not report success") }
                 catch (_: IOException) { }
@@ -200,6 +226,12 @@ class GroupDraftAbandonPersistenceTest {
             if (pendingRecord?.id == fixtureGroupId && pendingRecord.baseline == fixtureBaseline) {
                 GroupLocalPreparation.restoreRecord(pendingRecord)
                 GroupLocalPreparation.clearRecord()
+            }
+            // Restore the rule set this fixture inserted even when a foreign journal blocks the
+            // full backup restore, so a failing run cannot leak an enabled dangling rule.
+            if (danglingOutbound) {
+                SagerDatabase.rulesDao.reset()
+                SagerDatabase.rulesDao.insert(originalRules)
             }
             if (!GroupLocalPreparation.pending()) BackupRestore.apply(original, true, true, true)
         }

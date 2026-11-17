@@ -4,6 +4,11 @@
 
 ## wanBox 3.0.x 发布记录
 
+### v3.0.17-preview.1（未发布候选）
+
+- 修复 preview.4 复审发现的 P1 回归：存在悬空出站引用（启用规则指向已删除节点）且恢复标记仍在时，首页连接被出站告警与恢复屏障双重拦住，「放弃未完成编辑」又在锁内重建的同一条告警上失败并被包成「需要恢复」，恢复标记永不释放，形成死循环。现由**同一次构建快照**算出的告警替代该次重建的确认：放弃重建的正是编辑前那套在跑的配置，快照与告警一一对应；正常启动/重连/重载仍照旧要求确认。回归用例 `GroupDraftAbandonPersistenceTest.danglingOutboundRuleDoesNotDeadlockDiscard` 使用真 Room、真恢复标记与真 `abandonGroupDraft()`，只伪造外部 Root CLI。
+- 元数据升为模块 `2031` / APK `10156`（preview.4 为 `2030` / `10154`）；稳定版 v3.0.14、正式元数据 `3.0.14 / 2026` 与 `SINGBOX_VERSION` 不变。本条目在候选阶段记录，发布后由文档同步 PR 翻转状态并回填 CI run 号。
+
 ### v3.0.16-preview.4（已发布预览）
 
 - [GitHub Release v3.0.16-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.4) 由 `Preview Build` run `44013891166` 在 main commit/tag `9283ccb0886805bddbd6856835d23a548f20b9d6`（PR #62，2026-11-17T03:58:26Z 合并，`Verify Android Build` run `44011037428`）发布；tag、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `9283ccb`，源码与二进制重新同源。

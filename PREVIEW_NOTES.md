@@ -1,54 +1,53 @@
-# v3.0.16-preview.4 发行说明
+# v3.0.17-preview.1 发行说明（候选）
 
-**状态：已发布的稳定性预览版。**
+**状态：未发布的稳定性预览版候选。**
 
-本版是 preview.3 的收口修复：消除策略组成员的「双真相」、修复订阅节点与组重名导致的连接失败，并让源码 tag 与发布二进制重新同源。正式稳定版 `v3.0.14`（`VERSION_CODE=2026`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 不变；预览元数据码升为 `PRE_VERSION_CODE=2030`，派生 APK `versionCode=10154`、Root 模块码 `2030`，均高于 preview.3 的 `10148` / `2029`，已安装 preview.3 的用户可同时收到 APK 与模块更新。
+本版修复上一版遗留的一处登录阻断：存在悬空出站引用（某条启用规则指向已删除的节点）时，「放弃未完成编辑」会反复失败，用户被锁在恢复标记上。正式稳定版 `v3.0.14`（`VERSION_CODE=2026`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 均未改变；预览元数据码升为 `PRE_VERSION_CODE=2031`，派生 APK `versionCode=10156`、Root 模块码 `2031`，均高于 preview.4 的 `10154` / `2030`，已安装 preview.4 的用户可同时收到 APK 与模块更新。
 
 ## ✦ 与上一版对比
 
-| 项目 | v3.0.16-preview.3 | v3.0.16-preview.4 |
+| 项目 | v3.0.16-preview.4 | v3.0.17-preview.1（候选） |
 |---|---|---|
-| 内容 | 四批次汇总：策略组浏览选择测速、模块诊断上屏、图形化组编辑、统一资源页与重名消歧、备份迁移规范化、网关缓存深拷贝 | 收口修复：组成员单一真相、订阅撞名不再断连、选中节点显式回落、恢复失败逃生口、设置与编辑器口径一致 |
-| APK `versionCode` | 10148 | 10154 |
-| Root 模块码 | 2029 | 2030 |
-| 源码与二进制 | 资产由 main `000d302` 重建替换，tag 仍指向 `fa6b95b` | tag、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与 CI `APPROVED_SHA` 四者同为 `9283ccb` |
+| 内容 | 收口修复：组成员单一真相、订阅撞名不再断连、选中节点显式回落、恢复失败逃生口 | 修复悬空出站引用下的放弃编辑死循环；其余行为不变 |
+| APK `versionCode` | 10154 | 10156 |
+| Root 模块码 | 2030 | 2031 |
 
 URLTest 稳定性约束（检测间隔 ≥ 10 秒、空闲超时 ≥ 30 分钟、切换时不中断现有连接）、`default` 保真、候选应用的版本 CAS 与恢复校验链本版均未放宽。
 
 ## ✦ 本版更新
 
-### 1. 策略组成员只有一个真相
-节点归属（数据库中的所属分组）成为组成员的唯一依据，编辑器保存的组草稿只负责成员顺序与 URLTest 参数。保存编辑时，新加入的节点会在同一事务内移入该组，从普通分组移除的节点移到「未分组」；订阅组的成员由订阅决定，可调整顺序与参数，增删节点请在订阅或节点页操作。之后订阅更新新增的节点自动追加到有序成员末尾，被移走的节点自动退出。组列表显示的节点数、运行配置中的组成员与导出配置的组成员三者一致（导出不再静默丢弃组草稿）。
+### 1. 悬空出站引用不再锁死「放弃未完成编辑」
 
-### 2. 订阅节点与组重名不再导致连接失败
-构建配置时先为所有分组与组草稿预留名称，订阅新带来的同名节点自动加后缀（如「香港-1」），组与节点各自保留独立标签，连接不再因 `duplicate_tag` 失败。若仍出现重名，错误提示改为「组名与节点名称重复，请重命名冲突条目后重试」，不再是笼统的「操作失败」。
+当一条启用规则指向已删除的节点时，连接前的出站告警原本是正确的保护；但「放弃未完成编辑」在锁内重建模块时也会撞上同一条告警，异常被包成「需要恢复」并保留恢复标记，于是每次放弃都死在同一步——用户既连不上，也进不了组编辑。
 
-### 3. 选中节点被移出主组时显式回落
-当前选中节点不在主组成员中时，Selector 显式回落到第一个成员，并在模块确认生效后同步界面选中项，避免界面显示 A 节点、流量却走首个成员。
+现在放弃编辑用**同一次构建快照**计算出的告警替代这次重建的确认：放弃重建的正是编辑前那套本来就在跑的配置，同一条告警在这一步不再构成新的决定；构建与确认仍是同一次快照，跳过确认的告警不可能描述另一套配置。正常启动、重连与重载仍然照旧要求用户确认——放弃成功后再次连接依旧会弹出该告警。
 
-### 4. 恢复失败时可放弃未完成编辑
-若「恢复编辑前的组配置」因保存的基线失效无法完成，策略组页提供次级操作「放弃未完成编辑」：把本机组配置恢复到编辑前、清除恢复标记，并按当前配置重建 Root 模块（模块未运行时只清除标记），不会再被永久锁在待恢复状态。
+失败方向不变：重建失败、状态未知/超时、revision 不符仍然保留恢复标记与恢复入口，本版没有放宽这条提交点。
 
-### 5. 设置页与编辑器口径一致
-组设置页不再回写已被构建忽略的「切换时中断现有连接」，统一锁定关闭；编辑器把该项改为明确的文字说明，并在已有组的类型锁定时提示「已有组的类型请在组设置页修改」。
+### 2. 版本与文档口径
 
-### 6. 维护性清理
-读取组草稿不再在快照事务内逐组查库；移除「兼容旧版」导出未使用的拒绝提示字符串。「兼容旧版」导出仍保持禁用，现有备份导出与旧格式导入不受影响。
+`nb4a.properties` 预览线升为 `3.0.17-preview.1` / `2031`；正式线 `3.0.14 / 2026` 与 sing-box pin 未变。当前版本文档一致性检查同步改为「已发布 preview.4 + 未发布 preview.1 候选」的双态口径。
 
 ## 📦 版本、资产与安装
 
 - **运行要求**：Android 12+（API 31+）、arm64-v8a、Magisk / KernelSU / APatch 等 Root 环境。
-- **版本对齐**：APK `versionName=3.0.16-preview.4` / `versionCode=10154`；Root 模块码 `2030`。瘦管理器和 Root 模块必须来自同一预览 Release、同版成套使用。
-- **同版资产**：`wanBoxForAndroid-3.0.16-preview.4-arm64-v8a-release.apk`、`wanbox-root-module-arm64-v8a.zip`、`wanbox-root-module-with-manager-arm64-v8a.zip`、`SHA256SUMS`。
+- **版本对齐**：APK `versionName=3.0.17-preview.1` / `versionCode=10156`；Root 模块码 `2031`。瘦管理器和 Root 模块必须来自同一预览 Release、同版成套使用。
+- **同版资产**：`wanBoxForAndroid-3.0.17-preview.1-arm64-v8a-release.apk`、`wanbox-root-module-arm64-v8a.zip`、`wanbox-root-module-with-manager-arm64-v8a.zip`、`SHA256SUMS`。
 - **回退**：使用正式稳定版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 与配套 Root 模块（模块码 `2026`）；不要混用不同 Release 的 APK 和模块。
 
 ## 🛡️ 验证边界
 
-源码基于 main `9283ccb0886805bddbd6856835d23a548f20b9d6`（PR #62「fix: v3.0.16-preview.4 收口组成员单一真相与重名避让」，合并于 2026-11-17T03:58:26Z），tag `v3.0.16-preview.4` 与该提交同源。本地（aarch64 沙盒，JDK 17，build-tools 原生工具经 qemu 转译）已通过：`testPreviewDebugUnitTest` 与 `testOssDebugUnitTest` 各 541 项 JVM 单元测试（较 preview.3 的 528 项新增 13 项）；AndroidTest Kotlin 编译；Python 工具 124 项、`version_code.py --check-kotlin --check-app-tag`、版本文档一致性检查与 `git diff --check`。新增 JVM 用例覆盖组成员归属与订阅更新/跨组移动后的成员一致、撞名后缀避让、`duplicate_tag` 提示映射、选中节点回落与放弃编辑的执行顺序；新增的 `GroupEditorPersistenceTest.countRuntimeAndExportShareOneMembershipTruth` 等 instrumentation 用例只在本地编译，执行结果以 Verify Android Build CI 为准。本地 `assemblePreviewDebug` 可出 APK；以 R8 压缩、调试签名的 `assemblePreviewBenchmark` APK（4881949 字节）加 preview.3 同版 Root 模块 ZIP 试算 `size_budget --enforce-limit` 合计 21.78 MiB，低于 26 MiB，仅作体积参考，正式发行双产物体积以 Preview Build 为准。发布证据：PR #62 的 `Verify Android Build` run `44011037428`（`1ce7d7f`，instrumented debug/release 各 70 项 0 失败 2 skip，internal 变体 2 项 0 skip）通过；main `9283ccb` 上的 `Preview Build` run `44013891166` 完成候选构建与发布（发布 job 断言 `APPROVED_SHA=9283ccb`，回读 tag 一致，并以 `prune_prereleases.py --keep-tag v3.0.16-preview.4` 清理 preview.3 的 Release/tag）。发布后回读四件套（`sha256sum -c SHA256SUMS` 三件 OK）：APK `6300006` B / `ee36f3ba…a244b`、普通模块 `17956386` B / `10ff382f…f0def`、合一模块 `23548016` B / `f3570d64…d6d2b3a`、`SHA256SUMS` `333` B / `1fa84511…acfb8`；APK + 普通模块合计 `24256392` B（23.13 MiB），上限 27262976 B，余量 3006584 B，`size_budget --enforce-limit` PASS。逐项数据见[版本对照](https://github.com/Wuwan94/wanBoxForAndroid/blob/main/docs/current-version.zh-CN.md)。未执行 Magisk / KernelSU / APatch 真机矩阵：组编辑应用链、订阅更新后的组成员与放弃编辑的真机表现仍未验证；自动化结果不等同于真实 Root 设备验证。
+本候选基于 main `d0061b0c125fe5b5af70f789e88bcafaf33517e0`（含 preview.4 发布后的 PR #64 `8627cf3` 与文档回填 PR #63），在 preview.4（`9283ccb`）之后新增「悬空出站引用不锁死放弃编辑」一个行为修复与本次升版，不含其它待发布改动。本环境无 Android SDK 与 JDK，**只跑了不依赖构建链的静态校验**：`python3 -m unittest discover -s tools -p 'test_*.py'` 124 项、`version_code.py --channel preview`（`3.0.17-preview.1` / `2031` / `10156` / `2031`）与 `--enforce`（基线 preview.4 的 `10154` / `2030`）、`--check-kotlin --check-app-tag`、`check_current_version_docs.py`、`git diff --check`。JVM 单测、instrumented 测试与真实构建结果以 PR 的 `Verify Android Build` 与本候选的 `Preview Build` 实际结果为准；旧实现必红的证据（同一用例在修复前失败）记录在 PR 正文与其 CI run 中，发布后由文档同步回填到[版本对照](docs/current-version.zh-CN.md)。
+
+新增仪器化用例 `GroupDraftAbandonPersistenceTest.danglingOutboundRuleDoesNotDeadlockDiscard` 使用真 Room、真恢复标记与真 `abandonGroupDraft()`，只伪造外部 Root CLI：先断言夹具确实处于被告警状态，再断言放弃成功、恢复标记被清除、重建确实发出 `config apply`，且随后的正常路径**仍然**要求该告警。未执行 Magisk / KernelSU / APatch 真机矩阵，自动化结果不等同于真实 Root 设备验证。
 
 ---
 
 ## 历史归档
+
+### v3.0.16-preview.4 已发布说明
+
+[v3.0.16-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.4) 已作为稳定性预览版发布（tag/commit `9283ccb`，PR #62；`Preview Build` run `44013891166` 于 2026-11-17T04:18:56Z 发布，tag、`targetCommitish`、APK 内 `version-control-info.textproto` 与 `APPROVED_SHA` 四者同为 `9283ccb`）。内容为 preview.3 的收口修复：策略组成员以节点归属为唯一真相、订阅节点与组重名时自动加后缀、选中节点移出主组时显式回落、恢复失败时可放弃未完成编辑、组设置页与编辑器统一锁定「中断现有连接」；APK `10154` / 模块 `2030`。该版发布后暴露的「悬空出站引用下放弃编辑死循环」已由本候选修复。资产快照见[版本对照](docs/current-version.zh-CN.md)。
 
 ### v3.0.16-preview.3 已发布说明
 

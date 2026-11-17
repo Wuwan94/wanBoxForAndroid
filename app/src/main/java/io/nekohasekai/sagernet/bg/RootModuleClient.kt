@@ -495,9 +495,9 @@ object RootModuleClient {
         }
     }
 
-    private suspend fun startOrReloadLocked(startIfStopped: Boolean, beforeStatus: Status? = null, confirmedWarning: OutboundReferenceWarning? = null, restoringGroupDraft: Boolean = false): Status {
-        val routeSnapshot = io.nekohasekai.sagernet.route.RootRouteBuildSnapshot.capture()
-        val warning = prepareOutboundWarningLocked(startIfStopped, routeSnapshot)
+    private suspend fun startOrReloadLocked(startIfStopped: Boolean, beforeStatus: Status? = null, confirmedWarning: OutboundReferenceWarning? = null, restoringGroupDraft: Boolean = false, routeSnapshot: io.nekohasekai.sagernet.route.RootRouteBuildSnapshot? = null): Status {
+        val routes = routeSnapshot ?: io.nekohasekai.sagernet.route.RootRouteBuildSnapshot.capture()
+        val warning = prepareOutboundWarningLocked(startIfStopped, routes)
         if (warning != null && (warning.issues != confirmedWarning?.issues ||
                 warning.startIfStopped != confirmedWarning?.startIfStopped)) throw OutboundReferenceWarningRequired(warning)
         if (warning != null && !pendingOutboundWarning.compareAndSet(warning, null))
@@ -507,13 +507,13 @@ object RootModuleClient {
         // @author 雾晚: rule edits use module truth, never a stale UI/Binder state.
         if (RootModuleDataUpdate.pending()) throw IOException("data_update_pending")
         if (before.phase == "disabled") throw IOException("module_disabled_or_missing")
-        val profile = routeSnapshot.allProfiles().firstOrNull { it.id == DataStore.selectedProxy }
+        val profile = routes.allProfiles().firstOrNull { it.id == DataStore.selectedProxy }
             ?: if (!startIfStopped && !before.state.canStop) return before else throw IOException("profile_missing")
         // @author 雾晚: refresh cross-user UIDs (TTL-cached) so per-app rules
         // cover secondary users / cloned apps.
         runCatching { io.nekohasekai.sagernet.utils.PackageCache.refreshMultiUserUids() }
         suspend fun applyBackend(backend: RootInboundBackend, expectedRevision: String): Status {
-            val instance = ProxyInstance(profile, rootInboundBackend = backend, rootRouteSnapshot = routeSnapshot)
+            val instance = ProxyInstance(profile, rootInboundBackend = backend, rootRouteSnapshot = routes)
             val file = File.createTempFile("module-snapshot-", ".json", SagerNet.application.cacheDir)
             try {
                 instance.init()
@@ -629,8 +629,17 @@ object RootModuleClient {
                         rebuilt = before
                         return
                     }
+                    // Discard reapplies the very configuration the user was running before the edit,
+                    // so an unresolved outbound reference in that same state is not a new decision:
+                    // it must not turn the only escape hatch into a loop. The warning computed from
+                    // this one snapshot stands in for its confirmation, and the same snapshot is what
+                    // gets applied, so the skipped warning cannot describe a different configuration.
+                    // Normal start/reload keeps its own barrier and raises a fresh warning again.
+                    val routes = io.nekohasekai.sagernet.route.RootRouteBuildSnapshot.capture()
+                    val currentWarning = prepareOutboundWarningLocked(startIfStopped = false, routes)
                     // Only this locked recovery path may rebuild while retaining its journal.
-                    val applied = startOrReloadLocked(startIfStopped = false, beforeStatus = before, restoringGroupDraft = true)
+                    val applied = startOrReloadLocked(startIfStopped = false, beforeStatus = before,
+                        confirmedWarning = currentWarning, restoringGroupDraft = true, routeSnapshot = routes)
                     val confirmed = callFreshStatus()
                     if (applied.revision.isBlank() || confirmed.installData != null ||
                         confirmed.phase !in setOf("connected", "suspended") ||
