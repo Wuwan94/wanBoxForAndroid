@@ -61,14 +61,15 @@ class GroupDraftAbandonPersistenceTest {
                 val candidates = instrumentation.uiAutomation.rootInActiveWindow
                     ?.findAccessibilityNodeInfosByText(text).orEmpty()
                 candidates.any { node ->
-                    node.text?.toString() == text &&
+                    node.text?.toString()?.trim()?.equals(text.trim(), ignoreCase = true) == true &&
                         (node.performAction(AccessibilityNodeInfo.ACTION_CLICK) ||
                             node.parent?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true)
                 }
             }
         }
+        val fixtureGroupId = 99124L
         try {
-            val group = ProxyGroup(id = 99124, name = "abandon-fixture", isSelector = true)
+            val group = ProxyGroup(id = fixtureGroupId, name = "abandon-fixture", isSelector = true)
             val node = ProxyEntity(id = 99125, groupId = group.id).putBean(
                 io.nekohasekai.sagernet.fmt.socks.SOCKSBean().apply {
                     initializeDefaultValues(); name = "fixture-node"; serverAddress = "192.0.2.1"; serverPort = 1080
@@ -148,8 +149,13 @@ class GroupDraftAbandonPersistenceTest {
             instrumentation.waitForIdleSync()
             RootModuleClient.commandProcess = oldLauncher
             RootModuleClient.invalidateStatusCache()
-            // Never reuse a preparation after public abandon: its started flag outlives that transaction.
-            // An unexpected pending journal may belong to someone else; leave it and its stores untouched.
+            // If an assertion interrupts the UI retry, clean only this fixture's journal so later
+            // instrumentation cases do not inherit its recovery barrier. Never touch another record.
+            if (GroupLocalPreparation.pending() &&
+                runCatching { GroupLocalPreparation.undoRecord().id == fixtureGroupId }.getOrDefault(false)) {
+                GroupLocalPreparation.restorePendingLocal()
+                GroupLocalPreparation.clearRecord()
+            }
             if (!GroupLocalPreparation.pending()) BackupRestore.apply(original, true, true, true)
         }
     }
