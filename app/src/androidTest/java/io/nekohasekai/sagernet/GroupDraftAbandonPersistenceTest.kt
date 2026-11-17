@@ -62,10 +62,9 @@ class GroupDraftAbandonPersistenceTest {
             awaitCondition {
                 val candidates = instrumentation.uiAutomation.rootInActiveWindow
                     ?.findAccessibilityNodeInfosByText(text).orEmpty()
+                    .filter { it.text?.toString()?.trim()?.equals(text.trim(), ignoreCase = true) == true }
                 candidates.any { node ->
-                    if (node.text?.toString()?.trim()?.equals(text.trim(), ignoreCase = true) != true) {
-                        false
-                    } else {
+                    run {
                         // Popup menu text nodes are not consistently clickable across Android
                         // versions. Prefer the nearest clickable row, then tap the visible label.
                         var clickable: AccessibilityNodeInfo? = node
@@ -76,7 +75,7 @@ class GroupDraftAbandonPersistenceTest {
                             clickable = clickable.parent
                             depth++
                         }
-                        if (clicked) true else {
+                        if (clicked) true else if (candidates.size > 1) false else {
                             val bounds = Rect()
                             node.getBoundsInScreen(bounds)
                             if (bounds.isEmpty) false else {
