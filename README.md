@@ -8,7 +8,7 @@
 
   <p>
     <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14"><img src="https://img.shields.io/badge/Stable-v3.0.14-14B8A6?style=flat-square&labelColor=1E293B" alt="Stable v3.0.14" /></a>
-    <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.2"><img src="https://img.shields.io/badge/Preview-v3.0.16--preview.2-F59E0B?style=flat-square&labelColor=1E293B" alt="Published preview v3.0.16-preview.2" /></a>
+    <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.3"><img src="https://img.shields.io/badge/Preview-v3.0.16--preview.3-F59E0B?style=flat-square&labelColor=1E293B" alt="Published preview v3.0.16-preview.3" /></a>
     <a href="https://github.com/Wuwan94/wanBoxForAndroid/stargazers"><img src="https://img.shields.io/github/stars/Wuwan94/wanBoxForAndroid?style=flat-square&labelColor=1E293B&color=14B8A6" alt="GitHub stars" /></a>
     <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPL--3.0-64748B?style=flat-square&labelColor=1E293B" alt="GPL-3.0 License" /></a>
   </p>
@@ -25,9 +25,9 @@
   <p><sub>Android 12+ (API 31+) · arm64-v8a · Magisk / KernelSU / APatch · Open Source</sub></p>
 </div>
 
-> **版本发布**：当前已发布正式版为 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14)，已发布预览版为 [v3.0.16-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.2)。
+> **版本发布**：当前已发布正式版为 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14)，已发布预览版为 [v3.0.16-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.3)。
 
-Published releases: stable v3.0.14 and preview v3.0.16-preview.2.
+Published releases: stable v3.0.14 and preview v3.0.16-preview.3.
 
 ---
 
@@ -118,18 +118,18 @@ flowchart LR
 3. 开机后打开 wanBox 管理器，导入订阅或节点配置即可。
 
 <details>
-<summary><strong>尝鲜预览 · v3.0.16-preview.2</strong>（与正式版并行发布，各自成套使用）</summary>
+<summary><strong>尝鲜预览 · v3.0.16-preview.3</strong>（与正式版并行发布，各自成套使用）</summary>
 <br />
 
-预览线只跟随复审修复、不新增功能：统一手动恢复与自动启停监控的网络指纹口径，并加固网关缓存并发、确认定时器与弹窗超时反馈。
+预览线汇总四个批次：策略组浏览/选择/测速、图形化策略组编辑与统一资源页、备份与迁移规范化、模块退出诊断上屏。Release 资产已按受审查流程由 main `000d302` 重建替换（tag 仍为 `fa6b95b`），源码与二进制将在下一预览重新同源。
 
 | 资产 | 体积 |
 |:--|--:|
-| 瘦身管理器 APK（`versionCode=10147`） | 5.94 MiB |
+| 瘦身管理器 APK（`versionCode=10148`） | 6.00 MiB |
 | Root 模块 ZIP（模块码 `2029`） | 17.12 MiB |
-| 模块 + 管理器合一 ZIP | 22.41 MiB |
+| 模块 + 管理器合一 ZIP | 22.45 MiB |
 
-- 下载：[v3.0.16-preview.2 Release](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.2)
+- 下载：[v3.0.16-preview.3 Release](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.3)
 - 回退：换回 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 与配套模块（模块码 `2026`）成套重装，不要跨 Release 混用。
 - 逐项修复说明见 [PREVIEW_NOTES.md](PREVIEW_NOTES.md)。
 

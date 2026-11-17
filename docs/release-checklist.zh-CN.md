@@ -1,6 +1,6 @@
-# v3.0.16-preview.2 分阶段发布清单
+# v3.0.16-preview.3 分阶段发布清单
 
-本版 **v3.0.16-preview.2 已作为稳定性预览版发布**：[Release](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.2)，tag/commit `c5701a0979ef2a8ee4d28020f513f7f4aac07358`，由 `Preview Build` run `43684289336` 发布。`verify-android` run `43679580768`（修复 PR #47）与 run `43682068186`（升版 PR #48）通过 instrumentation、迁移、manifest 与体积门禁。已发布正式版仍为 v3.0.14（正式版发布清单见本文件下文专节）。preview.1 Release/tag 已在 preview.2 发布后按单预览策略清理，历史 workflow run `43673447000` 与 commit `7630ddd90e6092f9ce5647d34fb7d9a892db5769` 保留。Root 真机矩阵未执行，仍未验证。
+本版 **v3.0.16-preview.3 已作为稳定性预览版发布**：[Release](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.16-preview.3)，tag/commit `fa6b95b9a39d2d441280021968d4b914eb5b20d3`，首发由 `Preview Build` run `43906481811` 完成（`verify-android` run `43897997343`，PR #60）。PR #61 合入后，资产由 main `000d3023571153d975d2868eeb7083da57b1a9e4` 的候选 run `43939217515` 经 `Replace Existing Preview Assets` run `43942306964`（prepare）/ `43942569933`（execute）受审查替换，tag 未移动。下一预览 `3.0.16-preview.4`（模块 `2030` / APK `10154`）为源码候选，尚未发布。已发布正式版仍为 v3.0.14（正式版发布清单见本文件下文专节）。preview.2 Release/tag 已按单预览策略清理。Root 真机矩阵未执行，仍未验证。
 
 ## 当前基线与不可变约束
 
@@ -9,11 +9,11 @@
 - 内核 `reF1nd/sing-box v1.15.0-alpha.13-reF1nd`。内核和 targetSdk 阶段只评估，升级须另获确认。
 - 模块拥有代理生命周期；管理器为瘦 APK，不引入多内核、不恢复 VPN、不重做 UI。
 - 不删除或改名设置键、不改默认值；TLS 默认验证证书；日志不得含备份内容、节点凭据、订阅原文。
-- 当前已发布预览为 preview.2：Root 模块 `2029` / APK `10147`；正式线元数据保持 `3.0.14 / 2026` 不变，`SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 不变。
+- 当前已发布预览为 preview.3：Root 模块 `2029` / APK `10148`（源码候选 preview.4 为 `2030` / `10154`）；正式线元数据保持 `3.0.14 / 2026` 不变，`SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 不变。
 
 ## 阶段与验收
 
-下表保留分阶段验收项作为过程记录；preview.2 实际发布结果见下方勾选门禁。任何发布前门禁失败都应停止、报告并保留现场，不绕过门禁。
+下表保留分阶段验收项作为过程记录；preview.3 实际发布结果见下方勾选门禁。任何发布前门禁失败都应停止、报告并保留现场，不绕过门禁。
 
 | 阶段 | 范围 | 验收与输出 |
 |---|---|---|
@@ -26,7 +26,7 @@
 
 ## 预览发布前硬门槛
 
-- [x] README 快照、版本对照与中文发行说明已对齐已发布 v3.0.16-preview.2；对应下载入口指向有效 Release。
+- [x] README 快照、版本对照与中文发行说明已对齐已发布 v3.0.16-preview.3；对应下载入口指向有效 Release。
 - [x] `verify-android` run `43679580768`（修复 PR #47，提交 `d483e796ed9f8de747f95b195ea4af072ce64374`）与 run `43682068186`（升版 PR #48，提交 `d67883c3f9a745ca7855936a65a2f738401d5617`）通过 instrumentation、迁移、manifest 与体积门禁，其 `Build LibCore` 作业同时跑通 `go test -race ./...`、`go vet`、Python 工具 108 项与版本文档一致性检查；正式 `Preview Build` run `43684289336` 在发布提交 `c5701a0979ef2a8ee4d28020f513f7f4aac07358` 四个 job 全部成功。
 - [x] 四件套齐全：瘦 APK、`wanbox-root-module-arm64-v8a.zip`、`wanbox-root-module-with-manager-arm64-v8a.zip`、`SHA256SUMS`。
 - [x] ABI、版本码、包名、签名构建、ZIP 完整性、GitHub API digest 与公开 SHA256SUMS 已核对；下载 APK、普通 Root ZIP 与合一 ZIP 后 `sha256sum --check SHA256SUMS` 全部通过。四件套为 APK `6231814` B / SHA-256 `b6fee5df06f8cf212861440a41301d5155fc47cfef1eae03118ce156e446ff4c`、Root ZIP `17956181` B / `907a4891634f95a368d5bdfe0847b8fe68c50c454f857c59cac489ee91da9916`、合一 ZIP `23493445` B / `e89dba91718bfabb2a2ac9158ee25ccd9ad50d1c29c8ff12ab6c5f6c4ebb3297`、SHA256SUMS `333` B / `9d6d33bc2d6ad1ed8116a8ae746e3a0bbbf15a58b48ed5b97c394a8144481fa6`；APK + Root ZIP `24187995` B（23.07 MiB），合一 ZIP 亦低于 26 MiB。
@@ -35,7 +35,7 @@
 - [x] 中文发行说明如实区分自动化与真机边界；只发布 prerelease，不宣称正式版可用。
 - [x] 发布后回读四件套名称、数量、大小、SHA256 与 tag；preview.1 Release/tag 已按单预览保留策略清理，稳定版 v3.0.14 与 v3.0.11 保留。
 
-任何一项发布前门禁失败都应停止发布，保留构件、日志和失败现场。preview.2 已按上述门禁发布并回读验证；Root 真机矩阵未执行，不视为通过。正式版发布已由用户另行明确授权，门禁按下文「v3.0.14 正式版发布清单」执行。
+任何一项发布前门禁失败都应停止发布，保留构件、日志和失败现场。preview.3 已按上述门禁发布并回读验证（资产替换后亦经 API digest 与 `SHA256SUMS` 回读一致）；Root 真机矩阵未执行，不视为通过。正式版发布已由用户另行明确授权，门禁按下文「v3.0.14 正式版发布清单」执行。
 
 ## 真机待签核矩阵（不能用模拟器代替）
 
@@ -48,7 +48,7 @@
 | 更新 | 正常、断网、校验失败 | 校验通过才提示安装；失败清理，旧版仍可用 |
 | 数据 | 新旧版本双向备份导入 | 设置键、节点、订阅完整 |
 
-全部保持“未验证”。preview.2 未执行 Root 真机矩阵；正式发布已另获用户明确授权（2026-11-11），按下文正式版发布清单的两阶段流程执行；真机矩阵不因自动化或正式发布而视为已签核，发行说明如实标注未做真机回归。
+全部保持“未验证”。preview.3 未执行 Root 真机矩阵；正式发布已另获用户明确授权（2026-11-11），按下文正式版发布清单的两阶段流程执行；真机矩阵不因自动化或正式发布而视为已签核，发行说明如实标注未做真机回归。
 
 ---
 
