@@ -56,7 +56,6 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 // @author 雾晚
 import io.nekohasekai.sagernet.route.RouteRuleEditor
 import io.nekohasekai.sagernet.route.RouteRulePriority
-import io.nekohasekai.sagernet.route.SystemExcludedPackages
 
 /**
  * @author 雾晚 (B 路线)
@@ -196,6 +195,16 @@ internal fun buildUrlTestOutbound(
         idle_timeout = parameters.idleTimeout
         interrupt_exist_connections = parameters.interruptExisting
     }
+
+/**
+ * B7c/O7 层级组出站 tag：`<balancerTag> [T<n>]`（层级 n 从 1 计）或
+ * `<balancerTag> [FB]`（保底层级）。后缀格式与 Go 侧 `parseTierTagIndex`
+ *（`libcore/protocol/urltest/outbound.go`）约定一致，Go 侧据此解析层级；
+ * 普通节点链 tag 没有该后缀，Go 侧按未分层处理（全部视为同一层，
+ * 行为与改动前一致）。readableTag 不清洗字符，只去重，后缀原样保留。
+ */
+internal fun tierGroupTag(balancerTag: String, tierIndex: Int, isFallback: Boolean): String =
+    if (isFallback) "$balancerTag [FB]" else "$balancerTag [T${tierIndex + 1}]"
 
 /** B1/O3 冷启动预排序（OwnBox 8.13 BalancerMemberResolver.sortForColdStart 的
  * wanBox 本地等价实现；wanBox 无 BalancerMemberResolver 解析层）。
@@ -416,6 +425,12 @@ fun buildConfig(
 
     val trafficMap = HashMap<String, List<ProxyEntity>>()
     val tagMap = HashMap<Long, String>()
+    // B7a/O7 组隔离：带策略组上下文（前置 detour / 前置·落地开关）的成员链
+    // 按 (balancerId, memberId) 缓存。旧代码用 tagMap 的 -member.id 槽位，
+    // 两组共享成员时第二组会复用第一组的链 tag，前置/落地代理链直接串线。
+    // 隔离链不再进入 tagMap.values，顶层 selector/urltest 的成员列表因此
+    // 不再含策略组内部成员链（策略组本体的 tag 仍在其中）；见 design.md B7a 记录。
+    val balancerScopedTagMap = HashMap<Pair<Long, Long>, String>()
     val balancerMemberMap = HashMap<Long, List<Long>>()
     val globalOutbounds = HashMap<Long, String>()
     val allGroups = rootRouteSnapshot?.allGroups() ?: SagerDatabase.groupDao.allGroups()
@@ -936,7 +951,11 @@ fun buildConfig(
             entity: ProxyEntity,
             useGroupFront: Boolean = true,
             useGroupLanding: Boolean = true,
-            externalDetour: String? = null
+            externalDetour: String? = null,
+            // B7a/O7 组隔离键：非空时本次构建的链归属该策略组——出口跳点不进
+            // globalOutbounds 共享（否则第二组的 detour 会被静默丢弃而串线），
+            // 中间跳点 tag 加后缀防重复。键形如 "b<balancerEntityId>"。
+            isolationKey: String? = null,
         ): String {
             if (entity.type == ProxyEntity.TYPE_BALANCER) {
                 val balancerBean = entity.balancerBean ?: (entity.requireBean() as? BalancerBean) ?: BalancerBean()
@@ -951,44 +970,49 @@ fun buildConfig(
                     tagMap[front.id] ?: buildChain(front.id, front).also { tagMap[front.id] = it }
                 }
 
-                val memberEntities = (if (balancerBean.balancerType == BalancerBean.TYPE_GROUP) {
-                    val targetGids = when {
-                        balancerBean.targetGroupIds.isNotEmpty() -> balancerBean.targetGroupIds
-                        balancerBean.targetGroupId > 0L -> listOf(balancerBean.targetGroupId)
-                        else -> emptyList()
-                    }
-                    var list = targetGids.flatMap { gid ->
+                // B7a/O7 混搭来源：成员展开走 BalancerMemberResolver（分组+散装
+                // 去重、正则只过滤分组来源、上限截断）。正则失效时解析层按未设置
+                // 处理（设置页会拦截保存），此处不因脏正则丢成员。
+                val targetGids = when {
+                    balancerBean.targetGroupIds.isNotEmpty() -> balancerBean.targetGroupIds
+                    balancerBean.targetGroupId > 0L -> listOf(balancerBean.targetGroupId)
+                    else -> emptyList()
+                }
+                val candidateEntities = (
+                    targetGids.flatMap { gid ->
                         editorDrafts[gid]?.members?.mapNotNull(::profileById) ?: profilesByGroup(gid)
-                    }.distinctBy { it.id }
-
-                    if (!balancerBean.nameInclude.isNullOrBlank()) {
-                        val regex = runCatching { Regex(balancerBean.nameInclude) }.getOrNull()
-                        if (regex != null) {
-                            list = list.filter { regex.containsMatchIn(it.displayName()) }
-                        }
-                    }
-                    if (!balancerBean.nameExclude.isNullOrBlank()) {
-                        val regex = runCatching { Regex(balancerBean.nameExclude) }.getOrNull()
-                        if (regex != null) {
-                            list = list.filterNot { regex.containsMatchIn(it.displayName()) }
-                        }
-                    }
-                    list
-                } else {
-                    val rawEntities = profilesByIds(balancerBean.proxies).associateBy { it.id }
-                    balancerBean.proxies.mapNotNull { rawEntities[it] }
-                }).filter {
+                    } + profilesByIds(balancerBean.proxies ?: emptyList())
+                    ).associateBy { it.id }
+                val resolution = resolveBalancerMembers(balancerBean) { gid ->
+                    (editorDrafts[gid]?.members?.mapNotNull(::profileById) ?: profilesByGroup(gid))
+                        .map { BalancerMemberRef(it.id, it.displayName()) }
+                }
+                val memberEntities = resolution.memberIds.mapNotNull { candidateEntities[it] }.filter {
                     it.id != entity.id &&
                     it.id != (balancerFrontEntity?.id ?: 0L) &&
                     it.id != (balancerLandingEntity?.id ?: 0L) &&
                     it.type != ProxyEntity.TYPE_BALANCER &&
-                    !DataStore.isGroupDisabled(it.groupId)
+                    !DataStore.isGroupDisabled(it.groupId) &&
+                    // B7c/O7：优先级模式下，优先级页排除名单里的分组来源成员
+                    // 不再出现（散装成员移除时直接从 proxies 删除，不进排除名单；
+                    // 切回其他策略时排除失效、成员恢复——排除是优先级模式的构造）。
+                    !(balancerBean.strategy == BalancerBean.STRATEGY_PRIORITY_ORDER &&
+                        (balancerBean.priorityExcluded ?: emptyList()).contains(it.id))
                 }
 
+                // B7c/O7：优先级模式下成员顺序 = 显式优先级顺序（在表里的按表序，
+                // 未在表里的按解析顺序追加）；不做冷启动延迟排序——层内择优在
+                // 核心侧按延迟 + 容差执行，顺序只作同延迟时的优先依据。
                 // B1/O3: leastPing 组冷启动预排序（见 sortBalancerMembersForColdStart）；
                 // 上游 8.13 只对 blank/leastPing 排序，wanBox 的 strategy 空值已在
                 // BalancerBean 内归一化为 leastPing，此处沿用同一守卫。
-                val sortedMemberEntities = if (balancerBean.strategy.isNullOrBlank() ||
+                val sortedMemberEntities = if (balancerBean.strategy == BalancerBean.STRATEGY_PRIORITY_ORDER) {
+                    val byId = memberEntities.associateBy { it.id }
+                    applyPriorityOrder(
+                        memberEntities.map { it.id },
+                        balancerBean.priorityOrder ?: emptyList(),
+                    ).mapNotNull { byId[it] }
+                } else if (balancerBean.strategy.isNullOrBlank() ||
                     balancerBean.strategy == BalancerBean.STRATEGY_LEAST_PING ||
                     balancerBean.strategy == "least_ping") {
                     sortBalancerMembersForColdStart(memberEntities)
@@ -996,31 +1020,124 @@ fun buildConfig(
                     memberEntities
                 }
 
-                val useFront = if (balancerBean.balancerType == BalancerBean.TYPE_GROUP) balancerBean.useFrontProxy else true
-                val useLanding = if (balancerBean.balancerType == BalancerBean.TYPE_GROUP) balancerBean.useLandingProxy else true
+                // B7a/O7：混搭类型的前置/落地开关与分组类型一致（不再只认 TYPE_GROUP）。
+                val useFront = if (balancerBean.balancerType != BalancerBean.TYPE_LIST) balancerBean.useFrontProxy else true
+                val useLanding = if (balancerBean.balancerType != BalancerBean.TYPE_LIST) balancerBean.useLandingProxy else true
 
                 val memberEffectiveDetour = balancerFrontTag ?: externalDetour
 
-                val memberTags = sortedMemberEntities.mapNotNull { member ->
-                    val customKey = if (memberEffectiveDetour != null) {
-                        -member.id
-                    } else if (balancerBean.balancerType == BalancerBean.TYPE_GROUP && (!useFront || !useLanding)) {
-                        -member.id
+                // B7a/O7 组隔离：成员链带策略组上下文（前置 detour 或前置/落地开关
+                // 关断）时按 (balancerId, memberId) 隔离缓存并隔离构建；无上下文
+                // 时沿用 tagMap[member.id] 共享链（与顶层 selector 的行为一致）。
+                val isolationKey = "b${entity.id}"
+                // B7b/O7：保留成员 id→链 tag 对照，供严格手动锁定取锁定成员的 tag。
+                val memberTagPairs = sortedMemberEntities.mapNotNull { member ->
+                    val scoped = memberEffectiveDetour != null ||
+                        (balancerBean.balancerType != BalancerBean.TYPE_LIST && (!useFront || !useLanding))
+                    val tag = if (scoped) {
+                        balancerScopedTagMap[entity.id to member.id] ?: buildChain(
+                            member.id,
+                            member,
+                            useGroupFront = if (memberEffectiveDetour != null) false else useFront,
+                            useGroupLanding = useLanding,
+                            externalDetour = memberEffectiveDetour,
+                            isolationKey = isolationKey,
+                        ).also { balancerScopedTagMap[entity.id to member.id] = it }
                     } else {
-                        member.id
+                        tagMap[member.id] ?: buildChain(
+                            member.id,
+                            member,
+                            useGroupFront = useFront,
+                            useGroupLanding = useLanding,
+                            externalDetour = null,
+                        ).also { tagMap[member.id] = it }
                     }
-                    tagMap[customKey] ?: buildChain(
-                        member.id,
-                        member,
-                        useGroupFront = if (memberEffectiveDetour != null) false else useFront,
-                        useGroupLanding = useLanding,
-                        externalDetour = memberEffectiveDetour
-                    ).also { tagMap[customKey] = it }
-                }.ifEmpty { listOf(TAG_DIRECT) }
+                    member.id to tag
+                }
+                val memberTags = memberTagPairs.map { it.second }.ifEmpty { listOf(TAG_DIRECT) }
 
                 val balancerTag = readableTag(entity.displayName())
 
-                val balancerOutbound: SingBoxOption = if (balancerBean.strategy == "leastPing") {
+                // B7b/O7 严格手动锁定：锁定时该策略组生成 selector（default = 锁定成员），
+                // 核心不再自动切换；锁定成员不在成员列表里时回落自动生成（锁仍保留，
+                // 横幅红字提示锁定节点不可用）。导出/测试配置不带运行时锁定
+                // （与 useAutoSelect 同一守卫）。
+                // selector 默认不中断现有连接（sing-box 默认 interrupt_exist_connections
+                // = false，与既有 buildSelectorOutbound 一致，不另设 true；断开只在
+                // 用户显式开启对应开关时发生，本批不提供该开关）。
+                val lockedTag = if (!forTest && !forExport) {
+                    lockedMemberTag(
+                        memberTagPairs,
+                        BalancerManualLock.decode(DataStore.balancerManualLock),
+                        entity.id,
+                    )
+                } else null
+
+                val balancerOutbound: SingBoxOption = if (lockedTag != null) {
+                    buildSelectorOutbound(defaultTag = lockedTag, memberTags = memberTags, customTag = balancerTag)
+                } else if (balancerBean.strategy == BalancerBean.STRATEGY_PRIORITY_ORDER) {
+                    // B7c/O7「按优先级顺序」：按层级生成嵌套 urltest——每个非空层级
+                    // 一个内层 urltest（层内按延迟 + 容差择优，成员顺序即优先级
+                    // 顺序），外层 urltest 以层级组为成员（Go 侧按层级 tag 解析
+                    // 层级：高层全灭回退下一层，恢复后按双重门槛受控回切）。
+                    // 层级组 tag 带 [T<n>] / [FB] 后缀（见 tierGroupTag），
+                    // 不进 tagMap.values，不会泄漏进顶层 selector。
+                    // 探测间隔与内外层共用同一 iv（>=10 秒钳制，不为层级检查
+                    // 新增更密的探测）；回切不断现有连接（interruptExist=false）。
+                    val iv = balancerBean.interval.toLong().coerceAtLeast(10L)
+                    val toleranceMs = balancerBean.calculateToleranceMs().coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
+                    val tierRules = decodeBalancerTierRules(balancerBean.tierRules)
+                    val tiers = assignBalancerTiers(
+                        sortedMemberEntities.map { BalancerMemberRef(it.id, it.displayName()) },
+                        tierRules,
+                    )
+                    val tierGroups = LinkedHashMap<Int, MutableList<String>>()
+                    memberTagPairs.forEachIndexed { index, (_, tag) ->
+                        val tier = tiers.getOrElse(index) { tierRules.size }
+                        tierGroups.getOrPut(tier) { ArrayList() }.add(tag)
+                    }
+                    if (tierGroups.size <= 1) {
+                        // 只有一层有成员（无规则或全部落入同一层）：与 leastPing
+                        // 同形的单个 urltest，不嵌套。
+                        buildUrlTestOutbound(
+                            memberTags = memberTags,
+                            testUrl = balancerBean.testUrl,
+                            intervalSec = iv,
+                            toleranceMs = toleranceMs,
+                            idleTimeoutStr = "${iv}s",
+                            interruptExist = false,
+                            customTag = balancerTag
+                        )
+                    } else {
+                        val tierTags = ArrayList<String>()
+                        for ((tier, tags) in tierGroups) {
+                            val tierTag = readableTag(
+                                tierGroupTag(balancerTag, tier, tier >= tierRules.size)
+                            )
+                            tierTags.add(tierTag)
+                            outbounds.add(
+                                buildUrlTestOutbound(
+                                    memberTags = tags,
+                                    testUrl = balancerBean.testUrl,
+                                    intervalSec = iv,
+                                    toleranceMs = toleranceMs,
+                                    idleTimeoutStr = "${iv}s",
+                                    interruptExist = false,
+                                    customTag = tierTag
+                                )
+                            )
+                        }
+                        buildUrlTestOutbound(
+                            memberTags = tierTags,
+                            testUrl = balancerBean.testUrl,
+                            intervalSec = iv,
+                            toleranceMs = toleranceMs,
+                            idleTimeoutStr = "${iv}s",
+                            interruptExist = false,
+                            customTag = balancerTag
+                        )
+                    }
+                } else if (balancerBean.strategy == "leastPing") {
                     val iv = balancerBean.interval.toLong().coerceAtLeast(10L)
                     val toleranceMs = balancerBean.calculateToleranceMs().coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
                     buildUrlTestOutbound(
@@ -1066,7 +1183,10 @@ fun buildConfig(
                         entity = balancerLandingEntity,
                         useGroupFront = false,
                         useGroupLanding = false,
-                        externalDetour = balancerTag
+                        externalDetour = balancerTag,
+                        // B7a/O7：落地链的 detour 就是本组 tag，两组共享同一落地节点时
+                        // 各建各的链，不得复用对方的出口跳点。
+                        isolationKey = isolationKey,
                     )
                     landingTag
                 } else {
@@ -1104,7 +1224,10 @@ fun buildConfig(
 
             // chainTagOut: v2ray outbound tag for this chain
             var chainTagOut = ""
-            val chainTag = if (chainId < 0) "c-m${-chainId}" else "c-$chainId"
+            // B7a/O7：隔离构建时中间跳点 tag 加组后缀，否则两组共享同一多跳成员
+            // 会发出重复 tag（sing-box 拒收）；单跳成员不受影响（入口 tag 走 readableTag）。
+            val chainTag = (if (chainId < 0) "c-m${-chainId}" else "c-$chainId") +
+                (isolationKey?.let { "-$it" } ?: "")
             var muxApplied = false
 
             val defaultServerDomainStrategy = if (ipv6Mode == IPv6Mode.DISABLE) "ipv4_only" else if (ipv6Mode == IPv6Mode.ONLY) "ipv6_only" else SingBoxOptionsUtil.domainStrategy("server")
@@ -1124,7 +1247,13 @@ fun buildConfig(
                 // first profile set as global
                 if (index == profileList.lastIndex) {
                     needGlobal = true
-                    tagOut = "g-" + proxyEntity.id
+                    // B7a/O7：隔离构建的出口跳点不得复用全局 "g-<id>" tag——它要挂
+                    // 本组的 detour（前置代理链），复用会让第二组静默走第一组的前置。
+                    tagOut = if (isolationKey != null) {
+                        "g-${proxyEntity.id}-$isolationKey"
+                    } else {
+                        "g-" + proxyEntity.id
+                    }
                     bypassDNSBeans += proxyEntity.requireBean()
 
                     if (!forTest) {
@@ -1170,10 +1299,13 @@ fun buildConfig(
                 // Resolve a globally shared hop before writing the edge that references it.
                 // A hop built by an earlier rule may use a readable or endpoint tag instead of
                 // this chain's proposed g-<id> tag; the global map is the source of truth.
+                // B7a/O7：隔离构建不查全局共享表——共享出口跳点会把本组的 detour
+                // 丢掉（复用分支直接跳过出站生成，detour 无处可挂）；needGlobal
+                // 本身保持 true，TLS fragment 等其他逻辑不受影响。
                 val resolvedTag = resolveChainHopTag(
                     proxyEntity.id,
                     tagOut,
-                    needGlobal,
+                    needGlobal && isolationKey == null,
                     globalOutbounds,
                 )
                 tagOut = resolvedTag.tag
@@ -1534,12 +1666,10 @@ fun buildConfig(
                         resolvedForGeoIp = true
                     }
                 }
-                // B3/O6：系统组件不参与应用层规则强绑；集中式排除名单，见 SystemExcludedPackages。
-                val effectivePackages = SystemExcludedPackages.exclude(rule.packages)
-                if (effectivePackages.isNotEmpty()) {
+                if (rule.packages.isNotEmpty()) {
                     PackageCache.awaitLoadSync()
                 }
-                val uidList = effectivePackages.flatMap { pkg ->
+                val uidList = rule.packages.flatMap { pkg ->
                     if (!useTun) {
                         // @author 雾晚: config building runs on IO coroutines, so show it on main.
                         runOnMainDispatcher {
@@ -1571,7 +1701,7 @@ fun buildConfig(
                 val hasIpCriteria = !ipList.isNullOrEmpty() || rulesetTags.any { it.second }
                 val hasDomainRuleset = rulesetTags.any { !it.second }
                 val isAppOnlyDns =
-                    (uidList.isNotEmpty() || effectivePackages.isNotEmpty()) &&
+                    (uidList.isNotEmpty() || rule.packages.isNotEmpty()) &&
                         !hasDomainCriteria &&
                         !hasIpCriteria &&
                         !hasDomainRuleset &&
@@ -1594,7 +1724,7 @@ fun buildConfig(
                 fun makeDnsRuleObj(): DNSRule_DefaultOptions {
                     return DNSRule_DefaultOptions().apply {
                         if (uidList.isNotEmpty()) user_id = uidList.toList()
-                        if (effectivePackages.isNotEmpty()) package_name = effectivePackages.toList()
+                        if (rule.packages.isNotEmpty()) package_name = rule.packages.toList()
                         domainList?.let { makeSingBoxRule(it) }
                     }
                 }
@@ -1670,8 +1800,7 @@ fun buildConfig(
                 if (rule.packages.isNotEmpty()) {
                     // @author 雾晚: identifiers/counts only; never log package names or endpoints.
                     Logs.d("ApplicationRouteConfig mode=${if (isRootTun) "root" else "vpn"} " +
-                        "ruleId=${rule.id} packages=${effectivePackages.size} " +
-                        "excludedSystem=${rule.packages.size - effectivePackages.size} uids=${uidList.size} " +
+                        "ruleId=${rule.id} packages=${rule.packages.size} uids=${uidList.size} " +
                         "outboundId=${rule.outbound} identity=package-or-uid")
                 }
 
@@ -1679,8 +1808,8 @@ fun buildConfig(
                     if (uidList.isNotEmpty()) {
                         ruleObj.user_id = uidList.toList()
                     }
-                    if (effectivePackages.isNotEmpty()) {
-                        ruleObj.package_name = effectivePackages.toList()
+                    if (rule.packages.isNotEmpty()) {
+                        ruleObj.package_name = rule.packages.toList()
                     }
                     if (rule.port.isNotBlank()) {
                         ruleObj.port = mutableListOf<Int>()

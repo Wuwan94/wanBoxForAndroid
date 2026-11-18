@@ -77,14 +77,16 @@ Go 侧改动见 `libcore-integration` delta。O8 只做评估，不在本 delta 
 
 ### Requirement: 应用路由生成层集中式系统组件排除名单
 
-应用路由生成层 MUST 维护集中式系统组件排除名单，至少包含系统下载器
+应用路由生成层 MUST 维护集中式系统组件排除名单（`SystemExcludedPackages`，唯一来源），至少包含系统下载器
 （`com.android.providers.downloads`、`com.android.providers.downloads.ui`）、媒体存储、
-网络栈及 Captive Portal 门户组件；名单内组件 MUST NOT 被应用层规则错分流，
-与 `ProfileManager` 既有下载器排除合并去重，不得重复造两份名单。
+网络栈及 Captive Portal 门户组件；名单 MUST NOT 用于改写用户显式规则——用户规则的包名 MUST 原样生成
+（修红 #182：生成层过滤会静默丢弃显式规则，使其流量改走默认路由，反而可能被分流进代理，与排除本意相反）；
+名单的适用层是智能分流分类（上游 `SmartRouteRules` 的分类派生绑定；wanBox 暂无该层，名单先行作为唯一来源），
+与 `ProfileManager` 既有下载器排除（仅剔两个下载器包名）合并去重，不得重复造两份名单。
 
 - **GIVEN** 系统下载器发起下载
 - **WHEN** 应用层规则生成并匹配
-- **THEN** 下载器走系统直连/白名单路径，不被分流进代理
+- **THEN** 生成结果 MUST NOT 包含把下载器强绑进代理的分类派生绑定；用户显式规则原样保留
 
 ### Requirement: 规则集缓存 MUST 按实际规则条数校验
 
@@ -110,6 +112,13 @@ MUST 重新拉取或明确报错。远程规则集定时刷新时 MUST 跳过 `l
 - **WHEN** 编辑页实时校验
 - **THEN** 显示正则语法错误提示并阻止保存
 
+（B7a 已落地：`BalancerMemberResolver`（`fmt/BalancerMemberResolver.kt`）统一解析，
+分组在前、散装在后、按 id 去重，正则只过滤分组来源；设置页实时计数 + 保存拦截；
+组隔离分两层——策略组级 `(balancerId, memberId)` 隔离缓存与链级 `isolationKey`
+（出口跳点不进 `globalOutbounds` 共享、中间跳点与出口 tag 加组后缀）；
+落地链同样隔离构建。副作用：隔离链不再进入 `tagMap.values`，顶层 selector/urltest
+成员列表不再含策略组内部成员链。）
+
 ### Requirement: 策略组严格手动锁定
 
 策略组成员被手动锁定后，断连或超时 MUST NOT 自动切换，直到用户点击「恢复自动」解锁。
@@ -121,6 +130,15 @@ MUST 重新拉取或明确报错。远程规则集定时刷新时 MUST 跳过 `l
 - **GIVEN** 用户点击「恢复自动」
 - **WHEN** 下一次检查完成
 - **THEN** 恢复自动选择，可切到健康节点
+
+（B7b 已落地：`fmt/BalancerManualLock.kt`（状态机 + 编解码 +
+`lockedMemberTag` + 快照 tag↔id 双向解析）；锁存 `DataStore.balancerManualLock`
+（configurationStore），不进 `BalancerBean` 记录、不占 v7；
+`ConfigBuilder.buildChain` 锁定时生成 selector（`default` = 锁定成员），
+锁定成员不在列表里时回落自动生成、锁保留；selector 默认
+`interrupt_exist_connections = false`，不断现有连接，本批不提供断开开关；
+锁定期间的失败由统计页测速与 `BalancerMemberStats` 计入，配置层不自动切换；
+统计页是锁定的唯一入口，锁定/解锁后 `SagerNet.reloadService()` 重建配置生效。）
 
 ### Requirement: 策略统计页与主页横幅
 
@@ -134,6 +152,14 @@ MUST 重新拉取或明确报错。远程规则集定时刷新时 MUST 跳过 `l
 - **GIVEN** 用户在统计页点击“立即全部检查”
 - **WHEN** 检查完成
 - **THEN** 各成员状态与报错信息刷新展示
+
+（B7b 已落地：统计页即既有 `PolicyGroupsActivity`（Root 快照 +
+Clash API + `node tags`，未另开核心直连）——成员行展示失败数/最近报错，
+“整组测速”按钮改为一键“立即全部检查”，每次结果记入进程内
+`BalancerMemberStats`；主页横幅在 `DashboardFragment` 当前节点卡片下方，
+`ui/BalancerBanner.kt` 纯模型 + 30 秒一刷（回首页即刷），点横幅进统计页；
+锁定成员不可用（不在快照成员列表里或有连续失败）时横幅红字提示。
+锁只对 `BalancerBean` 策略组实体生效，顶层 proxy selector 与编辑器组无锁定入口。）
 
 ### Requirement: 「按优先级顺序」多层级调度
 
@@ -153,6 +179,19 @@ MUST 重新拉取或明确报错。远程规则集定时刷新时 MUST 跳过 `l
 - **WHEN** 打开策略组设置页
 - **THEN** 不显示添加层级、层级行与节点优先级列表
 
+（B7c 已落地：「按优先级顺序」为新增策略值 `STRATEGY_PRIORITY_ORDER = "priorityOrder"`，
+与既有模式并存；「最快最稳」=`STRATEGY_LEAST_PING`（本批定义的映射）。
+层级规则存 `BalancerBean.tierRules`（单条正则 URL 安全 Base64 无填充编码，
+`include:exclude`、`;` 分隔，上限 10 条，脏条目解码跳过）；Kotlin 侧
+`BalancerTierScheduler` 负责定层级/层内择优（延迟 + 容差，复用 Go `selectLocked`
+语义）/回切双重门（连续健康检查 ≥3 次 + 无失败 ≥60 秒）/流量只在当前最低
+健康层内分散；Go 侧 `libcore/protocol/urltest/outbound.go` 强制执行——
+Kotlin 生成嵌套 urltest：每层一个内层 urltest（同间隔/容差/空闲），外层 urltest
+对层级 tag（`"<balancerTag> [T<n>]"` / `"<balancerTag> [FB]"`）择优；单层不嵌套。
+层级解析仅当全部成员 tag 都带层级后缀且 ≥2 个不同层级时激活，避免普通节点名
+误触发。回切不断现有连接（`interrupt_exist_connections = false`），探测间隔
+仍钳制 ≥10 秒，不为层级检查新增更密的探测。）
+
 ### Requirement: 节点优先级二级页与内嵌节点顺序列表
 
 策略组设置页 MUST 提供内嵌式节点顺序列表（位于「指定节点」下方、「高级」上方），支持紧凑编号
@@ -168,6 +207,15 @@ MUST 重新拉取或明确报错。远程规则集定时刷新时 MUST 跳过 `l
 - **WHEN** 点击「按当前延迟排序」
 - **THEN** 节点按实测延迟升序排列（有层级时层内排序），返回后生效
 
+（B7c 已落地：设置页内嵌节点顺序列表位于「指定节点」下方、「高级」上方（`updatePrioritySummary`，
+摘要“数量 + 前 3 名”）；二级页为新 `BalancerPriorityActivity`（注册于 AndroidManifest，
+`configChanges="uiMode"`），草稿态编辑、返回时经结果 intent 回写 DataStore 草稿并自动生效；
+支持紧凑编号 `1, 2, 3...`（`formatPriorityNumber`）、拖拽（ItemTouchHelper）、
+快速移除、点击替换（经 `ProfileSelectActivity`）、多选添加与按延迟排序（有层级时层内排序，
+无延迟排最后、稳定排序）。移除语义：散装成员同时从 `proxies` 移除（真正离组），
+分组来源成员记入 `BalancerBean.priorityExcluded`（仅优先级模式过滤成员，切回其他
+策略即恢复）；新成员的层级按名称正则重算、不继承被替换成员的层级。）
+
 ### Requirement: BalancerBean 记录升级与迁移
 
 `BalancerBean` 引入混搭来源或层级字段时，记录版本 MUST 递增（v5→v6 起），
@@ -177,3 +225,20 @@ MUST 重新拉取或明确报错。远程规则集定时刷新时 MUST 跳过 `l
 - **GIVEN** 旧版 v5 策略组数据（interval 300、tolerance 300）
 - **WHEN** 升级到新版并打开策略组设置
 - **THEN** 旧字段原值保留，新字段取安全默认值，可正常保存与建连
+
+（B7a 已落地：v6 字段形状由本批定——`TYPE_MIXED = 2` + `maxMembers`（0 = 不限），
+不照抄上游 autoselect 形状的 v6；`serialize` 写 `writeInt(6)`，`deserialize`
+保留 v1–v5 分支、`maxMembers` 缺失时取 0；`initializeDefaultValues` 只归一化
+负值、不覆盖显式 0；`serializeV5` / `downgradeToV5Bytes` 提供 v5 降级导出。
+8.15 同类问题核查：既有字段无同类覆盖缺陷，见主规范对应 requirement。）
+
+（B7c 已落地：记录升至 v7（`serialize` 写 `writeInt(7)`），新增 `tierRules`
+（String，编码后规则表）、`priorityOrder`（`List<Long>`，节点优先级顺序）、
+`priorityExcluded`（`List<Long>`，仅优先级模式排除的分组来源成员 id）。
+`v1–v6` 历史数据 MUST 能读、能升（v7 字段缺失时取 `""` / 空列表）；
+`initializeDefaultValues` 只做 v7 字段空值守卫、不覆盖已有值；
+`serializeV6` / `downgradeToV6Bytes` 提供 v6 降级导出（v7 字段丢弃，
+`serializeV5` / `downgradeToV5Bytes` 链式复用、仍可用）。
+层级规则与优先级顺序的草稿态另存 DataStore（`balancerTierRules` /
+`balancerPriorityOrder` / `balancerPriorityExcluded`，profileCacheStore），
+保存时才写入 `BalancerBean`。）

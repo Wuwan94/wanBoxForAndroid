@@ -374,6 +374,15 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var balancerLandingProxyTmp by profileCacheStore.stringToInt("balancerLandingProxy")
     var balancerNameExclude by profileCacheStore.string("balancerNameExclude") { "" }
     var balancerNameInclude by profileCacheStore.string("balancerNameInclude") { "" }
+    // B7a/O7：混搭解析后的成员上限，0 = 不限（与 BalancerBean.maxMembers 同语义）。
+    var balancerMaxMembers by profileCacheStore.stringToInt("balancerMaxMembers") { 0 }
+    // B7c/O7：层级规则持久化串（见 fmt/BalancerTierScheduler 的编解码），
+    // 空 = 只有保底层级；节点优先级顺序与排除名单（逗号分隔的成员 id，见
+    // fmt/BalancerPriorityOrder 的编解码）。三者都是设置页编辑草稿，
+    // 随 BalancerSettingsActivity.serialize() 写回 BalancerBean（v7 字段）。
+    var balancerTierRules by profileCacheStore.string("balancerTierRules") { "" }
+    var balancerPriorityOrder by profileCacheStore.string("balancerPriorityOrder") { "" }
+    var balancerPriorityExcluded by profileCacheStore.string("balancerPriorityExcluded") { "" }
     var groupName by profileCacheStore.string(Key.GROUP_NAME)
     var groupType by profileCacheStore.stringToInt(Key.GROUP_TYPE)
     var groupOrder by profileCacheStore.stringToInt(Key.GROUP_ORDER)
@@ -410,6 +419,9 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     }
     fun groupIsLoadBalance(groupId: Long): Boolean = isGroupLoadBalance(groupId)
     fun setGroupIsLoadBalance(groupId: Long, value: Boolean) = setGroupLoadBalance(groupId, value)
+    // B7b/O7：严格手动锁定（运行时状态，非编辑草稿）：编码见 fmt/BalancerManualLock，
+    // "<balancerId>:<memberId>;..."，空 = 全部自动。锁是运行时选择，不进 BalancerBean 记录。
+    var balancerManualLock by configurationStore.string("balancerManualLock") { "" }
     fun readAndMigrateGroupUrlTestUrlOverride(groupId: Long): String {
         val key = "group_${groupId}_urlTestUrl"
         val stored = configurationStore.getString(key, "") ?: ""

@@ -731,16 +731,18 @@ Discarding an unfinished edit MUST first restore journaled local values while re
 - **WHEN** 触发补更检查
 - **THEN** 跳过该订阅，不打断退避
 
-### Requirement: 应用路由生成层维护集中式系统组件排除名单（B3 已落地）
+### Requirement: 应用路由生成层维护集中式系统组件排除名单（B3 已落地，#182 修红修正）
 
-应用路由生成层 MUST 维护集中式系统组件排除名单，至少包含系统下载器
+应用路由生成层 MUST 维护集中式系统组件排除名单（`SystemExcludedPackages`，唯一来源），至少包含系统下载器
 （`com.android.providers.downloads`、`com.android.providers.downloads.ui`）、媒体存储、
-网络栈及 Captive Portal 门户组件；名单内组件 MUST NOT 被应用层规则错分流，
-与 `ProfileManager` 既有下载器排除合并去重，不得重复造两份名单。
+网络栈及 Captive Portal 门户组件；名单 MUST NOT 用于改写用户显式规则——用户规则的包名 MUST 原样生成
+（修红 #182：生成层过滤会静默丢弃显式规则，使其流量改走默认路由，反而可能被分流进代理，与排除本意相反）；
+名单的适用层是智能分流分类（上游 `SmartRouteRules` 的分类派生绑定；wanBox 暂无该层，名单先行作为唯一来源），
+与 `ProfileManager` 既有下载器排除（仅剔两个下载器包名）合并去重，不得重复造两份名单。
 
 - **GIVEN** 系统下载器发起下载
 - **WHEN** 应用层规则生成并匹配
-- **THEN** 下载器走系统直连/白名单路径，不被分流进代理
+- **THEN** 生成结果 MUST NOT 包含把下载器强绑进代理的分类派生绑定；用户显式规则原样保留
 
 ### Requirement: 规则集缓存按实际规则条数校验（B3 已落地）
 
@@ -764,3 +766,146 @@ MUST NOT 判断种子新鲜度——`ProxyEntity` 无探针时间戳字段，Kot
 - **GIVEN** 健康成员缓存延迟极大（可能是过期缓存）
 - **WHEN** 生成 leastPing 组配置
 - **THEN** 仍按延迟排在未测成员之前，过期判定不在此处做
+
+### Requirement: 策略组混搭来源与组隔离（B7a 已落地）
+
+策略组 MUST 支持“分组（含名称正则过滤）+ 散装节点”混搭来源（`BalancerBean.TYPE_MIXED = 2`），
+成员解析 MUST 由 `BalancerMemberResolver` 统一完成：分组在前、散装在后，按 id 去重；
+名称正则只过滤分组来源，散装节点是显式点选、不受正则影响；`maxMembers`（0 = 不限）
+按解析顺序截断。设置页 MUST 实时展示匹配计数，正则语法错误 MUST 显示并阻止保存；
+配置生成遇到脏正则时 MUST 按未设置处理，不得丢成员、不得起不来。
+每个策略组 MUST 独立隔离出站与前置/落地代理链：带组上下文的成员链按
+`(balancerId, memberId)` 缓存并隔离构建（出口跳点不进 `globalOutbounds` 共享，
+中间跳点与出口 tag 加组后缀防重复），多策略组共享成员时 MUST NOT 串线。
+副作用：隔离链不再进入 `tagMap.values`，顶层 selector/urltest 的成员列表不再含
+策略组内部成员链（策略组本体的 tag 仍在其中）。
+
+- **GIVEN** 策略组选了一个分组（正则 `^HK`）并叠加 2 个散装节点，其中 1 个已在分组内
+- **WHEN** 保存并生成配置
+- **THEN** 成员去重后无重复出站，匹配数量显示正确，且该组的出站与代理链与其他组隔离
+- **GIVEN** 正则写错
+- **WHEN** 编辑页实时校验
+- **THEN** 显示正则语法错误提示并阻止保存
+
+### Requirement: BalancerBean 记录 v5→v6（B7a 已落地）
+
+`BalancerBean` 记录版本 v5→v6（`writeInt(6)`），v6 字段形状由 wanBox 本批定，
+不照抄上游 autoselect 形状的 v6：新增 `TYPE_MIXED = 2` 与 `maxMembers`（int，
+0 = 不限）。`v1–v5` 历史数据 MUST 能读、能升（缺失字段取安全默认值，
+`maxMembers = 0`）；`initializeDefaultValues` MUST NOT 覆盖显式 `0`（不限），
+只归一化非法负值。降级导出 MUST 可用：`serializeV5` / `downgradeToV5Bytes`
+按 v5 布局写出 v5 子集（类型强制降为 `TYPE_LIST`，proxies 为调用方先解析出的
+唯一成员 id 列表，分组来源与上限已 baked 进列表，不得静默丢字段）。
+8.15 同类问题核查结论：既有字段无同类覆盖缺陷——`tolerance` 的 0 早已是 `< 0`
+守卫（0 = 严格切换，不会被覆盖）；`interval` 的 0 无“不限”语义（探测周期，
+`<= 0 → 300` 不是覆盖）；`frontProxy`/`landingProxy` 的 `0 → -1` 只是 id
+归一化（0 不是合法 profile id）。
+
+- **GIVEN** 旧版 v5 策略组数据（interval 300、tolerance 300）
+- **WHEN** 升级到新版并打开策略组设置
+- **THEN** 旧字段原值保留，新字段取安全默认值，可正常保存与建连
+
+### Requirement: BalancerBean 记录 v6→v7（B7c 已落地）
+
+`BalancerBean` 记录版本 v6→v7（`writeInt(7)`），新增 `tierRules`（String，
+URL 安全 Base64 编码后的层级规则表）、`priorityOrder`（`List<Long>`，
+节点优先级顺序）、`priorityExcluded`（`List<Long>`，仅优先级模式排除的
+分组来源成员 id）。`v1–v6` 历史数据 MUST 能读、能升（v7 字段缺失时取 `""` /
+空列表）；`initializeDefaultValues` 只做 v7 字段空值守卫、不覆盖已有值。
+降级导出 MUST 可用：`serializeV6` / `downgradeToV6Bytes` 按 v6 布局写出 v6 子集
+（v7 字段丢弃），`serializeV5` / `downgradeToV5Bytes` 链式复用、仍可用。
+层级规则与优先级顺序的草稿态另存 DataStore（`balancerTierRules` /
+`balancerPriorityOrder` / `balancerPriorityExcluded`，profileCacheStore），
+保存时才写入 `BalancerBean`。
+
+- **GIVEN** 旧版 v6 策略组数据（含 `maxMembers`、无层级字段）
+- **WHEN** 升级到新版并打开策略组设置
+- **THEN** 旧字段原值保留，层级规则为空、优先级顺序为空，可正常保存与建连
+
+### Requirement: 策略组严格手动锁定（B7b 已落地）
+
+策略组成员被手动锁定后，断连或超时 MUST NOT 自动切换，直到用户点击「恢复自动」解锁。
+锁定期间的失败 MUST 计入统计，MUST NOT 触发自动切换。锁定成员不可用时，主页横幅 MUST 红字高亮提示。
+锁是运行时选择，存在 `DataStore.balancerManualLock`（configurationStore，
+`"<balancerId>:<memberId>;..."` 编码，空 = 全部自动），不进 `BalancerBean` 记录、
+不占记录版本号（B7c 的层级字段仍按计划升 v7）。
+锁定在配置生成层生效：锁定时该策略组生成 `selector` 出站（`default` = 锁定成员），
+核心不再自动切换；锁定与层级回切 MUST NOT 默认断开现有连接
+（selector 用 sing-box 默认 `interrupt_exist_connections = false`，
+断开只在用户显式开启对应开关时发生，本批不提供该开关）。
+锁定成员不在成员列表里时回落自动生成，锁仍保留、横幅红字提示。
+导出/测试配置不带运行时锁定。
+
+- **GIVEN** 用户手动锁定节点 A 且 A 已断连
+- **WHEN** 经过一次检查间隔
+- **THEN** 仍锁定在 A，不自动切到 B，横幅红字提示“锁定节点不可用”
+- **GIVEN** 用户点击「恢复自动」
+- **WHEN** 下一次检查完成
+- **THEN** 恢复自动选择，可切到健康节点
+
+### Requirement: 策略统计页与主页横幅（B7b 已落地）
+
+开启策略组连接时，主页 MUST 在当前节点卡片下方显示策略组状态横幅
+（当前策略模式、正在使用/锁定节点及实时延迟）。点击横幅 MUST 进入策略统计页，
+展示各成员状态/报错信息，并提供一键“立即全部检查”。
+统计页数据 MUST 来自 Root 快照/Clash API 等既有通道，不得为统计另开核心直连。
+统计为进程内内存态（`BalancerMemberStats`）：失败为自上次成功以来的连续失败次数，
+成功后清零并记延迟、清掉旧报错；锁定期间的失败同样计入。
+锁定的唯一入口在统计页：自动组成员行点按即锁定（解析不到 id 的成员行不可点，
+不得猜 id），锁定/解锁后重建配置生效，未连接时只落盘、下次连接时生效。
+锁只对 `BalancerBean` 策略组实体生效，顶层 proxy selector 与编辑器组不提供锁定。
+
+- **GIVEN** 策略组已连接
+- **WHEN** 用户查看主页
+- **THEN** 横幅显示当前模式、承载节点与实时延迟
+- **GIVEN** 用户在统计页点击“立即全部检查”
+- **WHEN** 检查完成
+- **THEN** 各成员状态与报错信息刷新展示
+
+### Requirement: 「按优先级顺序」多层级调度（B7c 已落地）
+
+「按优先级顺序」模式（`BalancerBean.STRATEGY_PRIORITY_ORDER = "priorityOrder"`，
+新增策略值、与既有模式并存；「最快最稳」=`STRATEGY_LEAST_PING`）MUST 支持按
+服务器分组与节点名称正则定义层级（层级 1、层级 2…），未匹配节点自动归入保底层级；
+层级支持上移/下移与删除。层内 MUST 按实测延迟与切换容差择优；高顺位层全数不可用时
+MUST 立即回退下一层；恢复后 MUST 按双重门槛（连续健康检查 ≥3 次 + 无失败 ≥60 秒）
+受控回切。启用流量分配时 MUST 只在当前最低健康层级内分散流量。
+「最快最稳」模式 MUST 隐藏「添加层级」、层级行与节点优先级列表。
+层级规则存 `BalancerBean.tierRules`（单条正则 URL 安全 Base64 无填充编码，
+`include:exclude`、`;` 分隔，上限 10 条，脏条目解码跳过）。
+Kotlin 侧 `BalancerTierScheduler` 负责定层级/层内择优/回切双重门/流量层内分散；
+Go 侧 `libcore/protocol/urltest/outbound.go` 强制执行——Kotlin 生成嵌套 urltest：
+每层一个内层 urltest（同间隔/容差/空闲），外层 urltest 对层级 tag
+（`"<balancerTag> [T<n>]"` / `"<balancerTag> [FB]"`）择优；单层不嵌套。
+层级解析仅当全部成员 tag 都带层级后缀且 ≥2 个不同层级时激活，避免普通节点名误触发。
+回切 MUST NOT 默认断开现有连接（`interrupt_exist_connections = false`），
+探测间隔仍钳制 ≥10 秒，不为层级检查新增更密的探测。
+
+- **GIVEN** 层级 1 全部节点不可用，层级 2 有健康节点
+- **WHEN** 下一次检查完成
+- **THEN** 流量回退到层级 2 的最优节点
+- **GIVEN** 层级 1 恢复可用但未达到双重回切门槛
+- **WHEN** 检查完成
+- **THEN** 不回切，仍留在层级 2
+- **GIVEN** 用户切到「最快最稳」模式
+- **WHEN** 打开策略组设置页
+- **THEN** 不显示添加层级、层级行与节点优先级列表
+
+### Requirement: 节点优先级二级页与内嵌节点顺序列表（B7c 已落地）
+
+策略组设置页 MUST 提供内嵌式节点顺序列表（位于「指定节点」下方、「高级」上方），
+支持紧凑编号（`1, 2, 3...`）、拖拽调序、快速移除及点击替换节点；不得在页面底部
+另挂外挂列表。「节点优先级」MUST 收纳为独立二级页面（新 `BalancerPriorityActivity`，
+草稿态编辑、返回时回写并自动生效），摘要实时显示节点数量与前 3 个节点预览；
+二级页 MUST 支持顺位标号、拖动调序、删除、点击替换、添加/多选节点与「按当前延迟排序」
+（配置有层级时按层级分组内延迟排优）；返回 MUST 自动生效。
+移除语义：散装成员同时从 `proxies` 移除（真正离组），分组来源成员记入
+`BalancerBean.priorityExcluded`（仅优先级模式过滤成员，切回其他策略即恢复）；
+新成员的层级按名称正则重算、不继承被替换成员的层级。
+
+- **GIVEN** 策略组有 5 个指定节点
+- **WHEN** 用户在内嵌列表拖动第 5 个节点到第 1 位
+- **THEN** 顺序即时生效，编号变为 `1..5` 且与实际选路顺序一致
+- **GIVEN** 用户打开「节点优先级」二级页
+- **WHEN** 点击「按当前延迟排序」
+- **THEN** 节点按实测延迟升序排列（有层级时层内排序），返回后生效
