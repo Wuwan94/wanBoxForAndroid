@@ -8,7 +8,7 @@
 
   <p>
     <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14"><img src="https://img.shields.io/badge/Stable-v3.0.14-14B8A6?style=flat-square&labelColor=0F172A" alt="Stable v3.0.14" /></a>
-    <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.3"><img src="https://img.shields.io/badge/Preview-v3.0.17--preview.3-F59E0B?style=flat-square&labelColor=0F172A" alt="Published preview v3.0.17-preview.3" /></a>
+    <a href="https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.4"><img src="https://img.shields.io/badge/Preview-v3.0.17--preview.4-F59E0B?style=flat-square&labelColor=0F172A" alt="Published preview v3.0.17-preview.4" /></a>
     <a href="https://github.com/Wuwan94/wanBoxForAndroid/stargazers"><img src="https://img.shields.io/github/stars/Wuwan94/wanBoxForAndroid?style=flat-square&labelColor=0F172A&color=14B8A6" alt="GitHub stars" /></a>
     <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPL--3.0-64748B?style=flat-square&labelColor=0F172A" alt="GPL-3.0 License" /></a>
   </p>
@@ -25,9 +25,9 @@
   <p><sub>Android 12+ (API 31+) · arm64-v8a · Magisk / KernelSU / APatch · 开源</sub></p>
 </div>
 
-> **版本发布**：当前已发布正式版为 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14)，已发布预览版为 [v3.0.17-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.3)。
+> **版本发布**：当前已发布正式版为 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14)，已发布预览版为 [v3.0.17-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.4)。
 
-Published releases: stable v3.0.14 and preview v3.0.17-preview.3.
+Published releases: stable v3.0.14 and preview v3.0.17-preview.4.
 
 ---
 
@@ -135,8 +135,8 @@ flowchart TB
 
 | 渠道 | 正式版 | 尝鲜预览 |
 |:--|:--|:--|
-| 版本 | [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14)（非 prerelease） | [v3.0.17-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.3)（prerelease） |
-| 版本码 | APK `10130` · 模块码 `2026` | APK `10168` · 模块码 `2033` |
+| 版本 | [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14)（非 prerelease） | [v3.0.17-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.4)（prerelease） |
+| 版本码 | APK `10130` · 模块码 `2026` | APK `10174` · 模块码 `2034` |
 | 体积 | APK 5.91 MiB · 模块 16.92 MiB · 合一包 22.17 MiB | APK 6.07 MiB · 模块 17.29 MiB · 合一包 22.67 MiB |
 | 适合 | 稳定优先，日常使用 | 想先试新功能，可随时回退 |
 
@@ -156,19 +156,19 @@ flowchart TB
 > ⚠️ **成套同版**：管理器 APK 内不含核心，必须与同一个 Release 页里的 Root 模块（v3.0.14 对应模块码 `2026`）一起安装或更新。**严禁跨版本混用。**
 
 <details>
-<summary><strong>尝鲜预览 · v3.0.17-preview.3</strong>（与正式版并行发布，各自成套使用）</summary>
+<summary><strong>尝鲜预览 · v3.0.17-preview.4</strong>（与正式版并行发布，各自成套使用）</summary>
 <br />
 
-本版修复 URLTest 整轮预算到期后层级永不回切、诊断包在 Android 12+ 无法读取两项 P1，并收口 Room 11 schema、网络规则留痕、direct 重试去抖、`su` 超时、空白名单显式报错、Root 测速互斥等 P2。tag 与发布二进制来自同一 main 提交 `6adc5ac0`（PR #69）。
+本版收口 preview.3 复审的新发现：故障转移不再绕过层级回切门、过期候选保留最后梯队兜底、direct 失败改有界退避重试、`su` 超时不再误报空白名单并补本地化文案。tag 与发布二进制来自同一 main 提交 `906a6ea3`（PR #72）。
 
 | 资产 | 文件名 | 体积 |
 |:--|:--|--:|
-| 瘦身管理器 APK（`versionCode=10168`） | `wanBoxForAndroid-3.0.17-preview.3-arm64-v8a-release.apk` | 6.07 MiB |
-| Root 模块 ZIP（模块码 `2033`） | `wanbox-root-module-arm64-v8a.zip` | 17.29 MiB |
+| 瘦身管理器 APK（`versionCode=10174`） | `wanBoxForAndroid-3.0.17-preview.4-arm64-v8a-release.apk` | 6.07 MiB |
+| Root 模块 ZIP（模块码 `2034`） | `wanbox-root-module-arm64-v8a.zip` | 17.29 MiB |
 | 模块 + 管理器合一 ZIP | `wanbox-root-module-with-manager-arm64-v8a.zip` | 22.67 MiB |
 
-- 下载：[v3.0.17-preview.3 Release](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.3)
-- 直链（合一包）：[wanbox-root-module-with-manager-arm64-v8a.zip](https://github.com/Wuwan94/wanBoxForAndroid/releases/download/v3.0.17-preview.3/wanbox-root-module-with-manager-arm64-v8a.zip)
+- 下载：[v3.0.17-preview.4 Release](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.4)
+- 直链（合一包）：[wanbox-root-module-with-manager-arm64-v8a.zip](https://github.com/Wuwan94/wanBoxForAndroid/releases/download/v3.0.17-preview.4/wanbox-root-module-with-manager-arm64-v8a.zip)
 - 回退：换回 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 与配套模块（模块码 `2026`）成套重装，不要跨 Release 混用。
 - 逐项修复说明见 [PREVIEW_NOTES.md](PREVIEW_NOTES.md)。
 

@@ -1,8 +1,8 @@
 # v3.0.17-preview.4 发行说明
 
-**状态：未发布的稳定性预览版候选。**
+**状态：已发布的稳定性预览版。**
 
-本版收口 preview.3 复审的新发现：故障转移绕过层级回切门、过期候选被整体剔除、direct 失败永久锁存、`su` 超时误报空白名单；正式稳定版 `v3.0.14` / `2026` 与 sing-box pin `v1.15.0-alpha.13-reF1nd` 未变；预览元数据 `3.0.17-preview.4` / `2034`，派生 APK `versionCode=10174`、Root 模块码 `2034`（preview.3 为 `10168` / `2033`）。
+本版基于 main `906a6ea3f48779cc96c7a4116cfd1faeb63aa354`（PR #72，`Verify Android Build` run `44372679147` 全绿后合并，2026-11-18T19:13:48Z），`Preview Build` run `44378329740` 于 2026-11-18T19:38:07Z 发布，发布 job 断言 `APPROVED_SHA=906a6ea3`。正式稳定版 `v3.0.14` / `2026` 与 sing-box pin `v1.15.0-alpha.13-reF1nd` 未变；预览元数据 `3.0.17-preview.4` / `2034`，派生 APK `versionCode=10174`、Root 模块码 `2034`（preview.3 为 `10168` / `2033`）。
 
 ## 与上一版对比
 
@@ -24,13 +24,13 @@ URLTest 间隔 ≥10 秒、空闲 ≥30 分钟、切换不中断连接等硬约�
 
 ## 升级与验证边界
 
-同一 Release 的瘦管理器 APK 与 Root 模块必须成套安装。回退使用正式版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 与配套模块（模块码 `2026`）。三条 urltest 回归用例与 direct 重试用例均先红后绿；Kotlin 用例由 CI 复跑。未执行 Root 真机矩阵，自动化结果不等同于真实设备验证。
+同一 Release 的瘦管理器 APK 与 Root 模块必须成套安装。回退使用正式版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 与配套模块（模块码 `2026`）。PR #72 的 `Verify Android Build` run `44372679147` 全绿（插桩 debug/release 各 81 项 + 2 项定向复跑，0 失败）；发布 `Preview Build` run `44378329740` 四个 job 全部成功，四件套 `sha256sum -c` 与 digest 回读一致（APK `6363791` / 模块 `18131042` / 合一 `23774566` / `SHA256SUMS` `333` 字节，APK+模块 `24494833` 字节，余量 `2768143`，PASS）。未执行 Root 真机矩阵，自动化结果不等同于真实设备验证。
 
 ---
 
 ## 历史归档
 
-v3.0.17-preview.3 的已发布说明：tag/commit `6adc5ac0`，PR #69，`Verify Android Build` run `44295650161`，`Preview Build` run `44306599880` 于 2026-11-18T13:08:01Z 发布；APK `10168` / 模块 `2033`，Release/tag 将在 preview.4 发布后按单预览策略清理。
+v3.0.17-preview.3 的已发布说明：tag/commit `6adc5ac0`，PR #69，`Verify Android Build` run `44295650161`，`Preview Build` run `44306599880` 于 2026-11-18T13:08:01Z 发布；APK `10168` / 模块 `2033`，Release/tag 已在 preview.4 发布后（19:38:15Z）按单预览策略清理。
 
 v3.0.17-preview.2 的已发布说明：tag/commit `49e96619`，`Preview Build` run `44281162788` 于 2026-11-18T10:18:19Z 发布；APK `10162` / 模块 `2032`，Release/tag 已在 preview.3 发布后按单预览策略清理。
 

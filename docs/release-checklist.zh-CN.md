@@ -1,6 +1,6 @@
-# v3.0.17-preview.3 分阶段发布清单
+# v3.0.17-preview.4 分阶段发布清单
 
-本版 **v3.0.17-preview.3 已作为稳定性预览版发布**：[Release](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.3)（prerelease），tag/commit `6adc5ac0bcbd87bf9ff4b2097fe367761a4bc841`（PR #69，2026-11-18T12:04:41Z 合并），PR 验证 `Verify Android Build` run `44295650161` 全绿，`Preview Build` run `44306599880` 于 2026-11-18T13:08:01Z 发布；tag、`targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `6adc5ac0`。本版元数据为模块 `2033` / APK `10168`，无待发布候选。已发布正式版仍为 v3.0.14（正式版发布清单见本文件下文专节）。preview.2 Release/tag 已按单预览策略清理（本次发布后 `prune_prereleases.py --keep-tag v3.0.17-preview.3`）。Root 真机矩阵未执行，仍未验证。
+本版 **v3.0.17-preview.4 已作为稳定性预览版发布**：[Release](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.4)（prerelease），tag/commit `906a6ea3f48779cc96c7a4116cfd1faeb63aa354`（PR #72，2026-11-18T19:13:48Z 合并），PR 验证 `Verify Android Build` run `44372679147` 全绿，`Preview Build` run `44378329740` 于 2026-11-18T19:38:07Z 发布；tag、`targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `906a6ea3`。本版元数据为模块 `2034` / APK `10174`，无待发布候选。已发布正式版仍为 v3.0.14（正式版发布清单见本文件下文专节）。preview.3 Release/tag 已按单预览策略清理（本次发布后 `prune_prereleases.py --keep-tag v3.0.17-preview.4`）。Root 真机矩阵未执行，仍未验证。
 
 ## 当前基线与不可变约束
 
@@ -9,11 +9,11 @@
 - 内核 `reF1nd/sing-box v1.15.0-alpha.13-reF1nd`。内核和 targetSdk 阶段只评估，升级须另获确认。
 - 模块拥有代理生命周期；管理器为瘦 APK，不引入多内核、不恢复 VPN、不重做 UI。
 - 不删除或改名设置键、不改默认值；TLS 默认验证证书；日志不得含备份内容、节点凭据、订阅原文。
-- 当前已发布预览为 preview.3：Root 模块 `2033` / APK `10168`（源码预览线同为 `PRE_VERSION_NAME=3.0.17-preview.3`、`PRE_VERSION_CODE=2033`）；正式线元数据保持 `3.0.14 / 2026` 不变，`SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 不变。
+- 当前已发布预览为 preview.4：Root 模块 `2034` / APK `10174`（源码预览线同为 `PRE_VERSION_NAME=3.0.17-preview.4`、`PRE_VERSION_CODE=2034`）；正式线元数据保持 `3.0.14 / 2026` 不变，`SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 不变。
 
 ## 阶段与验收
 
-下表保留分阶段验收项作为过程记录；preview.3 实际发布结果见下方勾选门禁。任何发布前门禁失败都应停止、报告并保留现场，不绕过门禁。
+下表保留分阶段验收项作为过程记录；preview.4 实际发布结果见下方勾选门禁。任何发布前门禁失败都应停止、报告并保留现场，不绕过门禁。
 
 | 阶段 | 范围 | 验收与输出 |
 |---|---|---|

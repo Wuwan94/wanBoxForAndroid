@@ -4,10 +4,13 @@
 
 ## wanBox 3.0.x 发布记录
 
-### v3.0.17-preview.4（未发布候选）
+### v3.0.17-preview.4（已发布预览）
 
-- 源码预览线升到 `3.0.17-preview.4` / `2034`（派生 APK `versionCode=10174`、Root 模块码 `2034`），正式线 `3.0.14 / 2026` 与 `SINGBOX_VERSION` 不变；本条目在发布后改为已发布口径并回填 tag、run 号与四件套字节/digest。
-- 内容：故障转移候选限定当前生效层且不再改写 `currentTier`（回切仍由 3 轮健康 + 60 秒门控制）；过期候选保留为最后梯队兜底；direct 模式切换失败改 15s/1min/5min 有界退避重试；区分 `su` 超时与真正的空白名单并补本地化文案；supervisor 不再吞 `readUnifiedPolicy` 错误；预算到期零观测轮次不再推进恢复门；`BalancerTierScheduler` 零引用符号标注 `@Deprecated`。
+- [GitHub Release v3.0.17-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.4) 由 `Preview Build` run `44378329740` 在 main commit/tag `906a6ea3f48779cc96c7a4116cfd1faeb63aa354`（PR #72，2026-11-18T19:13:48Z 合并；`Verify Android Build` run `44372679147` 全绿）于 2026-11-18T19:38:07Z 发布；tag 对象、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `906a6ea3`。
+- 元数据为模块 `2034` / APK `10174`（preview.3 为 `2033` / `10168`）；正式线 `3.0.14 / 2026` 与 `SINGBOX_VERSION` 不变。
+- 修复 preview.3 复审发现的两个新引入缺陷：故障转移候选限定当前生效层且不再改写 `currentTier`（回切仍由 3 轮健康 + 60 秒门控制）；过期候选保留为最后梯队兜底，新鲜候选全败时不再直接断连。
+- 副作用收口：direct 模式切换失败改 15s/1min/5min 有界退避重试；区分 `su` 超时与真正的空白名单并补中/英本地化文案（查询失败退回只代理已解析部分）；supervisor 不再吞 `readUnifiedPolicy` 错误；预算到期零观测轮次不再推进恢复门；`BalancerTierScheduler` 零引用符号标注 `@Deprecated` 并写明 Go 侧为唯一实现。
+- 发布后 `prune_prereleases.py --keep-tag v3.0.17-preview.4` 清理了 preview.3 的 Release/tag（19:38:15Z）；四件套字节与 digest 见[版本对照](docs/current-version.zh-CN.md)。Root 真机矩阵未执行（CI 自标 `runtime_regression: not_verified`），仍未验证。
 
 ### v3.0.17-preview.3（已发布预览）
 
