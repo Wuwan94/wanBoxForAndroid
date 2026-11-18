@@ -298,6 +298,9 @@ object ProfileManager {
                     rule.packages = rule.packages + setOf("com.android.vending", "com.google.android.gms")
                     changed = true
                 }
+                // 只剔除 Play 下载器两个包名，是刻意收窄的修复：不按
+                // SystemExcludedPackages 整表改写用户显式规则（避免把仅含
+                // 某些系统包名的规则静默删空，CI #182 已回退过整表套用）。
                 if (rule.domains.contains("googleapis.cn") && rule.packages.any {
                         it == "com.android.providers.downloads" || it == "com.android.providers.downloads.ui"
                     }) {

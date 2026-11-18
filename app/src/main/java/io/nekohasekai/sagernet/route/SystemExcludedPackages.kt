@@ -6,13 +6,13 @@ import io.nekohasekai.sagernet.BuildConfig
  * 系统底层核心组件：不参与应用层规则强绑（B3/O6，借鉴 OwnBox 8.8 的
  * `SYSTEM_EXCLUDED_PACKAGES`，上游 commit d401e93）。
  *
- * wanBox 原先没有集中式名单：只有 `ProfileManager` 在 Play 商店规则修复里
- * 硬编码剔除两个下载器包名。本名单是唯一来源——`ConfigBuilder` 在应用路由
- * 生成时用它过滤规则包名，`ProfileManager` 的既有修复也引用同一份名单，
- * 不得再造第二份。
+ * 本对象是**集中目录**，不是自动过滤器：当前 `ConfigBuilder` 不按它改写
+ * 用户显式规则（B3 的教训：把名单套到显式规则上，会把仅含应用自身包名的
+ * 规则静默删空，CI #182 已回退），`ProfileManager` 的 Play 商店规则修复
+ * 也只显式剔除两个下载器包名，不整表引用本对象。后续分类层若接入，必须以
+ * 显式白名单方式使用，不得静默改写用户规则。
  *
- * 名单内组件不被应用层规则错分流：它们不进入规则的 `package_name`/`user_id`
- * 匹配，流量按后续规则与默认路由走，不会因为某条应用规则被分流进代理。
+ * 名单内组件是“不应被应用层规则强绑”的候选集合；是否生效由调用方决定。
  */
 object SystemExcludedPackages {
 

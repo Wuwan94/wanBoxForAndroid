@@ -149,14 +149,14 @@ object SubscriptionUpdater {
                             now
                         )
                     ) {
-                        Logs.d("SubscriptionUpdater: not due yet " + profile.displayName())
+                        Logs.d("SubscriptionUpdater: not due yet id=" + profile.id)
                         continue
                     }
                     if (shouldBackoff(profile.id)) {
-                        Logs.d("SubscriptionUpdater: backing off " + profile.displayName())
+                        Logs.d("SubscriptionUpdater: backing off id=" + profile.id)
                         continue
                     }
-                    Logs.d("SubscriptionUpdater: executing pending update for " + profile.displayName())
+                    Logs.d("SubscriptionUpdater: executing pending update id=" + profile.id)
                     val ok = GroupUpdater.executeUpdate(profile, false)
                     recordUpdateResult(profile.id, ok)
                 }
@@ -183,13 +183,13 @@ object SubscriptionUpdater {
                 val subscription = profile.subscription!!
 
                 if ((System.currentTimeMillis() / 1000 - subscription.lastUpdated.toLong()) < subscription.autoUpdateDelay.toLong().coerceAtLeast(15) * 60) {
-                    Logs.d("work: not updating " + profile.displayName())
+                    Logs.d("work: not updating id=" + profile.id)
                     continue
                 }
-                Logs.d("work: updating " + profile.displayName())
+                Logs.d("work: updating id=" + profile.id)
 
                 if (shouldBackoff(profile.id)) {
-                    Logs.d("work: backing off " + profile.displayName())
+                    Logs.d("work: backing off id=" + profile.id)
                     continue
                 }
                 val ok = GroupUpdater.executeUpdate(profile, false)
