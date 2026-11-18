@@ -16,10 +16,10 @@ ROOT = Path(__file__).resolve().parents[2]
 STABLE_TAG = "v3.0.14"
 PUBLISHED_PREVIEW = "v3.0.17-preview.2"
 PUBLISHED_PREVIEW_COMMIT = "49e966197dd608b687b36eecdaf394274dacfe15"
-# 发布后源码预览线与已发布预览相同：nb4a.properties 在下一预览升版前仍指向刚发布的
-# preview.2，此时发行说明的当前区段必须按「已发布」写，不能留「未发布候选」。
-SOURCE_PREVIEW = "v3.0.17-preview.2"
-SOURCE_PREVIEW_CODE = "2032"
+# 候选升版：源码预览线前移到 preview.3，与已发布 preview.2 分离；发行说明与
+# 版本对照必须明确写成「未发布候选」，发布后再由同步 PR 翻回「已发布」。
+SOURCE_PREVIEW = "v3.0.17-preview.3"
+SOURCE_PREVIEW_CODE = "2033"
 ARCHIVED_PREVIEW = "v3.0.17-preview.1"
 HISTORY_MARKER = "历史归档"
 
@@ -109,8 +109,16 @@ def failures(root: Path = ROOT) -> list[str]:
             errors.append(f"docs/current-version.zh-CN.md 表格缺少「{label}」行")
     if PUBLISHED_PREVIEW not in table or PUBLISHED_PREVIEW_COMMIT not in table:
         errors.append(f"docs/current-version.zh-CN.md 已发布预览行缺少 {PUBLISHED_PREVIEW} 或其精确提交")
-    if "未发布候选" in table or "未发布的稳定性预览版候选" in table:
-        errors.append("docs/current-version.zh-CN.md 当前表格仍标有未发布候选")
+    if SOURCE_PREVIEW == PUBLISHED_PREVIEW:
+        if "未发布候选" in table or "未发布的稳定性预览版候选" in table:
+            errors.append("docs/current-version.zh-CN.md 当前表格仍标有未发布候选")
+    else:
+        if SOURCE_PREVIEW[1:] not in table or SOURCE_PREVIEW_CODE not in table:
+            errors.append(
+                f"docs/current-version.zh-CN.md 候选行缺少 {SOURCE_PREVIEW} 或其版本码 {SOURCE_PREVIEW_CODE}"
+            )
+        if "未发布候选" not in table:
+            errors.append("docs/current-version.zh-CN.md 源码预览线未明确标为未发布候选")
     if "当前源码基线" in table:
         errors.append(
             "docs/current-version.zh-CN.md 仍把发布 tag 提交写成「当前源码基线」；"
