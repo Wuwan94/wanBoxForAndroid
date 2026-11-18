@@ -6,6 +6,9 @@ import (
 	"io"
 	"maps"
 	"net"
+	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -38,6 +41,39 @@ const urlTestDialAttemptTimeout = 3 * time.Second
 
 // B1/O3: 单次探测惩罚增量（沿用 wanBox 既有 +300，不照抄上游的 5000 下限）。
 const urlTestProbePenalty = uint16(300)
+
+// B7c/O7: 层级 tag 后缀约定（与 Kotlin 侧 ConfigBuilder.tierGroupTag 同一格式）。
+// 层级组 tag 以 " [T<n>]"（n 从 1 计）或 " [FB]"（保底层级）结尾；
+// Go 侧据此解析层级。保底层级序号取很大的哨兵值，永远排在最后。
+const tierFallbackIndex = 1 << 30
+
+// B7c/O7 回切双重门槛：与 Kotlin 侧 TierRecoveryGate 同一取值
+// （连续 3 轮健康检查 + 距上次失败满 60 秒）。
+const tierSwitchBackMinChecks = 3
+const tierSwitchBackMinFailureFree = 60 * time.Second
+
+// parseTierTagIndex 解析层级 tag 后缀。返回 (层级序号, 是否分层 tag)。
+// "Balancer 01 [T1]" → (0, true)；"Balancer 01 [T2]" → (1, true)；
+// "Balancer 01 [FB]" → (tierFallbackIndex, true)。
+// 无后缀、序号非法（0 或非数字）→ (0, false)，按未分层处理。
+func parseTierTagIndex(tag string) (int, bool) {
+	if strings.HasSuffix(tag, " [FB]") {
+		return tierFallbackIndex, true
+	}
+	if !strings.HasSuffix(tag, "]") {
+		return 0, false
+	}
+	open := strings.LastIndex(tag, " [T")
+	if open < 0 {
+		return 0, false
+	}
+	numStr := tag[open+3 : len(tag)-1]
+	n, err := strconv.Atoi(numStr)
+	if err != nil || n < 1 {
+		return 0, false
+	}
+	return n - 1, true
+}
 
 // B1/O3: 惩罚延迟的饱和封顶值。
 const urlTestMaxPenalizedDelay = uint16(65000)
@@ -446,6 +482,19 @@ type URLTestGroup struct {
 	// key 为成员 Tag（与批量探测的 history key 一致）。
 	failAccess sync.Mutex
 	failCount  map[string]int
+	// B7c/O7：与 outbounds 等长的层级序号（由成员 tag 后缀解析；未分层组全为 0）。
+	tiers []int
+	// B7c/O7：层级恢复门状态（每层连续健康轮次数与上次失败时间）与当前
+	// 所在层级（-1 = 尚未选过）。门状态只在 performRoundEndCheck
+	//（每轮探测结束，持有 updateAccess 写锁）里更新，selectLocked 只读。
+	tierGate    tierRecoveryGateState
+	currentTier int
+}
+
+// tierRecoveryGateState 是层级恢复门的状态：每层连续健康轮次数与上次失败时间。
+type tierRecoveryGateState struct {
+	consecutiveOK map[int]int
+	lastFailure   map[int]time.Time
 }
 
 func NewURLTestGroup(ctx context.Context, outboundManager adapter.OutboundManager, logger log.Logger, outbounds []adapter.Outbound, link string, interval time.Duration, tolerance uint16, idleTimeout time.Duration, interruptExternalConnections bool) (*URLTestGroup, error) {
@@ -463,6 +512,27 @@ func NewURLTestGroup(ctx context.Context, outboundManager adapter.OutboundManage
 		return nil, E.New("missing URL test history storage")
 	}
 	groupCtx, cancel := context.WithCancel(ctx)
+	// B7c/O7：由成员 tag 后缀解析层级。只有全部成员都带层级后缀、
+	// 且至少分出两层时才激活分层；否则全部视为同一层（行为与改动前一致）。
+	// 这一守卫避免普通节点名恰好以 " [T<n>]" 结尾时被误认作层级组。
+	tiers := make([]int, len(outbounds))
+	if len(outbounds) > 1 {
+		parsed := make([]int, len(outbounds))
+		distinct := make(map[int]bool)
+		tiered := true
+		for i, o := range outbounds {
+			tier, ok := parseTierTagIndex(o.Tag())
+			if !ok {
+				tiered = false
+				break
+			}
+			parsed[i] = tier
+			distinct[tier] = true
+		}
+		if tiered && len(distinct) >= 2 {
+			tiers = parsed
+		}
+	}
 	return &URLTestGroup{
 		ctx:                          groupCtx,
 		cancel:                       cancel,
@@ -479,6 +549,12 @@ func NewURLTestGroup(ctx context.Context, outboundManager adapter.OutboundManage
 		pause:                        service.FromContext[pause.Manager](ctx),
 		interruptGroup:               interrupt.NewGroup(),
 		interruptExternalConnections: interruptExternalConnections,
+		tiers:                        tiers,
+		tierGate: tierRecoveryGateState{
+			consecutiveOK: make(map[int]int),
+			lastFailure:   make(map[int]time.Time),
+		},
+		currentTier: -1,
 	}, nil
 }
 
@@ -634,25 +710,43 @@ func (g *URLTestGroup) Select(network string) (adapter.Outbound, bool) {
 }
 
 func (g *URLTestGroup) selectLocked(network string) (adapter.Outbound, bool) {
+	// B7c/O7 层级选路：先定生效层级（当前最低健康层，回切受门控），
+	// 再在该层内按延迟 + 容差择优。未分层组（tiers 全 0）只有一层，
+	// 逻辑与改动前一致；全层无新鲜历史时回落列表首位（既有行为）。
+	effectiveTier, hasHealthy := g.effectiveTierLocked(network)
+	if !hasHealthy {
+		for _, detour := range g.outbounds {
+			if !common.Contains(detour.Network(), network) {
+				continue
+			}
+			return detour, false
+		}
+		return nil, false
+	}
+	// 层内择优：与改动前的 selectLocked 同一口径，只是候选集限定在本层；
+	// 当前选中成员若在本层且新鲜，仍作为比较起点（粘性）。
 	var minDelay uint16
 	var minOutbound adapter.Outbound
 	switch network {
 	case N.NetworkTCP:
-		if g.selectedOutboundTCP != nil {
+		if g.selectedOutboundTCP != nil && g.tierOfTag(g.selectedOutboundTCP.Tag()) == effectiveTier {
 			if history := g.freshHistory(group.RealTag(g.selectedOutboundTCP, N.NetworkTCP)); history != nil {
 				minOutbound = g.selectedOutboundTCP
 				minDelay = history.Delay
 			}
 		}
 	case N.NetworkUDP:
-		if g.selectedOutboundUDP != nil {
+		if g.selectedOutboundUDP != nil && g.tierOfTag(g.selectedOutboundUDP.Tag()) == effectiveTier {
 			if history := g.freshHistory(group.RealTag(g.selectedOutboundUDP, N.NetworkUDP)); history != nil {
 				minOutbound = g.selectedOutboundUDP
 				minDelay = history.Delay
 			}
 		}
 	}
-	for _, detour := range g.outbounds {
+	for i, detour := range g.outbounds {
+		if g.tierAt(i) != effectiveTier {
+			continue
+		}
 		if !common.Contains(detour.Network(), network) {
 			continue
 		}
@@ -666,7 +760,11 @@ func (g *URLTestGroup) selectLocked(network string) (adapter.Outbound, bool) {
 		}
 	}
 	if minOutbound == nil {
-		for _, detour := range g.outbounds {
+		// 有效层内无新鲜历史（门控判定与选择之间历史过期）：回落该层首位。
+		for i, detour := range g.outbounds {
+			if g.tierAt(i) != effectiveTier {
+				continue
+			}
 			if !common.Contains(detour.Network(), network) {
 				continue
 			}
@@ -675,6 +773,118 @@ func (g *URLTestGroup) selectLocked(network string) (adapter.Outbound, bool) {
 		return nil, false
 	}
 	return minOutbound, true
+}
+
+// tierAt 返回第 i 个成员的层级序号（tiers 表缺失时按未分层处理，返回 0）。
+func (g *URLTestGroup) tierAt(i int) int {
+	if i < 0 || i >= len(g.tiers) {
+		return 0
+	}
+	return g.tiers[i]
+}
+
+// tierOfTag 按 tag 查成员所在的层级序号（tag 在组内唯一；查不到返回 0）。
+func (g *URLTestGroup) tierOfTag(tag string) int {
+	for i, o := range g.outbounds {
+		if o.Tag() == tag {
+			return g.tierAt(i)
+		}
+	}
+	return 0
+}
+
+// distinctTiers 返回本组出现的层级序号（升序）。
+func (g *URLTestGroup) distinctTiers() []int {
+	seen := make(map[int]bool)
+	var tiers []int
+	for _, tier := range g.tiers {
+		if !seen[tier] {
+			seen[tier] = true
+			tiers = append(tiers, tier)
+		}
+	}
+	sort.Ints(tiers)
+	return tiers
+}
+
+// tierHealthyLocked 报告某层在指定网络上是否至少一个成员有新鲜历史
+// （调用方须持有 updateAccess 读锁或写锁）。
+func (g *URLTestGroup) tierHealthyLocked(tier int, network string) bool {
+	for i, detour := range g.outbounds {
+		if g.tierAt(i) != tier {
+			continue
+		}
+		if !common.Contains(detour.Network(), network) {
+			continue
+		}
+		if g.freshHistory(group.RealTag(detour, network)) != nil {
+			return true
+		}
+	}
+	return false
+}
+
+// effectiveTierLocked 决定本次选路的生效层级（调用方须持有读锁或写锁）。
+// 候选层 = 最低健康层；回切受门控：候选层高于当前层（序号更小）且门未通过、
+// 当前层仍健康时，留在当前层，不来回跳；当前层也全灭时直接回退候选层。
+func (g *URLTestGroup) effectiveTierLocked(network string) (int, bool) {
+	candidate := -1
+	for _, tier := range g.distinctTiers() {
+		if g.tierHealthyLocked(tier, network) {
+			candidate = tier
+			break
+		}
+	}
+	if candidate < 0 {
+		return 0, false
+	}
+	if g.currentTier >= 0 && candidate < g.currentTier &&
+		!g.canSwitchBackTo(candidate, time.Now()) &&
+		g.tierHealthyLocked(g.currentTier, network) {
+		return g.currentTier, true
+	}
+	return candidate, true
+}
+
+// canSwitchBackTo 判定是否允许切回某高层：连续健康轮次达标，且距上次失败
+// 已满无失败持续时间；从未失败过的层只看轮次。
+func (g *URLTestGroup) canSwitchBackTo(tier int, now time.Time) bool {
+	if g.tierGate.consecutiveOK[tier] < tierSwitchBackMinChecks {
+		return false
+	}
+	if lastFail, failed := g.tierGate.lastFailure[tier]; failed {
+		return !now.Before(lastFail.Add(tierSwitchBackMinFailureFree))
+	}
+	return true
+}
+
+// updateTierGateLocked 按当前新鲜历史推进层级恢复门（调用方须持有写锁，
+// 每轮探测结束调一次）：有新鲜成员的层连续计数 +1，全灭的层清零并记失败时间。
+func (g *URLTestGroup) updateTierGateLocked(now time.Time) {
+	healthy := make(map[int]bool)
+	for i, detour := range g.outbounds {
+		tier := g.tierAt(i)
+		if healthy[tier] {
+			continue
+		}
+		if common.Contains(detour.Network(), N.NetworkTCP) &&
+			g.freshHistory(group.RealTag(detour, N.NetworkTCP)) != nil {
+			healthy[tier] = true
+			continue
+		}
+		if common.Contains(detour.Network(), N.NetworkUDP) &&
+			g.freshHistory(group.RealTag(detour, N.NetworkUDP)) != nil {
+			healthy[tier] = true
+		}
+	}
+	for _, tier := range g.distinctTiers() {
+		if healthy[tier] {
+			g.tierGate.consecutiveOK[tier]++
+		} else {
+			g.tierGate.consecutiveOK[tier] = 0
+			g.tierGate.lastFailure[tier] = now
+		}
+	}
 }
 
 func (g *URLTestGroup) loopCheck(ticker *time.Ticker, closeChan <-chan struct{}) {
@@ -755,7 +965,9 @@ func (g *URLTestGroup) urlTest(ctx context.Context, force bool) (result map[stri
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
-	g.performUpdateCheck()
+	// B7c/O7：轮次结束走 performRoundEndCheck（推进层级恢复门 + 重算选择）；
+	// 流式就绪仍走 performUpdateCheck（只重算选择，不计轮次）。
+	g.performRoundEndCheck()
 	return result, nil
 }
 
@@ -912,6 +1124,21 @@ func (b *urlTestBatch) test(outbounds []adapter.Outbound, link string, interval 
 func (g *URLTestGroup) performUpdateCheck() {
 	g.updateAccess.Lock()
 	defer g.updateAccess.Unlock()
+	g.performUpdateCheckLocked()
+}
+
+// performRoundEndCheck 是每轮探测结束的更新入口：先按本轮结果推进层级恢复门
+// （健康层连续计数 +1，全灭层清零并记失败时间），再重算选择。
+// 流式就绪（单成员成功）只调 performUpdateCheck，不推进门计数——
+// “检查次数”按轮次计，不按单个成员成功计。
+func (g *URLTestGroup) performRoundEndCheck() {
+	g.updateAccess.Lock()
+	defer g.updateAccess.Unlock()
+	g.updateTierGateLocked(time.Now())
+	g.performUpdateCheckLocked()
+}
+
+func (g *URLTestGroup) performUpdateCheckLocked() {
 	var (
 		updated  bool
 		selected bool
@@ -931,6 +1158,12 @@ func (g *URLTestGroup) performUpdateCheck() {
 		}
 		g.selectedOutboundUDP = outbound
 		selected = true
+	}
+	// B7c/O7：记录当前选中成员所在的层级，供下一轮回切门控参考。
+	if g.selectedOutboundTCP != nil {
+		g.currentTier = g.tierOfTag(g.selectedOutboundTCP.Tag())
+	} else if g.selectedOutboundUDP != nil {
+		g.currentTier = g.tierOfTag(g.selectedOutboundUDP.Tag())
 	}
 	if updated && g.interruptExternalConnections {
 		g.interruptGroup.Interrupt(true)
