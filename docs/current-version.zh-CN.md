@@ -8,9 +8,9 @@
 | 已发布预览版 | [v3.0.17-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.3)，prerelease；tag/commit `6adc5ac0bcbd87bf9ff4b2097fe367761a4bc841`（PR #69，2026-11-18T12:04:41Z 合并）；资产与 tag 同源出版 | APK `versionCode=10168` / Root 模块码 `2033`；PR 验证 `Verify Android Build` run `44295650161` 全绿，`Preview Build` run `44306599880`（发布 job 断言 `APPROVED_SHA=6adc5ac0`，回读 tag 一致） |
 | 上一正式版 | [v3.0.11](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11)，非 prerelease，保留；tag `03c6eb70854c797ee1e4069e378145be5ca56b0d` | APK / Root 模块 `10065 / 2013`（历史资产核验记录，归档语境） |
 | 发布基线 | [v3.0.17-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.3) 的 tag/commit `6adc5ac0bcbd87bf9ff4b2097fe367761a4bc841`（Release `targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 同为该提交） | 固定发布基线，不等同于后续 main HEAD |
-| 源码预览线 | `3.0.17-preview.3`（已发布，与上一行同一提交；下一预览升版前保持该值） | `PRE_VERSION_NAME=3.0.17-preview.3`、`PRE_VERSION_CODE=2033`；共享向量计算 APK `versionCode=10168`、Root 模块码 `2033` |
+| 源码预览线 | `3.0.17-preview.4`（未发布候选；从 preview.3 已发布提交之后合入的修复构建，合并提交在发布后回填） | `PRE_VERSION_NAME=3.0.17-preview.4`、`PRE_VERSION_CODE=2034`；共享向量计算 APK `versionCode=10174`、Root 模块码 `2034` |
 
-源码元数据正式线保持 `VERSION_NAME=3.0.14`、`VERSION_CODE=2026`；preview.3 是当前已发布预览（APK `10168` / 模块 `2033`，源码 `6adc5ac0`），源码预览线同为 `PRE_VERSION_NAME=3.0.17-preview.3`、`PRE_VERSION_CODE=2033`。稳定版与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变。下一预览升版时，`PRE_VERSION_NAME` 前移后本文的「源码预览线」才与「已发布预览版」分离。
+源码元数据正式线保持 `VERSION_NAME=3.0.14`、`VERSION_CODE=2026`；preview.3 是当前已发布预览（APK `10168` / 模块 `2033`，源码 `6adc5ac0`），源码预览线已前移到 `PRE_VERSION_NAME=3.0.17-preview.4`、`PRE_VERSION_CODE=2034`，两者自此分离。稳定版与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变。preview.4 发布后，「源码预览线」与「已发布预览版」重新合流。
 
 preview.1 内容：修复 preview.4 复审发现的 P1 回归——存在悬空出站引用时「放弃未完成编辑」在锁内重建时反复撞上出站告警，恢复标记永不释放；现由同一次构建快照算出的告警替代该次重建确认，正常启动/重连/重载仍要求确认，提交点（确认成功才清标记）未放宽。同批修复同一状态下的第二层缺陷：配置构建在 IO 线程创建 Toast 抛 `NullPointerException`，使包括用户确认后的重建整条路径失败，两处规则告警改为主线程分发。
 
