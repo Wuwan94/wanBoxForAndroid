@@ -3,8 +3,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	module "wanbox/module"
 )
@@ -55,3 +59,191 @@ func TestResumeDispatchAndStatus(t *testing.T) {
 		t.Fatalf("resume unexpectedly started runtime: %+v", got)
 	}
 }
+
+func TestNodeURLTestCommandReturnsDelay(t *testing.T) {
+	r := newCLITestRuntime(t)
+	stdin := strings.NewReader(`{"config":"{\"outbounds\":[]}","url":"http://127.0.0.1/generate_204","timeoutMs":5000}`)
+	var stdout bytes.Buffer
+	code := runNodeTestCommand(context.Background(), r, []string{"node", "urltest", "7"}, 0, stdin, &stdout)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stdout = %q", code, stdout.String())
+	}
+	var result struct {
+		DelayMs int32 `json:"delayMs"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil || result.DelayMs != 42 {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestNodeSpeedTestCommandReturnsResult(t *testing.T) {
+	r := newCLITestRuntime(t)
+	stdin := strings.NewReader(`{"config":"{\"outbounds\":[]}","mode":"simple_download","timeoutMs":10000,"simpleDownloadURL":"http://127.0.0.1/download"}`)
+	var stdout bytes.Buffer
+	code := runNodeTestCommand(context.Background(), r, []string{"node", "speedtest", "7"}, 0, stdin, &stdout)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stdout = %q", code, stdout.String())
+	}
+	var result module.SpeedTestResult
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !result.Done || result.Stage != "complete" || result.DownloadBitsPerSecond != 123456 {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+}
+
+func TestNodeTestCommandRejects(t *testing.T) {
+	r := newCLITestRuntime(t)
+	cases := []struct {
+		name string
+		args []string
+		euid int
+		body string
+	}{
+		{"non-root", []string{"node", "urltest", "7"}, 1000, `{}`},
+		{"bad id", []string{"node", "urltest", "0"}, 0, `{}`},
+		{"non-numeric id", []string{"node", "urltest", "x"}, 0, `{}`},
+		{"broken json", []string{"node", "urltest", "7"}, 0, `{broken`},
+		{"bad url", []string{"node", "urltest", "7"}, 0, `{"config":"{}","url":"ftp://x/y","timeoutMs":5000}`},
+		{"bad mode", []string{"node", "speedtest", "7"}, 0, `{"config":"{}","mode":"bogus","timeoutMs":5000}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var stdout bytes.Buffer
+			code := runNodeTestCommand(context.Background(), r, tc.args, tc.euid, strings.NewReader(tc.body), &stdout)
+			if code != 1 {
+				t.Fatalf("exit code = %d, stdout = %q", code, stdout.String())
+			}
+			var result struct {
+				Error string `json:"error"`
+			}
+			if err := json.Unmarshal(stdout.Bytes(), &result); err != nil || result.Error == "" {
+				t.Fatalf("stdout is not an error JSON: %q", stdout.String())
+			}
+		})
+	}
+}
+
+func TestDiagnosticsExportCommandRejectsNonDownloadDestination(t *testing.T) {
+	r := newCLITestRuntime(t)
+	stdin := strings.NewReader(`{"destination":"/tmp/wanbox-diagnostics-2026-11-18.tar.gz","appVersion":"3.0.14","appVersionCode":2026,"singBoxVersion":"v1.15.0-alpha.13-reF1nd"}`)
+	var stdout bytes.Buffer
+	code := runDiagnosticsExportCommand(r, 0, stdin, &stdout)
+	if code != 1 {
+		t.Fatalf("exit code = %d, stdout = %q", code, stdout.String())
+	}
+	var result struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil || result.Error != "diagnostics_destination_unavailable" {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestDiagnosticsExportCommandAcceptsDownloadDestination(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("needs root to create /storage/emulated/0/Download")
+	}
+	download := "/storage/emulated/0/Download"
+	if err := os.MkdirAll(download, 0700); err != nil {
+		t.Skipf("cannot create %s: %v", download, err)
+	}
+	t.Cleanup(func() {
+		_ = os.RemoveAll(download)
+		_ = os.Remove("/storage/emulated/0")
+		_ = os.Remove("/storage/emulated")
+	})
+	r := newCLITestRuntime(t)
+	dest := filepath.Join(download, "wanbox-diagnostics-2026-11-18T00-00-00.tar.gz")
+	body, _ := json.Marshal(map[string]any{
+		"destination": dest, "appVersion": "3.0.14", "appVersionCode": 2026,
+		"singBoxVersion": "v1.15.0-alpha.13-reF1nd",
+	})
+	var stdout bytes.Buffer
+	code := runDiagnosticsExportCommand(r, 0, bytes.NewReader(body), &stdout)
+	if code != 0 {
+		t.Fatalf("exit code = %d, stdout = %q", code, stdout.String())
+	}
+	var result struct {
+		Missing []string `json:"missing"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil || result.Missing == nil {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if _, err := os.Stat(dest); err != nil {
+		t.Fatalf("diagnostics archive missing at %s: %v", dest, err)
+	}
+}
+
+func TestSharedInterfacesCommand(t *testing.T) {
+	var stdout bytes.Buffer
+	// 非 Root 拒绝。
+	if code := runSharedInterfacesCommand(1000, &stdout); code != 1 {
+		t.Fatalf("non-root exit code = %d, stdout = %q", code, stdout.String())
+	}
+	// Root：返回接口数组，loopback 永不入选。
+	stdout.Reset()
+	if code := runSharedInterfacesCommand(0, &stdout); code != 0 {
+		t.Fatalf("exit code = %d, stdout = %q", code, stdout.String())
+	}
+	var result struct {
+		Interfaces []string `json:"interfaces"`
+		Error      string   `json:"error"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil || result.Interfaces == nil {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	for _, name := range result.Interfaces {
+		if name == "lo" {
+			t.Fatal("loopback must never be listed")
+		}
+	}
+}
+
+func TestSharedPreflightCommand(t *testing.T) {
+	var stdout bytes.Buffer
+	if code := runSharedPreflightCommand(1000, "socket_assign", &stdout); code != 1 {
+		t.Fatalf("non-root exit code = %d, stdout = %q", code, stdout.String())
+	}
+	stdout.Reset()
+	if code := runSharedPreflightCommand(0, "tc", &stdout); code != 1 {
+		t.Fatalf("bad data plane exit code = %d, stdout = %q", code, stdout.String())
+	}
+	stdout.Reset()
+	if code := runSharedPreflightCommand(0, "socket_assign", &stdout); code != 0 {
+		t.Fatalf("exit code = %d, stdout = %q", code, stdout.String())
+	}
+	var result struct {
+		OK      bool     `json:"ok"`
+		Missing []string `json:"missing"`
+		Checked []string `json:"checked"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil || len(result.Checked) == 0 {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+// newCLITestRuntime 建一个带桩 rootbox 的 Runtime：桩只回放固定结果 JSON。
+func newCLITestRuntime(t *testing.T) *module.Runtime {
+	t.Helper()
+	dir := t.TempDir()
+	mod := filepath.Join(dir, "module")
+	if err := os.Mkdir(mod, 0700); err != nil {
+		t.Fatal(err)
+	}
+	bin := filepath.Join(mod, "bin")
+	if err := os.MkdirAll(bin, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bin, "rootbox"), []byte(cliStubRootboxScript), 0700); err != nil {
+		t.Fatal(err)
+	}
+	return module.New(filepath.Join(dir, "data"), mod)
+}
+
+const cliStubRootboxScript = `#!/bin/sh
+if [ "$1" = "--url-test" ]; then echo '{"delayMs": 42}'; exit 0; fi
+if [ "$1" = "--speed-test" ]; then echo '{"ProfileKey":"7","Mode":"simple_download","Stage":"complete","DownloadBitsPerSecond":123456,"UploadBitsPerSecond":0,"DownloadBytes":1048576,"UploadBytes":0,"LatencyMs":12,"ServerID":"","ServerName":"","ServerCountry":"","ServerSponsor":"","Error":"","Cancelled":false,"Done":true}'; exit 0; fi
+exit 2
+`

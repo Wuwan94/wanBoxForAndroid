@@ -56,6 +56,27 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
         false
     }
 
+    /** N6：删除被路由规则引用的组时阻断，对话框定位到该组并可跳转到引用规则。 */
+    fun showGroupDeleteBlocked(groupId: Long, ruleId: Long, ruleName: String) {
+        runOnDefaultDispatcher {
+            val groupName = SagerDatabase.groupDao.getById(groupId)?.displayName()
+                ?: return@runOnDefaultDispatcher
+            onMainDispatcher {
+                if (!isAdded) return@onMainDispatcher
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(groupName)
+                    .setMessage(getString(R.string.route_policy_group_blocked_delete, groupName, ruleName))
+                    .setPositiveButton(R.string.route_policy_group_review_rule) { _, _ ->
+                        startActivity(Intent(requireContext(), RouteSettingsActivity::class.java).apply {
+                            putExtra(RouteSettingsActivity.EXTRA_ROUTE_ID, ruleId)
+                        })
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }
+        }
+    }
+
     lateinit var activity: MainActivity
     lateinit var groupListView: RecyclerView
     lateinit var layoutManager: LinearLayoutManager
@@ -436,7 +457,14 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
         override fun commit(actions: List<Pair<Int, ProxyGroup>>) {
             val groups = actions.map { it.second }
             runOnDefaultDispatcher {
-                GroupManager.deleteGroup(groups)
+                try {
+                    GroupManager.deleteGroup(groups)
+                } catch (blocked: GroupManager.GroupReferencedByRoutesException) {
+                    // N6：阻断时恢复被乐观移除的行，并定位到该组。
+                    reload()
+                    showGroupDeleteBlocked(blocked.groupId, blocked.ruleId, blocked.ruleName)
+                    return@runOnDefaultDispatcher
+                }
                 reload()
             }
         }
@@ -598,20 +626,27 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
                             val groupId = proxyGroup.id
                             undoManager.flush()
                             runOnDefaultDispatcher {
-                                if (DataStore.selectedProxy > 0L) {
-                                    val currentProxy = SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
-                                    if (currentProxy != null && currentProxy.groupId == groupId) {
-                                        val fallback = SagerDatabase.proxyDao.getAll().firstOrNull {
-                                            it.groupId != groupId && !DataStore.isGroupDisabled(it.groupId)
-                                        }
-                                        DataStore.selectedProxy = fallback?.id ?: 0L
-                                    }
+                                // N6：先快照选中状态再删组（被引用时阻断抛错），成功后才迁移
+                                // 选中节点/分组；阻断时不改任何选中状态。
+                                val currentProxy = if (DataStore.selectedProxy > 0L)
+                                    SagerDatabase.proxyDao.getById(DataStore.selectedProxy) else null
+                                val selectedGroupWasDeleted = DataStore.selectedGroup == groupId
+                                try {
+                                    GroupManager.deleteGroup(groupId)
+                                } catch (blocked: GroupManager.GroupReferencedByRoutesException) {
+                                    showGroupDeleteBlocked(blocked.groupId, blocked.ruleId, blocked.ruleName)
+                                    return@runOnDefaultDispatcher
                                 }
-                                if (DataStore.selectedGroup == groupId) {
+                                if (currentProxy != null && currentProxy.groupId == groupId) {
+                                    val fallback = SagerDatabase.proxyDao.getAll().firstOrNull {
+                                        it.groupId != groupId && !DataStore.isGroupDisabled(it.groupId)
+                                    }
+                                    DataStore.selectedProxy = fallback?.id ?: 0L
+                                }
+                                if (selectedGroupWasDeleted) {
                                     val remaining = SagerDatabase.groupDao.allGroups().filter { it.id != groupId }
                                     DataStore.selectedGroup = remaining.firstOrNull()?.id ?: DataStore.currentGroupId()
                                 }
-                                GroupManager.deleteGroup(groupId)
                                 onMainDispatcher {
                                     safeSnackbar(getString(R.string.group_deleted, proxyGroup.displayName()))
                                 }

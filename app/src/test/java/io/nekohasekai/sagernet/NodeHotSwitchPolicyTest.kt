@@ -126,8 +126,14 @@ class NodeHotSwitchPolicyTest {
         assertTrue(cache.contains("fun uidsForPackage(packageName: String)"))
         assertTrue(cache.contains("pm list users"))
         val builder = File("src/main/java/io/nekohasekai/sagernet/fmt/ConfigBuilder.kt").readText()
-        assertTrue(builder.contains("PackageCache.uidsForPackage(it)"))
+        // B6（N5）：分应用名单按 <userId>:<package> 解析，ConfigBuilder 里原来两处
+        // 内联的 `.flatMap { PackageCache.uidsForPackage(it) }`（eBPF 入站与 Root TUN
+        // 的选中应用 UID 计算）已由 PerUserApps.resolveUids 取代，按用户查
+        // package service 后合并；路由规则生成仍用聚合的 uidsForPackage(pkg)。
+        assertTrue(builder.contains("PerUserApps.resolveUids(PerUserApps.currentRefs())"))
         assertTrue(builder.contains("PackageCache.uidsForPackage(pkg)"))
+        val perUser = File("src/main/java/io/nekohasekai/sagernet/bg/PerUserApps.kt").readText()
+        assertTrue(perUser.contains("PackageCache.uidsForUserPackage(ref.userId, ref.packageName)"))
         val client = File("src/main/java/io/nekohasekai/sagernet/bg/RootModuleClient.kt").readText()
         assertTrue(client.contains("PackageCache.refreshMultiUserUids()"))
     }

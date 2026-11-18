@@ -103,7 +103,8 @@ class SpeedTestAndroidContractTest {
         assertTrue(entity.contains("speedTestMode = ''"))
         assertTrue(entity.contains("speedTestDownloadBitsPerSecond = 0"))
         assertTrue(entity.contains("speedTestUploadBitsPerSecond = 0"))
-        assertTrue(database.contains("version = 10"))
+        // N6：Room 10→11（policyGroupId 字段，手写 MIGRATION_10_11）。
+        assertTrue(database.contains("version = 11"))
         assertTrue(database.contains("AutoMigration(from = 8, to = 9)"))
     }
 

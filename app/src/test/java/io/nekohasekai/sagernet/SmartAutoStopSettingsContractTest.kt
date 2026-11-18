@@ -8,7 +8,10 @@ import org.junit.Test
 class SmartAutoStopSettingsContractTest {
     @Test fun configurationApplyUsesWarningAwareReload() {
         val source = File("src/main/java/io/nekohasekai/sagernet/ui/SettingsPreferenceFragment.kt").readText()
-        val apply = source.substringAfter("if (key == Key.SMART_AUTO_STOP_RULES || key == Key.SMART_AUTO_STOP_ENABLED)")
+        // B6（N3）：SMART_AUTO_STOP_RULES 键已并入统一按网络规则表，应用入口
+        // 改为 SMART_AUTO_STOP_ENABLED / NETWORK_RULES（及共享接管键），
+        // 警告感知重载本体未变。
+        val apply = source.substringAfter("if (key == Key.SMART_AUTO_STOP_ENABLED || key == Key.NETWORK_RULES) {")
             .substringBefore("if (key == Key.PROFILE_CARD_STYLE)")
         assertTrue(apply.contains("SagerNet.reloadService { error ->"))
         assertTrue(apply.contains("runOnMainDispatcher"))

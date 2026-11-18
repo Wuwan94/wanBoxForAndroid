@@ -79,6 +79,8 @@ class RouteSettingsActivity(
             -2L -> 2
             else -> OutboundPreference.VALUE_SELECT_PROFILE.toInt()
         }
+        // N6：组目标默认不启用（0）；用户显式选择后才生效。
+        DataStore.routePolicyGroup = policyGroupId ?: 0L
         DataStore.routePackages = packages.joinToString("\n")
     }
 
@@ -99,6 +101,8 @@ class RouteSettingsActivity(
             2 -> -2L
             else -> DataStore.routeOutboundRule
         }
+        // N6：组目标默认不启用（0）；用户显式选择后才生效，与节点出站正交。
+        policyGroupId = DataStore.routePolicyGroup.takeIf { it > 0L }
         packages = DataStore.routePackages.split("\n").filter { it.isNotBlank() }.toSet()
 
         if (DataStore.editingId == 0L) {
@@ -130,6 +134,7 @@ class RouteSettingsActivity(
         if (::editConfigPreference.isInitialized) {
             editConfigPreference.notifyChanged()
             rulePreferences?.refresh()
+            if (::policyGroup.isInitialized) refreshPolicyGroupSummary()
         }
     }
 
@@ -157,10 +162,53 @@ class RouteSettingsActivity(
 
     lateinit var outbound: OutboundPreference
     lateinit var apps: AppListPreference
+    lateinit var policyGroup: Preference
+
+    /** 编辑态策略组目标的摘要：组名，未指定时显示未设置。 */
+    fun refreshPolicyGroupSummary() {
+        runOnDefaultDispatcher {
+            val groupId = DataStore.routePolicyGroup
+            val name = if (groupId > 0) SagerDatabase.groupDao.getById(groupId)?.displayName() else null
+            onMainDispatcher {
+                if (::policyGroup.isInitialized) {
+                    policyGroup.summary = name ?: getString(R.string.route_policy_group_not_set)
+                }
+            }
+        }
+    }
+
+    /** N6：策略组选择器（组列表 + 清除项）；只写编辑态，不直接改规则。 */
+    fun showPolicyGroupPicker() {
+        runOnDefaultDispatcher {
+            val groups = SagerDatabase.groupDao.allGroups()
+            onMainDispatcher {
+                val names = (groups.map { it.displayName() } + getString(R.string.route_policy_group_none))
+                    .toTypedArray()
+                MaterialAlertDialogBuilder(this@RouteSettingsActivity)
+                    .setTitle(R.string.route_policy_group_pick)
+                    .setItems(names) { _, which ->
+                        val selected = groups.getOrNull(which)
+                        DataStore.routePolicyGroup = selected?.id ?: 0L
+                        DataStore.dirty = true
+                        policyGroup.summary = selected?.displayName()
+                            ?: getString(R.string.route_policy_group_not_set)
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }
+        }
+    }
 
     fun PreferenceFragmentCompat.viewCreated(view: View, savedInstanceState: Bundle?) {
         outbound = findPreference(Key.ROUTE_OUTBOUND)!!
         apps = findPreference(Key.ROUTE_PACKAGES)!!
+        policyGroup = findPreference(Key.ROUTE_POLICY_GROUP)!!
+        refreshPolicyGroupSummary()
+
+        policyGroup.setOnPreferenceClickListener {
+            showPolicyGroupPicker()
+            true
+        }
 
         outbound.setOnPreferenceChangeListener { _, newValue ->
             if (newValue.toString() == OutboundPreference.VALUE_SELECT_PROFILE) {
@@ -329,6 +377,41 @@ class RouteSettingsActivity(
             onMainDispatcher { MaterialAlertDialogBuilder(this@RouteSettingsActivity).setTitle(R.string.rr_invalid)
                 .setMessage(R.string.rr_value_error).setPositiveButton(android.R.string.ok, null).show() }
             return
+        }
+        // N6：节点与组目标互斥，拒绝保存并定位到目标字段。
+        if (io.nekohasekai.sagernet.route.RouteGroupTarget.mutualExclusionViolation(candidate)) {
+            onMainDispatcher {
+                (supportFragmentManager.findFragmentById(R.id.settings) as? MyPreferenceFragmentCompat)
+                    ?.scrollToPreference(Key.ROUTE_POLICY_GROUP)
+                MaterialAlertDialogBuilder(this@RouteSettingsActivity).setTitle(R.string.rr_invalid)
+                    .setMessage(R.string.route_policy_group_conflict)
+                    .setPositiveButton(android.R.string.ok, null).show()
+            }
+            return
+        }
+        // N6：无法确认插入位置（多条件/logical/invert，或自定义配置可能改写 route.rules）
+        // 时交给 JSON 编辑器，表单拒绝保存。
+        if (candidate.policyGroupId != null) {
+            val hasCustomConfig = DataStore.globalCustomConfig.isNotBlank() ||
+                runCatching {
+                    ProfileManager.getProfile(DataStore.selectedProxy)?.requireBean()?.customConfigJson
+                }.getOrNull()?.isNotBlank() == true
+            if (!io.nekohasekai.sagernet.route.RouteGroupTarget.canUseForm(candidate, hasCustomConfig)) {
+                onMainDispatcher {
+                    MaterialAlertDialogBuilder(this@RouteSettingsActivity).setTitle(R.string.rr_invalid)
+                        .setMessage(R.string.route_policy_group_json_editor)
+                        .setPositiveButton(android.R.string.ok, null).show()
+                }
+                return
+            }
+            if (SagerDatabase.groupDao.getById(candidate.policyGroupId!!) == null) {
+                onMainDispatcher {
+                    MaterialAlertDialogBuilder(this@RouteSettingsActivity).setTitle(R.string.rr_invalid)
+                        .setMessage(R.string.route_policy_group_missing)
+                        .setPositiveButton(android.R.string.ok, null).show()
+                }
+                return
+            }
         }
         try {
             // Constructor + close only: actual pinned core schema/Go RE2 validation, no Start(),

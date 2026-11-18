@@ -35,6 +35,13 @@ type SmartAutoStop struct {
 type NetworkObservation struct {
 	Interfaces map[string][]net.IP
 	Gateways   map[string][]net.IP
+	// B6（N3）：统一规则指纹的 SSID 与实际出口部分。SSID 由 Root 按实际出口
+	// station 读取；Egress 为 "wifi"/"not_wifi"，未知时为空（不得猜测为非 Wi-Fi）。
+	// ReadErr 非空表示指纹读取失败，评估 MUST 保持当前状态。
+	SSID      string
+	SSIDKnown bool
+	Egress    string
+	ReadErr   error
 }
 type AutoStopRule struct {
 	Gateway bool
@@ -180,7 +187,8 @@ func ReadPhysicalObservation() NetworkObservation {
 		}
 	}
 	o.Gateways = defaultGatewayCache.read(o, time.Now(), gatewayReader)
-	return o
+	// B6（N3）：叠加 SSID 与实际出口类型，组成统一规则指纹。
+	return ReadNetworkFingerprint(o)
 }
 
 // physicalUnicastAddresses retains link-local addresses on active physical interfaces.
@@ -365,6 +373,12 @@ func (r *Runtime) DispatchAutoStopBroadcasts(ctx context.Context) error {
 type networkDecision struct {
 	Fingerprint string
 	Suspend     bool
+	// B6（N3）：统一规则裁决的动作（"" / "suspend" / "direct" / "keep"）。
+	// suspend 仍走 F1 状态机；direct 由 monitor 层经 Clash API 应用。
+	Action string
+	// Known=false 表示本次指纹不可读（读取失败/SSID 不可读/网关解析失败），
+	// 调用方 MUST 保持当前状态，不得猜测切换。
+	Known bool
 }
 
 func autoStopMonitorFingerprint(policy SmartAutoStop, o NetworkObservation, suppressed *string) networkDecision {

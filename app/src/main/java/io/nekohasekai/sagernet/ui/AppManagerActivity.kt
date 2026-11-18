@@ -3,11 +3,8 @@ package io.nekohasekai.sagernet.ui
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
-import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.text.TextUtils
-import android.util.SparseBooleanArray
 import android.view.KeyEvent
 import android.view.Menu
 import android.view.MenuItem
@@ -15,9 +12,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Filter
 import android.widget.Filterable
+import android.widget.Toast
 import androidx.annotation.UiThread
-import androidx.core.util.contains
-import androidx.core.util.set
 import androidx.core.view.ViewCompat
 import androidx.core.widget.addTextChangedListener
 import androidx.lifecycle.lifecycleScope
@@ -60,13 +56,15 @@ class AppManagerActivity : ThemedActivity() {
     }
 
     private class ProxiedApp(
-        private val pm: PackageManager, private val appInfo: ApplicationInfo,
         val packageName: String,
+        // B6（N5）：同一包名在不同用户下是不同条目；UID 按用户分别解析。
+        val userId: Int,
+        val uid: Int,
+        val name: CharSequence,
+        val icon: android.graphics.drawable.Drawable?,
+        val sys: Boolean,
     ) {
-        val name: CharSequence = appInfo.loadLabel(pm)    // cached for sorting
-        val icon: Drawable get() = appInfo.loadIcon(pm)
-        val uid get() = appInfo.uid
-        val sys get() = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+        val ref: String get() = "$userId:$packageName"
     }
 
     private inner class AppViewHolder(val binding: LayoutAppsItemBinding) : RecyclerView.ViewHolder(
@@ -83,7 +81,8 @@ class AppManagerActivity : ThemedActivity() {
             item = app
             binding.itemicon.setImageDrawable(app.icon)
             binding.title.text = app.name
-            binding.desc.text = "${app.packageName} (${app.uid})"
+            // B6（N5）：同一包名在不同用户/分身下分别列出，分属不同用户分组。
+            binding.desc.text = "${app.packageName} (${itemView.context.getString(R.string.per_user_apps_user, app.userId)} · ${app.uid})"
             binding.itemcheck.isChecked = isProxiedApp(app)
         }
 
@@ -92,10 +91,8 @@ class AppManagerActivity : ThemedActivity() {
         }
 
         override fun onClick(v: View?) {
-            if (isProxiedApp(item)) proxiedUids.delete(item.uid) else proxiedUids[item.uid] = true
-            DataStore.individual = apps.filter { isProxiedApp(it) }
-                .joinToString("\n") { it.packageName }
-
+            if (isProxiedApp(item)) proxiedRefs.remove(item.ref) else proxiedRefs.add(item.ref)
+            persistProxiedRefs()
             appsAdapter.notifyItemRangeChanged(0, appsAdapter.itemCount, SWITCH)
         }
     }
@@ -107,10 +104,39 @@ class AppManagerActivity : ThemedActivity() {
 
         suspend fun reload() {
             PackageCache.reload()
-            apps = cachedApps.mapNotNull { (packageName, packageInfo) ->
-                coroutineContext[Job]!!.ensureActive()
-                packageInfo.applicationInfo?.let { ProxiedApp(packageManager, it, packageName) }
-            }.sortedWith(compareBy({ !isProxiedApp(it) }, { it.name.toString() }))
+            // B6（N5）：刷新跨用户 UID 映射，让工作资料/分身应用分别列出。
+            PackageCache.refreshMultiUserUids()
+            apps = buildList {
+                cachedApps.mapNotNull { (packageName, packageInfo) ->
+                    coroutineContext[Job]!!.ensureActive()
+                    packageInfo.applicationInfo?.let { appInfo ->
+                        ProxiedApp(
+                            packageName = packageName,
+                            userId = 0,
+                            uid = appInfo.uid,
+                            name = appInfo.loadLabel(packageManager),
+                            icon = appInfo.loadIcon(packageManager),
+                            sys = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0,
+                        )
+                    }
+                }.let { addAll(it) }
+                // 其他用户：无 PackageManager 条目，只显示包名与按用户查到的 UID。
+                PackageCache.multiUserEntries()
+                    .filter { (userId, _, _) -> userId != 0 }
+                    .forEach { (userId, packageName, uid) ->
+                        coroutineContext[Job]!!.ensureActive()
+                        add(
+                            ProxiedApp(
+                                packageName = packageName,
+                                userId = userId,
+                                uid = uid,
+                                name = packageName,
+                                icon = null,
+                                sys = false,
+                            )
+                        )
+                    }
+            }.sortedWith(compareBy({ !isProxiedApp(it) }, { it.name.toString() }, { it.userId }))
         }
 
         override fun onBindViewHolder(holder: AppViewHolder, position: Int) =
@@ -160,22 +186,32 @@ class AppManagerActivity : ThemedActivity() {
     private val loading by lazy { findViewById<View>(R.id.loading) }
 
     private lateinit var binding: LayoutAppsBinding
-    private val proxiedUids = SparseBooleanArray()
+    // B6（N5）：勾选态按 <userId>:<package> 引用存取，不再按 UID 存取
+    //（同一包名在不同用户下 UID 不同、须分别勾选）。
+    private val proxiedRefs = mutableSetOf<String>()
     private var loader: Job? = null
     private var apps = emptyList<ProxiedApp>()
     private val appsAdapter = AppsAdapter()
 
-    private fun initProxiedUids(str: String = DataStore.individual) {
-        proxiedUids.clear()
-        val apps = cachedApps
-        for (line in str.lineSequence()) {
-            val app = (apps[line] ?: continue)
-            val uid = app.applicationInfo?.uid ?: continue
-            proxiedUids[uid] = true
+    private fun initProxiedUids() {
+        proxiedRefs.clear()
+        val migrated = io.nekohasekai.sagernet.bg.PerUserApps.migrateIfNeeded()
+        proxiedRefs.addAll(io.nekohasekai.sagernet.bg.PerUserApps.currentRefs().map { it.key })
+        if (migrated) {
+            val retained = DataStore.individualUnresolved.lineSequence()
+                .filter { it.isNotBlank() }.count()
+            if (retained > 0) {
+                Toast.makeText(this, getString(R.string.per_user_apps_legacy_kept, retained), Toast.LENGTH_LONG).show()
+            }
         }
     }
 
-    private fun isProxiedApp(app: ProxiedApp) = proxiedUids[app.uid]
+    private fun persistProxiedRefs() {
+        DataStore.individualPerUser = apps.filter { isProxiedApp(it) }
+            .joinToString("\n") { it.ref }
+    }
+
+    private fun isProxiedApp(app: ProxiedApp) = proxiedRefs.contains(app.ref)
 
     @UiThread
     private fun loadApps() {
@@ -272,17 +308,11 @@ class AppManagerActivity : ThemedActivity() {
         when (item.itemId) {
             R.id.action_invert_selections -> {
                 runOnDefaultDispatcher {
-                    val proxiedUidsOld = proxiedUids.clone()
                     for (app in apps) {
-                        if (proxiedUidsOld.contains(app.uid)) {
-                            proxiedUids.delete(app.uid)
-                        } else {
-                            proxiedUids[app.uid] = true
-                        }
+                        if (proxiedRefs.contains(app.ref)) proxiedRefs.remove(app.ref) else proxiedRefs.add(app.ref)
                     }
-                    DataStore.individual = apps.filter { isProxiedApp(it) }
-                        .joinToString("\n") { it.packageName }
-                    apps = apps.sortedWith(compareBy({ !isProxiedApp(it) }, { it.name.toString() }))
+                    persistProxiedRefs()
+                    apps = apps.sortedWith(compareBy({ !isProxiedApp(it) }, { it.name.toString() }, { it.userId }))
                     onMainDispatcher {
                         appsAdapter.filter.filter(binding.search.text?.toString() ?: "")
                     }
@@ -293,9 +323,9 @@ class AppManagerActivity : ThemedActivity() {
 
             R.id.action_clear_selections -> {
                 runOnDefaultDispatcher {
-                    proxiedUids.clear()
-                    DataStore.individual = ""
-                    apps = apps.sortedWith(compareBy({ !isProxiedApp(it) }, { it.name.toString() }))
+                    proxiedRefs.clear()
+                    DataStore.individualPerUser = ""
+                    apps = apps.sortedWith(compareBy({ !isProxiedApp(it) }, { it.name.toString() }, { it.userId }))
                     onMainDispatcher {
                         appsAdapter.filter.filter(binding.search.text?.toString() ?: "")
                     }
@@ -304,7 +334,7 @@ class AppManagerActivity : ThemedActivity() {
 
             R.id.action_export_clipboard -> {
                 val success =
-                    SagerNet.trySetPrimaryClip("${DataStore.bypass}\n${DataStore.individual}")
+                    SagerNet.trySetPrimaryClip("${DataStore.bypass}\n${DataStore.individualPerUser}")
                 Snackbar.make(
                     binding.list,
                     if (success) R.string.action_export_msg else R.string.action_export_err,
@@ -325,11 +355,25 @@ class AppManagerActivity : ThemedActivity() {
                             0, i
                         ) to proxiedAppString.substring(i + 1)
                         binding.bypassGroup.check(if (enabled.toBoolean()) R.id.appProxyModeBypass else R.id.appProxyModeOn)
-                        DataStore.individual = apps
+                        // 新格式为 <userId>:<package> 行；旧格式（裸包名/UID）走迁移，
+                        // 无法反查的行保留在旧字段并提示用户手动确认。
+                        val (migrated, retained) = io.nekohasekai.sagernet.bg.PerUserApps.migrateLegacy(
+                            apps.lineSequence().toList()
+                        )
+                        DataStore.individualPerUser =
+                            io.nekohasekai.sagernet.bg.PerUserApps.serializeRefs(migrated)
+                        if (retained.isNotEmpty()) {
+                            DataStore.individualUnresolved = retained.joinToString("\n")
+                            Toast.makeText(
+                                this,
+                                getString(R.string.per_user_apps_legacy_kept, retained.size),
+                                Toast.LENGTH_LONG,
+                            ).show()
+                        }
                         Snackbar.make(
                             binding.list, R.string.action_import_msg, Snackbar.LENGTH_LONG
                         ).show()
-                        initProxiedUids(apps)
+                        initProxiedUids()
                         appsAdapter.notifyItemRangeChanged(0, appsAdapter.itemCount, SWITCH)
                         return true
                     } catch (_: IllegalArgumentException) {
@@ -348,7 +392,7 @@ class AppManagerActivity : ThemedActivity() {
                 try {
                     val needProxyAppsList = getAutoProxyApps("")
                     val bypass = DataStore.bypass
-                    proxiedUids.clear()
+                    proxiedRefs.clear()
                     for (app in cachedApps) {
                         val needProxy =
                             needProxyAppsList.contains(app.key) || (app.value.applicationInfo?.uid
@@ -356,20 +400,19 @@ class AppManagerActivity : ThemedActivity() {
                         if (needProxy) {
                             if (!bypass) {
                                 app.value.applicationInfo?.apply {
-                                    proxiedUids[uid] = true
+                                    proxiedRefs.add("0:${app.key}")
                                 }
                             }
                         } else {
                             if (bypass) {
                                 app.value.applicationInfo?.apply {
-                                    proxiedUids[uid] = true
+                                    proxiedRefs.add("0:${app.key}")
                                 }
                             }
                         }
                     }
-                    DataStore.individual =
-                        apps.filter { isProxiedApp(it) }.joinToString("\n") { it.packageName }
-                    apps = apps.sortedWith(compareBy({ !isProxiedApp(it) }, { it.name.toString() }))
+                    persistProxiedRefs()
+                    apps = apps.sortedWith(compareBy({ !isProxiedApp(it) }, { it.name.toString() }, { it.userId }))
                     appsAdapter.filter.filter(binding.search.text?.toString() ?: "")
                 } catch (e: Exception) {
                     Logs.e(e)

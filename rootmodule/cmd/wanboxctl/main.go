@@ -4,12 +4,15 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -49,13 +52,29 @@ func main() {
 		}
 		return
 	}
-	if len(args) == 1 && args[0] == "channel" {
+	if len(args) == 2 && args[0] == "channel" {
 		state, err := readChannel(r, os.Geteuid())
 		module.Response(os.Stdout, state, err)
 		if err != nil {
 			os.Exit(1)
 		}
 		return
+	}
+	// B5（N1/N2）：结果返回型命令，不走 Status 信封。
+	// 成功时 stdout 为结果 JSON，失败时 stdout 为 {"error":"<stable_token>"}。
+	if len(args) == 3 && args[0] == "node" && (args[1] == "urltest" || args[1] == "speedtest") {
+		os.Exit(runNodeTestCommand(ctx, r, args, os.Geteuid(), os.Stdin, os.Stdout))
+	}
+	if len(args) == 2 && args[0] == "diagnostics" && args[1] == "export" {
+		os.Exit(runDiagnosticsExportCommand(r, os.Geteuid(), os.Stdin, os.Stdout))
+	}
+	// B6（N4）：结果返回型命令，不走 Status 信封。成功时 stdout 为结果 JSON，
+	// 失败时 stdout 为 {"error":"<stable_token>"}。
+	if len(args) == 2 && args[0] == "__internal" && args[1] == "shared-interfaces" {
+		os.Exit(runSharedInterfacesCommand(os.Geteuid(), os.Stdout))
+	}
+	if len(args) == 3 && args[0] == "__internal" && args[1] == "shared-preflight" {
+		os.Exit(runSharedPreflightCommand(os.Geteuid(), args[2], os.Stdout))
 	}
 	err := runAuthorized(ctx, r, args, os.Geteuid())
 	// @author 雾晚：dashboard 返回绑定同一快照的完整状态，不拼接两代次。
@@ -86,6 +105,173 @@ func readProfileTags(r *module.Runtime, euid int) (module.State, error) {
 	tags, err := r.ProfileTags()
 	state.ProfileTags = tags
 	return state, err
+}
+
+// printResultError 把稳定错误 token 写成 {"error":"..."}。
+// 非 snake_case 的错误一律折叠为 module_operation_failed，
+// 与 module.Response 的做法一致，避免原始错误（含凭据可能）外泄。
+func printResultError(w io.Writer, err error) {
+	token := err.Error()
+	if !regexp.MustCompile(`^[a-z_]{1,80}$`).MatchString(token) {
+		token = "module_operation_failed"
+	}
+	_ = json.NewEncoder(w).Encode(struct {
+		Error string `json:"error"`
+	}{token})
+}
+
+// runNodeTestCommand 处理 `node urltest <id>` / `node speedtest <id>`。
+// stdin 为 JSON 请求（urltest：{config,url,timeoutMs}；
+// speedtest：{config,mode,timeoutMs,serverListURL,
+// fallbackServerListURL,simpleDownloadURL}）。
+// 成功返回 0 且 stdout 为结果 JSON；失败返回 1 且 stdout 为错误 JSON。
+func runNodeTestCommand(ctx context.Context, r *module.Runtime, args []string, euid int, stdin io.Reader, stdout io.Writer) int {
+	if euid != 0 {
+		printResultError(stdout, errors.New("root_required"))
+		return 1
+	}
+	id, err := strconv.ParseInt(args[2], 10, 64)
+	if err != nil || id <= 0 || strconv.FormatInt(id, 10) != args[2] {
+		printResultError(stdout, errors.New("arguments_invalid"))
+		return 1
+	}
+	// 上限 5 分钟：覆盖 URL 探测（60 秒 + 60 秒收尾）
+	// 与速度测试（60 秒 + 120 秒收尾）的 Root 侧时限。
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	decoder := json.NewDecoder(io.LimitReader(stdin, 1<<20))
+	if args[1] == "urltest" {
+		var req struct {
+			Config    string `json:"config"`
+			URL       string `json:"url"`
+			TimeoutMs int    `json:"timeoutMs"`
+		}
+		if err := decoder.Decode(&req); err != nil {
+			printResultError(stdout, errors.New("arguments_invalid"))
+			return 1
+		}
+		delay, err := r.NodeURLTest(ctx, id, req.Config, req.URL, req.TimeoutMs)
+		if err != nil {
+			printResultError(stdout, err)
+			return 1
+		}
+		_ = json.NewEncoder(stdout).Encode(struct {
+			DelayMs int32 `json:"delayMs"`
+		}{delay})
+		return 0
+	}
+	var req struct {
+		Config                string `json:"config"`
+		Mode                  string `json:"mode"`
+		TimeoutMs             int32  `json:"timeoutMs"`
+		ServerListURL         string `json:"serverListURL"`
+		FallbackServerListURL string `json:"fallbackServerListURL"`
+		SimpleDownloadURL     string `json:"simpleDownloadURL"`
+	}
+	if err := decoder.Decode(&req); err != nil {
+		printResultError(stdout, errors.New("arguments_invalid"))
+		return 1
+	}
+	result, err := r.NodeSpeedTest(ctx, id, req.Config, module.SpeedTestParams{
+		Mode:                  req.Mode,
+		TimeoutMs:             req.TimeoutMs,
+		ServerListURL:         req.ServerListURL,
+		FallbackServerListURL: req.FallbackServerListURL,
+		SimpleDownloadURL:     req.SimpleDownloadURL,
+	})
+	if err != nil {
+		printResultError(stdout, err)
+		return 1
+	}
+	_ = json.NewEncoder(stdout).Encode(result)
+	return 0
+}
+
+// validateDiagnosticsDestination 只允许导出到系统 Download 目录：
+// /sdcard/Download 或 /storage/emulated/<user>/Download。
+// 解析符号链接后再判定，避免经链接绕到别处。
+func validateDiagnosticsDestination(destination string) error {
+	dir := filepath.Dir(strings.TrimSpace(destination))
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return errors.New("diagnostics_destination_unavailable")
+	}
+	if resolved == filepath.Join("/sdcard", "Download") {
+		return nil
+	}
+	if filepath.Base(resolved) == "Download" && filepath.Dir(filepath.Dir(resolved)) == filepath.Join("/storage", "emulated") {
+		return nil
+	}
+	return errors.New("diagnostics_destination_unavailable")
+}
+
+// runDiagnosticsExportCommand 处理 `diagnostics export`。
+// stdin 为 module.DiagnosticsRequest JSON；成功返回 0 且 stdout 为
+// {"missing":[...]}（无缺失时为空数组），失败返回 1 且 stdout 为错误 JSON。
+func runDiagnosticsExportCommand(r *module.Runtime, euid int, stdin io.Reader, stdout io.Writer) int {
+	if euid != 0 {
+		printResultError(stdout, errors.New("root_required"))
+		return 1
+	}
+	var req module.DiagnosticsRequest
+	if err := json.NewDecoder(io.LimitReader(stdin, 1<<20)).Decode(&req); err != nil {
+		printResultError(stdout, errors.New("arguments_invalid"))
+		return 1
+	}
+	if err := validateDiagnosticsDestination(req.Destination); err != nil {
+		printResultError(stdout, err)
+		return 1
+	}
+	missing, err := r.ExportDiagnostics(req)
+	if err != nil {
+		printResultError(stdout, err)
+		return 1
+	}
+	if missing == nil {
+		missing = []string{}
+	}
+	_ = json.NewEncoder(stdout).Encode(struct {
+		Missing []string `json:"missing"`
+	}{missing})
+	return 0
+}
+
+// runSharedInterfacesCommand 处理 `__internal shared-interfaces`。
+// 成功返回 0 且 stdout 为 {"interfaces":[...]}（无候选时为空数组），
+// loopback 永不入选；失败返回 1 且 stdout 为错误 JSON。
+func runSharedInterfacesCommand(euid int, stdout io.Writer) int {
+	if euid != 0 {
+		printResultError(stdout, errors.New("root_required"))
+		return 1
+	}
+	names, err := module.ListDownstreamInterfaces()
+	if err != nil {
+		printResultError(stdout, err)
+		return 1
+	}
+	if names == nil {
+		names = []string{}
+	}
+	_ = json.NewEncoder(stdout).Encode(struct {
+		Interfaces []string `json:"interfaces"`
+	}{names})
+	return 0
+}
+
+// runSharedPreflightCommand 处理 `__internal shared-preflight <data-plane>`。
+// 成功返回 0 且 stdout 为 eBPF 能力预检报告 JSON（ok=false 也是正常结果，
+// 表示能力缺失，不得自动切换数据平面）；非法参数返回 1。
+func runSharedPreflightCommand(euid int, dataPlane string, stdout io.Writer) int {
+	if euid != 0 {
+		printResultError(stdout, errors.New("root_required"))
+		return 1
+	}
+	if dataPlane != "socket_assign" && dataPlane != "packet_rewrite" {
+		printResultError(stdout, errors.New("arguments_invalid"))
+		return 1
+	}
+	_ = json.NewEncoder(stdout).Encode(module.EbpfPreflight(dataPlane, nil))
+	return 0
 }
 
 // Only the long-lived supervisor must escape the caller's cgroup. A Root

@@ -178,9 +178,21 @@
     <moe.matsuri.nb4a.ui.ExpandablePreferenceCategory
         app:key="categoryAdvancedGroup"
         app:title="@string/settings_group_advanced">
-        <SwitchPreference app:key="smartAutoStopEnabled" app:defaultValue="false" app:title="@string/smart_auto_stop_title" />
-        <EditTextPreference app:key="smartAutoStopRules" app:defaultValue="" app:title="@string/smart_auto_stop_rules" app:summary="@string/smart_auto_stop_rules_hint" />
+        <!-- B6（N3）：统一「按网络」规则表，取代 F1 独立规则编辑入口；单开关、单规则表。 -->
+        <SwitchPreference app:key="smartAutoStopEnabled" app:defaultValue="false" app:title="@string/network_rules_title" app:summary="@string/network_rules_summary" />
+        <Preference app:key="networkRules" app:title="@string/network_rules_title" app:summary="@string/network_rules_summary" app:persistent="false" />
         <Preference app:key="smartAutoStopPermission" app:title="@string/smart_auto_stop_permission" app:persistent="false" />
+
+        <!-- B6（N4）：共享网络接管（默认关闭，仅 eBPF 共享路径）。 -->
+        <SwitchPreference app:key="sharedInterceptionEnabled" app:defaultValue="false" app:title="@string/shared_interception_title" app:summary="@string/shared_interception_summary" />
+        <Preference app:key="sharedInterceptionInterfaces" app:title="@string/shared_interception_interfaces" app:summary="@string/shared_interception_interfaces_summary" app:persistent="false" />
+        <Preference app:key="sharedInterceptionDataPlane" app:title="@string/shared_interception_data_plane" app:persistent="false" />
+        <SwitchPreference app:key="sharedInterceptionDefaultInterface" app:defaultValue="false" app:title="@string/shared_interception_default_interface" app:summary="@string/shared_interception_default_interface_summary" />
+        <EditTextPreference app:key="sharedInterceptionUdpTimeout" app:defaultValue="300" app:title="@string/shared_interception_udp_timeout" app:persistent="false" />
+        <EditTextPreference app:key="sharedInterceptionIncludeCidr" app:defaultValue="" app:title="@string/shared_interception_include_cidr" app:summary="@string/shared_interception_filter_hint" app:persistent="false" />
+        <EditTextPreference app:key="sharedInterceptionExcludeCidr" app:defaultValue="" app:title="@string/shared_interception_exclude_cidr" app:summary="@string/shared_interception_filter_hint" app:persistent="false" />
+        <EditTextPreference app:key="sharedInterceptionIncludeMac" app:defaultValue="" app:title="@string/shared_interception_include_mac" app:summary="@string/shared_interception_filter_hint" app:persistent="false" />
+        <EditTextPreference app:key="sharedInterceptionExcludeMac" app:defaultValue="" app:title="@string/shared_interception_exclude_mac" app:summary="@string/shared_interception_filter_hint" app:persistent="false" />
 
         <EditTextPreference
             app:defaultValue="https://dns.google/dns-query"

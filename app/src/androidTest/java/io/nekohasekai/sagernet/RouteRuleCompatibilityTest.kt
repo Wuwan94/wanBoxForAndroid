@@ -24,16 +24,19 @@ class RouteRuleCompatibilityTest {
             execSQL("INSERT INTO rules (id,name,config,userOrder,enabled,domains,ip,port,sourcePort,network,source,protocol,ruleset,outbound,packages) VALUES (81,'old','{\"future_match\":7}',37,1,'domain:example.com','192.0.2.0/24','443','1000:2000','tcp','10.0.0.0/8','tls','',-1,'com.example.app')")
             close()
         }
-        val db = Room.databaseBuilder(context, SagerDatabase::class.java, name).addMigrations(SagerDatabase.MIGRATION_9_10).build()
+        // N6：Room 10→11，测试侧 builder 也要带上 MIGRATION_10_11，否则 9→11 的链在 10 处断开。
+        val db = Room.databaseBuilder(context, SagerDatabase::class.java, name).addMigrations(SagerDatabase.MIGRATION_9_10, SagerDatabase.MIGRATION_10_11).build()
         try {
             val rule = db.rulesDao().getById(81)!!
-            assertEquals(10, db.openHelper.writableDatabase.version)
+            assertEquals(11, db.openHelper.writableDatabase.version)
             assertEquals(81L, rule.id); assertEquals(37L, rule.userOrder); assertTrue(rule.enabled)
             assertEquals(-1L, rule.outbound); assertEquals("domain:example.com", rule.domains)
             assertEquals("192.0.2.0/24", rule.ip); assertEquals("443", rule.port)
             assertEquals("1000:2000", rule.sourcePort); assertEquals("tcp", rule.network)
             assertEquals("10.0.0.0/8", rule.source); assertEquals("tls", rule.protocol)
             assertEquals(setOf("com.example.app"), rule.packages); assertEquals("{\"future_match\":7}", rule.config)
+            // N6 迁移只给 rules 表加可空列，旧行升级后 policyGroupId 应为 NULL（不指向任何策略组）。
+            assertNull(rule.policyGroupId)
         } finally { db.close() }
     }
     @Test fun legacyParcelAndNewAdvancedBackupRoundTripWithoutChangingFormat() {

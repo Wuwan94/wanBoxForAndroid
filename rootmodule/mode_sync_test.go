@@ -432,7 +432,6 @@ func TestAlignClashModeNetworkEdgeCases(t *testing.T) {
 	}
 }
 
-// Pin IPv4 rather than relying on httptest's automatic IPv6 fallback.
 func newIPv4ModeTestServer(t *testing.T, handler http.Handler) *httptest.Server {
 	t.Helper()
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
@@ -444,4 +443,76 @@ func newIPv4ModeTestServer(t *testing.T, handler http.Handler) *httptest.Server 
 	server.Listener = listener
 	server.Start()
 	return server
+}
+
+// B6（N3）：direct 动作经 Clash API 切换并回读确认；回读不匹配或 API 失败时
+// 只报错，不重载、不兜底。
+func TestSetRuntimeModeDirectSwitch(t *testing.T) {
+	validRev := strings.Repeat("d", 64)
+	var mu sync.Mutex
+	serverMode := "rule"
+	forcedGetMode := ""
+	ts := newIPv4ModeTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Header.Get("Authorization") != "Bearer tok-7" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if req.Method == http.MethodPatch {
+			var body map[string]string
+			if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			mu.Lock()
+			serverMode = body["mode"]
+			mu.Unlock()
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if req.Method == http.MethodGet {
+			mu.Lock()
+			mode := serverMode
+			if forcedGetMode != "" {
+				mode = forcedGetMode
+			}
+			mu.Unlock()
+			_ = json.NewEncoder(w).Encode(map[string]string{"mode": mode})
+			return
+		}
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}))
+	defer ts.Close()
+	u, _ := url.Parse(ts.URL)
+	client := &http.Client{Transport: &loopbackHostRewriter{targetHost: u.Host, rt: ts.Client().Transport}}
+	r := setupTestRuntime(t, validRev, `{"experimental":{"clash_api":{"external_controller":"127.0.0.1:9090","secret":"tok-7","default_mode":"rule"}}}`)
+	guard := func() error { return nil }
+
+	// 切换为 direct 并回读确认；默认模式（rule）不受影响。
+	if err := r.patchAndConfirmMode(context.Background(), validRev, client, "http://127.0.0.1:9090/configs", guard, "direct", "tok-7"); err != nil {
+		t.Fatalf("direct switch failed: %v", err)
+	}
+	mu.Lock()
+	if serverMode != "direct" {
+		t.Fatalf("server mode = %q, want direct", serverMode)
+	}
+	mu.Unlock()
+	// 回读不匹配：报错，不静默接受。
+	mu.Lock()
+	forcedGetMode = "rule"
+	mu.Unlock()
+	if err := r.patchAndConfirmMode(context.Background(), validRev, client, "http://127.0.0.1:9090/configs", guard, "direct", "tok-7"); err == nil || err.Error() != "mode_mismatch" {
+		t.Fatalf("expected mode_mismatch, got: %v", err)
+	}
+	mu.Lock()
+	forcedGetMode = ""
+	mu.Unlock()
+	// 非法模式在发请求前拒绝。
+	if err := r.SetRuntimeMode(context.Background(), validRev, ProcessIdentity{}, "pause"); err == nil || err.Error() != "invalid_runtime_mode" {
+		t.Fatalf("expected invalid_runtime_mode, got: %v", err)
+	}
+	// 无 Clash API 配置时 direct 不可用（Fail-Closed，不重载兜底）。
+	rNoAPI := setupTestRuntime(t, validRev, `{"experimental":{"clash_api":{"external_controller":"127.0.0.1:9090","secret":"tok-7"}}}`)
+	if err := rNoAPI.SetRuntimeMode(context.Background(), validRev, ProcessIdentity{}, "direct"); err == nil || err.Error() != "mode_api_unavailable" {
+		t.Fatalf("expected mode_api_unavailable, got: %v", err)
+	}
 }

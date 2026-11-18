@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.json.JSONObject
 import java.io.File
 import java.io.IOException
 import java.util.Base64
@@ -76,7 +77,7 @@ object RootModuleClient {
     const val CLI = "/data/adb/modules/wanbox/bin/wanboxctl"
     private val commands = setOf("status", "module", "logs", "dashboard", "start", "stop", "resume", "restart", "reload",
         "config apply", "config validate", "autostart on", "autostart off", "data prepare", "data finish", "data rollback",
-        "node failover", "node tags")
+        "node failover", "node tags", "diagnostics export")
     private val changes = Mutex()
     // @author 雾晚: status cache TTL. The foreground observer samples every
     // 2s, but its effective period is the 2s delay plus the sample itself
@@ -207,7 +208,8 @@ object RootModuleClient {
     }
     suspend fun call(command: String, input: File? = null): Status = withContext(Dispatchers.IO) {
         require(command in commands || command.matches(Regex("data selection-finish [a-f0-9]{32}"))
-                || command.matches(Regex("node select [1-9][0-9]{0,18}")))
+                || command.matches(Regex("node select [1-9][0-9]{0,18}"))
+                || command.matches(Regex("node (urltest|speedtest) [1-9][0-9]{0,18}")))
         require((command == "config apply" || command == "config validate") == (input != null))
         val query = when (command) {
             "status" -> RootModuleReadQuery.STATUS
@@ -440,6 +442,8 @@ object RootModuleClient {
         val timeoutMs = when {
             command in setOf("status", "dashboard", "module", "logs", "channel", "node tags") || command.startsWith("node select ") -> 15_000L
             command == "node failover" -> 60_000L
+            // B5（N1）：Root 测试会话的 Root 侧时限为超时 + 60/120 秒收尾；CLI 侧为 5 分钟。
+            command.startsWith("node urltest ") || command.startsWith("node speedtest ") -> 300_000L
             else -> 720_000L
         }
         return try {
@@ -451,6 +455,96 @@ object RootModuleClient {
         }
     }
     fun safeError(error: Exception): String = error.message?.takeIf { it.matches(Regex("[a-z_]{1,80}")) } ?: "module_operation_failed"
+
+    // B5：结果返回型命令（diagnostics export / node urltest / node speedtest）
+    // 的 stdout 是结果 JSON 或 {"error":"<stable_token>"}；非 JSON 一律按协议错误处理。
+    private fun parseResultJson(raw: String): JSONObject = try {
+        JSONObject(raw)
+    } catch (_: Exception) {
+        throw IOException("module_status_invalid")
+    }
+
+    private fun resultError(json: JSONObject): String? =
+        json.optString("error").takeIf { it.isNotEmpty() }
+
+    // B5（N2）：导出脱敏诊断包。stdin 传 DiagnosticsRequest JSON；成功时返回
+    // 缺失条目清单（无缺失为空列表），失败时抛稳定错误 token 的 IOException。
+    // 目标必须是系统 Download 目录下的 wanbox-diagnostics-*.tar.gz，
+    // 由 wanboxctl 再校验一次；不改变模块状态，不走状态缓存。
+    suspend fun exportDiagnostics(destination: String, versions: DiagnosticsVersions): List<String> =
+        withContext(Dispatchers.IO) {
+            val file = File.createTempFile("diagnostics-request-", ".json", SagerNet.application.cacheDir)
+            try {
+                file.writeText(JSONObject().apply {
+                    put("destination", destination)
+                    put("appVersion", versions.appVersion)
+                    put("appVersionCode", versions.appVersionCode)
+                    put("previewVersion", versions.previewVersion)
+                    put("previewVersionCode", versions.previewVersionCode)
+                    put("singBoxVersion", versions.singBoxVersion)
+                }.toString())
+                val json = parseResultJson(doCallRaw("diagnostics export", file))
+                resultError(json)?.let { throw IOException(it) }
+                val missing = json.optJSONArray("missing") ?: throw IOException("module_status_invalid")
+                List(missing.length()) { missing.optString(it) }
+            } finally {
+                file.delete()
+            }
+        }
+
+    // B5（N1）：停止态 URL 探测。configJson 为 App 生成的最小测试配置
+    // （forTest=true），经 stdin 传给 wanboxctl，由 Root 侧短生命周期
+    // 测试会话执行；返回毫秒延迟。
+    suspend fun urlTest(profileId: Long, configJson: String, url: String, timeoutMs: Int): Int =
+        withContext(Dispatchers.IO) {
+            require(profileId > 0)
+            require(timeoutMs in 1_000..60_000)
+            val file = File.createTempFile("node-urltest-", ".json", SagerNet.application.cacheDir)
+            try {
+                file.writeText(JSONObject().apply {
+                    put("config", configJson)
+                    put("url", url)
+                    put("timeoutMs", timeoutMs)
+                }.toString())
+                val json = parseResultJson(doCallRaw("node urltest $profileId", file))
+                resultError(json)?.let { throw IOException(it) }
+                val delay = json.optInt("delayMs", -1)
+                if (delay !in 1..60_000) throw IOException("node_test_invalid_result")
+                delay
+            } finally {
+                file.delete()
+            }
+        }
+
+    // B5（N1）：停止态速度测试。与 urlTest 同为 Root 侧短生命周期测试会话；
+    // 结果 JSON 的字段名与 libcore.SpeedTestResult 的 Go 字段名一致。
+    suspend fun speedTest(
+        profileId: Long,
+        configJson: String,
+        mode: String,
+        timeoutMs: Int,
+        serverListURL: String,
+        fallbackServerListURL: String,
+        simpleDownloadURL: String,
+    ): RootSpeedTestResult = withContext(Dispatchers.IO) {
+        require(profileId > 0)
+        val file = File.createTempFile("node-speedtest-", ".json", SagerNet.application.cacheDir)
+        try {
+            file.writeText(JSONObject().apply {
+                put("config", configJson)
+                put("mode", mode)
+                put("timeoutMs", timeoutMs)
+                put("serverListURL", serverListURL)
+                put("fallbackServerListURL", fallbackServerListURL)
+                put("simpleDownloadURL", simpleDownloadURL)
+            }.toString())
+            val json = parseResultJson(doCallRaw("node speedtest $profileId", file))
+            resultError(json)?.let { throw IOException(it) }
+            RootSpeedTestResult.parse(json)
+        } finally {
+            file.delete()
+        }
+    }
     suspend fun startOrReload(startIfStopped: Boolean = true): Status = withContext(Dispatchers.IO) {
         RootModuleDataUpdate.applyInstallerSelection()
         if (!startIfStopped) changes.lock()
@@ -883,22 +977,70 @@ internal class RootModuleSnapshot(private val instance: ProxyInstance, private v
             }
             addBytes("files/health_check.json", policy.toString().toByteArray())
         }
-        val autoStop = JsonObject().apply {
-            addProperty("enabled", DataStore.smartAutoStopEnabled)
-            add("rules", com.google.gson.JsonArray().apply {
-                SmartAutoStopRuleParser.parse(DataStore.smartAutoStopRules).getOrElse {
-                    Logs.w("Smart auto-stop rules invalid; using empty rules")
-                    emptyList()
-                }.forEach { add(it) }
-            })
-            addProperty("appPackage", io.nekohasekai.sagernet.BuildConfig.APPLICATION_ID)
-            addProperty("userId", SmartAutoStopAndroidUser.fromUid(android.os.Process.myUid()))
+        // B6（N3）：统一按网络规则表（单规则表，F1 与 N3 合并；旧 smart_auto_stop.json
+        // 不再写入——同发布集的模块读新表；旧快照的旧文件由 Root 回退迁移）。
+        runCatching {
+            val policy = io.nekohasekai.sagernet.bg.NetworkRules.currentPolicyForSnapshot()
+            addBytes("files/network_rules.json", io.nekohasekai.sagernet.bg.NetworkRules.serialize(policy).toByteArray())
         }
-        addBytes("files/smart_auto_stop.json", autoStop.toString().toByteArray())
+        // B6（N4）：共享接管配置（默认关闭；Root 在 supervise 前预检，失败拒绝启动）。
+        runCatching {
+            val shared = io.nekohasekai.sagernet.bg.SharedInterception.parse(DataStore.sharedInterceptionConfig)
+                .getOrDefault(io.nekohasekai.sagernet.bg.SharedInterception.defaults())
+                .copy(enabled = DataStore.sharedInterceptionEnabled, defaultInterface = DataStore.sharedInterceptionDefaultInterface)
+            addBytes("files/shared_interception.json", io.nekohasekai.sagernet.bg.SharedInterception.serialize(shared).toByteArray())
+        }
         val encoded = JsonObject(); files.forEach { (name, bytes) -> encoded.addProperty(name, Base64.getEncoder().encodeToString(bytes)) }
         return JsonObject().apply {
             addProperty("schemaVersion", 1); addProperty("expectedRevision", revision); add("config", config); add("files", encoded); add("plugins", plugins)
             addProperty("autoStart", DataStore.persistAcrossReboot); addProperty("performancePriority", DataStore.performancePriorityMode); addProperty("profileId", instance.profile.id); addProperty("profileName", instance.displayProfileName)
         }
+    }
+}
+
+// B5（N2）：诊断包 README 里的版本信息。appVersionCode / previewVersionCode
+// 取原始值（BuildConfig.VERSION_CODE_RAW / PRE_VERSION_CODE_RAW），
+// 不是经 apkVersionCode 变换后的 BuildConfig.VERSION_CODE。
+data class DiagnosticsVersions(
+    val appVersion: String,
+    val appVersionCode: Int,
+    val previewVersion: String,
+    val previewVersionCode: Int,
+    val singBoxVersion: String,
+)
+
+// B5（N1）：Root 侧速度测试结果。字段名与 libcore.SpeedTestResult 的 Go
+// 字段名一致（无 JSON tag），由 wanboxctl --speed-test 的 stdout 解析。
+data class RootSpeedTestResult(
+    val profileKey: String,
+    val mode: String,
+    val stage: String,
+    val downloadBitsPerSecond: Long,
+    val uploadBitsPerSecond: Long,
+    val downloadBytes: Long,
+    val uploadBytes: Long,
+    val latencyMs: Long,
+    val serverName: String,
+    val serverCountry: String,
+    val error: String,
+    val cancelled: Boolean,
+    val done: Boolean,
+) {
+    companion object {
+        fun parse(json: JSONObject): RootSpeedTestResult = RootSpeedTestResult(
+            profileKey = json.optString("ProfileKey"),
+            mode = json.optString("Mode"),
+            stage = json.optString("Stage"),
+            downloadBitsPerSecond = json.optLong("DownloadBitsPerSecond"),
+            uploadBitsPerSecond = json.optLong("UploadBitsPerSecond"),
+            downloadBytes = json.optLong("DownloadBytes"),
+            uploadBytes = json.optLong("UploadBytes"),
+            latencyMs = json.optLong("LatencyMs"),
+            serverName = json.optString("ServerName"),
+            serverCountry = json.optString("ServerCountry"),
+            error = json.optString("Error"),
+            cancelled = json.optBoolean("Cancelled"),
+            done = json.optBoolean("Done"),
+        )
     }
 }

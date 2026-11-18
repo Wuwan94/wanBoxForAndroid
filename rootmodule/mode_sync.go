@@ -120,28 +120,41 @@ func drainBoundedResponse(body io.ReadCloser, maxBytes int64) ([]byte, error) {
 	return data, nil
 }
 
-func (r *Runtime) AlignClashMode(ctx context.Context, revision string, core ProcessIdentity) error {
-	guard := func() error {
-		return r.checkGenerationMatch(revision, core)
+// SetRuntimeMode sets only the runtime mode through the Clash API and reads it
+// back for confirmation. It never touches the configured default mode: leaving
+// a `direct` network restores the default via AlignClashMode. An API failure
+// MUST NOT fall back to a config reload (Fail-Closed: keep the current mode
+// and report the error). B6（N3）: the `direct` action of unified network rules.
+func (r *Runtime) SetRuntimeMode(ctx context.Context, revision string, core ProcessIdentity, mode string) error {
+	switch mode {
+	case "rule", "global", "direct":
+	default:
+		return errors.New("invalid_runtime_mode")
 	}
-	return r.alignClashModeInternal(ctx, revision, loopbackClient, "http://127.0.0.1:9090/configs", guard)
-}
-
-func (r *Runtime) alignClashModeInternal(
-	ctx context.Context,
-	revision string,
-	client *http.Client,
-	endpoint string,
-	guard func() error,
-) error {
 	target, err := r.readClashModeTarget(revision)
 	if err != nil {
 		return err
 	}
 	if target.Skip {
-		return nil
+		return errors.New("mode_api_unavailable")
 	}
+	guard := func() error {
+		return r.checkGenerationMatch(revision, core)
+	}
+	return r.patchAndConfirmMode(ctx, revision, loopbackClient, "http://127.0.0.1:9090/configs", guard, mode, target.Secret)
+}
 
+// patchAndConfirmMode PATCHes the Clash API mode and GETs it back; the
+// returned mode MUST equal the requested mode, otherwise the switch is
+// reported as failed and no reload is attempted.
+func (r *Runtime) patchAndConfirmMode(
+	ctx context.Context,
+	revision string,
+	client *http.Client,
+	endpoint string,
+	guard func() error,
+	mode, secret string,
+) error {
 	if err := guard(); err != nil {
 		return err
 	}
@@ -149,13 +162,13 @@ func (r *Runtime) alignClashModeInternal(
 	reqCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	patchPayload, _ := json.Marshal(map[string]string{"mode": target.Mode})
+	patchPayload, _ := json.Marshal(map[string]string{"mode": mode})
 	patchReq, err := http.NewRequestWithContext(reqCtx, http.MethodPatch, endpoint, bytes.NewReader(patchPayload))
 	if err != nil {
 		return errors.New("patch_request_failed")
 	}
 	patchReq.Header.Set("Content-Type", "application/json")
-	patchReq.Header.Set("Authorization", "Bearer "+target.Secret)
+	patchReq.Header.Set("Authorization", "Bearer "+secret)
 
 	patchResp, err := client.Do(patchReq)
 	if err != nil {
@@ -176,7 +189,7 @@ func (r *Runtime) alignClashModeInternal(
 	if err != nil {
 		return errors.New("get_request_failed")
 	}
-	getReq.Header.Set("Authorization", "Bearer "+target.Secret)
+	getReq.Header.Set("Authorization", "Bearer "+secret)
 
 	getResp, err := client.Do(getReq)
 	if err != nil {
@@ -201,8 +214,33 @@ func (r *Runtime) alignClashModeInternal(
 		return err
 	}
 
-	if !strings.EqualFold(res.Mode, target.Mode) {
+	if !strings.EqualFold(res.Mode, mode) {
 		return errors.New("mode_mismatch")
 	}
 	return nil
+}
+
+func (r *Runtime) AlignClashMode(ctx context.Context, revision string, core ProcessIdentity) error {
+	guard := func() error {
+		return r.checkGenerationMatch(revision, core)
+	}
+	return r.alignClashModeInternal(ctx, revision, loopbackClient, "http://127.0.0.1:9090/configs", guard)
+}
+
+func (r *Runtime) alignClashModeInternal(
+	ctx context.Context,
+	revision string,
+	client *http.Client,
+	endpoint string,
+	guard func() error,
+) error {
+	target, err := r.readClashModeTarget(revision)
+	if err != nil {
+		return err
+	}
+	if target.Skip {
+		return nil
+	}
+
+	return r.patchAndConfirmMode(ctx, revision, client, endpoint, guard, target.Mode, target.Secret)
 }

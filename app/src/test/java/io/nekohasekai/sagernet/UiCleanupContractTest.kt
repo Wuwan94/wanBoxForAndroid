@@ -26,10 +26,16 @@ class UiCleanupContractTest {
 
     @Test fun coreOnlyEntriesAreHiddenInThinManager() {
         val nodes = source("java/io/nekohasekai/sagernet/ui/ConfigurationFragment.kt")
-        // phase2 D1: thin build removes the items outright
-        assertTrue(nodes.contains("findItem(R.id.action_connection_url_test)?.let { toolbar.menu.removeItem(it.itemId) }"))
-        assertTrue(nodes.contains("findItem(R.id.action_speed_test_group)?.let { toolbar.menu.removeItem(it.itemId) }"))
-        assertTrue(nodes.contains("popup.menu.removeItem(R.id.action_test_profile_speed)"))
+        // phase2 D1 已由 B5（N1）反转：停核测速改走 Root 短生命周期测试会话后，
+        // 配置页工具栏与单节点弹出菜单的测速入口不再移除（瘦管理器也能测速），
+        // 服务停下时节点列表另有提示；其余依赖内嵌核心的入口仍隐藏。
+        assertTrue(nodes.contains("toolbar.menu.findItem(R.id.action_connection_url_test)?.setTitle(R.string.menu_url_test_all)"))
+        assertTrue(nodes.contains("toolbar.menu.findItem(R.id.action_speed_test_group)?.setTitle(R.string.menu_speed_test_all)"))
+        assertTrue(nodes.contains("R.id.action_test_profile_speed -> {"))
+        assertTrue(nodes.contains("R.string.stopped_nodes_hint"))
+        assertFalse(nodes.contains("toolbar.menu.removeItem(R.id.action_connection_url_test)"))
+        assertFalse(nodes.contains("toolbar.menu.removeItem(R.id.action_speed_test_group)"))
+        assertFalse(nodes.contains("popup.menu.removeItem(R.id.action_test_profile_speed)"))
         assertTrue(source("java/io/nekohasekai/sagernet/ui/NetworkFragment.kt")
             .contains("binding.stunCard.isVisible = CoreRuntime.available"))
         // phase2 D2: StunActivity closes immediately in thin builds; D5: legacy drawer deleted

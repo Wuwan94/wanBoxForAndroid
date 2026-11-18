@@ -260,6 +260,17 @@ func CheckSnapshot(s Snapshot) error {
 			return err
 		}
 	}
+	// B6（N3/N4）：统一按网络规则表与共享接管配置随快照校验。
+	if b, ok := s.Files["files/"+networkRulesFile]; ok {
+		if _, err := CheckNetworkPolicy(b); err != nil {
+			return err
+		}
+	}
+	if b, ok := s.Files["files/"+sharedInterceptionFile]; ok {
+		if _, err := CheckSharedConfig(b); err != nil {
+			return err
+		}
+	}
 	var size int
 	for name, data := range s.Files {
 		if !safeRelative(name) || !(strings.HasPrefix(name, "assets/") || strings.HasPrefix(name, "files/") || strings.HasPrefix(name, "plugins/")) {

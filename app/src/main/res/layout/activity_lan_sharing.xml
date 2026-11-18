@@ -170,6 +170,15 @@
                                 android:textAppearance="?attr/textAppearanceCaption"
                                 android:textColor="?android:attr/textColorSecondary" />
 
+                            <!-- B6（N4）：LAN 网关 ≠ 共享流量接管；接管需要 eBPF 共享路径。 -->
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="6dp"
+                                android:text="@string/shared_interception_tun_note"
+                                android:textAppearance="?attr/textAppearanceCaption"
+                                android:textColor="?android:attr/textColorSecondary" />
+
                         </LinearLayout>
 
                         <com.google.android.material.switchmaterial.SwitchMaterial

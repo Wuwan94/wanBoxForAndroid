@@ -14,6 +14,15 @@ object Key {
     const val MODE_ROOT = "root"
     const val SMART_AUTO_STOP_ENABLED = "smartAutoStopEnabled"
     const val SMART_AUTO_STOP_RULES = "smartAutoStopRules"
+    // B6（N3）：统一按网络规则表 JSON（见 bg.NetworkRules；开关复用 SMART_AUTO_STOP_ENABLED）。
+    const val NETWORK_RULES = "networkRules"
+    // B6（N4）：共享接管开关与配置 JSON（见 bg.SharedInterception）。
+    const val SHARED_INTERCEPTION_ENABLED = "sharedInterceptionEnabled"
+    const val SHARED_INTERCEPTION_CONFIG = "sharedInterceptionConfig"
+    const val SHARED_INTERCEPTION_DEFAULT_INTERFACE = "sharedInterceptionDefaultInterface"
+    // B6（N5）：分应用名单新键（<userId>:<package> 行）与无法反查的旧行（只读保留）。
+    const val INDIVIDUAL_PER_USER = "individualPerUser"
+    const val INDIVIDUAL_UNRESOLVED = "individualUnresolved"
     const val GLOBAL_CUSTOM_CONFIG = "globalCustomConfig"
     const val REMOTE_DNS = "remoteDns"
     const val DIRECT_DNS = "directDns"
@@ -152,6 +161,7 @@ object Key {
     const val ROUTE_PROTOCOL = "routeProtocol"
     const val ROUTE_RULESET = "routeRuleset"
     const val ROUTE_OUTBOUND = "routeOutbound"
+    const val ROUTE_POLICY_GROUP = "routePolicyGroup"
     const val ROUTE_PACKAGES = "routePackages"
     const val GROUP_NAME = "groupName"
     const val GROUP_TYPE = "groupType"

@@ -32,6 +32,11 @@ android {
         )
         // @author 雾晚 (B 路线): 运行时能力闸门（见 io.nekohasekai.sagernet.core.CoreRuntime）。
         buildConfigField("boolean", "WITH_CORE", (!wanboxThin).toString())
+        // B5（N2）：诊断包 README 用原始版本码（未经 apkVersionCode 变换）
+        // 与内核版本。PRE_VERSION_NAME / PRE_VERSION_CODE_RAW 由 buildSrc 的
+        // setupApp 按 flavor 设置（稳定版为空/0，预览 flavor 为真值），这里不重复定义。
+        buildConfigField("int", "VERSION_CODE_RAW", requireMetadata().getProperty("VERSION_CODE"))
+        buildConfigField("String", "SINGBOX_VERSION", "\"${requireMetadata().getProperty("SINGBOX_VERSION")}\"")
     }
     // Internal x86_64 verification is never a published ABI.
     if (providers.gradleProperty("wanboxReleaseTests").isPresent) {
