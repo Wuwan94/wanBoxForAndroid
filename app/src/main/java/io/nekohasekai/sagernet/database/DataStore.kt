@@ -115,6 +115,15 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var healthCheckMode by configurationStore.string("healthCheckMode") { "notify" }
     var smartAutoStopEnabled by configurationStore.boolean(Key.SMART_AUTO_STOP_ENABLED) { false }
     var smartAutoStopRules by configurationStore.string(Key.SMART_AUTO_STOP_RULES) { "" }
+    // B6（N3）：统一按网络规则表 JSON；开关复用 smartAutoStopEnabled（单规则表、单开关）。
+    var networkRulesJson by configurationStore.string(Key.NETWORK_RULES) { "" }
+    // B6（N4）：共享接管开关与配置 JSON；默认关闭。
+    var sharedInterceptionEnabled by configurationStore.boolean(Key.SHARED_INTERCEPTION_ENABLED) { false }
+    var sharedInterceptionConfig by configurationStore.string(Key.SHARED_INTERCEPTION_CONFIG) { "" }
+    var sharedInterceptionDefaultInterface by configurationStore.boolean(Key.SHARED_INTERCEPTION_DEFAULT_INTERFACE) { false }
+    // B6（N5）：分应用名单新键；individual 为旧字段（迁移源，只读保留，本轮不设清理版本）。
+    var individualPerUser by configurationStore.string(Key.INDIVIDUAL_PER_USER) { "" }
+    var individualUnresolved by configurationStore.string(Key.INDIVIDUAL_UNRESOLVED) { "" }
     var themeMilkTeaMigrated by configurationStore.boolean("themeMilkTeaMigrated") { false }
     val useSystemTheme: Boolean get() = false
     var nightTheme by configurationStore.stringToInt(Key.NIGHT_THEME)
@@ -350,6 +359,8 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var routeRuleset by profileCacheStore.string(Key.ROUTE_RULESET)
     var routeOutbound by profileCacheStore.stringToInt(Key.ROUTE_OUTBOUND)
     var routeOutboundRule by profileCacheStore.long(Key.ROUTE_OUTBOUND + "Long")
+    /** N6：编辑态的策略组目标，0 表示未指定。 */
+    var routePolicyGroup by profileCacheStore.long(Key.ROUTE_POLICY_GROUP)
     var routePackages by profileCacheStore.string(Key.ROUTE_PACKAGES)
     var frontProxy by profileCacheStore.long(Key.GROUP_FRONT_PROXY + "Long")
     var landingProxy by profileCacheStore.long(Key.GROUP_LANDING_PROXY + "Long")

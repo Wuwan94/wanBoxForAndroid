@@ -523,7 +523,8 @@ func runMonitor(ctx context.Context, hc HealthCheck, d monitorDeps) error {
 
 // monitorGeneration wires runMonitor to the live generation and supervisor state.
 func (r *Runtime) monitorGeneration(ctx context.Context, rev string, s *State, mu *sync.Mutex, persist func(), suppressed *string) error {
-	policy, _ := readAutoStop(r.path("generations", rev, "files", autoStopFile))
+	// B6（N3）：统一按网络规则表；旧 F1 文件不存在新表时回退迁移。
+	policy, _ := readUnifiedPolicy(r.path("generations", rev, "files"))
 	hc := r.loadHealthCheck(rev)
 	c, e := r.clashClientFor(rev)
 	if e != nil {
@@ -566,9 +567,60 @@ func (r *Runtime) monitorGeneration(ctx context.Context, rev string, s *State, m
 		mu.Unlock()
 		return true
 	}
+	// B6（N3）：direct 动作在 monitor 层应用。裁决每 tick 重新评估，但模式
+	// 切换只在动作变化时执行一次；离开 direct 网络时用 AlignClashMode 恢复
+	// 默认模式；API 失败不重载、不重试风暴，只记录事件并保持当前模式。
+	// 指纹未知时保持当前状态，只在转为未知时记录一次；开机首次评估未知时
+	// 校准一次默认模式（与上游“开机未知时校准默认模式”一致）。
+	lastAction := ""
+	unknownRecorded := false
+	calibrated := false
+	applyNetworkAction := func(d networkDecision) networkDecision {
+		if !d.Known {
+			if !unknownRecorded {
+				unknownRecorded = true
+				r.recordEvent("network_unknown")
+			}
+			if !calibrated {
+				calibrated = true
+				mu.Lock()
+				core := s.Core
+				mu.Unlock()
+				if err := r.AlignClashMode(ctx, rev, core); err == nil {
+					r.recordEvent("network_calibrate_default")
+				}
+			}
+			return d
+		}
+		unknownRecorded = false
+		if d.Action == "direct" && lastAction != "direct" {
+			mu.Lock()
+			core := s.Core
+			mu.Unlock()
+			if err := r.SetRuntimeMode(ctx, rev, core, "direct"); err != nil {
+				r.recordEvent("network_direct_failed")
+			} else {
+				lastAction = "direct"
+				r.recordEvent("network_direct")
+			}
+		} else if lastAction == "direct" && d.Action != "direct" {
+			mu.Lock()
+			core := s.Core
+			mu.Unlock()
+			if err := r.AlignClashMode(ctx, rev, core); err != nil {
+				r.recordEvent("network_direct_restore_failed")
+			} else {
+				lastAction = d.Action
+				r.recordEvent("network_direct_restored")
+			}
+		} else {
+			lastAction = d.Action
+		}
+		return d
+	}
 	return runMonitor(ctx, hc, monitorDeps{
 		fingerprint: func() networkDecision {
-			return r.monitorNetworkDecision(policy, suppressed)
+			return applyNetworkAction(r.monitorUnifiedNetworkDecision(policy, suppressed))
 		},
 		probe:    probe,
 		failover: failover,

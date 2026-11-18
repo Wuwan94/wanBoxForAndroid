@@ -78,6 +78,9 @@ object PackageCache {
     // per-app rules would miss their traffic. Resolve all users' UIDs via root pm.
     private const val MULTI_USER_TTL_MS = 5 * 60 * 1000L
     @Volatile private var multiUserMap: Map<String, List<Int>> = emptyMap()
+    // B6（N5）：按用户归属的跨用户 UID 映射（userId -> package -> UIDs）。
+    // 同一包名在不同用户下是不同条目，不得跨用户合并 UID。
+    @Volatile private var multiUserMapByUser: Map<Int, Map<String, List<Int>>> = emptyMap()
     @Volatile private var multiUserMapAt = 0L
     private val multiUserMutex = Mutex()
 
@@ -87,7 +90,11 @@ object PackageCache {
         multiUserMutex.withLock {
             if (System.currentTimeMillis() - multiUserMapAt < MULTI_USER_TTL_MS) return
             val fresh = runCatching { queryMultiUserUids() }.getOrDefault(emptyMap())
-            multiUserMap = fresh
+            multiUserMapByUser = fresh
+            multiUserMap = fresh.values.fold(mutableMapOf<String, MutableList<Int>>()) { acc, perUser ->
+                perUser.forEach { (pkg, uids) -> acc.getOrPut(pkg) { mutableListOf() }.addAll(uids) }
+                acc
+            }
             multiUserMapAt = System.currentTimeMillis()
         }
     }
@@ -100,7 +107,39 @@ object PackageCache {
         return out.toList()
     }
 
-    private fun queryMultiUserUids(): Map<String, List<Int>> {
+    /** B6（N5）：指定用户下指定包的 UID（分身/工作资料各自分开）。 */
+    fun uidsForUserPackage(userId: Int, packageName: String): List<Int> {
+        if (userId == 0) {
+            val out = linkedSetOf<Int>()
+            packageMap[packageName]?.let { out.add(it) }
+            multiUserMapByUser[0]?.get(packageName)?.let { out.addAll(it) }
+            return out.toList()
+        }
+        return multiUserMapByUser[userId]?.get(packageName)?.toList().orEmpty()
+    }
+
+    /** B6（N5）：该包名已安装的所有用户（含当前用户）。 */
+    fun usersForPackage(packageName: String): List<Int> {
+        val users = linkedSetOf<Int>()
+        if (packageMap.containsKey(packageName)) users.add(0)
+        multiUserMapByUser.forEach { (userId, pkgs) ->
+            if (pkgs.containsKey(packageName)) users.add(userId)
+        }
+        return users.sorted()
+    }
+
+    /** B6（N5）：其他用户的应用条目（userId, package, uid），供分应用列表按用户展示。 */
+    fun multiUserEntries(): List<Triple<Int, String, Int>> {
+        val out = mutableListOf<Triple<Int, String, Int>>()
+        multiUserMapByUser.forEach { (userId, pkgs) ->
+            pkgs.forEach { (pkg, uids) ->
+                uids.forEach { uid -> out.add(Triple(userId, pkg, uid)) }
+            }
+        }
+        return out.sortedWith(compareBy({ it.second }, { it.first }))
+    }
+
+    private fun queryMultiUserUids(): Map<Int, Map<String, List<Int>>> {
         fun su(cmd: String): String {
             val p = ProcessBuilder("su", "-c", cmd).start()
             try {
@@ -118,17 +157,18 @@ object PackageCache {
             .filter { it != myUser }
             .toList()
         if (users.isEmpty()) return emptyMap()
-        val map = mutableMapOf<String, MutableList<Int>>()
+        val map = mutableMapOf<Int, MutableMap<String, MutableList<Int>>>()
         for (u in users) {
             // package:com.example uid:1010123
             su("pm list packages --user $u -U").lineSequence().forEach { line ->
                 val m = Regex("""^package:([^\s]+)\s+uid:(\d+)$""").find(line.trim()) ?: return@forEach
                 val uid = m.groupValues[2].toIntOrNull() ?: return@forEach
-                if (uid >= 1000) map.getOrPut(m.groupValues[1]) { mutableListOf() }.add(uid)
+                if (uid >= 1000) map.getOrPut(u) { mutableMapOf() }
+                    .getOrPut(m.groupValues[1]) { mutableListOf() }.add(uid)
             }
         }
         // @author 雾晚: identifiers/counts only; never log package names.
-        io.nekohasekai.sagernet.ktx.Logs.d("PackageCache: multi-user uid map users=${users.size} packages=${map.size}")
+        io.nekohasekai.sagernet.ktx.Logs.d("PackageCache: multi-user uid map users=${users.size} packages=${map.values.sumOf { it.size }}")
         return map
     }
 

@@ -3,6 +3,8 @@ package io.nekohasekai.sagernet.fmt
 
 import android.widget.Toast
 import io.nekohasekai.sagernet.*
+import io.nekohasekai.sagernet.bg.PerUserApps
+import io.nekohasekai.sagernet.bg.SharedInterception
 import io.nekohasekai.sagernet.bg.TunAddresses
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ProxyEntity
@@ -793,29 +795,44 @@ fun buildConfig(
         inbounds = mutableListOf()
 
         if (!forTest) {
+            // B6（N5）：分应用名单按 <userId>:<package> 解析（Root 侧按用户查
+            // package service 后合并；同一包名在不同用户下是不同条目）。
+            // 名单只筛选本机应用（进 local 路径的 include/exclude UID），
+            // 永不进入 shared 路径：仅 eBPF 共享路径时不查询应用 UID，
+            // 不把本机应用名单当成热点客户端过滤器。
+            val selectedUids = if (DataStore.proxyApps) {
+                PerUserApps.resolveUids(PerUserApps.currentRefs())
+                    .filter { it != SagerNet.application.applicationInfo.uid }
+            } else emptyList()
+            val uidFilter = rootEbpfUidFilter(
+                proxyApps = DataStore.proxyApps,
+                bypass = DataStore.bypass,
+                selectedUids = selectedUids,
+                appUid = SagerNet.application.applicationInfo.uid,
+                rootUidPolicy = DataStore.rootUidPolicy,
+            )
             if (useEbpfRootInbound) {
-                val selectedUids = if (DataStore.proxyApps) {
-                    PackageCache.awaitLoadSync()
-                    DataStore.individual.lineSequence()
-                        .map { it.trim() }
-                        .filter { it.isNotEmpty() }
-                        .flatMap { PackageCache.uidsForPackage(it) }
-                        .filter { it >= 1000 && it != SagerNet.application.applicationInfo.uid }
-                        .distinct()
-                        .toList()
-                } else emptyList()
-                val uidFilter = rootEbpfUidFilter(
-                    proxyApps = DataStore.proxyApps,
-                    bypass = DataStore.bypass,
-                    selectedUids = selectedUids,
-                    appUid = SagerNet.application.applicationInfo.uid,
-                    rootUidPolicy = DataStore.rootUidPolicy,
-                )
+                // B6（N4）：共享接管只走 eBPF 共享路径；默认关闭。
+                val sharedCfg = SharedInterception.parse(DataStore.sharedInterceptionConfig)
+                    .getOrDefault(SharedInterception.defaults())
                 inbounds.add(buildRootEbpfInbound(
                     includeUids = uidFilter.includeUids,
                     excludeUids = uidFilter.excludeUids,
                     ipv6 = ipv6Mode != IPv6Mode.DISABLE,
                     bypassPrivateAddress = DataStore.bypassLan,
+                    excludeUidRange = uidFilter.excludeUidRange,
+                    shared = RootEbpfSharedConfig(
+                        enabled = DataStore.sharedInterceptionEnabled && sharedCfg.interfaces.isNotEmpty(),
+                        interfaces = sharedCfg.interfaces,
+                        dataPlane = sharedCfg.dataPlane,
+                        dnsMode = sharedCfg.dnsMode,
+                        defaultInterface = DataStore.sharedInterceptionDefaultInterface,
+                        udpTimeout = SharedInterception.formatDuration(sharedCfg.udpTimeoutSeconds),
+                        includeSourceCidr = sharedCfg.includeSourceCidr,
+                        excludeSourceCidr = sharedCfg.excludeSourceCidr,
+                        includeMacAddress = sharedCfg.includeMacAddress,
+                        excludeMacAddress = sharedCfg.excludeMacAddress,
+                    ),
                 ))
             }
             if (useTun) inbounds.add(Inbound_TunOptions().apply {
@@ -832,18 +849,10 @@ fun buildConfig(
                 // @author 雾晚: Root TUN has no VpnService.Builder app filter. Apply
                 // the same selected-app UIDs here so system traffic is not captured
                 // unexpectedly when the user selected an allowlist in VPN settings.
+                // B6（N5）：与 eBPF 路径共用同一份按用户解析的 UID 名单与空白名单护栏；
+                // TUN 下共享接管明确不支持（不建 local/shared 映射）。
                 if (isRootTun && DataStore.proxyApps) {
-                    PackageCache.awaitLoadSync()
-                    val selectedUids = DataStore.individual.lineSequence()
-                        .map { it.trim() }
-                        .filter { it.isNotEmpty() }
-                        // @author 雾晚: include secondary users' UIDs so the app filter
-                        // covers cloned/dual apps as well.
-                        .flatMap { PackageCache.uidsForPackage(it) }
-                        .filter { it >= 1000 && it != SagerNet.application.applicationInfo.uid }
-                        .distinct()
-                        .toList()
-                                        /* preview.17: Root 进程 (UID 0) 独立策略 */ val rootUidExtra = when (DataStore.rootUidPolicy) { 1 -> listOf(0) else -> emptyList() }; if (DataStore.bypass) { val excludeList = selectedUids.toMutableList(); if (DataStore.rootUidPolicy == 2) { excludeList.add(0) }; exclude_uid = excludeList.takeIf { it.isNotEmpty() } } else { val includeList = (selectedUids + SagerNet.application.applicationInfo.uid + rootUidExtra).distinct(); include_uid = includeList.takeIf { it.isNotEmpty() } }; /* Global Root TUN also needs to honor an explicit UID 0 bypass. */ if (isRootTun && !DataStore.proxyApps && DataStore.rootUidPolicy == 2) { exclude_uid = listOf(0) }
+                                        /* preview.17: Root 进程 (UID 0) 独立策略 */ val rootUidExtra = when (DataStore.rootUidPolicy) { 1 -> listOf(0) else -> emptyList() }; if (DataStore.bypass) { val excludeList = selectedUids.toMutableList(); if (DataStore.rootUidPolicy == 2) { excludeList.add(0) }; exclude_uid = excludeList.takeIf { it.isNotEmpty() } } else if (uidFilter.excludeUidRange != null) { /* 空白名单护栏：只设 exclude_uid_range，不生成空 include_uid。 */ exclude_uid_range = uidFilter.excludeUidRange } else { val includeList = (selectedUids + SagerNet.application.applicationInfo.uid + rootUidExtra).distinct(); include_uid = includeList.takeIf { it.isNotEmpty() } }; /* Global Root TUN also needs to honor an explicit UID 0 bypass. */ if (isRootTun && !DataStore.proxyApps && DataStore.rootUidPolicy == 2) { exclude_uid = listOf(0) }
                 }
                 // sing-box 1.13 移除了入站 sniff/domain_strategy 字段，
                 // 改由路由规则动作实现（见下方 route.rules 构建处）；
@@ -1396,6 +1405,32 @@ fun buildConfig(
             }
         }
 
+        // N6：规则目标策略组。主组用已存在的 TAG_PROXY；被引用的非主组在此建一个
+        // selector 出站（tag 为 trim 后组名，与既有组 tag 契约一致），使规则的 outbound
+        // 能解析；建不出来的组（不存在、组名空白、成员为空、tag 已被他组占用）不记入
+        // 映射，引用它的规则随后按缺失出站处理（提示后丢弃，不静默回退主代理）。
+        // 位置在用户规则循环之前：这些出站必须先于末尾的出站 tag 同步检查存在。
+        val policyGroupTargetTags = mutableMapOf<Long, String>()
+        for (gid in io.nekohasekai.sagernet.route.RouteGroupTarget.referencedGroupIds(extraRules)) {
+            val target = allGroups.firstOrNull { it.id == gid } ?: continue
+            if (gid == proxy.groupId) {
+                policyGroupTargetTags[gid] = TAG_PROXY
+                continue
+            }
+            val tag = io.nekohasekai.sagernet.route.RouteGroupTarget.runtimeTag(target.name, false) ?: continue
+            val takenTags = outbounds.mapNotNull { it.asMap()["tag"]?.toString() }.toSet()
+            if (tag in takenTags || tag in policyGroupTargetTags.values) continue
+            val members = (editorDrafts[gid]?.members?.mapNotNull(::profileById) ?: profilesByGroup(gid))
+                .filter { !DataStore.isGroupDisabled(it.groupId) }
+            val memberTags = members.mapNotNull { member ->
+                tagMap[member.id] ?: buildChain(member.id, member).also { tagMap[member.id] = it }
+            }
+            if (memberTags.isEmpty()) continue
+            outbounds.add(buildSelectorOutbound(memberTags.firstOrNull(), memberTags, customTag = tag))
+            trafficMap[tag] = members
+            policyGroupTargetTags[gid] = tag
+        }
+
         val mainProxyTag = (if (buildSelector || useAutoSelect || useLoadBalance) TAG_PROXY else tagMap[proxy.id]) ?: TAG_PROXY
 
         if (!forTest) {
@@ -1613,11 +1648,18 @@ fun buildConfig(
                     }
                 }
 
-                val targetOutbound = when (val outId = rule.outbound) {
-                    0L -> mainProxyTag
-                    -1L -> TAG_BYPASS
-                    -2L -> TAG_BLOCK
-                    else -> if (outId == proxy.id) mainProxyTag else tagMap[outId] ?: ""
+                // N6：组目标优先于节点出站；映射缺失（组不存在/建不出 selector）
+                // 时取空串，随后走既有缺失出站分支（提示后丢弃该规则，不静默回退主代理）。
+                // 组目标规则仍在同一用户规则循环内生成：位于 clash_mode 全局/直连规则、
+                // 顶部 DNS 接管与链式快捷规则之后，内置站点分流（fallback 层）之前。
+                val targetOutbound = when {
+                    rule.policyGroupId != null -> policyGroupTargetTags[rule.policyGroupId] ?: ""
+                    else -> when (val outId = rule.outbound) {
+                        0L -> mainProxyTag
+                        -1L -> TAG_BYPASS
+                        -2L -> TAG_BLOCK
+                        else -> if (outId == proxy.id) mainProxyTag else tagMap[outId] ?: ""
+                    }
                 }
 
                 if (rule.packages.isNotEmpty()) {
