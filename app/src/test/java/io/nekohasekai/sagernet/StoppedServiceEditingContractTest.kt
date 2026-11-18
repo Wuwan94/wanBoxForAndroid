@@ -15,8 +15,12 @@ import io.nekohasekai.sagernet.group.editor.CandidateHost
 import io.nekohasekai.sagernet.group.editor.CandidateSnapshot
 import io.nekohasekai.sagernet.group.editor.CandidateStatus
 import io.nekohasekai.sagernet.group.editor.GroupCandidateCommit
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -94,6 +98,37 @@ class StoppedServiceEditingContractTest {
             assertEquals(name, 42, urlTest.doTest(profile, useCache = false))
             assertEquals(name, listOf(7L to "http://127.0.0.1/generate_204"), seen)
         }
+    }
+
+    @Test
+    fun concurrentRootTestSessionsFailFast() = runBlocking {
+        // 第一个 Root 测试会话占住共享目录时，第二个不得并行再拉一个 rootbox。
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val firstUrlTest = UrlTest(
+            overrideLink = "http://127.0.0.1/generate_204",
+            runningProfileTags = RunningProfileTagResolver(tagsReader = { throw ProfileNotInRunningConfigException() }),
+            controllerDelayClient = ThinControllerDelayClient(),
+            rootTestSession = { _, _ ->
+                entered.complete(Unit)
+                release.await()
+                42
+            },
+        )
+        val secondUrlTest = UrlTest(
+            overrideLink = "http://127.0.0.1/generate_204",
+            runningProfileTags = RunningProfileTagResolver(tagsReader = { throw ProfileNotInRunningConfigException() }),
+            controllerDelayClient = ThinControllerDelayClient(),
+            rootTestSession = { _, _ -> throw AssertionError("second rootbox must not start concurrently") },
+        )
+        val first = async(Dispatchers.Default) { firstUrlTest.doTest(ProxyEntity(id = 31, groupId = 1), useCache = false) }
+        withTimeout(2_000) { entered.await() }
+        val error = runCatching {
+            secondUrlTest.doTest(ProxyEntity(id = 32, groupId = 1), useCache = false)
+        }.exceptionOrNull()
+        assertTrue("expected url_test_busy, got $error", error is IOException && error.message == "url_test_busy")
+        release.complete(Unit)
+        assertEquals(42, withTimeout(2_000) { first.await() })
     }
 
     @Test

@@ -6,7 +6,13 @@ import io.nekohasekai.sagernet.core.CoreRuntime
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ProxyEntity
 import io.nekohasekai.sagernet.fmt.buildConfig
+import kotlinx.coroutines.sync.Mutex
 import java.io.IOException
+
+// P2：停核测速会在模块目录里拉起短生命周期 rootbox；多个测速并发时会同时
+// 起多个 rootbox 共享同一目录。用非阻塞互斥把 Root 测试会话串行化，占用时
+// 明确失败，而不是排队后一起压垮模块。
+private val rootTestSessionGate = Mutex()
 
 /** Node-core probes, bounded and retried by NodeTestRunner. @author 雾晚 */
 class UrlTest internal constructor(
@@ -59,7 +65,14 @@ class UrlTest internal constructor(
             }
         } catch (e: IOException) {
             if (e.message == "core_not_connected" || e is ProfileNotInRunningConfigException) {
-                rootTestSession(profile, link)
+                if (!rootTestSessionGate.tryLock()) {
+                    throw IOException("url_test_busy")
+                }
+                try {
+                    rootTestSession(profile, link)
+                } finally {
+                    rootTestSessionGate.unlock()
+                }
             } else throw e
         }
     }
