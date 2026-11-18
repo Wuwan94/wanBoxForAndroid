@@ -66,7 +66,8 @@ class AuditDatabaseTest {
                 close()
             }
             val room = Room.databaseBuilder(context, SagerDatabase::class.java, name)
-                .addMigrations(SagerDatabase.MIGRATION_1_2, SagerDatabase.MIGRATION_2_3, SagerDatabase.MIGRATION_9_10)
+                // N6：Room 10→11，测试侧 builder 也要带上 MIGRATION_10_11，否则 1→11 的链在 10 处断开。
+                .addMigrations(SagerDatabase.MIGRATION_1_2, SagerDatabase.MIGRATION_2_3, SagerDatabase.MIGRATION_9_10, SagerDatabase.MIGRATION_10_11)
                 .build()
             try {
                 room.openHelper.writableDatabase.query("SELECT name,frontProxy,landingProxy FROM proxy_groups WHERE id=7").use {
@@ -75,7 +76,7 @@ class AuditDatabaseTest {
                     assertEquals(-1L, it.getLong(1))
                     assertEquals(-1L, it.getLong(2))
                 }
-                assertEquals(10, room.openHelper.writableDatabase.version)
+                assertEquals(11, room.openHelper.writableDatabase.version)
             } finally { room.close() }
         }
     }
@@ -85,7 +86,7 @@ class AuditDatabaseTest {
         helper.createDatabase(name, 1).close()
         val file = context.getDatabasePath(name)
         val room = Room.databaseBuilder(context, SagerDatabase::class.java, name)
-            .addMigrations(object : Migration(1, 10) {
+            .addMigrations(object : Migration(1, 11) { // N6：当前版本已是 11，注入的失败迁移必须覆盖到 11 才会被执行。
                 override fun migrate(database: SupportSQLiteDatabase) {
                     database.execSQL("ALTER TABLE proxy_groups ADD COLUMN should_rollback TEXT")
                     throw IllegalStateException("injected migration failure")
