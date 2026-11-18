@@ -1,16 +1,16 @@
 # 发布、源码与版本对照
 
-核对日期：2026-11-18。发布状态以 GitHub Release、tag 与实际下载资产为准；源码元数据本身不构成已发布资产的核验。
+核对日期：2026-11-19。发布状态以 GitHub Release、tag 与实际下载资产为准；源码元数据本身不构成已发布资产的核验。
 
 | 对象 | 版本与状态 | 版本码及来源 |
 |---|---|---|
 | 已发布正式版 | [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14)，非 prerelease；由 3.0.14 预览线晋升 | APK / Root 模块 `10130 / 2026`（源码正式线 `VERSION_NAME=3.0.14`、`VERSION_CODE=2026`）；四件套文件名与发布回读数据见下文 |
-| 已发布预览版 | [v3.0.17-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.3)，prerelease；tag/commit `6adc5ac0bcbd87bf9ff4b2097fe367761a4bc841`（PR #69，2026-11-18T12:04:41Z 合并）；资产与 tag 同源出版 | APK `versionCode=10168` / Root 模块码 `2033`；PR 验证 `Verify Android Build` run `44295650161` 全绿，`Preview Build` run `44306599880`（发布 job 断言 `APPROVED_SHA=6adc5ac0`，回读 tag 一致） |
+| 已发布预览版 | [v3.0.17-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.4)，prerelease；tag/commit `906a6ea3f48779cc96c7a4116cfd1faeb63aa354`（PR #72，2026-11-18T19:13:48Z 合并）；资产与 tag 同源出版 | APK `versionCode=10174` / Root 模块码 `2034`；PR 验证 `Verify Android Build` run `44372679147` 全绿，`Preview Build` run `44378329740`（发布 job 断言 `APPROVED_SHA=906a6ea3`，回读 tag 一致） |
 | 上一正式版 | [v3.0.11](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11)，非 prerelease，保留；tag `03c6eb70854c797ee1e4069e378145be5ca56b0d` | APK / Root 模块 `10065 / 2013`（历史资产核验记录，归档语境） |
-| 发布基线 | [v3.0.17-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.3) 的 tag/commit `6adc5ac0bcbd87bf9ff4b2097fe367761a4bc841`（Release `targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 同为该提交） | 固定发布基线，不等同于后续 main HEAD |
-| 源码预览线 | `3.0.17-preview.4`（未发布候选；从 preview.3 已发布提交之后合入的修复构建，合并提交在发布后回填） | `PRE_VERSION_NAME=3.0.17-preview.4`、`PRE_VERSION_CODE=2034`；共享向量计算 APK `versionCode=10174`、Root 模块码 `2034` |
+| 发布基线 | [v3.0.17-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.4) 的 tag/commit `906a6ea3f48779cc96c7a4116cfd1faeb63aa354`（Release `targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 同为该提交） | 固定发布基线，不等同于后续 main HEAD |
+| 源码预览线 | `3.0.17-preview.4`（已发布，与上一行同一提交；下一预览升版前保持该值） | `PRE_VERSION_NAME=3.0.17-preview.4`、`PRE_VERSION_CODE=2034`；共享向量计算 APK `versionCode=10174`、Root 模块码 `2034` |
 
-源码元数据正式线保持 `VERSION_NAME=3.0.14`、`VERSION_CODE=2026`；preview.3 是当前已发布预览（APK `10168` / 模块 `2033`，源码 `6adc5ac0`），源码预览线已前移到 `PRE_VERSION_NAME=3.0.17-preview.4`、`PRE_VERSION_CODE=2034`，两者自此分离。稳定版与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变。preview.4 发布后，「源码预览线」与「已发布预览版」重新合流。
+源码元数据正式线保持 `VERSION_NAME=3.0.14`、`VERSION_CODE=2026`；preview.4 是当前已发布预览（APK `10174` / 模块 `2034`，源码 `906a6ea3`），源码预览线同为 `PRE_VERSION_NAME=3.0.17-preview.4`、`PRE_VERSION_CODE=2034`。稳定版与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变。下一预览升版时，「源码预览线」才会与「已发布预览版」再次分离。
 
 preview.1 内容：修复 preview.4 复审发现的 P1 回归——存在悬空出站引用时「放弃未完成编辑」在锁内重建时反复撞上出站告警，恢复标记永不释放；现由同一次构建快照算出的告警替代该次重建确认，正常启动/重连/重载仍要求确认，提交点（确认成功才清标记）未放宽。同批修复同一状态下的第二层缺陷：配置构建在 IO 线程创建 Toast 抛 `NullPointerException`，使包括用户确认后的重建整条路径失败，两处规则告警改为主线程分发。
 
@@ -42,9 +42,24 @@ preview.3 由 PR #60（tag `fa6b95b9a39d2d441280021968d4b914eb5b20d3`，`verify-
 
 APK 与普通 Root 模块合计 `23937506` 字节（22.83 MiB）；带管理器模块包为 22.17 MiB，均低于 26 MiB。候选构建的跨版本身份检查已核对包名与正式证书（SHA-256 `80ecee1c42d861d59cdc460447335fc4bfdf80103d6225a17c1bdf83a33521f6`），且 APK `versionCode 10130` 高于 v3.0.11 基线 `10065`。本次发布未执行任何清理：`v3.0.11` 正式版与 `v3.0.14-preview.1` 预览版均保留。
 
-## v3.0.17-preview.3 已发布资产快照
+## v3.0.17-preview.4 已发布资产快照
 
-来源：[GitHub Release v3.0.17-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.3)，tag/commit `6adc5ac0bcbd87bf9ff4b2097fe367761a4bc841`，`Preview Build` run `44306599880` 于 2026-11-18T13:08:01Z 发布（prerelease，`targetCommitish=6adc5ac0`）。字节数与 SHA-256 取自 GitHub Release API 的 asset digest；本地下载后 `sha256sum -c SHA256SUMS` 三件均 OK。
+来源：[GitHub Release v3.0.17-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.4)，tag/commit `906a6ea3f48779cc96c7a4116cfd1faeb63aa354`，`Preview Build` run `44378329740` 于 2026-11-18T19:38:07Z 发布（prerelease，`targetCommitish=906a6ea3`）。字节数与 SHA-256 取自 GitHub Release API 的 asset digest，本地下载后与 `sha256sum -c SHA256SUMS` 逐项一致。
+
+| 文件 | 字节数 | SHA-256 |
+|---|---:|---|
+| `wanBoxForAndroid-3.0.17-preview.4-arm64-v8a-release.apk` | 6363791 | `7c6786f2708baa0299b7195c950c819570f867ce909ca54482ed5eaa61a0c9c3` |
+| `wanbox-root-module-arm64-v8a.zip` | 18131042 | `9b44e0a1226dcf88ef9c1c7c095aa736fcaedb96e83aae4bc28663564da329b6` |
+| `wanbox-root-module-with-manager-arm64-v8a.zip` | 23774566 | `f3bb069962634cf1583200cb691335f4347a3bb1d76b4a8d8ad038ff626934c8` |
+| `SHA256SUMS` | 333 | `0c0a2d9fddf58160c2fc1df7ce37b9048091a30dca4844fbde13c9624ef36783` |
+
+APK 与普通 Root 模块合计 `24494833` 字节（23.36 MiB），`tools/size_budget.py --enforce-limit` 上限 `27262976` 字节，余量 `2768143` 字节（2.64 MiB）→ PASS。三个 ZIP 通过 `zipfile.testzip()`（12 / 13 项，无损坏）；`module.prop` 为 `version=3.0.17-preview.4`、`versionCode=2034`。带管理器 ZIP 内 `manager.apk` 与外部 APK 逐字节相同（`6363791` 字节）。APK 内 `META-INF/version-control-info.textproto` 的 `revision` 为 `906a6ea3f48779cc96c7a4116cfd1faeb63aa354`，与 tag、`targetCommitish` 与发布 job 的 `APPROVED_SHA` 四者同源。本地解析 AXML 复验：包名 `com.lit008834.pixel.wanboxforandroid`、`versionName=3.0.17-preview.4`、`versionCode=10174`；证书 SHA-256 `80ecee1c42d861d59cdc460447335fc4bfdf80103d6225a17c1bdf83a33521f6`（与正式版 v3.0.14 同证书，取自本地 v2 签名块解析）。模块 `bin/wanboxctl` 内可检出本版事件名 `network_direct_failed` / `network_policy_invalid`，发布二进制即本版代码。CI 自标 `runtime_regression: not_verified`。
+
+## 历史归档：v3.0.17-preview.3 已发布资产快照（Release/tag 已在 preview.4 发布后清理）
+
+preview.3 的 Release/tag 已在 preview.4 发布后由 `prune_prereleases.py --keep-tag v3.0.17-preview.4` 删除（发布 run `44378329740` 日志 19:38:15Z：「Deleted older prerelease and tag: v3.0.17-preview.3」），下表仅作历史记录。
+
+来源为原 [GitHub Release v3.0.17-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.3)，tag/commit `6adc5ac0bcbd87bf9ff4b2097fe367761a4bc841`，`Preview Build` run `44306599880` 于 2026-11-18T13:08:01Z 发布（prerelease，`targetCommitish=6adc5ac0`）。字节数与 SHA-256 取自 GitHub Release API 的 asset digest；本地下载后 `sha256sum -c SHA256SUMS` 三件均 OK。
 
 | 文件 | 字节数 | SHA-256 |
 |---|---:|---|

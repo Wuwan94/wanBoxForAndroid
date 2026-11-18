@@ -1,8 +1,8 @@
-# v3.0.17-preview.4 发行说明（候选）
+# v3.0.17-preview.4 发行说明
 
-**状态：未发布的稳定性预览版候选。**
+**状态：已发布的稳定性预览版。**
 
-本版收口 `v3.0.17-preview.3` 复审查出的 2 个新引入行为缺陷与 4 项副作用，并顺手核对预算到期口径与零引用符号；正式稳定版 `v3.0.14`（`VERSION_CODE=2026`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 均未改变。预览元数据为 `PRE_VERSION_CODE=2034`，派生 APK `versionCode=10174`、Root 模块码 `2034`，均高于已发布 preview.3 的 `10168` / `2033`。合并提交、`Verify Android Build` run 号与四件套回读数据在发布后回填。
+本版基于 `main` 的 `906a6ea3f48779cc96c7a4116cfd1faeb63aa354`（PR #72，`Verify Android Build` run `44372679147` 全绿后于 2026-11-18T19:13:48Z 合并），`Preview Build` run `44378329740` 于 2026-11-18T19:38:07Z 发布（发布 job 断言 `APPROVED_SHA=906a6ea3`）。正式稳定版 `v3.0.14`（`VERSION_CODE=2026`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 均未改变；预览元数据为 `PRE_VERSION_CODE=2034`，派生 APK `versionCode=10174`、Root 模块码 `2034`，均高于已发布 preview.3 的 `10168` / `2033`。
 
 ## ✦ 与上一版对比
 
@@ -46,13 +46,24 @@ URLTest 稳定性约束（检测间隔 ≥ 10 秒、空闲超时 ≥ 30 分钟�
 
 - **运行要求**：Android 12+（API 31+）、arm64-v8a、Magisk / KernelSU / APatch 等 Root 环境。
 - **版本对齐**：APK `versionName=3.0.17-preview.4` / `versionCode=10174`；Root 模块码 `2034`。瘦管理器和 Root 模块必须来自同一 Release、同版成套使用。
-- **回退**：使用正式稳定版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 与配套 Root 模块（模块码 `2026`）；不要混用不同 Release 的 APK 和模块。事故回退到上一预览时使用 [v3.0.17-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.3)（APK `10168` / 模块 `2033`），该版按单预览策略会在本版发布后被清理。
+- **回退**：使用正式稳定版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 与配套 Root 模块（模块码 `2026`）；不要混用不同 Release 的 APK 和模块。上一预览 preview.3 已按单预览策略在本版发布后被清理。
+
+| 文件 | 字节 | SHA-256 |
+|---|---:|---|
+| `wanBoxForAndroid-3.0.17-preview.4-arm64-v8a-release.apk` | 6,363,791 | `7c6786f2708baa0299b7195c950c819570f867ce909ca54482ed5eaa61a0c9c3` |
+| `wanbox-root-module-arm64-v8a.zip` | 18,131,042 | `9b44e0a1226dcf88ef9c1c7c095aa736fcaedb96e83aae4bc28663564da329b6` |
+| `wanbox-root-module-with-manager-arm64-v8a.zip` | 23,774,566 | `f3bb069962634cf1583200cb691335f4347a3bb1d76b4a8d8ad038ff626934c8` |
+| `SHA256SUMS` | 333 | `0c0a2d9fddf58160c2fc1df7ce37b9048091a30dca4844fbde13c9624ef36783` |
+
+APK 与普通 Root 模块合计 `24,494,833` 字节（23.36 MiB），上限 `27,262,976` 字节（26 MiB），余量 `2,768,143` 字节（2.64 MiB）→ `size_budget --enforce-limit` PASS；带管理器合一包 22.67 MiB。
 
 ## 🛡️ 验证与边界
 
-- 回归测试先行：`libcore/protocol/urltest` 三条新用例在修复前分别红于「跨层转移发生 1 次」「过期可用成员 0 次调用」「零观测轮次把恢复门从 0 推到 1」，修复后全绿；`rootmodule` 的 direct 重试用例在旧锁存语义下红于「15 秒后仍拒绝重试」，改为有界退避后绿。
-- 本地门禁实跑：`go test ./protocol/urltest/...`、`go test ./...`（rootmodule）、`python3 -m unittest discover -s tools`、`python3 tools/diagnostics/check_current_version_docs.py`、`python3 tools/size_budget.py --enforce-limit` 全部通过；Kotlin 侧用例由 CI 的 `Verify Android Build` 复跑（本工作区无 JDK/Android SDK）。
-- 未执行 Magisk / KernelSU / APatch 真机矩阵：层级回切在真实订阅下的收敛速度、Root 授权弹窗延迟下的分应用名单行为仍需真机确认；任何自动化结果都不代替真机验证，本版未晋升正式版。
+- **回归测试先红后绿**：`libcore/protocol/urltest` 三条新用例在修复前分别红于「跨层转移发生 1 次」「过期可用成员 0 次调用」「零观测轮次把恢复门从 0 推到 1」，修复后全绿；`rootmodule` 的 direct 重试用例在旧锁存语义下红于「15 秒后仍拒绝重试」，改为有界退避后绿。
+- **PR 门禁**：`Verify Android Build` run `44372679147`（head `b7b35de`）全绿——Build LibCore 内 Go 测试与 Python 门禁（`tools` 124 项、`rootmodule` 28 项）通过；插桩实测 debug 81 项、release 81 项，另 2 项定向复跑，0 失败。
+- **发布门禁**：`Preview Build` run `44378329740` 四个 job 全绿，发布 job 断言 `APPROVED_SHA=906a6ea3` 并回读 tag；`prune_prereleases.py --keep-tag v3.0.17-preview.4` 在 19:38:15Z 删除了 preview.3 的 Release/tag。
+- **四件套复核**：`sha256sum -c SHA256SUMS` 三件 OK；三个 ZIP `testzip` 无损坏；`version-control-info.textproto` 的 `revision` 为 `906a6ea3f48779cc96c7a4116cfd1faeb63aa354`，与 tag、`targetCommitish`、`APPROVED_SHA` 同源；合一包内 `manager.apk` 与外部 APK 逐字节相同；签名证书 SHA-256 `80ecee1c42d861d59cdc460447335fc4bfdf80103d6225a17c1bdf83a33521f6`（与正式版 v3.0.14 同一张）。
+- **未验证边界**：未执行 Magisk / KernelSU / APatch 真机矩阵（CI 自标 `runtime_regression: not_verified`）；层级回切在真实订阅下的收敛速度、Root 授权弹窗延迟下的分应用名单行为仍需真机确认。任何自动化结果都不代替真机验证，本版未晋升正式版。
 
 ---
 
@@ -60,7 +71,7 @@ URLTest 稳定性约束（检测间隔 ≥ 10 秒、空闲超时 ≥ 30 分钟�
 
 ### v3.0.17-preview.3 已发布说明
 
-[v3.0.17-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.3) 已作为稳定性预览版发布（tag/commit `6adc5ac0bcbd87bf9ff4b2097fe367761a4bc841`，PR #69；`Verify Android Build` run `44295650161`，`Preview Build` run `44306599880` 于 2026-11-18T13:08:01Z 发布）。内容为修复 URLTest 预算到期后层级永不回切、诊断包 Android 12+ 不可读取，并收口八项 P2 与 Room 11 schema；APK `10168` / 模块 `2033`。资产快照见[版本对照](docs/current-version.zh-CN.md)；其 Release/tag 将在 preview.4 发布后按单预览策略清理。
+[v3.0.17-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.3) 已作为稳定性预览版发布（tag/commit `6adc5ac0bcbd87bf9ff4b2097fe367761a4bc841`，PR #69；`Verify Android Build` run `44295650161`，`Preview Build` run `44306599880` 于 2026-11-18T13:08:01Z 发布）。内容为修复 URLTest 预算到期后层级永不回切、诊断包 Android 12+ 不可读取，并收口八项 P2 与 Room 11 schema；APK `10168` / 模块 `2033`。资产快照见[版本对照](docs/current-version.zh-CN.md)；其 Release/tag 已在 preview.4 发布后按单预览策略清理，下载链接不再可用。
 
 ### v3.0.17-preview.2 已发布说明
 
