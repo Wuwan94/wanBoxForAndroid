@@ -14,13 +14,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 STABLE_TAG = "v3.0.14"
-PUBLISHED_PREVIEW = "v3.0.17-preview.2"
-PUBLISHED_PREVIEW_COMMIT = "49e966197dd608b687b36eecdaf394274dacfe15"
-# 候选升版：源码预览线前移到 preview.3，与已发布 preview.2 分离；发行说明与
-# 版本对照必须明确写成「未发布候选」，发布后再由同步 PR 翻回「已发布」。
+PUBLISHED_PREVIEW = "v3.0.17-preview.3"
+PUBLISHED_PREVIEW_COMMIT = "6adc5ac0bcbd87bf9ff4b2097fe367761a4bc841"
+# 发布后源码预览线与已发布预览相同：preview.3 已发布，下一预览升版前
+# 发行说明与版本对照必须按「已发布」写，不能留「未发布候选」。
 SOURCE_PREVIEW = "v3.0.17-preview.3"
 SOURCE_PREVIEW_CODE = "2033"
-ARCHIVED_PREVIEW = "v3.0.17-preview.1"
+ARCHIVED_PREVIEW = "v3.0.17-preview.2"
 HISTORY_MARKER = "历史归档"
 
 FILES = {
