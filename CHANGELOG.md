@@ -4,6 +4,11 @@
 
 ## wanBox 3.0.x 发布记录
 
+### v3.0.17-preview.4（未发布候选）
+
+- 源码预览线升到 `3.0.17-preview.4` / `2034`（派生 APK `versionCode=10174`、Root 模块码 `2034`），正式线 `3.0.14 / 2026` 与 `SINGBOX_VERSION` 不变；本条目在发布后改为已发布口径并回填 tag、run 号与四件套字节/digest。
+- 内容：故障转移候选限定当前生效层且不再改写 `currentTier`（回切仍由 3 轮健康 + 60 秒门控制）；过期候选保留为最后梯队兜底；direct 模式切换失败改 15s/1min/5min 有界退避重试；区分 `su` 超时与真正的空白名单并补本地化文案；supervisor 不再吞 `readUnifiedPolicy` 错误；预算到期零观测轮次不再推进恢复门；`BalancerTierScheduler` 零引用符号标注 `@Deprecated`。
+
 ### v3.0.17-preview.3（已发布预览）
 
 - [GitHub Release v3.0.17-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.3) 由 `Preview Build` run `44306599880` 在 main commit/tag `6adc5ac0bcbd87bf9ff4b2097fe367761a4bc841`（PR #69，2026-11-18T12:04:41Z 合并；`Verify Android Build` run `44295650161` 全绿）于 2026-11-18T13:08:01Z 发布；tag 对象、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `6adc5ac0`。

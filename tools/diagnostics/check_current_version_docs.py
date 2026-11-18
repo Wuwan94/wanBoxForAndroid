@@ -16,11 +16,12 @@ ROOT = Path(__file__).resolve().parents[2]
 STABLE_TAG = "v3.0.14"
 PUBLISHED_PREVIEW = "v3.0.17-preview.3"
 PUBLISHED_PREVIEW_COMMIT = "6adc5ac0bcbd87bf9ff4b2097fe367761a4bc841"
-# 发布后源码预览线与已发布预览相同：preview.3 已发布，下一预览升版前
-# 发行说明与版本对照必须按「已发布」写，不能留「未发布候选」。
-SOURCE_PREVIEW = "v3.0.17-preview.3"
-SOURCE_PREVIEW_CODE = "2033"
-ARCHIVED_PREVIEW = "v3.0.17-preview.2"
+# preview.4 升版后源码预览线与已发布预览分离：preview.3 已发布，
+# preview.4 是当前未发布候选，发行说明与版本对照必须按「未发布候选」写；
+# preview.4 发布后把 SOURCE_PREVIEW 前移并翻转两处状态即可。
+SOURCE_PREVIEW = "v3.0.17-preview.4"
+SOURCE_PREVIEW_CODE = "2034"
+ARCHIVED_PREVIEW = "v3.0.17-preview.3"
 HISTORY_MARKER = "历史归档"
 
 FILES = {

@@ -48,7 +48,13 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 	snapshot.Files = nil
 	snapshot.Config = nil
 	// B6（N3）：统一按网络规则表；旧 F1 文件不存在新表时回退迁移。
-	policy, _ := readUnifiedPolicy(r.path("generations", rev, "files"))
+	// 规则文件非法时不能静默变空表：与 monitorGeneration 同口径记录限频事件，
+	// 而不是丢掉错误（否则停止时不会给目标应用发自动暂停广播，且完全无迹可循）。
+	policy, policyErr := readUnifiedPolicy(r.path("generations", rev, "files"))
+	if policyErr != nil {
+		policy = NetworkPolicy{}
+		r.recordEventLimited("network_policy_invalid", 5*time.Minute)
+	}
 	s := State{SchemaVersion: Version, Phase: "starting", Revision: rev, RunningRevision: rev, ProfileID: snapshot.ProfileID, ProfileName: snapshot.ProfileName, Supervisor: identity}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

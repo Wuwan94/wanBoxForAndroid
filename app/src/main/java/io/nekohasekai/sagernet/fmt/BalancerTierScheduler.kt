@@ -25,6 +25,12 @@ import java.util.Base64
  * - 层级回切 MUST NOT 默认断开现有连接：本模型只决定新连接的选路，
  *   配置生成层始终发 `interrupt_exist_connections = false`。
  *
+ * **选路运行时唯一实现在 Go 侧**：本文件的 [TierRecoveryGate]、
+ * [selectTieredMember]、[activeTierMemberIds]（连同 [BalancerMemberHealth]、
+ * [TieredSelection]）已标注 @Deprecated 且无生产引用，只有单元测试在喂——
+ * 它们保留下来只是历史模型与规则编解码的参照，不代表运行中的行为。
+ * 真实选路/回切门只存在于 `libcore/protocol/urltest` 的 tier gate。
+ *
  * 持久化：层级规则以编码串存在 `BalancerBean.tierRules`（v7 字段），
  * 编解码见 [encodeBalancerTierRules] / [decodeBalancerTierRules]；
  * 每条正则用 URL 安全 Base64（无填充）编码，规则内含/排他以 `:` 分隔，
@@ -159,14 +165,12 @@ fun balancerTierDisplayName(tierIndex: Int, rules: List<BalancerTierRule>): Stri
     if (tierIndex >= rules.size) "保底层级" else "层级 ${tierIndex + 1}"
 
 /**
- * 层级恢复门：记录每层最近一次检查轮次的结果。调用方每完成一轮检查就调一次
- * [recordRound]（健康 = 该层至少一个成员有新鲜延迟）；[canSwitchBack]
- * 判定高层是否已满足双重门槛（连续健康检查次数 + 无失败持续时间）。
+ * 层级恢复门（历史模型）：记录每层最近一次检查轮次的结果。
  *
- * 与 Go 侧同名门（`libcore/protocol/urltest` 的 tier gate）同一策略：
- * Go 侧每轮探测结束记一轮；Kotlin 侧由调用方按轮次喂结果，两边的阈值常量
- * 取值一致（3 次 / 60 秒），见 design.md B7c 实施记录。
+ * @Deprecated 运行时唯一实现是 Go 侧 `libcore/protocol/urltest` 的 tier gate；
+ * 本类无生产引用（只有单测），不要在新代码里使用。
  */
+@Deprecated("Go 侧 tier gate (libcore/protocol/urltest) 是唯一运行时实现；本类仅历史模型/单测在用")
 class TierRecoveryGate {
     private val consecutiveHealthy = HashMap<Int, Int>()
     private val lastFailureMs = HashMap<Int, Long>()
@@ -203,14 +207,17 @@ class TierRecoveryGate {
     }
 }
 
-/** 成员健康快照：delayMs 为最近一次实测延迟（毫秒），null = 无新鲜健康样本（未测/失败/过期）。 */
+/** 成员健康快照（历史模型）。@Deprecated 见 [TierRecoveryGate]。 */
+@Deprecated("Go 侧 tier gate 是唯一运行时实现；本快照仅历史模型/单测在用")
 data class BalancerMemberHealth(val delayMs: Int?)
 
-/** 层级选路结果：选中的成员（无健康成员时为 null）、所在层级、是否有健康成员。 */
+/** 层级选路结果（历史模型）。@Deprecated 见 [TierRecoveryGate]。 */
+@Deprecated("Go 侧 tier gate 是唯一运行时实现；本结果仅历史模型/单测在用")
 data class TieredSelection(val memberId: Long?, val tierIndex: Int, val healthy: Boolean)
 
 /**
- * 在已按优先级排好序的成员上选路（纯函数，与 Go `selectLocked` 的层级版同口径）：
+ * 在已按优先级排好序的成员上选路（历史模型；运行时唯一实现是 Go 侧
+ * `libcore/protocol/urltest` 的 `selectLocked`）：
  * 1. 取最低健康层级（该层至少一个成员有新鲜延迟）；
  * 2. 回切受门控：候选层高于当前层（序号更小）且门未通过、当前层仍健康时，
  *    留在当前层，不来回跳；
@@ -226,6 +233,7 @@ data class TieredSelection(val memberId: Long?, val tierIndex: Int, val healthy:
  * @param currentMemberId 当前选中成员（可为 null，即首次选择）
  * @param gate 恢复门（可为 null，即不做回切门控；首次选择时传 null）
  */
+@Deprecated("Go 侧 tier gate 是唯一运行时实现；本函数仅历史模型/单测在用")
 fun selectTieredMember(
     orderedMembers: List<BalancerMemberRef>,
     tiers: List<Int>,
@@ -280,10 +288,11 @@ fun selectTieredMember(
 }
 
 /**
- * 当前最低健康层级的成员 id（流量分配的候选集）：只有这一层的成员可承载流量。
- * 全层无健康成员时返回全部成员（退化兜底，流量仍能走，与 selectTieredMember
- * 的 healthy=false 回落一致）。
+ * 当前最低健康层级的成员 id（历史模型；运行时唯一实现是 Go 侧 tier gate）。
+ * 全层无健康成员时返回全部成员（退化兜底，与 selectTieredMember 的
+ * healthy=false 回落一致）。
  */
+@Deprecated("Go 侧 tier gate 是唯一运行时实现；本函数仅历史模型/单测在用")
 fun activeTierMemberIds(
     orderedMembers: List<BalancerMemberRef>,
     tiers: List<Int>,

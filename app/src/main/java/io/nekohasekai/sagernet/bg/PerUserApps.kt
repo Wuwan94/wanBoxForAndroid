@@ -102,10 +102,15 @@ object PerUserApps {
      * （PackageCache.uidsForUserPackage）。UID 0 永不自动加入；
      * Root UID 策略与应用名单正交（由调用方另行处理）。
      * 仅 eBPF 共享路径时调用方 MUST NOT 查询应用 UID（见 ConfigBuilder）。
+     *
+     * P2-4：解析结果为空必须分清成因——跨用户 `su` 查询超时/解析失败时只能
+     * 退回旧行为（只代理已解析到的部分），MUST NOT 拦截服务启动；只有查询
+     * 本身成功却一个有效 UID 都没有，才是用户名单需要重新选择。
      */
     fun resolveUids(refs: List<Ref>): List<Int> {
         PackageCache.awaitLoadSync()
         val out = linkedSetOf<Int>()
+        var unresolvedOtherUser = 0
         for (ref in refs) {
             val uids = if (ref.userId == 0) {
                 PackageCache.packageMap[ref.packageName]?.let { listOf(it) }.orEmpty() +
@@ -113,21 +118,58 @@ object PerUserApps {
             } else {
                 PackageCache.uidsForUserPackage(ref.userId, ref.packageName)
             }
-            uids.filter { it >= 1000 }.forEach { out.add(it) }
+            val valid = uids.filter { it >= 1000 }
+            if (valid.isEmpty() && ref.userId != 0) {
+                unresolvedOtherUser++
+            }
+            valid.forEach { out.add(it) }
         }
-        return requireResolvedWhitelist(refs.size, out.toList())
+        return settleResolvedWhitelist(
+            requestedCount = refs.size,
+            unresolvedOtherUser = unresolvedOtherUser,
+            resolvedUids = out.toList(),
+            resolveError = PackageCache.multiUserResolveError,
+        ).also {
+            if (PackageCache.multiUserResolveError != null && unresolvedOtherUser > 0) {
+                io.nekohasekai.sagernet.ktx.Logs.w(
+                    "PerUserApps: cross-user UID lookup failed (${PackageCache.multiUserResolveError}); " +
+                        "proxying ${it.size} resolved UID(s), $unresolvedOtherUser entr(y/ies) skipped"
+                )
+            }
+        }
     }
 
     /**
-     * P2：名单非空但过滤掉 uid < 1000 后一个有效 UID 都不剩（用户只选了纯系统
-     * 组件，或所选包都已卸载），旧实现会静默生成“空 include + 排除全部”，
-     * 表现为完全不代理任何应用且没有任何提示。这里显式报错，由配置构建/UI
-     * 把原因交给用户，而不是悄悄失效。
+     * P2-4：名单解析结果的最终裁决（纯函数，供 JVM 单测）。
+     *
+     * 旧实现把“请求非空但解析后为空”一律当成用户名单问题并抛异常，于是
+     * `su` 5 秒超时（Root 授权弹窗还没来得及点）也会让服务起不来。现在：
+     *  - 跨用户查询失败且存在未能解析的其他用户条目：退回旧行为，只代理已
+     *    解析到的部分，不拦截启动（PackageCache 侧另记限频事件/日志）；
+     *  - 查询成功但一个有效 UID 都没有：抛本地化异常，提示用户重新选择；
+     *  - 部分条目解析成功：照旧只代理解析到的部分。
      */
-    internal fun requireResolvedWhitelist(requestedCount: Int, resolvedUids: List<Int>): List<Int> {
-        if (requestedCount > 0 && resolvedUids.isEmpty()) {
-            throw IllegalStateException("per_user_app_whitelist_empty")
+    internal fun settleResolvedWhitelist(
+        requestedCount: Int,
+        unresolvedOtherUser: Int,
+        resolvedUids: List<Int>,
+        resolveError: String?,
+    ): List<Int> {
+        if (requestedCount <= 0) return resolvedUids
+        if (resolveError != null && unresolvedOtherUser > 0) {
+            return resolvedUids
+        }
+        if (resolvedUids.isEmpty()) {
+            throw IllegalStateException(whitelistEmptyMessage())
         }
         return resolvedUids
     }
+
+    /**
+     * P2-4：空白名单报错的本地化文案（zh-CN/en 见 strings.xml）。JVM 单测
+     * 没有 Application 上下文，取不到文案时退回错误码，不能让测试进程崩。
+     */
+    internal fun whitelistEmptyMessage(): String = runCatching {
+        io.nekohasekai.sagernet.ktx.app.getString(io.nekohasekai.sagernet.R.string.per_user_app_whitelist_empty)
+    }.getOrDefault("per_user_app_whitelist_empty")
 }

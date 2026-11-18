@@ -1466,6 +1466,7 @@
     <string name="per_user_apps_summary">The same app installed for different users or clones is listed separately.</string>
     <string name="per_user_apps_user">Android user %1$d</string>
     <string name="per_user_apps_legacy_kept">%1$d legacy entries could not be matched to an app and were kept. Review them manually.</string>
+    <string name="per_user_app_whitelist_empty">None of the selected apps can be proxied (system components or no longer installed). Please reselect them under per-app proxy.</string>
     <string name="smart_auto_stop_permission">Notification settings for Smart Auto-stop. Enable app notifications and the Smart Auto-stop channel to use Resume and Stop controls. Tap to open settings.</string>
     <string name="smart_auto_stop_suspended">Suspended · Smart Auto-stop</string>
     <string name="smart_auto_stop_resume_hint">Proxy is suspended. Tap Resume to continue.</string>
