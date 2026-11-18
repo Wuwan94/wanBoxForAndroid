@@ -599,9 +599,9 @@ func writeDiagnosticsArchive(dest string, entries []diagnosticsEntry) error {
 	}
 	tmpName := tmp.Name()
 	defer os.Remove(tmpName)
-	// 诊断包内容已脱敏，最终需要让普通应用/文件管理器读取；中间文件先按
-	// 0644 写入，重命名后再按目标目录属主 chown（Android root 场景）。
-	if err := tmp.Chmod(0644); err != nil {
+	// 中间文件保持 0600，避免生成过程中被其它应用读到半成品；重命名完成
+	// 后再统一设为 0644 并交给目标目录属主（Android root 场景）。
+	if err := tmp.Chmod(0600); err != nil {
 		tmp.Close()
 		return err
 	}
