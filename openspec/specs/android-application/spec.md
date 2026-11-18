@@ -753,3 +753,14 @@ MUST 重新拉取或明确报错。远程规则集定时刷新时 MUST 跳过 `l
 - **GIVEN** 本地存在 0 规则的 `.srs` 占位缓存
 - **WHEN** 规则集被加载或刷新
 - **THEN** 该缓存被判定无效并重新拉取，不得静默当作有效规则集使用
+
+### Requirement: leastPing 冷启动预排序是纯顺序，过期判定在 Go 侧（B4 已落地）
+
+`sortBalancerMembersForColdStart` 只做成员顺序（健康有延迟在前、失败在后），
+MUST NOT 判断种子新鲜度——`ProxyEntity` 无探针时间戳字段，Kotlin 侧无法判定
+缓存延迟是否过期；种子过期判定（超过 `3*interval`）与 idle 后重选在 Go 侧
+`URLTestGroup` 强制执行。
+
+- **GIVEN** 健康成员缓存延迟极大（可能是过期缓存）
+- **WHEN** 生成 leastPing 组配置
+- **THEN** 仍按延迟排在未测成员之前，过期判定不在此处做

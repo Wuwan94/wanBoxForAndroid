@@ -38,6 +38,10 @@ O1 上游三条（8.20）对表 wanBox 自家约束：
    确定初始 `selectedOutbound`，不得等待首轮整组探针。
    约束：种子 MUST 只读缓存，不得触发新探测、不得改写 `history.Time`（否则等于续期旧时间戳，
    与 O3 修复直接冲突）；种子延迟过期（超过 `3 * interval`）MUST 视为无种子。
+   （B4 落地说明：Go 侧 HistoryStorage 每核新建、冷启动必为空，故不在
+   `NewURLTestGroup` 里播种；跨重启存活的缓存是应用层 DB，B1 的
+   `ConfigBuilder` 预排序即 0 毫秒预选的载体；Go 侧只做过期判定与 idle 后
+   重选，见 B4 实施记录。）
 2. **并发测速优质节点流式就绪立即择优**：
    上游在 `runProbeBatch` 里每成功一个节点立即 `recordProbeProgress` + `evaluateWithTransition`。
    wanBox 适配：`URLTestOutbounds` 批量探针里单个成员成功即写回 history 并通知 `NotifyUpdated`，
@@ -49,6 +53,8 @@ O1 上游三条（8.20）对表 wanBox 自家约束：
    约束：2 秒取值**须用户拍板**（见 proposal 末节）。无论取值如何，单步超时 MUST 只掐断当次尝试，
    MUST 保留 `interrupt_exist_connections = false`，现有连接 MUST NOT 被打断；
    超时后的故障转移 MUST 走 O3 的失败计数（计入连续失败），不得静默丢弃失败证据。
+   （B4 落地说明：单步超时取 **3 秒**，用户 2026-11-17 已拍板，与 wanBox 现有
+   探针超时对齐；B1 已在 `dialOne`/`listenOne` 落地，B4 只做 UDP 镜像核查。）
 
 ## O8 评估结论：不采（本轮），只做评估 + 原型验证
 
@@ -341,5 +347,118 @@ O1 上游三条（8.20）对表 wanBox 自家约束：
 ### 本批未做
 
 - 3.7 验证阶段未跑：CI（`verify-android.yml`）与真机结果待用户回传，
+  不得勾选；Kotlin 侧未经本地编译（沙箱 Gradle 插件解析失败，见提交说明），
+  待 CI 验证；Go 侧本地已验证通过（见提交说明）。
+
+## B4 实施记录（2026-11-18，O1）
+
+### 已拍板值
+
+- 单步超时取 **3 秒**（用户 2026-11-17 拍板，与 wanBox 现有探针超时对齐，
+  不是上游的 2 秒）；4.1 的“未拍板不得进入 4.2”这道门已过。
+
+### 4.1 约束对表核查结论（逐条核对，均已验证）
+
+- 间隔 ≥10 秒：`ConfigBuilder` leastPing 分支 `interval coerceAtLeast(10L)`；
+  `buildUrlTestOutbound` 经 `clampUrlTestParams`（GroupEditor.kt:159–164）
+  `intervalSeconds coerceAtLeast(10)`；DataStore 组间隔默认 600 秒。
+- 空闲 ≥30 分钟：`clampUrlTestParams` idle < 1800s → `"30m"`；DataStore
+  组 idle 默认 `"30m"`。注意：balancer 子组 `idleTimeoutStr` 取 `"${iv}s"`
+  （间隔长度）是既有行为，非本批改动；流式就绪的 `isActive` 门用各组
+  自己的 `idleTimeout` 判定，口径一致。
+- 切换不中断现有连接：clamp 强制 `interruptExisting = false`；
+  `buildLoadBalanceOutbound` 两调用点均传 `interruptExist = false`，
+  默认调用亦为 false；Go 侧 `performUpdateCheck` 仅在
+  `interruptExternalConnections=true` 时才 Interrupt，B4 流式路径复用
+  同一道门；新增测试 `TestDialFailoverKeepsExistingConnections` 钉住
+  “故障转移不 Interrupt”。
+- 种子不续期时间戳：B4 未写任何种子写入——HistoryStorage 是每核新建的
+  内存态（box.go:183），冷启动时必为空，Go 侧不存在可播种的缓存；
+  `freshHistory`/`selectLocked`/`selectedFresh` 均为只读；测试断言
+  `Select()` 后 Time/Delay 原值不变。O3 的惩罚续期分歧（B1 既有测试断言
+  失败后 Time 续期）本批未动，仍待用户拍板。
+- 不重置探测间隔时钟：流式路径只调 `performUpdateCheck`，不碰 ticker、
+  不碰 `lastActive`；测试断言 `lastActive` 不变；倒计时仍按整轮结束重置。
+
+### 关键核查发现：Go 侧冷启动无可播种的历史（不做启动时播种）
+
+- HistoryStorage 每核新建（sing-box `box.go:183`
+  `service.ContextWithPtr(ctx, urltest.NewHistoryStorage())`），内存态、
+  从不落盘；libcore 与 app 没有任何代码在启动时向其中恢复缓存（全仓仅
+  urltest 包内写 `StoreURLTestHistory`）。因此在 `NewURLTestGroup` 里算
+  种子必为空——死代码，本批不做。
+- 冷启动真正跨重启存活的缓存是应用层 DB（`ProxyEntity.status`/`ping`），
+  B1 的 `ConfigBuilder` leastPing 预排序已把它变成成员顺序；
+  `selectLocked` 无新鲜历史时回落列表首位（即 B1 排序后的首位），这就是
+  wanBox 的“0 毫秒预选”。Go 侧增量是：过期判定（`freshHistory`）+
+  idle 后重选（`selectedFresh`）+ 流式就绪（4.4）。
+- 与既有启动探针测试的关系：
+  `TestStartupProbeIsAsyncAndFirstConnectionWaits` 要求“无历史时首连必须
+  等首轮探针，不得盲连列表首位超时节点”——B4 保留该行为：仅当已有新鲜
+  选择（首轮中已有成员成功并流式就绪）时 `DialContext`/`ListenPacket`
+  才跳过等待；无新鲜选择时仍等。测试 `TestSeedSkipsStartupProbeWait`
+  覆盖前者，既有测试覆盖后者。
+
+### 落地内容（4.2–4.5）
+
+- 4.2：新增 `libcore/protocol/urltest/b4_regression_test.go`（5 项测试 +
+  2 个夹具 `delayedDialOutbound`/`closeSpy`）：
+  `TestSelectIgnoresExpiredHistory`（过期 10ms 不压新鲜 500ms；全过期
+  回落首位 healthy=false；`Select` 不改写 Time）、
+  `TestSeedSkipsStartupProbeWait`（首轮进行中快成员就绪后首连 2 秒内
+  返回且 `startupDone` 仍开着）、
+  `TestStreamingReadinessUpdatesSelectionMidRound`（500ms 时选择已是快
+  成员、慢成员历史仍空、`lastActive` 不变；整轮后仍是快成员）、
+  `TestListenPacketBlackholeTimeoutFailover`（UDP 黑洞 3 秒超时转移、
+  两次清史）、`TestDialFailoverKeepsExistingConnections`
+  （`AttachConnection` 的既有连接在转移后仍存活）。
+- 4.3：Kotlin 侧无生产逻辑改动——`ProxyEntity` 无探针时间戳字段，排序
+  无法判定过期；`ConfigBuilder.kt` 给 `sortBalancerMembersForColdStart`
+  补 KDoc 写明“纯顺序、过期判定在 Go 侧”；`ColdStartMemberOrderTest`
+  新增 `sortDoesNotJudgeFreshness`（健康大延迟仍排未测前，过期判定不
+  在此处）。Kotlin 未本地编译，待 CI 验证。
+- 4.4：`urlTestBatch.test` 成功分支在写回 history + 复位失败计数 + 释放
+  `b.access` 锁后，若 `b.group != nil` 且 `isActive()`（`lastActive`
+  落在 `idleTimeout` 窗口内、ctx 未取消）即调 `performUpdateCheck()`
+  （重算选择 + 仅选择变化时 `NotifyUpdated`）。上游 8.20
+  `recordProbeProgress` 的适配：上游在 autoselect 内 recordSample +
+  evaluateWithTransition + NotifyUpdated；wanBox 用既有
+  `performUpdateCheck`（容差择优 + 仅选择变化才 NotifyUpdated）等价
+  实现；`StoreURLTestHistory` 本身已通知 history 观察者。倒计时仍按
+  整轮结束重置（`urlTest` 的 deferred `performUpdateCheck` 与 ticker 不变）。
+- 4.5：**B1 已落地，不重复做**——`dialOne`/`listenOne` 的
+  `urlTestDialAttemptTimeout=3s`（仅有后备候选时约束，末候选不限）；
+  本批只做增量核查：新增 UDP 镜像测试
+  `TestListenPacketBlackholeTimeoutFailover`（3 秒超时、两次清史）与
+  既有连接不断测试；TCP 镜像测试为 B1 的
+  `TestDialBlackholeTimeoutFailover`。
+
+### 与上游原文的差异（均有意为之）
+
+- 不做 autoselect 式 `InitialDelays` 注入：wanBox 无 autoselect 引擎，
+  冷启动缓存不在 Go 层；等价实现是 B1 的 `ConfigBuilder` 成员预排序 +
+  `selectLocked` 回退首位。
+- 单步超时 3 秒而非上游 2 秒：用户拍板（2026-11-17），与 wanBox 现有
+  探针超时（`ProbeOutbound` 3s / `testCtx` 3s）对齐。
+- 流式就绪加活跃门（`isActive`）：上游 `recordProbeProgress` 无条件
+  触发；wanBox 只在组活跃（未 idle）时流式择优，idle 后的首次连接仍按
+  缓存重新预选——与 design.md O1 对表一致。
+- `selectLocked` 新鲜窗口 `3*interval`：与 B1/O3 惩罚窗口
+  （`penalizeOrDeleteHistory`）同一口径；过期历史在选择层直接忽略，
+  不删除（删除仍由失败惩罚路径负责）。
+- `Now()` 不动：`Now()` 读 `selectedOutboundTCP` 字段直接返回（仅展示
+  用）；过期重选只走 `DialContext`/`ListenPacket`/`Selected` 的
+  `selectedFresh` 路径，不改展示行为。
+
+### 相邻缺口（本批未处理，记下来）
+
+- loadbalance 组（`libcore/protocol/loadbalance/outbound.go:555,596,609`）
+  在排序/选择时读 `LoadURLTestHistory` 不判新鲜——与 B4 修的
+  `URLTestGroup` 同类问题，但属 loadbalance 组，不在 O1（URLTest 适配）
+  范围内；后续批次如动 loadbalance 选择逻辑时一并处理。
+
+### 本批未做
+
+- 4.8 验证阶段未跑：CI（`verify-android.yml`）与真机结果待用户回传，
   不得勾选；Kotlin 侧未经本地编译（沙箱 Gradle 插件解析失败，见提交说明），
   待 CI 验证；Go 侧本地已验证通过（见提交说明）。

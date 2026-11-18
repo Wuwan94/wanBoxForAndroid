@@ -63,13 +63,17 @@ MUST NOT 发生 uint16 回绕。单次超时或网络瞬态抖动 MUST NOT 直�
 - **WHEN** 检查既有连接
 - **THEN** 既有连接不受影响
 
-### Requirement: 冷启动按缓存延迟预排序并在第 0 毫秒预选
+### Requirement: 冷启动按缓存延迟预排序并在第 0 毫秒预选（B4 已落地）
 
 `URLTestGroup` 启动时 MUST 按 `HistoryStorage` 缓存延迟确定初始选中节点：
 已知健康低延迟节点在前、失败节点在后；第 0 毫秒即可预选最佳可用节点，不得等待首轮整组探针。
 种子 MUST 只读缓存，不得触发新探测、不得改写 `history.Time`；
 缓存延迟过期（超过 `3 * interval`）MUST 视为无种子，按原列表顺序处理。
 idle 后的首次连接 MUST 重新按缓存延迟预选，不得沿用过期选择。
+（B4 核查结论：Go 侧 `HistoryStorage` 每核新建、冷启动必为空，故不在
+`NewURLTestGroup` 里播种；跨重启的缓存是应用层 DB，0 毫秒预选由 B1 的
+`ConfigBuilder` 成员预排序 + `selectLocked` 回退首位承载；首轮探针进行中
+已有新鲜选择时首连跳过等待，无新鲜选择时仍等首轮探针。）
 
 - **GIVEN** 组内节点 A 缓存延迟 80ms、节点 B 缓存延迟 900ms、节点 C 无有效缓存
 - **WHEN** 核心冷启动并首次建连
@@ -78,12 +82,14 @@ idle 后的首次连接 MUST 重新按缓存延迟预选，不得沿用过期选
 - **WHEN** 核心冷启动
 - **THEN** 不做种子预选，按原列表顺序处理
 
-### Requirement: 批量探针流式就绪
+### Requirement: 批量探针流式就绪（B4 已落地）
 
 `URLTestOutbounds` 批量探针中，单个成员成功 MUST 立即写回 history 并通知更新，
 无需等待整批跑完；同轮发现更优节点时 MUST 按容差（`tolerance`）平滑切换。
 流式就绪 MUST NOT 缩短用户设定的检查间隔；下次检查倒计时 MUST 按整轮结束重置，
 不得按单个节点就绪重置。检测间隔 MUST NOT 被压到 10 秒以下。
+（B4 落地：成功分支在释放批量锁后、归属组活跃（`isActive`，未 idle）时调
+`performUpdateCheck()`；流式就绪不碰 ticker 与 `lastActive`。）
 
 - **GIVEN** 批量探针中快节点 200ms 返回成功，慢节点仍在等待 3 秒超时
 - **WHEN** 快节点成功返回

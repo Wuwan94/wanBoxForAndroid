@@ -203,7 +203,13 @@ internal fun buildUrlTestOutbound(
  * 1 健康、0 未测、2 不支持、3 失败。
  * 排序：健康有延迟在前（按延迟升序）、有延迟但未确认健康其次、未测再次、
  * 已知失败（2/3）在后。只改成员顺序，不改任何持久化数据；仅 leastPing
- * 策略调用，failover 等策略保持原有成员顺序（上游只对 blank/leastPing 排序）。 */
+ * 策略调用，failover 等策略保持原有成员顺序（上游只对 blank/leastPing 排序）。
+ *
+ * B4/O1 结论：本排序是纯顺序（order-only），不判断种子新鲜度——ProxyEntity
+ * 无探针时间戳字段（只有 status 与 ping），Kotlin 侧无法判定缓存延迟是否
+ * 过期；种子过期判定（超过 3*interval 视为无种子）与 idle 后重选均在 Go 侧
+ * 强制执行（libcore URLTestGroup.freshHistory / selectedFresh），此处不得
+ * 另造一套过期判定。 */
 internal fun sortBalancerMembersForColdStart(entities: List<ProxyEntity>): List<ProxyEntity> {
     if (entities.size <= 1) return entities
     return entities.sortedWith(

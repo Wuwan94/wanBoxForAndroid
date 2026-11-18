@@ -28,6 +28,20 @@ class ColdStartMemberOrderTest {
         assertEquals(listOf(4L, 3L, 6L, 2L, 1L, 5L), sorted)
     }
 
+    // B4/O1：排序是纯顺序（order-only），不判断种子新鲜度。ProxyEntity
+    // 无探针时间戳字段，Kotlin 侧无法区分“刚测的 900ms”与“几天前的
+    // 900ms”；健康大延迟仍按延迟排在未测之前，过期判定在 Go 侧
+    // URLTestGroup.freshHistory（3*interval 窗口）执行，此处不得另造判定。
+    @Test fun sortDoesNotJudgeFreshness() {
+        val sorted = sortBalancerMembersForColdStart(
+            listOf(
+                member(1, 0, 0),      // 未测
+                member(2, 1, 99999),  // 健康但延迟极大（可能是过期缓存）
+            )
+        ).map { it.id }
+        assertEquals(listOf(2L, 1L), sorted)
+    }
+
     @Test fun singleOrEmptyListUnchanged() {
         assertEquals(emptyList<ProxyEntity>(), sortBalancerMembersForColdStart(emptyList()))
         val one = listOf(member(1, 1, 10))

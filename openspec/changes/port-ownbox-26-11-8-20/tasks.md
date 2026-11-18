@@ -156,21 +156,30 @@ B1 追加规则（用户 2026-11-17 22:18，覆盖“本地只做静态检查”
 
 ## 4. B4：O1 约束对表 + 冷启动秒连与快速转移（URLTest 适配版）
 
-- [ ] 4.1 先过约束对表（不写实现代码）：逐条核对 design.md 的 O1 对表——
+- [x] 4.1 先过约束对表（不写实现代码）：逐条核对 design.md 的 O1 对表——
   间隔 ≥10 秒、空闲 ≥30 分钟、切换不中断现有连接、种子不续期时间戳、不重置探测间隔时钟；
-  单次建连超时取值（2 秒 vs 3 秒）写入待拍板清单，**未拍板不得进入 4.2**。
-- [ ] 4.2 先写可复现测试（Go 单测）：冷启动按缓存延迟预排序（健康低延迟在前、失败在后）、
+  单次建连超时取值：**取 3 秒（用户 2026-11-17 拍板，与 wanBox 现有探针超时对齐）**，门已过。
+  关键核查发现：Go 侧 HistoryStorage 每核新建、冷启动必为空，故不在 `NewURLTestGroup` 里播种
+  （见 design.md B4 实施记录）；冷启动预选的载体是 B1 的 ConfigBuilder 成员排序。
+- [x] 4.2 先写可复现测试（Go 单测）：冷启动按缓存延迟预排序（健康低延迟在前、失败在后）、
   种子过期（超过 `3 * interval`）视为无种子、种子不改写 `history.Time`；
   批量探针单个成功即流式就绪并通知，不等整批跑完；同轮更优节点按容差平滑切换；
   多候选单次尝试超时后转移且计入连续失败，现有连接不断。
-- [ ] 4.3 `ConfigBuilder.kt` 的 leastPing 组按缓存延迟冷启动预排序（与 B1 的 1.7 预排序合并实现时，
+  （新增 `b4_regression_test.go`，5 项测试全部本地通过，见 design.md B4 实施记录。）
+- [x] 4.3 `ConfigBuilder.kt` 的 leastPing 组按缓存延迟冷启动预排序（与 B1 的 1.7 预排序合并实现时，
   以 B1 为准，此处只做 O1 增量：种子过期判定与 idle 后重选）。
-- [ ] 4.4 `URLTestOutbounds` 批量探针流式就绪：单个成员成功即写回 history 并 `NotifyUpdated`，
+  结论：Kotlin 侧无生产逻辑改动——`ProxyEntity` 无探针时间戳字段，排序无法判定过期；
+  仅补 KDoc 说明 + 新增 `sortDoesNotJudgeFreshness` 测试；过期判定与 idle 后重选在 Go 侧
+  （`freshHistory` / `selectedFresh`）强制执行。
+- [x] 4.4 `URLTestOutbounds` 批量探针流式就绪：单个成员成功即写回 history 并 `NotifyUpdated`，
   倒计时仍按整轮结束重置。
-- [ ] 4.5 `URLTest.DialContext`/`ListenPacket` 单步超时按拍板值落地（见 4.1），超时后故障转移。
-- [ ] 4.6 同步主规范与 change delta/design；`git diff --check` 通过；
+  （成功分支在释放 `b.access` 锁后，若归属组活跃即调 `performUpdateCheck()`；`lastActive`/ticker 不动。）
+- [x] 4.5 `URLTest.DialContext`/`ListenPacket` 单步超时按拍板值落地（见 4.1），超时后故障转移。
+  **B1 已落地（`dialOne`/`listenOne` 单步 3 秒超时），本批只做增量核查**：新增 UDP 镜像测试
+  `TestListenPacketBlackholeTimeoutFailover` 与既有连接不断测试，本地通过；未重复改已验证代码。
+- [x] 4.6 同步主规范与 change delta/design；`git diff --check` 通过；
   确认版本文件与 `SINGBOX_VERSION` 未变。
-- [ ] 4.7 提交到 `port/ownbox-26.11.8.20` 分支（不推远程），提交说明标注上游 commit `cb43ea4`（8.20）。
+- [x] 4.7 提交到 `port/ownbox-26.11.8.20` 分支（不推远程），提交说明标注上游 commit `cb43ea4`（8.20）。
 - [ ] 4.8 B4 验证阶段（未通过前不得开始 B7a）：
   CI 为 `verify-android.yml`，预期同 B1；
   真机场景：冷启动首连秒级（不再盲连列表首位超时节点）、死节点不等 5 秒跑满即被优质节点抢占、

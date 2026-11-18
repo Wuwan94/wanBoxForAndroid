@@ -354,3 +354,50 @@ MUST NOT 全量构建全球国家映射导致额外内存峰值。
 - **GIVEN** 磁盘上存在 0 规则的 `.srs` 缓存文件
 - **WHEN** 核心加载该规则集
 - **THEN** 该缓存被判定无效并触发重新拉取或明确报错，不得静默当作有效规则集使用
+
+### Requirement: 种子过期判定与 idle 后重选（B4 已落地）
+
+URLTestGroup 选择层 MUST 只认新鲜缓存：延迟超过 `3*interval` 的历史 MUST 视为无种子
+（与 O3 惩罚窗口同一口径）；已存选择的历史过期后，`DialContext`/`ListenPacket`/
+`Selected` MUST NOT 沿用，须重新按新鲜缓存预选或回落列表首位（B1 预排序顺序）。
+选择过程 MUST NOT 改写 `history.Time`。Go 侧冷启动时 HistoryStorage 必为空
+（每核新建内存态），故不做启动时播种；跨重启的缓存是应用层 DB，0 毫秒预选由 B1 的
+ConfigBuilder 成员预排序承载。
+
+- **GIVEN** 成员 A 缓存延迟 10ms 但已过期（超过 `3*interval`），成员 B 新鲜 500ms
+- **WHEN** 选择当前节点
+- **THEN** 选中 B，不得用过期 10ms 压过新鲜 500ms
+- **GIVEN** 全部缓存均已过期
+- **WHEN** 选择当前节点
+- **THEN** 回落列表首位，healthy=false
+- **GIVEN** 组 idle 后缓存全部过期
+- **WHEN** idle 后首次连接
+- **THEN** 重新按缓存预选，不得沿用过期选择
+
+### Requirement: 批量探针流式就绪与首轮等待跳过（B4 已落地）
+
+`URLTestOutbounds` 批量探针中单个成员成功 MUST 立即写回 history 并重算选择
+（仅选择变化时 `NotifyUpdated`），不必等整批跑完；同轮更优节点 MUST 按容差平滑切换。
+流式择优只在组活跃（未 idle）时触发；流式就绪 MUST NOT 碰 ticker 与 lastActive，
+检查间隔倒计时 MUST 按整轮结束重置。首轮探针进行中已有成员流式就绪时，首连 MUST 不再
+等整轮；仍无任何新鲜选择时首连 MUST 等首轮探针（不得盲连列表首位超时节点）。
+
+- **GIVEN** 批量探针中快节点 200ms 返回成功，慢节点仍在跑
+- **WHEN** 快节点成功返回
+- **THEN** 立即就绪并可被择优选中，不必等慢节点跑完
+- **GIVEN** 流式就绪触发了一次切换
+- **WHEN** 查看下次检查倒计时
+- **THEN** 倒计时仍按整轮结束时刻计算，不被提前重置
+- **GIVEN** 首轮探针进行中，快节点已成功、慢节点仍在跑
+- **WHEN** 发起首次连接
+- **THEN** 直接用快节点建连，不等整轮跑完
+
+### Requirement: 单步超时 3 秒与 UDP 故障转移（B4 已落地，B1 落地实现）
+
+`URLTest.DialContext`/`ListenPacket` 单步超时取 3 秒（用户 2026-11-17 拍板，
+与 wanBox 现有探针超时对齐），仅有后备候选时约束，末候选不限；超时后 MUST 故障转移
+并计入 O3 连续失败，现有连接 MUST NOT 被打断。
+
+- **GIVEN** 主选节点建连黑洞，存在备用候选
+- **WHEN** 单步 3 秒超时到达
+- **THEN** 当次尝试被掐断并转移到备用候选，现有连接不受影响

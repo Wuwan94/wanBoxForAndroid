@@ -206,7 +206,7 @@ func (s *URLTest) Selected(network string) adapter.Outbound {
 	if group == nil {
 		return nil
 	}
-	outbound := group.selected(network)
+	outbound := group.selectedFresh(network)
 	if outbound == nil {
 		outbound, _ = s.group.Select(network)
 	}
@@ -321,11 +321,16 @@ func (s *URLTest) DialContext(ctx context.Context, network string, destination M
 	default:
 		return nil, E.Extend(N.ErrUnknownNetwork, network)
 	}
-	if err := s.group.waitForStartupProbe(ctx); err != nil {
-		return nil, err
+	// B4/O1：已有新鲜选择（首轮探针中已有成员成功并流式就绪）时不等整轮，
+	// 直接用它建连；无新鲜选择时仍等首轮探针，避免盲连列表首位超时节点
+	//（既有启动探针测试 TestStartupProbeIsAsyncAndFirstConnectionWaits）。
+	if s.group.selectedFresh(networkName) == nil {
+		if err := s.group.waitForStartupProbe(ctx); err != nil {
+			return nil, err
+		}
 	}
 	s.group.Touch()
-	detour := s.group.selected(networkName)
+	detour := s.group.selectedFresh(networkName)
 	if detour == nil {
 		detour, _ = s.group.Select(networkName)
 	}
@@ -360,11 +365,14 @@ func (s *URLTest) ListenPacket(ctx context.Context, destination M.Socksaddr) (ne
 	if s.group == nil || s.closed.Load() {
 		return nil, E.New("URL test group not started or closed")
 	}
-	if err := s.group.waitForStartupProbe(ctx); err != nil {
-		return nil, err
+	// B4/O1：与 DialContext 同理——已有新鲜选择时不等首轮整轮探针。
+	if s.group.selectedFresh(N.NetworkUDP) == nil {
+		if err := s.group.waitForStartupProbe(ctx); err != nil {
+			return nil, err
+		}
 	}
 	s.group.Touch()
-	detour := s.group.selected(N.NetworkUDP)
+	detour := s.group.selectedFresh(N.NetworkUDP)
 	if detour == nil {
 		detour, _ = s.group.Select(N.NetworkUDP)
 	}
@@ -574,17 +582,49 @@ func (g *URLTestGroup) resetMemberFailure(tag string) {
 	delete(g.failCount, tag)
 }
 
-func (g *URLTestGroup) selected(network string) adapter.Outbound {
+// freshHistory 只读缓存：延迟仍在 3*interval 新鲜窗口内才返回，过期即视
+// 为无种子。只读，不改写 history.Time（B4/O1 种子约束）；窗口口径与
+// B1/O3 的惩罚窗口（penalizeOrDeleteHistory）一致。
+func (g *URLTestGroup) freshHistory(tag string) *adapter.URLTestHistory {
+	history := g.history.LoadURLTestHistory(tag)
+	if history == nil || time.Since(history.Time) >= 3*g.interval {
+		return nil
+	}
+	return history
+}
+
+// isActive 报告组是否处于活跃态（未 idle）：以 lastActive 是否落在
+// idleTimeout 窗口内判定。lastActive 是 TypedValue（原子读写），零值
+// （PostStart 前）视为不活跃；ctx 已取消也视为不活跃。流式就绪只在
+// 活跃时触发择优（B4/O1 设计约束）。
+func (g *URLTestGroup) isActive() bool {
+	if g.ctx.Err() != nil {
+		return false
+	}
+	return time.Since(g.lastActive.Load()) <= g.idleTimeout
+}
+
+// selectedFresh 只返回仍有新鲜缓存的已存选择；过期即返回 nil，调用方回
+// 落到 Select() 重新按缓存延迟预选（idle 后首次连接不得沿用过期选择）。
+func (g *URLTestGroup) selectedFresh(network string) adapter.Outbound {
 	g.updateAccess.RLock()
 	defer g.updateAccess.RUnlock()
+	var stored adapter.Outbound
 	switch network {
 	case N.NetworkTCP:
-		return g.selectedOutboundTCP
+		stored = g.selectedOutboundTCP
 	case N.NetworkUDP:
-		return g.selectedOutboundUDP
+		stored = g.selectedOutboundUDP
 	default:
 		return nil
 	}
+	if stored == nil {
+		return nil
+	}
+	if g.freshHistory(group.RealTag(stored, network)) == nil {
+		return nil
+	}
+	return stored
 }
 
 func (g *URLTestGroup) Select(network string) (adapter.Outbound, bool) {
@@ -599,14 +639,14 @@ func (g *URLTestGroup) selectLocked(network string) (adapter.Outbound, bool) {
 	switch network {
 	case N.NetworkTCP:
 		if g.selectedOutboundTCP != nil {
-			if history := g.history.LoadURLTestHistory(group.RealTag(g.selectedOutboundTCP, N.NetworkTCP)); history != nil {
+			if history := g.freshHistory(group.RealTag(g.selectedOutboundTCP, N.NetworkTCP)); history != nil {
 				minOutbound = g.selectedOutboundTCP
 				minDelay = history.Delay
 			}
 		}
 	case N.NetworkUDP:
 		if g.selectedOutboundUDP != nil {
-			if history := g.history.LoadURLTestHistory(group.RealTag(g.selectedOutboundUDP, N.NetworkUDP)); history != nil {
+			if history := g.freshHistory(group.RealTag(g.selectedOutboundUDP, N.NetworkUDP)); history != nil {
 				minOutbound = g.selectedOutboundUDP
 				minDelay = history.Delay
 			}
@@ -616,7 +656,7 @@ func (g *URLTestGroup) selectLocked(network string) (adapter.Outbound, bool) {
 		if !common.Contains(detour.Network(), network) {
 			continue
 		}
-		history := g.history.LoadURLTestHistory(group.RealTag(detour, network))
+		history := g.freshHistory(group.RealTag(detour, network))
 		if history == nil {
 			continue
 		}
@@ -854,6 +894,14 @@ func (b *urlTestBatch) test(outbounds []adapter.Outbound, link string, interval 
 					b.access.Lock()
 					b.result[tag] = testResult.delay
 					b.access.Unlock()
+					// B4/O1 流式就绪（上游 8.20 recordProbeProgress 的 wanBox
+					// 适配）：单个成员成功即重算选择并通知，不等整批跑完；
+					// 只在组活跃（未 idle）时触发择优，idle 后的首次连接
+					// 仍按缓存延迟重新预选。倒计时仍按整轮结束重置——本处
+					// 不碰 ticker、不碰 lastActive、不改写 history.Time。
+					if b.group != nil && b.group.isActive() {
+						b.group.performUpdateCheck()
+					}
 				}
 				return nil, nil
 			})
