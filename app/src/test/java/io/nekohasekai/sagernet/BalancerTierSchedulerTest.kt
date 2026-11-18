@@ -34,6 +34,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 /** B7c/O7 「按优先级顺序」多层级调度 + 节点优先级页纯模型测试。@author 雾晚 */
+@Suppress("DEPRECATION") // 历史模型（Go 侧 tier gate 才是运行时实现），见 BalancerTierScheduler.kt
 class BalancerTierSchedulerTest {
 
     private fun members(vararg pairs: Pair<Long, String>) =
