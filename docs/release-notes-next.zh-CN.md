@@ -1,12 +1,12 @@
 # v3.0.17-preview.2 发行说明
 
-**状态：未发布的稳定性预览版候选。**
+**状态：已发布的稳定性预览版。**
 
 本版是两路借鉴移植批次的合集，面向已 Root 的 Android 12+ arm64 设备：核心稳定性与故障转移、订阅自动更新、智能分流、冷启动秒连、策略组混搭/锁定/优先级、停核可编辑与脱敏诊断包、按网络规则、路由规则指定策略组。稳定版 `v3.0.14` / 正式元数据 `2026` 与 sing-box pin `v1.15.0-alpha.13-reF1nd` 均未改变；预览名为 `3.0.17-preview.2`，APK `versionCode=10162`，Root 模块码 `2032`（preview.1 为 `10156` / `2031`）。
 
 ## 与上一版对比
 
-| 项目 | v3.0.17-preview.1 | v3.0.17-preview.2（候选） |
+| 项目 | v3.0.17-preview.1 | v3.0.17-preview.2 |
 |---|---|---|
 | 内容 | 修复悬空出站引用下的放弃编辑死循环与配置构建 Toast 失败 | 两路借鉴移植合集：核心稳定性、订阅自动更新、智能分流、冷启动秒连、策略组混搭/锁定/优先级、停核可编辑与脱敏诊断包、按网络规则、路由规则指定策略组 |
 | APK `versionCode` | 10156 | 10162 |
@@ -31,10 +31,10 @@ URLTest 稳定性约束、`default` 保真、候选应用的版本 CAS 与恢复
 
 ## 升级与验证边界
 
-同一 Release 的瘦管理器 APK 与 Root 模块必须成套安装。回退时使用正式版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 和配套模块。本候选基于 main `570e9ed`（PR #67 `f333fa2`、PR #68 `570e9ed` 合并后）；分支级验证：port 分支头 `921ca47` 的 `Verify Android Build` run `44251586455`（#190）全绿，feat 分支头 `b157e4d` 的 run `44265112073`（#194）全绿；PR 触发的 run `44269540426`（#195）与 run `44270106713`（#196）在写稿时仍在跑，结论待回填。本地只跑了不依赖构建链的静态校验（Python 工具 124 项、版本码与 Kotlin/App 规则复刻、文档一致性、`git diff --check`）；JVM 单测、instrumentation 与真实构建以 PR CI 与候选 `Preview Build` 的实际结果为准，发布后回填[版本对照](current-version.zh-CN.md)。未执行 Magisk / KernelSU / APatch 真机矩阵，自动化结果不等同于真实 Root 设备验证。
+同一 Release 的瘦管理器 APK 与 Root 模块必须成套安装。回退时使用正式版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 和配套模块。发布证据：PR #67（合并提交 `f333fa2`，2026-11-18T08:44:27Z）与 PR #68（合并提交 `570e9ed`，2026-11-18T08:48:15Z）合入后，bump 提交 `49e96619`（`PRE_VERSION_NAME=3.0.17-preview.2`、`PRE_VERSION_CODE=2032`）由快照推送上 main；PR 门禁 `Verify Android Build` #195（port 头 `921ca47`）与 #196（feat 头 `ab4585c`）全绿；main 头 `49e96619` 的 `Verify Android Build` #197 第 1 次尝试红在 release 变体 3 项插桩测试，定位为 UiAutomation 窗口上报超时抖动、未改代码，第 2 次尝试全绿（debug 81 项 0 失败 2 skip、release 79 项 0 失败 2 skip）；`Preview Build` run `44281162788` 四个 job 全部成功并于 2026-11-18T10:18:19Z 发布，tag 对象、`targetCommitish`、APK 内 `version-control-info.textproto` 与 `APPROVED_SHA` 四者同为 `49e96619`。四件套回读数据与体积见[版本对照](current-version.zh-CN.md)。未执行 Magisk / KernelSU / APatch 真机矩阵，自动化结果不等同于真实 Root 设备验证。
 
 ---
 
 ## 历史归档
 
-v3.0.17-preview.1 的已发布说明：tag/commit `33391d1`，`Preview Build` run `44076008956` 于 2026-11-17T12:01:45Z 发布；内容为悬空出站引用下放弃编辑不再死循环与配置构建 Toast 改主线程分发，APK `10156` / 模块 `2031`。v3.0.16-preview.4 的已发布说明：tag/commit `9283ccb`，`Preview Build` run `44013891166` 于 2026-11-17T04:18:56Z 发布；内容为组成员单一真相、订阅撞名避让、选中节点显式回落、恢复失败逃生口与设置口径统一，APK `10154` / 模块 `2030`。v3.0.16-preview.3 的已发布说明：tag `fa6b95b`，首发 `Preview Build` run `43906481811`，资产由 main `000d302` 经受审查流程替换。v3.0.14-preview.1、v3.0.15-preview.1–.3、v3.0.15-preview.4 与 v3.0.16-preview.1、v3.0.16-preview.2 的已发布说明：各版 Release/tag 已按单预览策略清理，说明与资产快照见[版本对照](current-version.zh-CN.md)，发布脉络见 [CHANGELOG.md](../CHANGELOG.md)。
+v3.0.17-preview.1 的已发布说明：tag/commit `33391d1`，`Preview Build` run `44076008956` 于 2026-11-17T12:01:45Z 发布；内容为悬空出站引用下放弃编辑不再死循环与配置构建 Toast 改主线程分发，APK `10156` / 模块 `2031`；其 Release/tag 已在 preview.2 发布后按单预览策略清理。v3.0.16-preview.4 的已发布说明：tag/commit `9283ccb`，`Preview Build` run `44013891166` 于 2026-11-17T04:18:56Z 发布；内容为组成员单一真相、订阅撞名避让、选中节点显式回落、恢复失败逃生口与设置口径统一，APK `10154` / 模块 `2030`。v3.0.16-preview.3 的已发布说明：tag `fa6b95b`，首发 `Preview Build` run `43906481811`，资产由 main `000d302` 经受审查流程替换。v3.0.14-preview.1、v3.0.15-preview.1–.3、v3.0.15-preview.4 与 v3.0.16-preview.1、v3.0.16-preview.2 的已发布说明：各版 Release/tag 已按单预览策略清理，说明与资产快照见[版本对照](current-version.zh-CN.md)，发布脉络见 [CHANGELOG.md](../CHANGELOG.md)。

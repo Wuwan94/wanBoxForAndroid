@@ -1,12 +1,12 @@
-# v3.0.17-preview.2 发行说明（候选）
+# v3.0.17-preview.2 发行说明
 
-**状态：未发布的稳定性预览版候选。**
+**状态：已发布的稳定性预览版。**
 
-本版是两路借鉴移植批次的合集：OwnBox 线（B1/B2/B3/B4/B7a/B7b/B7c）与 NetProxy 线（B5/B6/N6/B8）全部合入 main 后的首个预览候选，面向已 Root 的 Android 12+ arm64 设备。正式稳定版 `v3.0.14`（`VERSION_CODE=2026`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 均未改变；预览元数据码升为 `PRE_VERSION_CODE=2032`，派生 APK `versionCode=10162`、Root 模块码 `2032`，均高于 preview.1 的 `10156` / `2031`，已安装 preview.1 的用户可同时收到 APK 与模块更新。
+本版是两路借鉴移植批次的合集：OwnBox 线（B1/B2/B3/B4/B7a/B7b/B7c）与 NetProxy 线（B5/B6/N6/B8）全部合入 main 后的首个预览候选，面向已 Root 的 Android 12+ arm64 设备。正式稳定版 `v3.0.14`（`VERSION_CODE=2026`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 均未改变；预览元数据码升为 `PRE_VERSION_CODE=2032`，派生 APK `versionCode=10162`、Root 模块码 `2032`，均高于 preview.1 的 `10156` / `2031`。
 
 ## ✦ 与上一版对比
 
-| 项目 | v3.0.17-preview.1 | v3.0.17-preview.2（候选） |
+| 项目 | v3.0.17-preview.1 | v3.0.17-preview.2 |
 |---|---|---|
 | 内容 | 修复悬空出站引用下的放弃编辑死循环，并修掉配置构建在非主线程创建 Toast 的失败 | 两路借鉴移植合集：核心稳定性、订阅自动更新、智能分流、冷启动秒连、策略组混搭/锁定/优先级、停核可编辑与脱敏诊断包、按网络规则、路由规则指定策略组 |
 | APK `versionCode` | 10156 | 10162 |
@@ -95,7 +95,7 @@ URLTest 稳定性约束（检测间隔 ≥ 10 秒、空闲超时 ≥ 30 分钟�
 
 ### 13. 版本与文档口径
 
-`nb4a.properties` 预览线升为 `3.0.17-preview.2` / `2032`；正式线 `3.0.14 / 2026` 与 sing-box pin 未变。当前版本文档一致性检查同步改为「已发布 preview.1 + 未发布 preview.2 候选」的双态口径。
+`nb4a.properties` 预览线为 `3.0.17-preview.2` / `2032`；正式线 `3.0.14 / 2026` 与 sing-box pin 未变。当前版本文档一致性检查同步翻到「preview.2 已发布」。
 
 ## 📦 版本、资产与安装
 
@@ -106,11 +106,13 @@ URLTest 稳定性约束（检测间隔 ≥ 10 秒、空闲超时 ≥ 30 分钟�
 
 ## 🛡️ 验证边界
 
-本候选基于 main `570e9ed3e12848c26497501960ba2369c546f3c0`（PR #67 `f333fa2` 移植 OwnBox 线、PR #68 `570e9ed` 借鉴 NetProxy 线合并后），在 preview.1（`33391d1`）之后合入两路移植批次，不含其它待发布改动。分支级验证：port 分支头 `921ca47` 的 `Verify Android Build` run `44251586455`（#190）全绿，feat 分支头 `b157e4d` 的 run `44265112073`（#194）全绿；其间多轮失败均已逐项修红，失败原因多为测试字面量过期、测试侧迁移链缺失与 R8 剥离合成构造器，生产实现无问题，另 B8 修红 1 项 pref 9001 守卫泄漏真缺陷。PR 触发的 run `44269540426`（#195，port 头）与 run `44270106713`（#196，feat 头）在写稿时仍在跑，结论待回填。
+源码基于 main `49e966197dd608b687b36eecdaf394274dacfe15`（PR #67 `f333fa2` 移植 OwnBox 线、PR #68 `570e9ed` 借鉴 NetProxy 线合并后，bump 提交 `49e96619`），tag `v3.0.17-preview.2` 与该提交同源：tag 对象、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `49e96619`。
 
-本环境无 Android SDK 与 JDK，**只跑了不依赖构建链的静态校验**：`python3 -m unittest discover -s tools -p 'test_*.py'` 124 项、`version_code.py --channel preview`（`3.0.17-preview.2` / `2032` / `10162` / `2032`）与 `--enforce`（基线 `10077` / `2015`）、`--check-kotlin --check-app-tag`、`check_current_version_docs.py`、`git diff --check`。JVM 单测、instrumented 测试与真实构建结果以 PR 的 `Verify Android Build` 与本候选的 `Preview Build` 实际结果为准；发布后由文档同步回填到[版本对照](docs/current-version.zh-CN.md)。
+分支验证：port 分支头 `921ca47` 的 `Verify Android Build` run `44251586455`（#190）全绿，feat 分支头 `b157e4d` 的 run `44265112073`（#194）全绿；PR 门禁 run `44269540426`（#195，port 头）与 run `44270106713`（#196，feat 头）全绿。其间多轮失败均已逐项修红，失败原因多为测试字面量过期、测试侧迁移链缺失与 R8 剥离合成构造器，生产实现无问题，另 B8 修红 1 项 pref 9001 守卫泄漏真缺陷。
 
-未执行 Magisk / KernelSU / APatch 真机矩阵，自动化结果不等同于真实 Root 设备验证。
+main 头 `49e96619` 的 `Verify Android Build` run `44270851087`（#197）第 1 次尝试红在 release 变体 3 项插桩测试（`GroupDraftAbandonPersistenceTest.rebuildFailureSurvivesActivityDestructionAndUserCanRetry`、`OutboundReferenceAlarmTest.failedInstallerRestorationLeavesReviewPendingWithoutWarning`、`SubscriptionGroupOwnershipTest.ordinaryEditorCannotTakeSubscriptionNodesOrPartiallySave`），定位为 UiAutomation 窗口上报超时抖动、未改代码；第 2 次尝试全绿，instrumented 实测 debug 81 项 0 失败 2 skip、release 79 项 0 失败 2 skip。发布 `Preview Build` run `44281162788` 四个 job 全部成功，发布后回读四件套（本地 `sha256sum -c SHA256SUMS` 三件 OK）：APK `6362163` B / `b45b2758…7b3500`、普通模块 `18128414` B / `bfd8f9ea…f7f562`、合一模块 `23769177` B / `b849607b…a53859`、`SHA256SUMS` `333` B / `3f393883…c61519`；APK + 普通模块合计 `24490577` B（23.36 MiB），上限 `27262976` B，余量 `2772399` B，`size_budget --enforce-limit` PASS。发布 job 以 `prune_prereleases.py --keep-tag v3.0.17-preview.2` 清理了 preview.1 的 Release/tag。逐项数据见[版本对照](docs/current-version.zh-CN.md)。
+
+本环境无 Android SDK / JDK，本地只跑了不依赖构建链的静态校验：Python 工具 124 项、`version_code.py --check-kotlin --check-app-tag`、版本文档一致性检查与 `git diff --check`；JVM 单测、instrumentation 与构建结果以 CI 为准。未执行 Magisk / KernelSU / APatch 真机矩阵：组编辑应用链、订阅更新后的组成员、放弃编辑与悬空出站告警的真机表现仍未验证，自动化结果不等同于真实 Root 设备验证。
 
 ---
 
@@ -118,7 +120,7 @@ URLTest 稳定性约束（检测间隔 ≥ 10 秒、空闲超时 ≥ 30 分钟�
 
 ### v3.0.17-preview.1 已发布说明
 
-[v3.0.17-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.1) 已作为稳定性预览版发布（tag/commit `33391d1`，PR #65；`Preview Build` run `44076008956` 于 2026-11-17T12:01:45Z 发布）。内容为两处修复：悬空出站引用下「放弃未完成编辑」不再死循环，配置构建的规则告警改为主线程分发；APK `10156` / 模块 `2031`。资产快照见[版本对照](docs/current-version.zh-CN.md)；其 Release/tag 将在 preview.2 发布后按单预览策略清理。
+[v3.0.17-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.1) 已作为稳定性预览版发布（tag/commit `33391d1`，PR #65；`Preview Build` run `44076008956` 于 2026-11-17T12:01:45Z 发布）。内容为两处修复：悬空出站引用下「放弃未完成编辑」不再死循环，配置构建的规则告警改为主线程分发；APK `10156` / 模块 `2031`。资产快照见[版本对照](docs/current-version.zh-CN.md)；其 Release/tag 已在 preview.2 发布后按单预览策略清理，下载链接不再可用。
 
 ### v3.0.16-preview.4 已发布说明
 

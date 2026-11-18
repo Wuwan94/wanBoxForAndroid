@@ -4,6 +4,8 @@
 
 定义 Android 应用层的主要职责、关键用户能力以及与 libcore 之间必须保持的行为契约。
 
+> **验证状态标记**：条目末尾的 `> 验证：` 行说明该条目的验证状态。「CI 通过」指该条目所属批次的分支验证（port #190 / feat #194）与 main `Verify Android Build` #197 第 2 次尝试全绿，run 号见标记正文；「待真机验证」指 Magisk / KernelSU / APatch 真机矩阵未执行。未标注的条目为历史基线或待拍板项，不代表已验证。
+
 ## Requirements
 
 ### Requirement: Missing route outbounds are visible before users start the core
@@ -335,6 +337,8 @@ apply + expectedRevision + 绕缓存确认），确认后 phase 仍为 stopped�
 - **THEN** 配置被更新且核心仍处于停止态
 - **AND** 提交复用 validate → apply 与 expectedRevision 校验链
 
+> 验证：CI 通过（feat 分支 Verify Android Build #194 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: 混合入站行为由 TUN 设置显式控制
 
 TUN 模式下，只要混合入站存在，VPN 服务 MUST 将系统 HTTP 代理指向本地混合端口。用户启用“禁用混合入站”时，配置 MUST 不生成 mixed 入站及其专属路由规则，VPN MUST 跳过系统 HTTP 代理设置，相关设置项 MUST 禁用。用户名为空时混合入站 MUST 免认证；用户名非空时应用内部 HTTP 请求 MUST 跟随运行时认证信息。
@@ -501,6 +505,8 @@ Before enabling Smart Auto-stop on every supported Android version, Android MUST
 - **THEN** notification settings remain accessible
 - **AND** returning from notification settings rechecks availability before retaining the enabled setting
 
+> 验证：CI 通过（feat 分支 Verify Android Build #194 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: Shared network interception is an explicit opt-in eBPF shared path
 
 设置页 MUST 提供默认关闭的“接管共享网络流量（热点 / USB 共享）”开关，说明 MUST 明确本开关不创建热点、DHCP、NAT 或 IPv6 RA。开启时 MUST 使用 eBPF 共享路径：`shared.interface` MUST 含至少一个真实下游接口（不能填 loopback），`data_plane` MUST 为 `socket_assign` 或 `packet_rewrite`，`dns_mode` 默认 `hijack`，`default_interface` 默认 `false`。接口选择 MUST 用 Root 枚举出的真实下游接口候选列表供用户勾选（由 Root 侧校验、loopback 不得入选），MUST NOT 采用手输接口名。开启前 MUST 通过 eBPF 能力预检；预检失败 MUST 明确报错，MUST NOT 自动切换数据平面。`default_interface=false` 时，已配置的共享接口成为默认上游后 MUST 暂时停止共享挂载，恢复为下游后重新挂载。TUN 模式下共享接管 MUST 明确不支持；TUN 用户的 LAN 网关能力保持不变，MUST NOT 在文案中把 LAN 网关描述为流量接管。分应用名单 MUST 只筛选本机应用，MUST NOT 用来识别热点客户端。
@@ -526,6 +532,8 @@ Before enabling Smart Auto-stop on every supported Android version, Android MUST
 - **THEN** LAN 网关能力可用
 - **AND** 文案不把 LAN 网关描述为共享流量接管
 
+> 验证：CI 通过（feat 分支 Verify Android Build #194 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: Per-app lists are keyed by Android user and support clones
 
 分应用黑/白名单 MUST 以严格的 `<userId>:<package>` 字符串为持久化键；同一包名在不同用户（含工作资料与应用分身）下 MUST 为不同条目，UI MUST 按用户分组展示。名单解析 MUST 由 Root 侧按用户查询 Android package service 得到 UID 后合并为 `include_uid`/`exclude_uid`，MUST NOT 把包名直接交给 sing-box，MUST NOT 跨用户合并 UID。白名单解析后与原生 include UID/range 均为空时，运行时 MUST 设置 `exclude_uid_range=["0:4294967294"]` 排除全部有效 UID，MUST NOT 生成空 include 后静默变为全量接管，MUST NOT 注入占位 UID；空白名单护栏下管理器自身 UID MUST NOT 被当作唯一 include。仅 eBPF 共享路径时 MUST NOT 查询应用 UID。旧单 UID 名单独 MUST 按当前用户反查包名迁移为 `<userId>:<package>`；无法反查的条目 MUST 保留在旧字段并提示用户手动确认，MUST NOT 静默丢弃；本轮 MUST NOT 设定旧字段清理版本，旧字段只读保留、清理留待以后版本另行决定。
@@ -550,6 +558,8 @@ Before enabling Smart Auto-stop on every supported Android version, Android MUST
 - **WHEN** 执行迁移
 - **THEN** 该条目保留在旧字段并提示用户手动确认
 - **AND** 其余可反查条目正常迁移
+
+> 验证：CI 通过（feat 分支 Verify Android Build #194 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
 
 ### Requirement: 模块诊断必须呈现模块已上报的退出与事件信息
 
@@ -622,6 +632,8 @@ MAC 地址全文打码；无法按字段脱敏的损坏 JSON MUST 省略原文�
 - **THEN** 包内该文件被替换为固定 diagnostic_error 说明，不含原文
 - **AND** 其余文件仍正常导出
 
+> 验证：CI 通过（feat 分支 Verify Android Build #194 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: 图形化 Selector/URLTest 编辑
 
 管理器 MUST 提供 Selector/URLTest 创建、成员增删及排序；URLTest MUST 可编辑 URL override、interval、tolerance、idle timeout、interrupt existing 并持久化重开。空 URL override MUST 保持既有继承语义；非空 URL MUST 为 HTTP(S)，interval MUST 为正秒数，tolerance MUST 为非负毫秒数，idle timeout MUST 为核心支持的非负时长。实现时 MUST 新增策略组成员图校验：以稳定实体 ID 为顶点、组到成员为有向边；从候选组可达自身即为循环，错误 MUST 定位到导致回边的成员 ID/编辑行，并在写入或生成候选快照前阻断。空成员、重复成员、缺失实体、循环或参数不合法 MUST 阻止保存并指出原因；取消 MUST 不改持久数据。普通编辑 MUST NOT 将已有 URLTest/LoadBalance 模式重置为 selector。
@@ -691,6 +703,8 @@ MAC 地址全文打码；无法按字段脱敏的损坏 JSON MUST 省略原文�
 - **WHEN** 用户同时为其选择策略组目标并提交
 - **THEN** 提交被拒绝并定位到目标字段
 - **AND** 原规则保持不变
+
+> 验证：CI 通过（feat 分支 Verify Android Build #194 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
 
 ### Requirement: Root 应用链与缺失引用阻断
 
@@ -855,6 +869,8 @@ Discarding an unfinished edit MUST first restore journaled local values while re
 - **WHEN** 管理器读取 `speedInterval`
 - **THEN** 读到 1000，且测速刷新按 1000ms 节奏执行
 
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: 纯节点切换走热切换通道，配置类变更仍走配置重建（B1 已落地）
 
 纯节点切换 MUST 独立走热切换通道（`switchProfileService` 等价物），不得触发完整配置重建；
@@ -867,6 +883,8 @@ Discarding an unfinished edit MUST first restore journaled local values while re
 - **GIVEN** 用户改了路由规则或代理模式
 - **WHEN** 保存并应用
 - **THEN** 触发配置重建，而不是热切换
+
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
 
 ### Requirement: leastPing 组冷启动按缓存延迟预排序（B1 已落地）
 
@@ -882,6 +900,8 @@ Discarding an unfinished edit MUST first restore journaled local values while re
 - **WHEN** 生成配置
 - **THEN** 成员顺序保持原有顺序，不做冷启动预排序
 
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: 组内成员切换后落地 IP 缓存必须失效（B1 已落地）
 
 落地 IP 缓存 MUST 按实际在跑的节点（`currentProfile`）键入，而不是按选中项
@@ -891,6 +911,8 @@ Discarding an unfinished edit MUST first restore journaled local values while re
 - **GIVEN** 组内成员从 M1 切换到 M2
 - **WHEN** 首页读取落地 IP 缓存
 - **THEN** 不得返回 M1 的旧出口 IP，应重新查询
+
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
 
 ### Requirement: 订阅自动更新间隔预设、自定义弹窗与人性化摘要（B2 已落地）
 
@@ -909,6 +931,8 @@ Discarding an unfinished edit MUST first restore journaled local values while re
 - **WHEN** 返回订阅设置页
 - **THEN** 摘要显示“已关闭自动更新”
 
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: 订阅到期补更触发（B2 已落地）
 
 进入订阅分组页及代理连接成功时，管理器 MUST 检查到期订阅并触发补更。
@@ -921,6 +945,26 @@ Discarding an unfinished edit MUST first restore journaled local values while re
 - **GIVEN** 某订阅处于失败退避期
 - **WHEN** 触发补更检查
 - **THEN** 跳过该订阅，不打断退避
+
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
+### Requirement: 订阅后台调度收归主进程（待用户拍板后才实施）
+
+（补记：本条来自 port delta `openspec/changes/port-ownbox-26-11-8-20/specs/android-application/spec.md` 的 O5 2.4，主规范漏合，2026-11-18 发布后回填；状态仍为**待拍板、未实施**，正文与 delta 一致。）
+
+若用户拍板迁移，订阅后台调度 MUST 收归应用主进程原生 `WorkManager` 管理，
+不得继续用 `:bg` 跨进程 `RemoteWorkManager`；
+迁移 MUST 先解决 `UpdateTask` 对 `:bg` 维护的 `DataStore.serviceState` 的依赖，
+不得在主进程读不到连接状态时误判 `updateWhenConnectedOnly`。
+初始延迟 MUST 按各订阅到期时间精确计算，不得截断为 60 秒；
+冷启动时 MUST 在后台协程中校验并恢复定时调度任务。
+
+- **GIVEN** 用户拍板迁移且手机重启后首次打开应用
+- **WHEN** 应用冷启动完成
+- **THEN** 定时调度任务被校验并恢复，到期订阅仍能按时更新
+- **GIVEN** 某订阅 3 小时后到期
+- **WHEN** 调度任务入队
+- **THEN** 初始延迟约为 3 小时，不得被截断为 60 秒
 
 ### Requirement: 应用路由生成层维护集中式系统组件排除名单（B3 已落地，#182 修红修正）
 
@@ -935,6 +979,8 @@ Discarding an unfinished edit MUST first restore journaled local values while re
 - **WHEN** 应用层规则生成并匹配
 - **THEN** 生成结果 MUST NOT 包含把下载器强绑进代理的分类派生绑定；用户显式规则原样保留
 
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: 规则集缓存按实际规则条数校验（B3 已落地）
 
 `.srs` 规则集缓存 MUST 前后端同步校验实际规则条数；0 规则占位文件 MUST NOT 被当作有效缓存，
@@ -947,6 +993,8 @@ MUST 重新拉取或明确报错。远程规则集定时刷新时 MUST 跳过 `l
 - **WHEN** 规则集被加载或刷新
 - **THEN** 该缓存被判定无效并重新拉取，不得静默当作有效规则集使用
 
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: leastPing 冷启动预排序是纯顺序，过期判定在 Go 侧（B4 已落地）
 
 `sortBalancerMembersForColdStart` 只做成员顺序（健康有延迟在前、失败在后），
@@ -957,6 +1005,8 @@ MUST NOT 判断种子新鲜度——`ProxyEntity` 无探针时间戳字段，Kot
 - **GIVEN** 健康成员缓存延迟极大（可能是过期缓存）
 - **WHEN** 生成 leastPing 组配置
 - **THEN** 仍按延迟排在未测成员之前，过期判定不在此处做
+
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
 
 ### Requirement: 策略组混搭来源与组隔离（B7a 已落地）
 
@@ -978,6 +1028,8 @@ MUST NOT 判断种子新鲜度——`ProxyEntity` 无探针时间戳字段，Kot
 - **WHEN** 编辑页实时校验
 - **THEN** 显示正则语法错误提示并阻止保存
 
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: BalancerBean 记录 v5→v6（B7a 已落地）
 
 `BalancerBean` 记录版本 v5→v6（`writeInt(6)`），v6 字段形状由 wanBox 本批定，
@@ -996,6 +1048,8 @@ MUST NOT 判断种子新鲜度——`ProxyEntity` 无探针时间戳字段，Kot
 - **WHEN** 升级到新版并打开策略组设置
 - **THEN** 旧字段原值保留，新字段取安全默认值，可正常保存与建连
 
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: BalancerBean 记录 v6→v7（B7c 已落地）
 
 `BalancerBean` 记录版本 v6→v7（`writeInt(7)`），新增 `tierRules`（String，
@@ -1012,6 +1066,8 @@ URL 安全 Base64 编码后的层级规则表）、`priorityOrder`（`List<Long>
 - **GIVEN** 旧版 v6 策略组数据（含 `maxMembers`、无层级字段）
 - **WHEN** 升级到新版并打开策略组设置
 - **THEN** 旧字段原值保留，层级规则为空、优先级顺序为空，可正常保存与建连
+
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
 
 ### Requirement: 策略组严格手动锁定（B7b 已落地）
 
@@ -1034,6 +1090,8 @@ URL 安全 Base64 编码后的层级规则表）、`priorityOrder`（`List<Long>
 - **WHEN** 下一次检查完成
 - **THEN** 恢复自动选择，可切到健康节点
 
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: 策略统计页与主页横幅（B7b 已落地）
 
 开启策略组连接时，主页 MUST 在当前节点卡片下方显示策略组状态横幅
@@ -1052,6 +1110,8 @@ URL 安全 Base64 编码后的层级规则表）、`priorityOrder`（`List<Long>
 - **GIVEN** 用户在统计页点击“立即全部检查”
 - **WHEN** 检查完成
 - **THEN** 各成员状态与报错信息刷新展示
+
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
 
 ### Requirement: 「按优先级顺序」多层级调度（B7c 已落地）
 
@@ -1082,6 +1142,8 @@ Go 侧 `libcore/protocol/urltest/outbound.go` 强制执行——Kotlin 生成嵌
 - **WHEN** 打开策略组设置页
 - **THEN** 不显示添加层级、层级行与节点优先级列表
 
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: 节点优先级二级页与内嵌节点顺序列表（B7c 已落地）
 
 策略组设置页 MUST 提供内嵌式节点顺序列表（位于「指定节点」下方、「高级」上方），
@@ -1100,3 +1162,5 @@ Go 侧 `libcore/protocol/urltest/outbound.go` 强制执行——Kotlin 生成嵌
 - **GIVEN** 用户打开「节点优先级」二级页
 - **WHEN** 点击「按当前延迟排序」
 - **THEN** 节点按实测延迟升序排列（有层级时层内排序），返回后生效
+
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。

@@ -242,3 +242,32 @@ Kotlin 生成嵌套 urltest：每层一个内层 urltest（同间隔/容差/空�
 层级规则与优先级顺序的草稿态另存 DataStore（`balancerTierRules` /
 `balancerPriorityOrder` / `balancerPriorityExcluded`，profileCacheStore），
 保存时才写入 `BalancerBean`。）
+
+### Requirement: leastPing 组冷启动按缓存延迟预排序（B1 已落地）
+
+（补记：本条在 B1 实施期间已写入主规范 `openspec/specs/android-application/spec.md`，delta 只记了 Go 侧一半，Kotlin 侧漏记，2026-11-18 发布后回填；正文与主规范一致。）
+
+配置生成时，leastPing 策略组的成员顺序 MUST 按缓存延迟预排序：健康有延迟
+（status 1 且 ping > 0）在前并按延迟升序、有延迟但未确认健康其次、未测再次、
+已知失败（status 2/3）在后；使内核首包不盲连列表首位。排序只改变生成配置里的
+成员顺序，不改变任何持久化数据；failover 等其他策略 MUST 保持原有成员顺序。
+
+- **GIVEN** leastPing 组内节点 A 健康延迟 80ms、节点 B 健康延迟 900ms、节点 C 未测、节点 D 已知失败
+- **WHEN** 生成配置
+- **THEN** 成员顺序为 A、B、C、D（失败在后）
+- **GIVEN** failover 策略组
+- **WHEN** 生成配置
+- **THEN** 成员顺序保持原有顺序，不做冷启动预排序
+
+### Requirement: leastPing 冷启动预排序是纯顺序，过期判定在 Go 侧（B4 已落地）
+
+（补记：本条在 B4 实施期间已写入主规范 `openspec/specs/android-application/spec.md`，delta 漏记，2026-11-18 发布后回填；正文与主规范一致。）
+
+`sortBalancerMembersForColdStart` 只做成员顺序（健康有延迟在前、失败在后），
+MUST NOT 判断种子新鲜度——`ProxyEntity` 无探针时间戳字段，Kotlin 侧无法判定
+缓存延迟是否过期；种子过期判定（超过 `3*interval`）与 idle 后重选在 Go 侧
+`URLTestGroup` 强制执行。
+
+- **GIVEN** 健康成员缓存延迟极大（可能是过期缓存）
+- **WHEN** 生成 leastPing 组配置
+- **THEN** 仍按延迟排在未测成员之前，过期判定不在此处做

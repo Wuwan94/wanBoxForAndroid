@@ -4,6 +4,8 @@
 
 定义 ThroneForAndroid 与 NetProxy 所用 reF1nd sing-box 内核之间的 Go/JNI 接驳、eBPF/TUN 网络生命周期、日志、规则集和协议扩展约束。
 
+> **验证状态标记**：条目末尾的 `> 验证：` 行说明该条目的验证状态。「CI 通过」指该条目所属批次的分支验证（port #190 / feat #194）与 main `Verify Android Build` #197 第 2 次尝试全绿，run 号见标记正文；「待真机验证」指 Magisk / KernelSU / APatch 真机矩阵未执行。未标注的条目为历史基线或待拍板项，不代表已验证。
+
 ## Requirements
 
 ### Requirement: libcore 使用固定且可验证的 NetProxy sing-box 基线
@@ -49,6 +51,8 @@ Root eBPF 入站 MUST 支持与本机路径独立启用的共享路径：`shared
 - **THEN** 共享挂载暂时停止
 - **AND** 该接口恢复为下游后共享挂载重新建立
 
+> 验证：CI 通过（feat 分支 Verify Android Build #194 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: Root resolves per-app lists per Android user
 
 Root 模块 MUST 接受 `<userId>:<package>` 形式的黑/白名单；解析时 MUST 按用户查询 Android package service 得到 UID，再合并为受管入站的 `include_uid`/`exclude_uid`。MUST NOT 把包名直接交给 sing-box，MUST NOT 跨用户合并 UID。白名单解析后与原生 include UID/range 均为空时，运行时 MUST 设置 `exclude_uid_range=["0:4294967294"]`，MUST NOT 生成空 include 后静默变为全量接管。应用安装、重装、UID 变化或用户范围变化后，MUST 通过重启或配置 reload 重新解析，MUST NOT 维护模块侧 UID 缓存。仅 eBPF 共享路径时 MUST NOT 查询应用 UID。UID 0 MUST NOT 被自动加入名单；Root UID 策略与应用名单正交。
@@ -66,6 +70,8 @@ Root 模块 MUST 接受 `<userId>:<package>` 形式的黑/白名单；解析时 
 - **WHEN** Root 生成运行时入站配置
 - **THEN** 配置含 `exclude_uid_range=["0:4294967294"]`
 - **AND** 不含空 `include_uid`
+
+> 验证：CI 通过（feat 分支 Verify Android Build #194 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
 
 ### Requirement: Root 模块导出脱敏诊断包
 
@@ -95,6 +101,8 @@ stdin 传 DiagnosticsRequest JSON，成功时 stdout 为 `{"missing":[...]}`，
 - **WHEN** 执行导出
 - **THEN** 包内该文件为固定 diagnostic_error 说明
 - **AND** 导出仍返回成功并在 README 列出该文件已省略原文
+
+> 验证：CI 通过（feat 分支 Verify Android Build #194 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
 
 ### Requirement: Hot-update contract tests cover installer behaviour without changing the implementation
 
@@ -137,6 +145,8 @@ Root 热更新 MUST 有契约测试覆盖安装器行为，且 B8 只补测试�
 - **WHEN** 后台完成任务尝试接管
 - **THEN** 接管拒绝，旧模块与 staging 包原样保留
 - **AND** 事件记录 `module_hot_update_deferred`
+
+> 验证：CI 通过（feat 分支 Verify Android Build #194 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
 
 ### Requirement: 平台接口按 box 实例隔离
 
@@ -293,6 +303,8 @@ MUST NOT 修改正式服务状态、当前选择或 Worker，且 MUST 只在 eui
 - **WHEN** 执行 `node urltest` 或 `node speedtest`
 - **THEN** 命令以非零退出码失败并返回稳定错误 token，不启动测试 box
 
+> 验证：CI 通过（feat 分支 Verify Android Build #194 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: Root 网络自动暂停与恢复不得泄漏内核自有路由
 
 Root 模块 MUST 接收统一按网络规则表（最多五条规则，每条 = 匹配器 + 动作），并在不使用定位数据的情况下匹配当前物理网络。匹配器可组合 SSID（精确保留空格/大小写/逗号）、`gateway:` 默认网关、CIDR/精确本地地址与实际默认出口类型（`wifi` / `not_wifi`）；规则间按用户顺序首条胜出，无匹配时保持默认行为。`suspend` 动作命中时，supervisor MUST 保留用户运行意图，仅请求当前内核进程优雅退出；内核 MUST 关闭自身 sing-box 实例、TUN 和 `auto_route` 资源，确认进程退出后模块才可报告 `suspended`。`direct` 动作命中时 MUST 只改运行时模式并经 Clash API 回读确认，MUST NOT 覆盖默认模式，参数不变时 MUST NOT 重载；API 失败 MUST NOT 重载兜底。`keep` 动作命中时 MUST 不改变运行状态。模块 MUST NOT 全局清空 iptables/nftables 或修改非本内核实例拥有的路由。离开匹配网络后，模块 MUST 恢复原运行意图，最多启动一个替代内核。同一网络指纹上的手动恢复 MUST 抑制再次自动暂停，直到物理网络指纹变化；显式手动停止 MUST NOT 被自动恢复撤销。清理超时 MUST 报告失败，不得声称暂停成功或启动重复内核，并 MUST 允许重试显式停止而不影响其他进程或路由。指纹 MUST 由实际默认出口（按 Android policy routing 读取）、该出口的 station SSID（`iw` 读取）、默认网关与本地地址集合组成；未知网络 MUST NOT 被当作非 Wi-Fi；开机未知时 MUST 校准默认模式；指纹读取失败或 SSID 不可读时 MUST 保持当前状态并记录，MUST NOT 猜测切换；Wi-Fi 出口上 SSID 读取失败时，同一评估内 `gateway:`/CIDR 规则也不触发。评估观察沿用既有 5 秒 health tick，动作只在指纹或动作变化时执行，不得做定时轮询式的重复动作。
@@ -392,6 +404,8 @@ Enabled `files/network_rules.json` MUST include `userId`, the current Android us
 - **THEN** the explicit broadcast targets that user/profile and application package only
 - **AND** an enabled snapshot without user identity is rejected while disabled legacy snapshots remain compatible
 
+> 验证：CI 通过（feat 分支 Verify Android Build #194 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: DNS ExchangeContext.Success 必须发送完成信号（B1 已落地）
 
 `ExchangeContext.Success()` MUST 在写入解析地址后调用 `c.done()`，与 `RawSuccess`、
@@ -400,6 +414,8 @@ Enabled `files/network_rules.json` MUST include `userId`, the current Android us
 - **GIVEN** 平台 DNS 回调走 `Success(result)` 返回地址列表
 - **WHEN** `Success` 返回
 - **THEN** 等待该次解析的调用方收到完成信号并继续，不再挂起至超时
+
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
 
 ### Requirement: 探测失败惩罚写入续期时间戳，惩罚必须饱和封顶（B1 已落地）
 
@@ -418,6 +434,8 @@ MUST NOT 发生 uint16 回绕。单次超时或网络瞬态抖动 MUST NOT 直�
 - **WHEN** 写入惩罚历史
 - **THEN** 延迟为 1100 以内（单次惩罚增量），`Time` 续期为当前时间
 
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: 连续两次探测失败清理故障史（B1 已落地）
 
 同一成员连续两次探测失败时，`URLTest` MUST 清理其故障历史，防止假死节点被重新选回。
@@ -429,6 +447,8 @@ MUST NOT 发生 uint16 回绕。单次超时或网络瞬态抖动 MUST NOT 直�
 - **GIVEN** 节点失败一次后探测成功
 - **WHEN** 成功结果写入
 - **THEN** 连续失败计数复位为 0
+
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
 
 ### Requirement: 建连单步超时与故障转移（B1 已落地）
 
@@ -445,6 +465,8 @@ MUST NOT 发生 uint16 回绕。单次超时或网络瞬态抖动 MUST NOT 直�
 - **WHEN** 检查既有连接
 - **THEN** 既有连接不受影响
 
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: URLTest 必须继续实现 OutboundGroup（B1 已落地，O4 防护）
 
 wanBox 的 `URLTest` MUST 继续实现 `adapter.OutboundGroup`，不得照抄上游 8.15
@@ -455,6 +477,8 @@ wanBox 的 `URLTest` MUST 继续实现 `adapter.OutboundGroup`，不得照抄上
 - **WHEN** 做 `adapter.OutboundGroup` 类型断言
 - **THEN** 断言成立，且路由仍经由组接口选路
 
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: GeoSite/GeoIP 读取器关闭与流式过滤（B1 已落地）
 
 GeoSite 底层读取器 MUST 在使用后关闭释放；GeoIP 提取 MUST 直接按目标国家码流式过滤，
@@ -464,6 +488,8 @@ MUST NOT 全量构建全球国家映射导致额外内存峰值。
 - **WHEN** 提取完成
 - **THEN** 底层读取器已关闭，且未出现全量国家映射构建的内存峰值
 
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: 内嵌资源解压失败不得静默吞掉（B1 已落地）
 
 内嵌资源解压（`Unxz` / assets）MUST 正确关闭文件句柄、正确拼接版本文件清理路径，
@@ -472,6 +498,8 @@ MUST NOT 全量构建全球国家映射导致额外内存峰值。
 - **GIVEN** 内嵌资源解压失败
 - **WHEN** 解压流程返回
 - **THEN** 调用方收到明确错误，而不是静默成功
+
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
 
 ### Requirement: 切网时重置路由器 DNS/HTTP 连接池（B1 已落地）
 
@@ -487,6 +515,8 @@ MUST NOT 全量构建全球国家映射导致额外内存峰值。
 - **WHEN** 再次收到相同接口事件
 - **THEN** 不重复重置、不重复通知
 
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: 规则集缓存按实际条数校验，0 规则占位无效（B3 已落地）
 
 `.srs` 规则集缓存 MUST 在加载与刷新时校验实际规则条数；0 规则占位文件 MUST NOT 被当作有效缓存。
@@ -495,6 +525,8 @@ MUST NOT 全量构建全球国家映射导致额外内存峰值。
 - **GIVEN** 磁盘上存在 0 规则的 `.srs` 缓存文件
 - **WHEN** 核心加载该规则集
 - **THEN** 该缓存被判定无效并触发重新拉取或明确报错，不得静默当作有效规则集使用
+
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
 
 ### Requirement: 种子过期判定与 idle 后重选（B4 已落地）
 
@@ -515,6 +547,8 @@ ConfigBuilder 成员预排序承载。
 - **WHEN** idle 后首次连接
 - **THEN** 重新按缓存预选，不得沿用过期选择
 
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: 批量探针流式就绪与首轮等待跳过（B4 已落地）
 
 `URLTestOutbounds` 批量探针中单个成员成功 MUST 立即写回 history 并重算选择
@@ -533,6 +567,8 @@ ConfigBuilder 成员预排序承载。
 - **WHEN** 发起首次连接
 - **THEN** 直接用快节点建连，不等整轮跑完
 
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+
 ### Requirement: 单步超时 3 秒与 UDP 故障转移（B4 已落地，B1 落地实现）
 
 `URLTest.DialContext`/`ListenPacket` 单步超时取 3 秒（用户 2026-11-17 拍板，
@@ -542,3 +578,5 @@ ConfigBuilder 成员预排序承载。
 - **GIVEN** 主选节点建连黑洞，存在备用候选
 - **WHEN** 单步 3 秒超时到达
 - **THEN** 当次尝试被掐断并转移到备用候选，现有连接不受影响
+
+> 验证：CI 通过（port 分支 Verify Android Build #190 全绿，main #197 第 2 次尝试全绿）；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。

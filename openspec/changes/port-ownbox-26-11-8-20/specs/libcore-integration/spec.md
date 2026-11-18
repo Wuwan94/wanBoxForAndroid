@@ -142,3 +142,19 @@ B1 核查结论（2026-11-17）：三处缺陷真实存在，已修——`Unxz` 
 - **GIVEN** 内嵌资源解压失败
 - **WHEN** 解压流程返回
 - **THEN** 调用方收到明确错误，而不是静默成功
+
+### Requirement: 切网时重置路由器 DNS/HTTP 连接池（B1 已落地）
+
+（补记：本条在 B1 实施期间已写入主规范 `openspec/specs/libcore-integration/spec.md`，delta 漏记，2026-11-18 发布后回填；正文与主规范一致。）
+
+`networkChangeResetConnections=false` 时，切网 MUST 保留现有代理长连接
+（不通知 NetworkManager 拆出站），但 MUST 仍重置路由器的 DNS/HTTP 连接池，
+避免 DoH 等持久化 DNS 连接继续挂在旧物理网卡上卡死；首次出现接口
+（曾 Lost/pause 后恢复）仍 MUST 通知回调以 NetworkWake。
+
+- **GIVEN** 设置关闭了“切网重置连接”，当前接口为 wlan0
+- **WHEN** 默认接口切到 rmnet0
+- **THEN** 不通知出站回调拆连接，但路由器的 DNS/HTTP 连接池被重置一次
+- **GIVEN** 同一接口重复上报
+- **WHEN** 再次收到相同接口事件
+- **THEN** 不重复重置、不重复通知

@@ -4,13 +4,15 @@
 
 ## wanBox 3.0.x 发布记录
 
-### v3.0.17-preview.2（预览候选，未发布）
+### v3.0.17-preview.2（已发布预览）
 
-- 候选未发布：两路借鉴移植批次合入 main（PR #67 port OwnBox 线：B1/B2/B3/B4/B7a/B7b/B7c；PR #68 feat NetProxy 线：B5/B6/N6/B8）后的首个预览候选；O8 自选统一引擎与 N8 eBPF 入站本轮未实施（前者只做评估不采，后者只做可行性评估）。
-- 元数据升为模块 `2032` / APK `10162`（preview.1 为 `2031` / `10156`）；稳定版 v3.0.14、正式元数据 `3.0.14 / 2026` 与 `SINGBOX_VERSION` 不变。本条目在候选阶段记录，发布后由文档同步 PR 翻转状态并回填 CI run 号与资产数据。
+- [GitHub Release v3.0.17-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.2) 由 `Preview Build` run `44281162788` 在 main commit/tag `49e966197dd608b687b36eecdaf394274dacfe15`（PR #67，2026-11-18T08:44:27Z 合并；PR #68，2026-11-18T08:48:15Z 合并；`Verify Android Build` run `44270851087` 第 2 次尝试全绿）于 2026-11-18T10:18:19Z 发布；tag 对象、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `49e96619`。
+- 两路借鉴移植批次合入 main（PR #67 port OwnBox 线：B1/B2/B3/B4/B7a/B7b/B7c；PR #68 feat NetProxy 线：B5/B6/N6/B8）后的首个预览；O8 自选统一引擎与 N8 eBPF 入站本轮未实施（前者只做评估不采，后者只做可行性评估）。
 - 内容摘要：核心稳定性与故障转移（DNS 完成信号、惩罚饱和封顶、单步超时 3 秒）、订阅自动更新、智能分流与规则集校验、冷启动秒连、策略组混搭/手动锁定/优先级调度、停核可编辑与脱敏诊断包、按网络规则与共享/分应用、路由规则指定策略组、热更新契约测试与 pref 9001 守卫泄漏修复。URLTest 间隔 ≥10 秒、空闲 ≥30 分钟、切换不中断连接等约束未放宽。Root 真机矩阵未执行，仍未验证。
+- 验证证据：分支验证 port `Verify Android Build` #190（头 `921ca47`）与 feat #194（头 `b157e4d`）全绿，PR 门禁 #195/#196 全绿；main 头 `49e96619` 的 `Verify Android Build` #197 第 1 次尝试红在 release 变体 3 项插桩测试（`GroupDraftAbandonPersistenceTest.rebuildFailureSurvivesActivityDestructionAndUserCanRetry`、`OutboundReferenceAlarmTest.failedInstallerRestorationLeavesReviewPendingWithoutWarning`、`SubscriptionGroupOwnershipTest.ordinaryEditorCannotTakeSubscriptionNodesOrPartiallySave`），定位为 UiAutomation 窗口上报超时抖动、未改代码，第 2 次尝试全绿（debug 81 项 0 失败 2 skip、release 79 项 0 失败 2 skip）。
+- 元数据为模块 `2032` / APK `10162`；四件套经 API digest 与公开 `SHA256SUMS` 回读一致（本地 `sha256sum -c` 三件 OK）：APK `6362163` 字节 / `b45b2758…7b3500`、普通 Root ZIP `18128414` 字节 / `bfd8f9ea…f7f562`、合一 ZIP `23769177` 字节 / `b849607b…a53859`、`SHA256SUMS` `333` 字节；APK + 普通 Root ZIP 为 `24490577` 字节（23.36 MiB），`size_budget --enforce-limit` PASS。发布后 `prune_prereleases.py --keep-tag v3.0.17-preview.2` 清理了 preview.1 的 Release/tag。Root 真机矩阵未执行（CI 自标 `runtime_regression: not_verified`），仍未验证。
 
-### v3.0.17-preview.1（已发布预览）
+### v3.0.17-preview.1（历史预览，Release/tag 已在 preview.2 发布后清理）
 
 - [GitHub Release v3.0.17-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.1) 由 `Preview Build` run `44076008956` 在 main commit/tag `33391d1dfa851fce7998431eb4ab614407ffbb25`（PR #65，2026-11-17T11:39:26Z 合并，`Verify Android Build` run `44071339331`）于 2026-11-17T12:01:45Z 发布；tag 对象、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `33391d1`。
 - 修复 preview.4 复审发现的 P1 回归：存在悬空出站引用（启用规则指向已删除节点）且恢复标记仍在时，首页连接被出站告警与恢复屏障双重拦住，「放弃未完成编辑」又在锁内重建的同一条告警上失败并被包成「需要恢复」，恢复标记永不释放，形成死循环。现由**同一次构建快照**算出的告警替代该次重建的确认；正常启动/重连/重载仍照旧要求确认，提交点（确认成功才清标记）未放宽。
