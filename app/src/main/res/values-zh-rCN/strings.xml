@@ -1351,6 +1351,7 @@
     <string name="per_user_apps_summary">同一应用在不同用户或分身下分别列出。</string>
     <string name="per_user_apps_user">Android 用户 %1$d</string>
     <string name="per_user_apps_legacy_kept">有 %1$d 条旧名单无法对应到应用，已保留，请手动确认。</string>
+    <string name="per_user_app_whitelist_empty">所选应用都无法代理（多为系统组件或已卸载），请在分应用代理中重新选择。</string>
     <string name="smart_auto_stop_permission">智能自动暂停通知设置。请开启应用通知及“智能自动暂停”通知渠道，以使用“恢复”和“停止”操作。点击打开设置。</string>
     <string name="smart_auto_stop_suspended">已暂停 · 智能自动暂停</string>
     <string name="smart_auto_stop_resume_hint">代理已暂停，点击恢复以继续。</string>

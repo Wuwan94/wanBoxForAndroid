@@ -102,15 +102,50 @@ class PerUserAppsTest {
 
     @Test
     fun resolvedWhitelistMustNotSilentlyBecomeEmpty() {
-        // 只选了纯系统组件（uid < 1000 被过滤）时不得静默变成“不代理任何应用”。
+        // 查询成功、但一个有效 UID 都没有（纯系统组件/已卸载）时不得静默变成
+        // “不代理任何应用”：抛带本地化文案的异常，提示用户重新选择。
         val error = runCatching {
-            PerUserApps.requireResolvedWhitelist(requestedCount = 2, resolvedUids = emptyList())
+            PerUserApps.settleResolvedWhitelist(
+                requestedCount = 2,
+                unresolvedOtherUser = 0,
+                resolvedUids = emptyList(),
+                resolveError = null,
+            )
         }.exceptionOrNull()
         assertTrue(error is IllegalStateException)
-        assertEquals("per_user_app_whitelist_empty", error?.message)
+        assertFalse(error?.message.isNullOrBlank())
         // 没有请求条目时仍允许空表（分应用代理关闭/用户没选应用）。
-        assertEquals(emptyList<Int>(), PerUserApps.requireResolvedWhitelist(0, emptyList()))
-        assertEquals(listOf(10123), PerUserApps.requireResolvedWhitelist(1, listOf(10123)))
+        assertEquals(
+            emptyList<Int>(),
+            PerUserApps.settleResolvedWhitelist(0, 0, emptyList(), null),
+        )
+        assertEquals(
+            listOf(10123),
+            PerUserApps.settleResolvedWhitelist(1, 0, listOf(10123), null),
+        )
+    }
+
+    @Test
+    fun suTimeoutMustNotBlockStartup() {
+        // P2-4：跨用户 su 查询超时/解析失败时，退回旧行为（只代理已解析到的
+        // 部分），MUST NOT 因为“空白名单”拦截服务启动。
+        assertEquals(
+            emptyList<Int>(),
+            PerUserApps.settleResolvedWhitelist(2, 2, emptyList(), "pm_timeout"),
+        )
+        assertEquals(
+            listOf(10123),
+            PerUserApps.settleResolvedWhitelist(2, 1, listOf(10123), "pm_failed"),
+        )
+    }
+
+    @Test
+    fun partialResolutionKeepsResolvedUids() {
+        // 部分条目解析成功：照旧只代理解析到的部分，不因剩余条目报错。
+        assertEquals(
+            listOf(10123),
+            PerUserApps.settleResolvedWhitelist(2, 1, listOf(10123), null),
+        )
     }
 
     @Test

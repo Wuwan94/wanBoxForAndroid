@@ -80,7 +80,14 @@ object PackageCache {
     // @author 雾晚: secondary users' packages are invisible to PackageManager, so
     // per-app rules would miss their traffic. Resolve all users' UIDs via root pm.
     private const val MULTI_USER_TTL_MS = 5 * 60 * 1000L
+    // P2-4：跨用户查询失败（su 5 秒超时 / pm 输出解析失败）时不得把空表当成
+    // “确实没有其他用户应用”缓存满 5 分钟；30 秒后再试，并把失败码交给
+    // PerUserApps 区分“查询失败”与“名单真为空”。
+    private const val MULTI_USER_FAILURE_RETRY_MS = 30 * 1000L
     @Volatile private var multiUserMap: Map<String, List<Int>> = emptyMap()
+    /** 上次跨用户 UID 查询的失败码（null = 成功或尚未执行）。 */
+    @Volatile var multiUserResolveError: String? = null
+        private set
     // B6（N5）：按用户归属的跨用户 UID 映射（userId -> package -> UIDs）。
     // 同一包名在不同用户下是不同条目，不得跨用户合并 UID。
     @Volatile private var multiUserMapByUser: Map<Int, Map<String, List<Int>>> = emptyMap()
@@ -89,14 +96,29 @@ object PackageCache {
 
     /** Refresh the cross-user UID map; cheap (TTL) and safe to call often. */
     suspend fun refreshMultiUserUids() {
-        if (System.currentTimeMillis() - multiUserMapAt < MULTI_USER_TTL_MS) return
+        val window = if (multiUserResolveError != null) MULTI_USER_FAILURE_RETRY_MS else MULTI_USER_TTL_MS
+        if (System.currentTimeMillis() - multiUserMapAt < window) return
         multiUserMutex.withLock {
-            if (System.currentTimeMillis() - multiUserMapAt < MULTI_USER_TTL_MS) return
-            val fresh = runCatching { queryMultiUserUids() }.getOrDefault(emptyMap())
-            multiUserMapByUser = fresh
-            multiUserMap = fresh.values.fold(mutableMapOf<String, MutableList<Int>>()) { acc, perUser ->
-                perUser.forEach { (pkg, uids) -> acc.getOrPut(pkg) { mutableListOf() }.addAll(uids) }
-                acc
+            val lockedWindow =
+                if (multiUserResolveError != null) MULTI_USER_FAILURE_RETRY_MS else MULTI_USER_TTL_MS
+            if (System.currentTimeMillis() - multiUserMapAt < lockedWindow) return
+            val result = runCatching { queryMultiUserUids() }
+            val fresh = result.getOrNull()
+            if (fresh != null) {
+                multiUserMapByUser = fresh
+                multiUserMap = fresh.values.fold(mutableMapOf<String, MutableList<Int>>()) { acc, perUser ->
+                    perUser.forEach { (pkg, uids) -> acc.getOrPut(pkg) { mutableListOf() }.addAll(uids) }
+                    acc
+                }
+                multiUserResolveError = null
+            } else {
+                // 失败时保留上一份成功快照（可能为空），只标记失败码；
+                // PerUserApps 据此退回旧行为，不拦截服务启动。
+                val error = result.exceptionOrNull()
+                multiUserResolveError = error?.message?.takeIf { it.isNotBlank() } ?: "pm_failed"
+                io.nekohasekai.sagernet.ktx.Logs.w(
+                    "PackageCache: multi-user UID lookup failed ($multiUserResolveError); retry in 30s"
+                )
             }
             multiUserMapAt = System.currentTimeMillis()
         }
