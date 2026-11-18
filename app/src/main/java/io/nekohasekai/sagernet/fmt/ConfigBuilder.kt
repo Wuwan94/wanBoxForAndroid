@@ -56,6 +56,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 // @author 雾晚
 import io.nekohasekai.sagernet.route.RouteRuleEditor
 import io.nekohasekai.sagernet.route.RouteRulePriority
+import io.nekohasekai.sagernet.route.SystemExcludedPackages
 
 /**
  * @author 雾晚 (B 路线)
@@ -1527,10 +1528,12 @@ fun buildConfig(
                         resolvedForGeoIp = true
                     }
                 }
-                if (rule.packages.isNotEmpty()) {
+                // B3/O6：系统组件不参与应用层规则强绑；集中式排除名单，见 SystemExcludedPackages。
+                val effectivePackages = SystemExcludedPackages.exclude(rule.packages)
+                if (effectivePackages.isNotEmpty()) {
                     PackageCache.awaitLoadSync()
                 }
-                val uidList = rule.packages.flatMap { pkg ->
+                val uidList = effectivePackages.flatMap { pkg ->
                     if (!useTun) {
                         // @author 雾晚: config building runs on IO coroutines, so show it on main.
                         runOnMainDispatcher {
@@ -1562,7 +1565,7 @@ fun buildConfig(
                 val hasIpCriteria = !ipList.isNullOrEmpty() || rulesetTags.any { it.second }
                 val hasDomainRuleset = rulesetTags.any { !it.second }
                 val isAppOnlyDns =
-                    (uidList.isNotEmpty() || rule.packages.isNotEmpty()) &&
+                    (uidList.isNotEmpty() || effectivePackages.isNotEmpty()) &&
                         !hasDomainCriteria &&
                         !hasIpCriteria &&
                         !hasDomainRuleset &&
@@ -1585,7 +1588,7 @@ fun buildConfig(
                 fun makeDnsRuleObj(): DNSRule_DefaultOptions {
                     return DNSRule_DefaultOptions().apply {
                         if (uidList.isNotEmpty()) user_id = uidList.toList()
-                        if (rule.packages.isNotEmpty()) package_name = rule.packages.toList()
+                        if (effectivePackages.isNotEmpty()) package_name = effectivePackages.toList()
                         domainList?.let { makeSingBoxRule(it) }
                     }
                 }
@@ -1661,7 +1664,8 @@ fun buildConfig(
                 if (rule.packages.isNotEmpty()) {
                     // @author 雾晚: identifiers/counts only; never log package names or endpoints.
                     Logs.d("ApplicationRouteConfig mode=${if (isRootTun) "root" else "vpn"} " +
-                        "ruleId=${rule.id} packages=${rule.packages.size} uids=${uidList.size} " +
+                        "ruleId=${rule.id} packages=${effectivePackages.size} " +
+                        "excludedSystem=${rule.packages.size - effectivePackages.size} uids=${uidList.size} " +
                         "outboundId=${rule.outbound} identity=package-or-uid")
                 }
 
@@ -1669,8 +1673,8 @@ fun buildConfig(
                     if (uidList.isNotEmpty()) {
                         ruleObj.user_id = uidList.toList()
                     }
-                    if (rule.packages.isNotEmpty()) {
-                        ruleObj.package_name = rule.packages.toList()
+                    if (effectivePackages.isNotEmpty()) {
+                        ruleObj.package_name = effectivePackages.toList()
                     }
                     if (rule.port.isNotBlank()) {
                         ruleObj.port = mutableListOf<Int>()

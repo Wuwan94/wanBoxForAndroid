@@ -274,3 +274,72 @@ O1 上游三条（8.20）对表 wanBox 自家约束：
 - 2.7 验证阶段未跑：CI（`verify-android.yml`，workflow_dispatch，推分支不触发，
   该分支上 0 次运行）与真机结果待用户回传，不得勾选；Kotlin 侧未经本地编译
   （沙箱 Gradle 插件解析失败，见提交说明），待 CI 验证。
+
+## B3 实施记录（2026-11-18，O6）
+
+### 核查结论（3.2，写入提交说明）
+
+- Go 侧（`libcore/ruleset.go`）：`prepareRemoteRuleSets` 只凭文件存在/非空就
+  信任 `InitialPath` 与缓存（0 规则占位文件本身约 7–13 字节，非空即被当作
+  有效缓存）；`convertGeoRuleSetToSRS` 只凭 `.srs` 比 db 新就复用，转换失败
+  写出的空回退会被永久复用；`validateRootGeoResources`（`rootbox.go`）只凭
+  官方 `.srs` 存在就放行。以上三处均无实际规则条数校验——缺陷真实存在。
+- Kotlin 侧（`SingBoxOptionsUtil.kt`）：`processRulesetUrl` 只接受 `rsip:`/
+  `rssite:`，其余前缀（含 `local:`）即抛 `ruleset_prefix_error` 明确拒绝；
+  `generateRemoteRuleSet` 只发 remote 条目（tag `ruleset-<hash>`），不读缓存；
+  wanBox 无 `RuleSetCatalog`/`RuleSets`，Kotlin 侧没有任何 `.srs` 缓存查找
+  调用点。
+- `local:` 结论：**跳过，不硬做**。wanBox 规则模型没有本地规则集解析层
+  （无 `RuleSetCatalog`、无多目录搜索、无 `local:` 标签模型）；用户输入
+  `local:` 时配置生成即明确拒绝；Go 侧 `parseGeoRuleSetPath` 对 `local:`
+  返回 ok=false，不做任何解析。上游 8.8 的多目录 `local:` 解析
+  （`RuleSetCatalog.localRuleSetDirs`/`findLocalRuleSetFile`）不移植。
+  远程规则集定时刷新须跳过 `local:` 条目——因 `local:` 条目进不了配置，
+  该要求空虚满足。
+- 上游 8.8 的 `rs.LocalOptions.Path` 命名不移植：wanBox 钉住的 reF1nd
+  sing-box API 仍是 `rs.Path`，改名会编译失败。
+
+### 落地内容（3.1、3.3、3.4）
+
+- 3.3：新增 `route/SystemExcludedPackages.kt`（集中式名单，与上游 8.8 的
+  `SYSTEM_EXCLUDED_PACKAGES` 19 项一致，含 `BuildConfig.APPLICATION_ID`）；
+  `ConfigBuilder` 在应用路由生成时用 `effectivePackages` 统一过滤
+  （UID 解析、`package_name`、DNS 派生规则、`isAppOnlyDns` 判定均走过滤后
+  集合；日志只记数量，不记包名）；`ProfileManager` 的 Play 商店规则修复
+  改引同一份名单——原先只剔两个下载器包名，现按完整系统名单剔除。
+- 3.4：Go 侧新增 `isPopulatedSRSFile`（上游原文直搬，与 Kotlin 侧
+  `RuleSetCache.isPopulatedSrsCache` 同一条判定：>128 字节直接放行，否则
+  解析首个 varint 规则数），用于 `prepareRemoteRuleSets`（双命名
+  altPath/dstPath 优先复用已填充缓存；两者皆无才保留/创建占位；已指定的
+  `InitialPath` 只有填充过才信任）与 `convertGeoRuleSetToSRS` 的缓存复用
+  分支（0 规则缓存不再复用，改为重新生成）；`validateRootGeoResources`
+  的官方 `.srs` 存在检查改为填充检查。
+  Kotlin 侧新增 `route/RuleSetCache.kt`（`isPopulatedSrsCache`，与 Go 同判定，
+  配单测）：wanBox Kotlin 当前无 `.srs` 缓存查找调用点，本函数是前后端
+  共用的校验定义，生效校验在 Go 侧 `box.New` 前。
+- 3.1：新增 `libcore/ruleset_test.go`（6 项：占位/填充/缺失/0 字节/极简 JSON/
+  大文件判定、优先填充缓存、无缓存保留占位、geo 转换复用拒绝空占位与保留
+  填充缓存、`local:` 被忽略）；新增 `SystemExcludedPackagesTest`、
+  `RuleSetCacheTest`、`RulesetEntryTest`（`local:` 被明确拒绝——JVM 单测里
+  `SagerNet.application` 未初始化，抛出的具体异常类型与真机上的
+  `ruleset_prefix_error` 不同，但“拒绝”契约相同）。
+
+### 与上游原文的差异（均有意为之）
+
+- `convertGeoRuleSetToSRS` 的复用分支加填充检查：上游 8.8 未动此处，但
+  wanBox 的空回退写盘使该分支可达——转换失败写出的空 SRS 若只凭新旧复用，
+  会被永久当作有效缓存。这是同类缺陷的延伸修复，不是照抄。
+- `validateRootGeoResources` 的官方 `.srs` 检查改为填充检查：同类缺陷
+  的延伸修复（只凭存在放行 → 0 规则占位落到 db 加载校验）。
+- `RouteRuleEditor.validationConfig` 的投影规则不套排除名单：它是
+  schema 校验的 dry-run，不是生成层；套用后纯系统包规则会投影为空，
+  可能新增校验失败。生成层（`ConfigBuilder`）已排除，投影与生成的
+  差异已在此记录。
+- 不做分类优先级（核心国外应用 → 显式国内 → 前缀 → 预置表）：wanBox
+  无 `classifyApps`，design.md 的 O6 要点已写明只落排除名单。
+
+### 本批未做
+
+- 3.7 验证阶段未跑：CI（`verify-android.yml`）与真机结果待用户回传，
+  不得勾选；Kotlin 侧未经本地编译（沙箱 Gradle 插件解析失败，见提交说明），
+  待 CI 验证；Go 侧本地已验证通过（见提交说明）。

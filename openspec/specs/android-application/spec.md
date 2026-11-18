@@ -730,3 +730,26 @@ Discarding an unfinished edit MUST first restore journaled local values while re
 - **GIVEN** 某订阅处于失败退避期
 - **WHEN** 触发补更检查
 - **THEN** 跳过该订阅，不打断退避
+
+### Requirement: 应用路由生成层维护集中式系统组件排除名单（B3 已落地）
+
+应用路由生成层 MUST 维护集中式系统组件排除名单，至少包含系统下载器
+（`com.android.providers.downloads`、`com.android.providers.downloads.ui`）、媒体存储、
+网络栈及 Captive Portal 门户组件；名单内组件 MUST NOT 被应用层规则错分流，
+与 `ProfileManager` 既有下载器排除合并去重，不得重复造两份名单。
+
+- **GIVEN** 系统下载器发起下载
+- **WHEN** 应用层规则生成并匹配
+- **THEN** 下载器走系统直连/白名单路径，不被分流进代理
+
+### Requirement: 规则集缓存按实际规则条数校验（B3 已落地）
+
+`.srs` 规则集缓存 MUST 前后端同步校验实际规则条数；0 规则占位文件 MUST NOT 被当作有效缓存，
+MUST 重新拉取或明确报错。远程规则集定时刷新时 MUST 跳过 `local:` 条目。
+`local:` 本地规则集支持以 B3 核查结论为准：wanBox 规则模型不支持 `local:`
+（无 `RuleSetCatalog`、无多目录解析、无 `local:` 标签模型），已在评估里写明理由并跳过；
+用户输入 `local:` 时配置生成即明确拒绝，不得静默接受。
+
+- **GIVEN** 本地存在 0 规则的 `.srs` 占位缓存
+- **WHEN** 规则集被加载或刷新
+- **THEN** 该缓存被判定无效并重新拉取，不得静默当作有效规则集使用
