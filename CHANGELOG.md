@@ -4,6 +4,12 @@
 
 ## wanBox 3.0.x 发布记录
 
+### v3.0.17-preview.2（预览候选，未发布）
+
+- 候选未发布：两路借鉴移植批次合入 main（PR #67 port OwnBox 线：B1/B2/B3/B4/B7a/B7b/B7c；PR #68 feat NetProxy 线：B5/B6/N6/B8）后的首个预览候选；O8 自选统一引擎与 N8 eBPF 入站本轮未实施（前者只做评估不采，后者只做可行性评估）。
+- 元数据升为模块 `2032` / APK `10162`（preview.1 为 `2031` / `10156`）；稳定版 v3.0.14、正式元数据 `3.0.14 / 2026` 与 `SINGBOX_VERSION` 不变。本条目在候选阶段记录，发布后由文档同步 PR 翻转状态并回填 CI run 号与资产数据。
+- 内容摘要：核心稳定性与故障转移（DNS 完成信号、惩罚饱和封顶、单步超时 3 秒）、订阅自动更新、智能分流与规则集校验、冷启动秒连、策略组混搭/手动锁定/优先级调度、停核可编辑与脱敏诊断包、按网络规则与共享/分应用、路由规则指定策略组、热更新契约测试与 pref 9001 守卫泄漏修复。URLTest 间隔 ≥10 秒、空闲 ≥30 分钟、切换不中断连接等约束未放宽。Root 真机矩阵未执行，仍未验证。
+
 ### v3.0.17-preview.1（已发布预览）
 
 - [GitHub Release v3.0.17-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.1) 由 `Preview Build` run `44076008956` 在 main commit/tag `33391d1dfa851fce7998431eb4ab614407ffbb25`（PR #65，2026-11-17T11:39:26Z 合并，`Verify Android Build` run `44071339331`）于 2026-11-17T12:01:45Z 发布；tag 对象、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `33391d1`。

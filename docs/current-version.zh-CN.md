@@ -8,11 +8,13 @@
 | 已发布预览版 | [v3.0.17-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.1)，prerelease；tag/commit `33391d1dfa851fce7998431eb4ab614407ffbb25`（PR #65，2026-11-17T11:39:26Z 合并）；资产与 tag 同源出版 | APK `versionCode=10156` / Root 模块码 `2031`；PR 验证 `Verify Android Build` run `44071339331`，`Preview Build` run `44076008956`（发布 job 断言 `APPROVED_SHA=33391d1`，回读 tag 一致） |
 | 上一正式版 | [v3.0.11](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11)，非 prerelease，保留；tag `03c6eb70854c797ee1e4069e378145be5ca56b0d` | APK / Root 模块 `10065 / 2013`（历史资产核验记录，归档语境） |
 | 发布基线 | [v3.0.17-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.1) 的 tag/commit `33391d1dfa851fce7998431eb4ab614407ffbb25`（Release `targetCommitish` 与 APK 内 `version-control-info.textproto` 同为该提交） | 固定发布基线，不等同于后续 main HEAD |
-| 源码预览线 | `3.0.17-preview.1`（已发布，与上一行同一提交；下一预览升版前源码预览线保持该值） | `PRE_VERSION_NAME=3.0.17-preview.1`、`PRE_VERSION_CODE=2031`；共享向量计算 APK `versionCode=10156`、Root 模块码 `2031` |
+| 源码预览线 | `3.0.17-preview.2`（候选升版，尚未发布；与上一行「发布基线」已分离） | `PRE_VERSION_NAME=3.0.17-preview.2`、`PRE_VERSION_CODE=2032`；共享向量计算 APK `versionCode=10162`、Root 模块码 `2032`，均高于已发布 preview.1 的 `10156` / `2031` |
 
-源码元数据正式线保持 `VERSION_NAME=3.0.14`、`VERSION_CODE=2026`；preview.1 是当前已发布预览（APK `10156` / 模块 `2031`，源码 `33391d1`），其源码预览线同为 `PRE_VERSION_NAME=3.0.17-preview.1`、`PRE_VERSION_CODE=2031`。稳定版与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变。下一预览升版时，`PRE_VERSION_NAME` 前移后本文的「源码预览线」才与「已发布预览版」分离。
+源码元数据正式线保持 `VERSION_NAME=3.0.14`、`VERSION_CODE=2026`；preview.1 仍是当前**已发布**的预览（APK `10156` / 模块 `2031`，源码 `33391d1`），源码预览线已前移到 `3.0.17-preview.2`（`PRE_VERSION_CODE=2032`，派生 APK `10162`、模块 `2032`），状态为待发布候选。稳定版与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变；候选发布后由文档同步 PR 翻转本行并回填 run 号与四件套数据。
 
 preview.1 内容：修复 preview.4 复审发现的 P1 回归——存在悬空出站引用时「放弃未完成编辑」在锁内重建时反复撞上出站告警，恢复标记永不释放；现由同一次构建快照算出的告警替代该次重建确认，正常启动/重连/重载仍要求确认，提交点（确认成功才清标记）未放宽。同批修复同一状态下的第二层缺陷：配置构建在 IO 线程创建 Toast 抛 `NullPointerException`，使包括用户确认后的重建整条路径失败，两处规则告警改为主线程分发。
+
+候选内容：main `570e9ed3e12848c26497501960ba2369c546f3c0`（preview.1 发布后合入 PR #67 `f333fa2` 与 PR #68 `570e9ed`）之后，两路借鉴移植批次全部合入：OwnBox 线（B1 核心稳定性与故障转移、B2 订阅自动更新、B3 智能分流与规则集校验、B4 冷启动秒连、B7a/B7b/B7c 策略组混搭/手动锁定/优先级调度）与 NetProxy 线（B5 停核可编辑与脱敏诊断包、B6 按网络规则与共享/分应用、N6 路由规则指定策略组、B8 热更新契约测试与 pref 9001 守卫泄漏修复）。O8 自选统一引擎与 N8 eBPF 入站本轮均未实施；O5 主进程调度迁移待用户拍板，未做。
 
 preview.4 由 PR #62（合并提交/tag `9283ccb0886805bddbd6856835d23a548f20b9d6`，2026-11-17T03:58:26Z）发布：PR 验证 `Verify Android Build` run `44011037428` 在 PR head `1ce7d7f` 通过，main `9283ccb` 上的 `Preview Build` run `44013891166`（2026-11-17T03:58:28Z → 04:19:07Z）四个 job 全部成功并在 04:18:56Z 发布 Release；tag、`targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `9283ccb`，上一版「tag 指向旧代码、二进制来自另一提交」的溯源断裂已消除。该 Release/tag 已在 preview.1 发布后由 `prune_prereleases.py --keep-tag v3.0.17-preview.1` 删除。
 
@@ -195,7 +197,7 @@ Android 12+（minSdk 31）、arm64-v8a、Root；瘦管理器和 Root 模块必�
 
 ## 发布来源与边界
 
-当前已发布预览以本文表格中的 v3.0.17-preview.1 为准；`PREVIEW_NOTES.md` 与[说明快照](release-notes-next.zh-CN.md)的当前区段同为 preview.1 的已发布说明，preview.4 及其更早说明移入各自的历史归档。preview.4、preview.3 与 preview.2 及更早预览的 Release/tag 均已按单预览策略清理，其 workflow run、commit 与资产快照作为历史记录保留，均不作为当前下载入口或本轮新测试结果。
+当前已发布预览以本文表格中的 v3.0.17-preview.1 为准；`PREVIEW_NOTES.md` 与[说明快照](release-notes-next.zh-CN.md)的当前区段已切到**未发布的** `v3.0.17-preview.2` 候选，preview.1 的已发布说明移入各自的历史归档。preview.4、preview.3 与 preview.2 及更早预览的 Release/tag 均已按单预览策略清理，其 workflow run、commit 与资产快照作为历史记录保留，均不作为当前下载入口或本轮新测试结果。
 
 preview.1 发布证据：PR #65（合并提交/tag `33391d1dfa851fce7998431eb4ab614407ffbb25`）的 `Verify Android Build` run `44071339331`（PR head `aeb72c5`）全绿，instrumented 实测 debug（thin）与 release（R8 混淆 thin）各 79 项 0 失败 2 skip、internal 2 项 0 失败；旧实现必红证据为 run `44064100226`（纯测试提交 `419fdc5`，该用例抛 `group_editor_recovery_required`）与 run `44067193911`（`624fc8e`，同用例抛 `NullPointerException: Can't toast on a thread that has not called Looper.prepare()`）。main `33391d1` 上的 `Preview Build` run `44076008956` 的 `Native Build (LibCore)`、`Build OSS APK`、`Candidate cold-start measurement (emulator only)` 与 `Publish Preview Release` 四个 job 全部成功，发布 job 断言 `APPROVED_SHA=33391d1`、创建 Release 后回读 tag 对象并复核为同一提交，最后由 `prune_prereleases.py --keep-tag v3.0.17-preview.1` 清理 preview.4。上表四件套字节数与 SHA-256 为发布后 API 回读值。
 
