@@ -31,14 +31,9 @@ Published releases: stable v3.0.14 and preview v3.0.17-preview.2.
 
 ---
 
-<table>
-  <tr>
-    <td align="center" width="25%"><h3>≈6 MiB</h3><sub>管理器 APK<br />不含原生核心</sub></td>
-    <td align="center" width="25%"><h3>0 个</h3><sub>VPN 权限<br />不碰 VpnService</sub></td>
-    <td align="center" width="25%"><h3>5 秒</h3><sub>Canary 观察窗<br />失败自动回滚</sub></td>
-    <td align="center" width="25%"><h3>26 MiB</h3><sub>双产物硬门禁<br />APK + 模块 ZIP</sub></td>
-  </tr>
-</table>
+| ≈6 MiB | 0 个 | 5 秒 | 26 MiB |
+|:--:|:--:|:--:|:--:|
+| 管理器 APK，不含原生核心 | VPN 权限，不碰 VpnService | Canary 观察窗，失败回滚 | 双产物硬门禁，APK + 模块 |
 
 ## 项目简介
 
@@ -110,7 +105,7 @@ flowchart TB
     end
     subgraph DATA["数据平面"]
         SB["sing-box 内核"]
-        TUN["TUN + auto_route<br/>pref 9000"]
+        TUN["TUN·auto_route<br/>pref 9000"]
         G["黑洞守卫<br/>pref 9001"]
     end
     UI --> CH --> SUP
