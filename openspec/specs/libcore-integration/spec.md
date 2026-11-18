@@ -152,11 +152,44 @@ libcore MUST 提供可由 Android 调用的速度测试接口，经指定节点�
 - **THEN** 网络请求使用已提供的 URL
 - **AND** 未提供自定义值时使用与选定 Throne 参考版本一致的默认值
 
+### Requirement: Root 测试会话为停止态测速提供独立 box
+
+Root 模块 MUST 为停止态节点测试提供短生命周期测试会话：`wanboxctl node urltest <id>` /
+`node speedtest <id>` 经 stdin 接收测试配置与参数，调用 `rootbox --url-test` /
+`--speed-test` 起独立测试 box（`NewTestSingBoxInstance`，不注册正式核心的
+PlatformLogWriter，不建 `cache.db`，不经过受管入站），成功时 stdout 为结果 JSON
+（URL 探测为 `{"delayMs": N}`，速度测试为 libcore `SpeedTestResult` 字段），
+失败时 stdout 为 `{"error":"<stable_token>"}` 且 exit 1。测试配置 MUST 由调用方
+写入 0600 临时文件并在执行后删除；URL 探测超时 MUST 在 1000–60000 毫秒之间，
+速度测试超时 MUST 在 0–60000 毫秒之间（0 表示 libcore 默认 5000 毫秒）；
+Root 侧执行时限 MUST 为探测超时 + 60 秒（URL）/120 秒（速度）。测试会话
+MUST NOT 修改正式服务状态、当前选择或 Worker，且 MUST 只在 euid 0 下执行。
+
+#### Scenario: Stopped URL test returns a delay
+
+- **GIVEN** 核心处于停止态，调用方提供最小测试配置与探测 URL
+- **WHEN** 执行 `node urltest <id>`
+- **THEN** stdout 为 `{"delayMs": N}` 且 N 在 1–60000 之间
+- **AND** 正式服务状态与当前选择不变，临时测试配置已被删除
+
+#### Scenario: Stopped speed test returns a result
+
+- **GIVEN** 核心处于停止态，调用方提供最小测试配置与 simple_download 参数
+- **WHEN** 执行 `node speedtest <id>`
+- **THEN** stdout 为 Done 的 `SpeedTestResult` JSON，含下载字节与速率
+- **AND** 正式服务状态与当前选择不变
+
+#### Scenario: Invalid test input fails closed
+
+- **GIVEN** 调用方提供非法 profile id、非法 URL、越界超时或损坏配置
+- **WHEN** 执行 `node urltest` 或 `node speedtest`
+- **THEN** 命令以非零退出码失败并返回稳定错误 token，不启动测试 box
+
 ### Requirement: Root 网络自动暂停与恢复不得泄漏内核自有路由
 
-Root 模块 MUST 接收最多五条本地 IP/CIDR/`gateway:` 规则，并在不使用定位数据的情况下匹配当前物理网络。规则命中时，supervisor MUST 保留用户运行意图，仅请求当前内核进程优雅退出；内核 MUST 关闭自身 sing-box 实例、TUN 和 `auto_route` 资源，确认进程退出后模块才可报告 `suspended`。模块 MUST NOT 全局清空 iptables/nftables 或修改非本内核实例拥有的路由。离开匹配网络后，模块 MUST 恢复原运行意图，最多启动一个替代内核。同一网络指纹上的手动恢复 MUST 抑制再次自动暂停，直到物理网络指纹变化；显式手动停止 MUST NOT 被自动恢复撤销。清理超时 MUST 报告失败，不得声称暂停成功或启动重复内核，并 MUST 允许重试显式停止而不影响其他进程或路由。
+Root 模块 MUST 接收统一按网络规则表（最多五条规则，每条 = 匹配器 + 动作），并在不使用定位数据的情况下匹配当前物理网络。匹配器可组合 SSID（精确保留空格/大小写/逗号）、`gateway:` 默认网关、CIDR/精确本地地址与实际默认出口类型（`wifi` / `not_wifi`）；规则间按用户顺序首条胜出，无匹配时保持默认行为。`suspend` 动作命中时，supervisor MUST 保留用户运行意图，仅请求当前内核进程优雅退出；内核 MUST 关闭自身 sing-box 实例、TUN 和 `auto_route` 资源，确认进程退出后模块才可报告 `suspended`。`direct` 动作命中时 MUST 只改运行时模式并经 Clash API 回读确认，MUST NOT 覆盖默认模式，参数不变时 MUST NOT 重载；API 失败 MUST NOT 重载兜底。`keep` 动作命中时 MUST 不改变运行状态。模块 MUST NOT 全局清空 iptables/nftables 或修改非本内核实例拥有的路由。离开匹配网络后，模块 MUST 恢复原运行意图，最多启动一个替代内核。同一网络指纹上的手动恢复 MUST 抑制再次自动暂停，直到物理网络指纹变化；显式手动停止 MUST NOT 被自动恢复撤销。清理超时 MUST 报告失败，不得声称暂停成功或启动重复内核，并 MUST 允许重试显式停止而不影响其他进程或路由。指纹 MUST 由实际默认出口（按 Android policy routing 读取）、该出口的 station SSID（`iw` 读取）、默认网关与本地地址集合组成；未知网络 MUST NOT 被当作非 Wi-Fi；开机未知时 MUST 校准默认模式；指纹读取失败或 SSID 不可读时 MUST 保持当前状态并记录，MUST NOT 猜测切换；Wi-Fi 出口上 SSID 读取失败时，同一评估内 `gateway:`/CIDR 规则也不触发。评估观察沿用既有 5 秒 health tick，动作只在指纹或动作变化时执行，不得做定时轮询式的重复动作。
 
-可选快照文件 `files/smart_auto_stop.json` MUST 包含开关与规则；启用时 MUST 包含经过验证的应用包名，模块 MUST 在应用快照前拒绝无效包名。固定生命周期转换 MUST 仅通过显式 Android 广播通知该包名，action MUST 为 `<appPackage>.AUTO_STOP_STATE`，唯一 phase extra MUST 为 `suspended`、`connected`、`stopped`、`failed` 或 `disabled`。广播和日志 MUST NOT 包含接口名、地址、网关、SSID 或规则文本；模块 MUST NOT 将快照文本传入 shell。
+快照文件 `files/network_rules.json` MUST 包含开关与规则表；启用时 MUST 包含经过验证的应用包名，模块 MUST 在应用快照前拒绝无效包名。旧快照的 `files/smart_auto_stop.json` 在新表缺失时仍可回退读取并迁移（F1 规则转为 `suspend` 动作、原顺序保留）；新表损坏时 MUST 报错，MUST NOT 静默回退旧表；迁移失败 MUST 保留原数据。固定生命周期转换 MUST 仅通过显式 Android 广播通知该包名，action MUST 为 `<appPackage>.AUTO_STOP_STATE`，唯一 phase extra MUST 为 `suspended`、`connected`、`stopped`、`failed` 或 `disabled`。广播和日志 MUST NOT 包含接口名、地址、网关、SSID 或规则文本；模块 MUST NOT 将快照文本传入 shell。
 
 IPv4 与 IPv6 默认网关发现 MUST 通过固定参数、短超时的系统 `ip route show table all` 接口读取策略路由表，并保留 `/proc` 回退；`ip` 不可用时 MUST 安全继续。仅带有有效 `via` IP 和 `dev` 接口的默认路由可被解析，网关 MUST 按接口关联以保留忽略接口过滤。启动请求 MUST 将同一 RunningRevision 的 `suspended` 视为保留运行意图的成功确认，但 MUST NOT 将其记录为 `core_started`；不同修订或其他未成功状态 MUST NOT 被误认为启动成功。
 
@@ -228,7 +261,7 @@ IPv4 与 IPv6 默认网关发现 MUST 通过固定参数、短超时的系统 `i
 
 Broadcast delivery MUST be independent of the supervisor lifecycle: enqueueing MUST NOT wait for Android `am broadcast`. A detached dispatcher MUST serialize/coalesce pending phases across supervisor replacements, bound every command with a short timeout, and prevent a stale `suspended` notification from being delivered after a newer `connected`, `stopped`, `failed`, or `disabled` phase. Arguments MUST be passed as argv, never shell-interpolated.
 
-Enabled `files/smart_auto_stop.json` MUST include `userId`, the current Android user/profile identifier, as an integer in the supported Android UID range (0–21474), as well as `appPackage`. Missing, null, fractional, negative, or out-of-range identities MUST be rejected before Apply; no enabled snapshot may silently default to user 0. Disabled/legacy snapshots MAY omit user identity; without one the module MUST NOT dispatch notifications. `am broadcast --user` MUST use the validated identifier as a separate argv value.
+Enabled `files/network_rules.json` MUST include `userId`, the current Android user/profile identifier, as an integer in the supported Android UID range (0–21474), as well as `appPackage`. Missing, null, fractional, negative, or out-of-range identities MUST be rejected before Apply; no enabled snapshot may silently default to user 0. Disabled/legacy snapshots MAY omit user identity; without one the module MUST NOT dispatch notifications. `am broadcast --user` MUST use the validated identifier as a separate argv value. Legacy `files/smart_auto_stop.json` snapshots follow the same identity rule.
 
 #### Scenario: Apply preserves the cleanup failure barrier
 
@@ -250,3 +283,110 @@ Enabled `files/smart_auto_stop.json` MUST include `userId`, the current Android 
 - **WHEN** a lifecycle notification is dispatched
 - **THEN** the explicit broadcast targets that user/profile and application package only
 - **AND** an enabled snapshot without user identity is rejected while disabled legacy snapshots remain compatible
+
+### Requirement: Root eBPF shared path intercepts tethered traffic only when explicitly enabled
+
+Root eBPF 入站 MUST 支持与本机路径独立启用的共享路径：`shared.enabled` 默认 `false`；启用时 `shared.interface` MUST 含至少一个真实下游接口（不能为 loopback），`data_plane` MUST 为 `socket_assign` 或 `packet_rewrite`，`dns_mode` 默认 `hijack`，`default_interface` 默认 `false`。共享路径启用前 MUST 通过 eBPF 能力预检；预检失败 MUST 明确报错，MUST NOT 自动切换数据平面，supervise 前预检失败 MUST Fail-Closed（状态置 failed 并拒绝启动）。`default_interface=false` 时，已配置的共享接口成为默认上游后 MUST 暂时停止共享挂载，恢复为下游后重新挂载；attachment 的实际建立/拆除由 sing-box 管理，Go 侧只做可测试裁决与诊断。模块 MUST NOT 创建热点、DHCP、NAT、IPv6 RA 或 IP 转发。共享路径 MUST 支持 `include_source_cidr` / `exclude_source_cidr` / `include_mac_address` / `exclude_mac_address` 筛选，排除优先。本机分应用名单 MUST NOT 用来识别热点客户端。TUN 回退 MUST NOT 为共享建立映射；eBPF 共享失败时 MUST 按现有回退表处理，MUST NOT 静默回退到未配置共享的 TUN。
+
+#### Scenario: Shared path starts only with a real downstream interface
+
+- **GIVEN** 共享路径已启用且 `shared.interface` 含一个真实热点接口
+- **WHEN** 核心启动
+- **THEN** 共享挂载建立，下游客户端流量进入 sing-box
+- **AND** 本机流量仍由本机路径控制
+
+#### Scenario: Shared interface becomes the default upstream
+
+- **GIVEN** 共享已启用且 `default_interface` 为 `false`
+- **WHEN** 已配置的共享接口成为默认上游
+- **THEN** 共享挂载暂时停止
+- **AND** 该接口恢复为下游后共享挂载重新建立
+
+### Requirement: Root resolves per-app lists per Android user
+
+Root 模块 MUST 接受 `<userId>:<package>` 形式的黑/白名单；解析时 MUST 按用户查询 Android package service 得到 UID，再合并为受管入站的 `include_uid`/`exclude_uid`。MUST NOT 把包名直接交给 sing-box，MUST NOT 跨用户合并 UID。白名单解析后与原生 include UID/range 均为空时，运行时 MUST 设置 `exclude_uid_range=["0:4294967294"]`，MUST NOT 生成空 include 后静默变为全量接管。应用安装、重装、UID 变化或用户范围变化后，MUST 通过重启或配置 reload 重新解析，MUST NOT 维护模块侧 UID 缓存。仅 eBPF 共享路径时 MUST NOT 查询应用 UID。UID 0 MUST NOT 被自动加入名单；Root UID 策略与应用名单正交。
+
+#### Scenario: Same package under two users resolves to two UIDs
+
+- **GIVEN** 名单含 `0:com.example.app` 与 `10:com.example.app`
+- **WHEN** Root 生成受管入站配置
+- **THEN** `include_uid`/`exclude_uid` 包含两个用户各自查询到的 UID
+- **AND** 两者不被合并为一个 UID
+
+#### Scenario: Empty whitelist resolves to exclude-all range
+
+- **GIVEN** 白名单模式开启但名单为空，且原生 include UID/range 均为空
+- **WHEN** Root 生成运行时入站配置
+- **THEN** 配置含 `exclude_uid_range=["0:4294967294"]`
+- **AND** 不含空 `include_uid`
+
+### Requirement: Root 模块导出脱敏诊断包
+
+Root 模块 MUST 提供脱敏诊断包导出：调用方指定目标路径后，模块 MUST 生成 gzip 压缩 tar，
+先写同目录临时文件并 `fsync` 后原子重命名；目标 MUST 是普通文件，否则拒绝。
+包内文件 MUST 按 change 的 design.md §2 的清单与脱敏规则表脱敏后写入；日志每文件取尾部，
+上限 4 MiB/文件。损坏的 JSON 文件 MUST 省略原文并替换为固定 diagnostic_error 说明，
+MUST NOT 把残留名单或凭据作为诊断原文导出。导出 MUST NOT 依赖核心进程运行；
+导出失败 MUST 返回可读错误码，不得谎报成功。远程规则集 MUST 只导出元数据
+（名称/来源/哈希/更新时间），MUST NOT 导出规则原文。wanBox 此前没有持久化的
+service/core 日志文件：supervisor MUST 把自身日志写 `logs/service.log`、把核心 stderr
+写 `logs/sing-box.log`（各 capped 8 MiB、保留尾部 4 MiB 的原地截断），诊断包的日志条目
+才有真实来源。`wanboxctl diagnostics export` MUST 只接受解析后位于系统 Download 目录的目标，
+stdin 传 DiagnosticsRequest JSON，成功时 stdout 为 `{"missing":[...]}`，
+失败时 stdout 为 `{"error":"<stable_token>"}` 且 exit 1。
+
+#### Scenario: Export while the core is stopped
+
+- **GIVEN** 核心处于停止态且存在 service 日志与 Root 快照
+- **WHEN** 管理端请求导出诊断包
+- **THEN** 导出成功并返回目标路径
+- **AND** 包内日志与配置已按脱敏规则表脱敏
+
+#### Scenario: Export omits corrupted JSON safely
+
+- **GIVEN** 待导出的一份 JSON 配置已损坏
+- **WHEN** 执行导出
+- **THEN** 包内该文件为固定 diagnostic_error 说明
+- **AND** 导出仍返回成功并在 README 列出该文件已省略原文
+
+### Requirement: Hot-update contract tests cover installer behaviour without changing the implementation
+
+Root 热更新 MUST 有契约测试覆盖安装器行为，且 B8 只补测试、MUST NOT 改热更新实现。
+测试 MUST 在临时目录搭建 live（当前模块）与 staging（待安装包）两套完整 fixture，
+内容全部虚构；被测函数 MUST 直接取自生产代码，外部依赖 MUST 用桩替换。
+测试 MUST 覆盖三种安装模式（保留全数据 / 仅节点与订阅 / 全新）提交前后的精确快照内容、
+热切换互斥（锁顺序与锁文件 inode 保留）、以及快照失败、重命名失败、服务停止失败、
+配置校验失败、canary 失败时的失败恢复（旧模块与用户数据原样保留、失败事件已记录、
+可由下次开机流程继续处理）。另 MUST 有一层薄 shell 测试覆盖
+`rootmodule/package/customize.sh` 与 `installer-options.sh` 的委托语义
+（校验失败→abort、不替换当前模块；`schedule-install` 失败→abort）。
+测试暴露实现缺陷时 MUST 单独上报，MUST NOT 在同批次内擅自改实现。
+
+#### Scenario: Snapshot failure keeps the old module
+
+- **GIVEN** staging 包已准备且 live 模块正在运行
+- **WHEN** 快照步骤失败
+- **THEN** live 模块与用户数据原样保留
+- **AND** 失败事件已记录，安装包保留待下次开机处理
+
+#### Scenario: Canary failure rolls back to the old core
+
+- **GIVEN** 新核心在 5 秒健康观察期内失败
+- **WHEN** 热更新提交
+- **THEN** 旧核心被恢复并重启
+- **AND** 事件记录回滚原因
+
+#### Scenario: Non-preserve modes journal intent without touching the snapshot
+
+- **GIVEN** live 模块正在运行且用户选择仅保留节点与订阅或全新安装
+- **WHEN** 热更新提交
+- **THEN** 用户快照原样保留，核心不重启
+- **AND** `install-data.json` 已记入该模式与合法选择 ID
+- **AND** 再次提交前应用侧写入被挂起，直到该选择被确认
+
+#### Scenario: Incomplete installer handoff defers to the next boot
+
+- **GIVEN** 安装器尚未退出或未写最终标记
+- **WHEN** 后台完成任务尝试接管
+- **THEN** 接管拒绝，旧模块与 staging 包原样保留
+- **AND** 事件记录 `module_hot_update_deferred`

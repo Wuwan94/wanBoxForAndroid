@@ -66,7 +66,6 @@ import io.nekohasekai.sagernet.GroupOrder
 import io.nekohasekai.sagernet.GroupType
 import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
-import io.nekohasekai.sagernet.core.CoreRuntime
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.SpeedTestDirection
 import io.nekohasekai.sagernet.SpeedTestOutcome
@@ -341,6 +340,8 @@ class ConfigurationFragment @JvmOverloads constructor(
             changedIds.add(currentProfileSnapshot)
             changedIds.add(selectedProxy)
             changedIds.add(currentProfile)
+            // B5（N1）：服务在本页停下后，提示节点、订阅与规则仍可浏览、编辑与测速。
+            if (serviceStartedSnapshot && !serviceStarted) safeSnackbar(R.string.stopped_nodes_hint)
         }
         changedIds.removeAll { it <= 0L }
 
@@ -872,12 +873,6 @@ class ConfigurationFragment @JvmOverloads constructor(
         }
         toolbar.menu.findItem(R.id.action_display_settings)?.setOnMenuItemClickListener {
             toggleDisplayPanel(); true
-        }
-        // @author 雾晚：瘦管理器不含内嵌核心，本地 URL 测试 / 测速不可用，直接从菜单移除入口。
-        if (!CoreRuntime.available) {
-            // remove(D1): 瘦构建直接移除菜单项（而非仅隐藏），完整构建保持不变
-            toolbar.menu.findItem(R.id.action_connection_url_test)?.let { toolbar.menu.removeItem(it.itemId) }
-            toolbar.menu.findItem(R.id.action_speed_test_group)?.let { toolbar.menu.removeItem(it.itemId) }
         }
         toolbar.menu.add(Menu.NONE, R.id.action_minimal_refresh, 1, R.string.retest).apply {
             setIcon(R.drawable.ic_minimal_refresh)
@@ -3959,11 +3954,6 @@ class ConfigurationFragment @JvmOverloads constructor(
                 val popup = PopupMenu(requireContext(), anchor)
                 activeNodePopupMenu = popup
                 popup.menuInflater.inflate(R.menu.profile_share_menu, popup.menu)
-                if (!CoreRuntime.available) {
-                    // @author 雾晚：单节点测速 / URL 测试依赖内嵌核心，瘦管理器不展示
-                    popup.menu.removeItem(R.id.action_test_profile_speed)
-                    popup.menu.removeItem(R.id.action_urltest)
-                }
 
                 val hasStd = proxyEntity.haveStandardLink()
                 val hasLink = proxyEntity.haveLink()

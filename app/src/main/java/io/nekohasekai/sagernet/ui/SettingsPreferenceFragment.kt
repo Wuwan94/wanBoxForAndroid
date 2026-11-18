@@ -63,6 +63,129 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
         }
     }
 
+    // B6（N4）：共享接管开关与 setAutoStopEnabled 同款写法（先改 UI 再落库，避免二次持久化）。
+    private fun setSharedInterceptionEnabled(enabled: Boolean) {
+        findPreference<SwitchPreference>(Key.SHARED_INTERCEPTION_ENABLED)?.let { preference ->
+            val wasPersistent = preference.isPersistent
+            preference.isPersistent = false
+            try {
+                preference.isChecked = enabled
+            } finally {
+                preference.isPersistent = wasPersistent
+            }
+        }
+        if (DataStore.sharedInterceptionEnabled != enabled) {
+            DataStore.sharedInterceptionEnabled = enabled
+        }
+    }
+
+    private fun sharedConfig(): io.nekohasekai.sagernet.bg.SharedInterceptionConfig =
+        io.nekohasekai.sagernet.bg.SharedInterception.parse(DataStore.sharedInterceptionConfig)
+            .getOrDefault(io.nekohasekai.sagernet.bg.SharedInterception.defaults())
+
+    private fun saveSharedConfig(cfg: io.nekohasekai.sagernet.bg.SharedInterceptionConfig) {
+        DataStore.sharedInterceptionConfig = io.nekohasekai.sagernet.bg.SharedInterception.serialize(
+            cfg.copy(
+                enabled = DataStore.sharedInterceptionEnabled,
+                defaultInterface = DataStore.sharedInterceptionDefaultInterface,
+            )
+        )
+    }
+
+    // B6（N4）：下游接口多选（Root 枚举候选，失败回退本地枚举；loopback 不得入选）。
+    private fun showSharedInterfacePicker() {
+        lifecycleScope.launch {
+            val candidates = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                io.nekohasekai.sagernet.bg.SharedInterception.listCandidateInterfaces()
+            }
+            val activity = activity
+            if (activity == null || activity.isFinishing || activity.isDestroyed) return@launch
+            if (candidates.isEmpty()) {
+                Toast.makeText(requireContext(), R.string.shared_interception_no_candidate, Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            val current = sharedConfig().interfaces.toSet()
+            val checked = candidates.map { it in current }.toBooleanArray()
+            val selected = current.toMutableSet()
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.shared_interception_interfaces)
+                .setMultiChoiceItems(candidates.toTypedArray(), checked) { _, which, isChecked ->
+                    if (isChecked) selected.add(candidates[which]) else selected.remove(candidates[which])
+                }
+                .setPositiveButton(R.string.confirm) { _, _ ->
+                    saveSharedConfig(sharedConfig().copy(interfaces = selected.sorted()))
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+        }
+    }
+
+    // B6（N4）：数据平面二选一；预检失败不得自动切换（此处只保存用户选择）。
+    private fun showSharedDataPlanePicker() {
+        val options = listOf(
+            io.nekohasekai.sagernet.bg.SharedInterceptionConfig.DATA_PLANE_SOCKET_ASSIGN to
+                getString(R.string.shared_interception_data_plane_socket_assign),
+            io.nekohasekai.sagernet.bg.SharedInterceptionConfig.DATA_PLANE_PACKET_REWRITE to
+                getString(R.string.shared_interception_data_plane_packet_rewrite),
+        )
+        val current = sharedConfig().dataPlane
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.shared_interception_data_plane)
+            .setSingleChoiceItems(
+                options.map { it.second }.toTypedArray(),
+                options.indexOfFirst { it.first == current }.coerceAtLeast(0),
+            ) { dialog, which ->
+                saveSharedConfig(sharedConfig().copy(dataPlane = options[which].first))
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun bindSharedTextPreference(key: String, initial: String, onValue: (String) -> Boolean) {
+        val preference = findPreference<EditTextPreference>(key) ?: return
+        preference.text = initial
+        preference.setOnPreferenceChangeListener { _, value ->
+            onValue(value as String)
+        }
+    }
+
+    private fun bindSharedListPreference(
+        key: String,
+        initial: List<String>,
+        onSave: (List<String>) -> Unit,
+    ) {
+        val preference = findPreference<EditTextPreference>(key) ?: return
+        preference.text = initial.joinToString(", ")
+        preference.setOnBindEditTextListener {
+            it.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            it.setSingleLine(false)
+        }
+        preference.setOnPreferenceChangeListener { _, value ->
+            val values = (value as String).split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            // 先校验合并后的完整配置，非法时拒绝保存并提示。
+            val merged = when (key) {
+                "sharedInterceptionIncludeCidr" -> sharedConfig().copy(includeSourceCidr = values)
+                "sharedInterceptionExcludeCidr" -> sharedConfig().copy(excludeSourceCidr = values)
+                "sharedInterceptionIncludeMac" -> sharedConfig().copy(includeMacAddress = values)
+                "sharedInterceptionExcludeMac" -> sharedConfig().copy(excludeMacAddress = values)
+                else -> sharedConfig()
+            }
+            val error = io.nekohasekai.sagernet.bg.SharedInterception.validate(merged).exceptionOrNull()
+            if (error != null) {
+                Toast.makeText(
+                    requireContext(),
+                    getString(R.string.shared_interception_invalid, error.message ?: "invalid"),
+                    Toast.LENGTH_LONG,
+                ).show()
+                false
+            } else {
+                onSave(values)
+                true
+            }
+        }
+    }
+
     private fun updateAutoStopPermission() {
         val available = SmartAutoStopNotifications.availability(requireContext()) == NotificationGate.AVAILABLE
         if (!available) setAutoStopEnabled(false)
@@ -107,8 +230,15 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             // The persisted MTU needs a new module snapshot, without recreating MainActivity.
             SagerNet.reloadService()
         }
-        if (key == Key.SMART_AUTO_STOP_RULES || key == Key.SMART_AUTO_STOP_ENABLED) {
+        // B6（N3/N4）：统一按网络规则表与共享接管配置变更后重载（失败弹可读错误）。
+        // 通知门禁复核只属于按网络规则开关；共享配置变更不得误关规则开关。
+        if (key == Key.SMART_AUTO_STOP_ENABLED || key == Key.NETWORK_RULES) {
             updateAutoStopPermission()
+        }
+        if (key == Key.SMART_AUTO_STOP_ENABLED || key == Key.NETWORK_RULES ||
+            key == Key.SHARED_INTERCEPTION_ENABLED || key == Key.SHARED_INTERCEPTION_CONFIG ||
+            key == Key.SHARED_INTERCEPTION_DEFAULT_INTERFACE
+        ) {
             SagerNet.reloadService { error ->
                 runOnMainDispatcher {
                     val activity = activity
@@ -157,19 +287,72 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
         val speedTestMode = findPreference<SimpleMenuPreference>(Key.SPEED_TEST_MODE)!!
         val speedTestTimeout = findPreference<EditTextPreference>(Key.SPEED_TEST_TIMEOUT_MS)!!
         val simpleDownloadURL = findPreference<EditTextPreference>(Key.SIMPLE_DOWNLOAD_URL)!!
-        findPreference<EditTextPreference>(Key.SMART_AUTO_STOP_RULES)?.setOnPreferenceChangeListener { _, value ->
-            val result = io.nekohasekai.sagernet.bg.SmartAutoStopRuleParser.parse(value as String)
-            if (result.isFailure) {
-                val message = if (result.exceptionOrNull()?.message == "too_many_rules") R.string.smart_auto_stop_too_many else R.string.smart_auto_stop_invalid
-                Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
-            }
-            result.isSuccess
+        // B6（N3）：首次打开设置页时把 F1 旧规则迁移进统一规则表（失败保留原数据）。
+        io.nekohasekai.sagernet.bg.NetworkRules.migrateIfNeeded()
+        // B6（N3）：统一规则表入口（取代 F1 独立规则编辑框）；单规则表、单开关。
+        findPreference<Preference>("networkRules")?.setOnPreferenceClickListener {
+            startActivity(Intent(requireContext(), NetworkRulesActivity::class.java))
+            true
         }
-
-        findPreference<EditTextPreference>(Key.SMART_AUTO_STOP_RULES)?.setOnBindEditTextListener {
-            it.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
-            it.setSingleLine(false)
-            it.minLines = 4
+        findPreference<SwitchPreference>(Key.SHARED_INTERCEPTION_ENABLED)?.setOnPreferenceChangeListener { _, enabled ->
+            if (enabled == true) {
+                // 开启前先跑 eBPF 能力预检预览；未通过不开启、不切换数据平面。
+                // 预检跑不通（如无 Root）时放行，由 Root apply 门禁兜底。
+                lifecycleScope.launch {
+                    val missing = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        io.nekohasekai.sagernet.bg.SharedInterception.preflight(sharedConfig().dataPlane)
+                    }
+                    val activity = activity
+                    if (activity == null || activity.isFinishing || activity.isDestroyed) return@launch
+                    if (missing != null && missing.isNotEmpty()) {
+                        Toast.makeText(
+                            requireContext(),
+                            getString(R.string.shared_interception_preflight_failed, missing.joinToString(", ")),
+                            Toast.LENGTH_LONG,
+                        ).show()
+                        setSharedInterceptionEnabled(false)
+                    } else {
+                        setSharedInterceptionEnabled(true)
+                    }
+                }
+                return@setOnPreferenceChangeListener false
+            }
+            true
+        }
+        findPreference<Preference>("sharedInterceptionInterfaces")?.setOnPreferenceClickListener {
+            showSharedInterfacePicker()
+            true
+        }
+        findPreference<Preference>("sharedInterceptionDataPlane")?.setOnPreferenceClickListener {
+            showSharedDataPlanePicker()
+            true
+        }
+        // B6（N4）：UDP 超时与源筛选均为非持久化编辑框，值写入共享配置 JSON。
+        bindSharedTextPreference("sharedInterceptionUdpTimeout", sharedConfig().udpTimeoutSeconds.toString()) { value ->
+            val seconds = value.trim().toLongOrNull()
+            if (seconds == null || seconds < io.nekohasekai.sagernet.bg.SharedInterceptionConfig.MIN_UDP_TIMEOUT_SECONDS) {
+                Toast.makeText(
+                    requireContext(),
+                    getString(R.string.shared_interception_invalid, "shared_udp_timeout_invalid"),
+                    Toast.LENGTH_LONG,
+                ).show()
+                false
+            } else {
+                saveSharedConfig(sharedConfig().copy(udpTimeoutSeconds = seconds))
+                true
+            }
+        }
+        bindSharedListPreference("sharedInterceptionIncludeCidr", sharedConfig().includeSourceCidr) { values ->
+            saveSharedConfig(sharedConfig().copy(includeSourceCidr = values))
+        }
+        bindSharedListPreference("sharedInterceptionExcludeCidr", sharedConfig().excludeSourceCidr) { values ->
+            saveSharedConfig(sharedConfig().copy(excludeSourceCidr = values))
+        }
+        bindSharedListPreference("sharedInterceptionIncludeMac", sharedConfig().includeMacAddress) { values ->
+            saveSharedConfig(sharedConfig().copy(includeMacAddress = values))
+        }
+        bindSharedListPreference("sharedInterceptionExcludeMac", sharedConfig().excludeMacAddress) { values ->
+            saveSharedConfig(sharedConfig().copy(excludeMacAddress = values))
         }
         findPreference<SwitchPreference>(Key.SMART_AUTO_STOP_ENABLED)?.setOnPreferenceChangeListener { _, enabled ->
             if (enabled == true) {
@@ -499,6 +682,65 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
                 }
             }
             addHealthCheckPreferences()
+            // B5（N2）：脱敏诊断包一键导出。目标为系统 Download 目录，
+            // 导出前用 design.md §10 原句确认残留风险。
+            val exportDiagnostics = Preference(requireContext()).apply {
+                key = "exportDiagnostics"
+                title = getString(R.string.export_diagnostics)
+                order = 100
+                isSelectable = true
+                isPersistent = false
+            }
+            exportDiagnostics.setOnPreferenceClickListener {
+                MaterialAlertDialogBuilder(requireContext()).apply {
+                    setTitle(R.string.export_diagnostics)
+                    setMessage(R.string.export_diagnostics_confirm)
+                    setNegativeButton(android.R.string.cancel, null)
+                    setPositiveButton(R.string.export_diagnostics) { _, _ ->
+                        exportDiagnosticsPackage()
+                    }
+                }.show()
+                true
+            }
+            preferenceScreen.addPreference(exportDiagnostics)
+        }
+    }
+
+    // B5（N2）：导出脱敏诊断包到系统 Download 目录，成功/失败均以 Toast 反馈。
+    private fun exportDiagnosticsPackage() {
+        val context = requireContext()
+        lifecycleScope.launch {
+            val file = io.nekohasekai.sagernet.bg.DiagnosticsExport.destinationFile(
+                io.nekohasekai.sagernet.bg.DiagnosticsExport.defaultDownloadDir(),
+                java.time.OffsetDateTime.now(),
+            )
+            try {
+                io.nekohasekai.sagernet.bg.RootModuleClient.exportDiagnostics(
+                    file.absolutePath,
+                    io.nekohasekai.sagernet.bg.DiagnosticsVersions(
+                        appVersion = io.nekohasekai.sagernet.BuildConfig.VERSION_NAME,
+                        appVersionCode = io.nekohasekai.sagernet.BuildConfig.VERSION_CODE_RAW,
+                        previewVersion = io.nekohasekai.sagernet.BuildConfig.PRE_VERSION_NAME,
+                        previewVersionCode = io.nekohasekai.sagernet.BuildConfig.PRE_VERSION_CODE_RAW,
+                        singBoxVersion = io.nekohasekai.sagernet.BuildConfig.SINGBOX_VERSION,
+                    ),
+                )
+                val size = android.text.format.Formatter.formatFileSize(context, file.length())
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.export_diagnostics_success, file.absolutePath, size),
+                    Toast.LENGTH_LONG,
+                ).show()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val reason = io.nekohasekai.sagernet.bg.RootModuleErrors.message(context, e)
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.export_diagnostics_failed, reason),
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
         }
     }
 

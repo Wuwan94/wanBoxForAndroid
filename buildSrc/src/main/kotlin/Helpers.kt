@@ -204,6 +204,8 @@ fun Project.setupApp() {
             versionCode = verCode
             versionName = verName
             buildConfigField("String", "PRE_VERSION_NAME", "\"\"")
+            // B5（N2）：诊断包 README 用预览原始版本码；稳定版为 0，预览 flavor 覆盖为真值。
+            buildConfigField("int", "PRE_VERSION_CODE_RAW", "0")
         }
     }
     setupAppCommon()
@@ -242,6 +244,11 @@ fun Project.setupApp() {
                     "String",
                     "PRE_VERSION_NAME",
                     "\"${requireMetadata().getProperty("PRE_VERSION_NAME")}\""
+                )
+                buildConfigField(
+                    "int",
+                    "PRE_VERSION_CODE_RAW",
+                    requireMetadata().getProperty("PRE_VERSION_CODE")
                 )
             }
         }

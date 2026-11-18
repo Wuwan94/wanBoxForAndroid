@@ -105,6 +105,9 @@ class AndroidSpeedTestSession(profile: ProxyEntity) : BoxInstance(profile), Spee
     override suspend fun loadConfig() = Unit
 
     override suspend fun run(onSample: (SpeedTestSnapshot) -> Unit): SpeedTestSnapshot {
+        // B5（N1）：瘦管理器没有内嵌核心，测速改走 Root 侧短生命周期测试会话，
+        // 不启动插件进程、不经过 CoreRuntime.requireAvailable。
+        if (!CoreRuntime.available) return runRootTestSession(onSample)
         processes = GuardedProcessPool { error ->
             Logs.w("SpeedTest plugin failed for ${profile.displayName()}: ${error.readableMessage}")
             nativeSession?.cancel()
@@ -142,6 +145,35 @@ class AndroidSpeedTestSession(profile: ProxyEntity) : BoxInstance(profile), Spee
         }
     }
 
+    // B5（N1）：Root 侧测速。只生成最小测试配置（forTest=true），插件出站
+    // （external chains）本批不支持，直接以 speed_test_plugin_unsupported
+    // 拒绝，由 SpeedTestQueueRunner 转成失败快照。Root 会话是阻塞式调用：
+    // 先发一个 pending 采样，再发最终快照。
+    private suspend fun runRootTestSession(onSample: (SpeedTestSnapshot) -> Unit): SpeedTestSnapshot {
+        buildConfig()
+        if (config.externalIndex.isNotEmpty()) throw java.io.IOException("speed_test_plugin_unsupported")
+        onSample(
+            SpeedTestSnapshot(
+                profileId = profile.id,
+                profileName = profile.displayName(),
+                mode = DataStore.speedTestMode,
+                stage = STAGE_PENDING,
+            ),
+        )
+        val result = io.nekohasekai.sagernet.bg.RootModuleClient.speedTest(
+            profile.id,
+            config.config,
+            DataStore.speedTestMode,
+            DataStore.speedTestTimeoutMs,
+            DataStore.speedTestServerListURL,
+            DataStore.speedTestFallbackServerListURL,
+            DataStore.simpleDownloadURL,
+        )
+        val snapshot = result.toSnapshot(profile)
+        onSample(snapshot)
+        return snapshot
+    }
+
     override fun cancel() {
         nativeSession?.cancel()
     }
@@ -173,3 +205,23 @@ class AndroidSpeedTestSession(profile: ProxyEntity) : BoxInstance(profile), Spee
         const val SAMPLE_INTERVAL_MS = 100L
     }
 }
+
+// B5（N1）：Root 侧速度测试结果映射为 UI 快照。字段名与
+// libcore.SpeedTestResult 的 Go 字段名一致（无 JSON tag），见 RootModuleClient.speedTest。
+internal fun io.nekohasekai.sagernet.bg.RootSpeedTestResult.toSnapshot(profile: ProxyEntity) =
+    SpeedTestSnapshot(
+        profileId = profile.id,
+        profileName = profile.displayName(),
+        mode = mode,
+        stage = stage,
+        downloadBitsPerSecond = downloadBitsPerSecond,
+        uploadBitsPerSecond = uploadBitsPerSecond,
+        downloadBytes = downloadBytes,
+        uploadBytes = uploadBytes,
+        latencyMs = latencyMs,
+        serverName = serverName,
+        serverCountry = serverCountry,
+        error = error,
+        cancelled = cancelled,
+        done = done,
+    )

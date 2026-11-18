@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,6 +21,14 @@ import (
 func (r *Runtime) Supervise(ctx context.Context) error {
 	if e := r.init(); e != nil {
 		return e
+	}
+	// B5（N2）：supervisor 自身日志落盘供诊断包使用；尽力而为，失败不阻断启动。
+	if serviceLog, err := openCappedLogFile(r.path("logs", "service.log")); err == nil {
+		log.SetOutput(io.MultiWriter(serviceLog, os.Stderr))
+		defer func() {
+			serviceLog.Close()
+			log.SetOutput(os.Stderr)
+		}()
 	}
 	unlock, e := fileLock(r.path("supervisor.lock"))
 	if e != nil {
@@ -38,7 +47,8 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 	// Do not keep up to 128 MiB of decoded Base64 resources alive in the supervisor.
 	snapshot.Files = nil
 	snapshot.Config = nil
-	policy, _ := readAutoStop(r.path("generations", rev, "files", autoStopFile))
+	// B6（N3）：统一按网络规则表；旧 F1 文件不存在新表时回退迁移。
+	policy, _ := readUnifiedPolicy(r.path("generations", rev, "files"))
 	s := State{SchemaVersion: Version, Phase: "starting", Revision: rev, RunningRevision: rev, ProfileID: snapshot.ProfileID, ProfileName: snapshot.ProfileName, Supervisor: identity}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -72,7 +82,7 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 			if !r.Enabled() {
 				phase = "disabled"
 			}
-			r.QueueAutoStopBroadcast(policy, phase)
+			r.QueueAutoStopBroadcast(policy.broadcastIdentity(), phase)
 		}
 		_ = os.Remove(r.path("runtime", "ready"))
 	}()
@@ -82,6 +92,19 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 		s.Supervisor = ProcessIdentity{}
 		persist()
 		return e
+	}
+	// B6（N4）：共享接管开启门禁。启用时 eBPF 能力预检 MUST 通过，否则
+	// Fail-Closed：拒绝启动并明确报错，不得静默降级为无共享启动，
+	// 不得自动切换数据平面。
+	if sharedCfg, e := readSharedConfig(r.path("generations", rev, "files", sharedInterceptionFile)); e == nil {
+		if e := CheckSharedPreflight(sharedCfg, nil); e != nil {
+			s.Phase = "failed"
+			s.Error = "shared_preflight_failed"
+			s.Supervisor = ProcessIdentity{}
+			persist()
+			r.recordEvent("shared_preflight_failed")
+			return e
+		}
 	}
 	// Best-effort cgroup v2 memory governance (cgroup_memory.go): first
 	// carve out the module's dedicated child group and move into it
@@ -148,7 +171,7 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 		generationStart := time.Now()
 		err := r.runGeneration(ctx, rev, snapshot, &s, &mu, persist, &suppressed, func() {
 			if policy.AppPackage != "" {
-				r.QueueAutoStopBroadcast(policy, "connected")
+				r.QueueAutoStopBroadcast(policy.broadcastIdentity(), "connected")
 			}
 			if recovering {
 				recovering = false
@@ -189,7 +212,7 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 			mu.Unlock()
 			r.recordEvent("auto_stop")
 			if policy.AppPackage != "" {
-				r.QueueAutoStopBroadcast(policy, "suspended")
+				r.QueueAutoStopBroadcast(policy.broadcastIdentity(), "suspended")
 			}
 			for {
 				select {
@@ -207,7 +230,7 @@ func (r *Runtime) Supervise(ctx context.Context) error {
 						break
 					}
 				}
-				if !r.policyAutoStopDecision(policy, &suppressed).Suspend {
+				if !r.policyNetworkDecision(policy, &suppressed).Suspend {
 					break
 				}
 			}
@@ -344,7 +367,16 @@ func (r *Runtime) runGeneration(ctx context.Context, rev string, snapshot Snapsh
 	if e != nil {
 		return e
 	}
-	cmd.Stderr = io.Discard
+	// B5（N2）：核心 stderr 落盘供诊断包使用（logs/sing-box.log）；尽力而为，
+	// 打不开日志文件时仍启动核心，只是本次运行无核心日志可导出。
+	coreLog, _ := newCappedLogWriter(r.path("logs", "sing-box.log"))
+	if coreLog != nil {
+		defer coreLog.Close()
+	}
+	stderr, e := cmd.StderrPipe()
+	if e != nil {
+		return e
+	}
 	if e = cmd.Start(); e != nil {
 		return errors.New("core_start_failed")
 	}
@@ -401,6 +433,32 @@ func (r *Runtime) runGeneration(ctx context.Context, rev string, snapshot Snapsh
 		}
 		_, _ = io.Copy(io.Discard, output) // Never block the core on a full pipe.
 	}()
+	stderrDone := make(chan struct{})
+	go func() {
+		defer close(stderrDone)
+		reader := bufio.NewReaderSize(stderr, 8192)
+		for {
+			chunk, readErr := reader.ReadSlice('\n')
+			if readErr == bufio.ErrBufferFull {
+				// Oversized raw log line: discard the rest of it and keep reading.
+				for readErr == bufio.ErrBufferFull {
+					_, readErr = reader.ReadSlice('\n')
+				}
+				if readErr != nil {
+					break
+				}
+				continue
+			}
+			line := strings.TrimRight(string(chunk), "\r\n")
+			if line != "" {
+				coreLog.WriteLine(line)
+			}
+			if readErr != nil {
+				break
+			}
+		}
+		_, _ = io.Copy(io.Discard, stderr) // Never block the core on a full pipe.
+	}()
 	wait := make(chan error, 1)
 	go func() { wait <- cmd.Wait() }()
 	probe := newStartupProbe(100*time.Millisecond, 60*time.Second)
@@ -429,6 +487,7 @@ func (r *Runtime) runGeneration(ctx context.Context, rev string, snapshot Snapsh
 			}
 		case err := <-wait:
 			<-readerDone
+			<-stderrDone
 			if monitorAutoStop {
 				return autoStopExitResult(err)
 			}

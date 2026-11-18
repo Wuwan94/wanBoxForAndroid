@@ -8,7 +8,7 @@
 
 ### Requirement: Missing route outbounds are visible before users start the core
 
-Android MUST mark rules referencing missing positive node or strategy-group IDs red, including their name, outbound and error indicator. Built-in targets and existing IDs MUST remain valid, and recycled rows MUST reset their error appearance. Validation MUST refresh with the rules.
+Android MUST mark rules referencing missing positive node or strategy-group IDs red, including their name, outbound and error indicator. Rules whose policy-group target (N6) references a missing group MUST also be marked red, with the localized message that the rule targets a policy group that no longer exists. Built-in targets and existing IDs MUST remain valid, and recycled rows MUST reset their error appearance. Validation MUST refresh with the rules.
 
 Explicit core start and reload requests MUST validate enabled rules before creating or applying configuration. A modal MUST list safe rule names, rule IDs, missing reference types and IDs, explain that unresolved rules cannot be applied, and offer Cancel, Review rules and Continue Anyway. Back and outside cancellation MUST cancel the request; Review rules MUST cancel before navigating to rules.
 
@@ -291,6 +291,50 @@ URL 延迟测试 MUST 使用不注册 PlatformLogWriter 的测试实例，从而
 - **THEN** 已保存的自定义值保持不变
 - **AND** 新默认值仅用于不存在持久化值的设置
 
+### Requirement: 停止态仍可浏览、编辑与测速
+
+服务停止时，用户 MUST 仍可浏览与编辑节点、订阅、路由规则与策略组，并可执行 URL 测速与
+速度测速。任何管理入口 MUST NOT 以核心运行中为前置条件（配置页工具栏菜单与单节点弹出菜单
+均 MUST 保留 URL 测试/速度测试入口）；停止态编辑 MUST 只更新持久配置与 Root 快照，
+MUST NOT 启动核心。停止态的订阅更新 MUST 在手动更新 `http://` 订阅链接或
+`updateWhenConnectedOnly` 且未连接时先请求用户确认；更新失败 MUST 保留上一版有效
+Provider 与当前选择（下载/解析失败发生在写库事务之前，写库在同一个事务内完成）。
+停止态的策略组编辑提交 MUST 复用现有 Root 编辑器链（CandidateSnapshot + validate →
+apply + expectedRevision + 绕缓存确认），确认后 phase 仍为 stopped。
+瘦管理器与停止态的测速 MUST NOT 依赖运行态 Clash Controller，改走 Root 侧短生命周期
+测试会话（`wanboxctl node urltest/speedtest` → `rootbox --url-test/--speed-test`，
+独立测试 box 实例）；完整 APK 仍走进程内 TestInstance。插件出站（external chains）的节点
+本批 MUST NOT 走 Root 测试会话，App 侧 MUST 在调用前拒绝。服务在节点列表页由运行转为
+停止时，列表 MUST 提示停核后仍可浏览、编辑与测速。
+
+#### Scenario: Stopped service still edits nodes and subscriptions
+
+- **GIVEN** 核心处于停止态
+- **WHEN** 用户打开节点列表并编辑一个节点，随后更新一个订阅
+- **THEN** 编辑与订阅更新均可完成且不启动核心
+- **AND** 订阅更新失败时上一版 Provider 与当前选择保持不变
+
+#### Scenario: Stopped thin-manager speed tests use the Root test session
+
+- **GIVEN** 瘦管理器且核心处于停止态
+- **WHEN** 用户对一个节点执行 URL 测试与速度测试
+- **THEN** 两项测试经 Root 侧短生命周期测试会话完成并显示结果
+- **AND** 工具栏与单节点菜单中的测试入口均可见
+- **AND** 正式服务状态、当前选择与 Worker 不被修改
+
+#### Scenario: Plugin-backed nodes refuse the Root test session
+
+- **GIVEN** 节点配置含插件出站（external chains）
+- **WHEN** 用户在停止态对其执行 URL 测试或速度测试
+- **THEN** 测试被拒绝并显示可读原因，不启动 Root 测试会话
+
+#### Scenario: Stopped service still edits policy groups
+
+- **GIVEN** 核心处于停止态且存在一个可编辑的策略组
+- **WHEN** 用户修改策略组成员并提交
+- **THEN** 配置被更新且核心仍处于停止态
+- **AND** 提交复用 validate → apply 与 expectedRevision 校验链
+
 ### Requirement: 混合入站行为由 TUN 设置显式控制
 
 TUN 模式下，只要混合入站存在，VPN 服务 MUST 将系统 HTTP 代理指向本地混合端口。用户启用“禁用混合入站”时，配置 MUST 不生成 mixed 入站及其专属路由规则，VPN MUST 跳过系统 HTTP 代理设置，相关设置项 MUST 禁用。用户名为空时混合入站 MUST 免认证；用户名非空时应用内部 HTTP 请求 MUST 跟随运行时认证信息。
@@ -392,9 +436,9 @@ Android 应用在前台页面操作失败且已有可用宿主 Activity 时，MU
 - **AND** 若显示时宿主 Activity 正在结束、已销毁或不存在，应用安全跳过显示，不产生新的未处理异常或无效窗口
 - **AND** 若 Apply 抛出 `CancellationException`，异常继续传播，MUST NOT 被当成普通错误显示
 
-### Requirement: Smart network auto-stop is bounded, location-permission-free, and user-controllable
+### Requirement: Unified per-network rules merge Smart Auto-stop and Wi-Fi policy
 
-高级设置 MUST 提供默认关闭的网络自动挂起开关与规则编辑，最多允许 5 条规则，支持逗号、分号、中文逗号和换行分隔的本地 IPv4/IPv6、CIDR 与 `gateway:` 网关匹配。功能 MUST NOT 请求定位权限。Android 13 及以上 MUST 在启用功能时请求通知权限；若权限被拒绝，MUST 保持功能关闭并明确提示用户。启用功能时，Android MUST 在 Root snapshot 中附带经校验的应用 `appPackage`。应用 MUST 只接受面向该应用的固定 `AUTO_STOP_STATE` action 和 `suspended`、`connected`、`stopped`、`failed`、`disabled` phase 值；phase event MUST NOT 携带网络标识、匹配规则或核心输出。命中规则后，Root supervisor MUST 优雅停止当前核心，只有核心确认退出并释放自己的 TUN/auto-route 后才可报告挂起；MUST NOT 全局 flush iptables/nftables 或操作其他实例路由。挂起时 MUST 保留显示“已挂起”及“恢复”“停止”按钮的通知；两个 action 分别调用 Root resume 与 stop。离开匹配网络后 MUST 自动恢复此前自动挂起的核心；用户在同一网络手动恢复后 MUST 抑制该 fingerprint 下的重复挂起，网络变化后才重新匹配；用户手动停止不得被自动恢复覆盖。
+高级设置 MUST 提供单一「按网络」规则表，取代 F1 智能启停的独立规则编辑入口；MUST NOT 同时存在两个可互相覆盖的网络开关。规则上限 MUST 为 5 条；新规则默认动作 MUST 为 `keep`。每条规则 MUST 由匹配器与动作组成：匹配器可组合 SSID（精确保留空格/大小写/逗号）、`gateway:` 默认网关、CIDR/精确本地地址、实际默认出口类型（`wifi` / `not_wifi`，由 Root 按 policy routing 读取）；同一条规则内多项匹配器为 AND，规则之间为 OR，按用户顺序优先匹配，仅首条匹配规则生效。动作 MUST 三选一且互斥：`suspend`（命中→优雅停核挂起）、`direct`（命中→运行时模式切 `Direct`，只改运行时，不覆盖默认模式）、`keep`（命中→保持代理）。无规则匹配时 MUST 保持当前默认行为。功能 MUST NOT 请求定位权限；SSID MUST 由 Root 侧按实际出口 station 读取（`iw`）。未知网络 MUST NOT 被当作非 Wi-Fi；指纹读取失败或 SSID 不可读时 MUST 保持当前状态并记录，MUST NOT 猜测切换；Wi-Fi 出口上 SSID 读取失败时，同一评估内 `gateway:`/CIDR 规则也不触发。`suspend` 动作 MUST 完整保留 F1 状态机。`direct` 动作 MUST 经 Clash API 切换并回读确认，参数不变时 MUST NOT 重载；API 失败 MUST NOT 重载兜底。F1 已保存规则 MUST 迁移为 `suspend` 动作规则并保留原顺序；功能关闭时 MUST 保留规则，MUST NOT 清空；迁移失败 MUST 保留原 F1 数据并报错。高级设置 MUST 提供默认关闭的网络自动挂起开关与规则表入口，最多允许 5 条规则。启用功能时，Android MUST 在 Root snapshot 中附带经校验的应用 `appPackage`。应用 MUST 只接受面向该应用的固定 `AUTO_STOP_STATE` action 和 `suspended`、`connected`、`stopped`、`failed`、`disabled` phase 值；phase event MUST NOT 携带网络标识、匹配规则或核心输出。命中规则后，Root supervisor MUST 优雅停止当前核心，只有核心确认退出并释放自己的 TUN/auto-route 后才可报告挂起；MUST NOT 全局 flush iptables/nftables 或操作其他实例路由。挂起时 MUST 保留显示“已挂起”及“恢复”“停止”按钮的通知；两个 action 分别调用 Root resume 与 stop。离开匹配网络后 MUST 自动恢复此前自动挂起的核心；用户在同一网络手动恢复后 MUST 抑制该 fingerprint 下的重复挂起，网络变化后才重新匹配；用户手动停止不得被自动恢复覆盖。
 
 #### Scenario: 匹配网络后只在核心退出时显示挂起
 
@@ -409,6 +453,27 @@ Android 应用在前台页面操作失败且已有可用宿主 Activity 时，MU
 - **WHEN** 设备离开匹配网络，或用户在同一网络手动恢复
 - **THEN** 离开网络时原运行意图自动恢复一次；同网手动恢复抑制该 fingerprint 的再次挂起
 - **AND** 通知的恢复/停止按钮分别执行 Root resume/stop，手动停止不会被自动恢复覆盖
+
+#### Scenario: First matching rule wins and actions do not fight
+
+- **GIVEN** 用户保存两条规则：首条匹配当前 Wi-Fi 且动作为 `direct`，次条同样匹配且动作为 `suspend`
+- **WHEN** 设备接入该 Wi-Fi
+- **THEN** 运行时模式切换为 `Direct`，核心不被挂起
+- **AND** 默认模式保持不变
+
+#### Scenario: Unknown network never guesses
+
+- **GIVEN** 当前网络指纹不可读（SSID 尚不可读）
+- **WHEN** 网络评估触发
+- **THEN** 不切换模式、不挂起核心
+- **AND** 评估失败被记录用于诊断
+
+#### Scenario: F1 rules migrate without loss
+
+- **GIVEN** 用户此前保存了 3 条 F1 规则且功能开启
+- **WHEN** 升级后打开按网络规则表
+- **THEN** 3 条规则原顺序保留且动作均为 `suspend`
+- **AND** 关闭功能后规则仍在表中
 
 Android MUST reconcile notifications only for the fixed phases `suspended`, `connected`, `stopped`, `failed`, and `disabled`; unknown actions or phases MUST be ignored. After a notification Resume or Stop action, Android MUST query Root status even if the command fails, and MUST use a recognized returned phase as authoritative. If notification delivery or status communication fails, or the queried phase is unknown, Android MUST preserve the last successfully displayed suspended notification rather than dismissing it based on the action alone. Coroutine cancellation MUST propagate.
 
@@ -435,6 +500,56 @@ Before enabling Smart Auto-stop on every supported Android version, Android MUST
 - **WHEN** the user opens advanced settings
 - **THEN** notification settings remain accessible
 - **AND** returning from notification settings rechecks availability before retaining the enabled setting
+
+### Requirement: Shared network interception is an explicit opt-in eBPF shared path
+
+设置页 MUST 提供默认关闭的“接管共享网络流量（热点 / USB 共享）”开关，说明 MUST 明确本开关不创建热点、DHCP、NAT 或 IPv6 RA。开启时 MUST 使用 eBPF 共享路径：`shared.interface` MUST 含至少一个真实下游接口（不能填 loopback），`data_plane` MUST 为 `socket_assign` 或 `packet_rewrite`，`dns_mode` 默认 `hijack`，`default_interface` 默认 `false`。接口选择 MUST 用 Root 枚举出的真实下游接口候选列表供用户勾选（由 Root 侧校验、loopback 不得入选），MUST NOT 采用手输接口名。开启前 MUST 通过 eBPF 能力预检；预检失败 MUST 明确报错，MUST NOT 自动切换数据平面。`default_interface=false` 时，已配置的共享接口成为默认上游后 MUST 暂时停止共享挂载，恢复为下游后重新挂载。TUN 模式下共享接管 MUST 明确不支持；TUN 用户的 LAN 网关能力保持不变，MUST NOT 在文案中把 LAN 网关描述为流量接管。分应用名单 MUST 只筛选本机应用，MUST NOT 用来识别热点客户端。
+
+#### Scenario: Shared interception requires a downstream interface
+
+- **GIVEN** 用户开启共享接管但未配置下游接口
+- **WHEN** 保存并尝试应用
+- **THEN** 保存被拒绝并提示未配置下游接口
+- **AND** 核心不启动共享挂载
+
+#### Scenario: eBPF preflight failure blocks shared interception
+
+- **GIVEN** 用户开启共享接管且所选数据平面能力预检未通过
+- **WHEN** 应用共享配置
+- **THEN** 应用被拒绝并显示预检原因
+- **AND** 数据平面不被静默切换
+
+#### Scenario: TUN mode keeps LAN gateway without interception
+
+- **GIVEN** 当前为 TUN 回退模式且用户打开 LAN 共享页
+- **WHEN** 查看共享相关文案
+- **THEN** LAN 网关能力可用
+- **AND** 文案不把 LAN 网关描述为共享流量接管
+
+### Requirement: Per-app lists are keyed by Android user and support clones
+
+分应用黑/白名单 MUST 以严格的 `<userId>:<package>` 字符串为持久化键；同一包名在不同用户（含工作资料与应用分身）下 MUST 为不同条目，UI MUST 按用户分组展示。名单解析 MUST 由 Root 侧按用户查询 Android package service 得到 UID 后合并为 `include_uid`/`exclude_uid`，MUST NOT 把包名直接交给 sing-box，MUST NOT 跨用户合并 UID。白名单解析后与原生 include UID/range 均为空时，运行时 MUST 设置 `exclude_uid_range=["0:4294967294"]` 排除全部有效 UID，MUST NOT 生成空 include 后静默变为全量接管，MUST NOT 注入占位 UID；空白名单护栏下管理器自身 UID MUST NOT 被当作唯一 include。仅 eBPF 共享路径时 MUST NOT 查询应用 UID。旧单 UID 名单独 MUST 按当前用户反查包名迁移为 `<userId>:<package>`；无法反查的条目 MUST 保留在旧字段并提示用户手动确认，MUST NOT 静默丢弃；本轮 MUST NOT 设定旧字段清理版本，旧字段只读保留、清理留待以后版本另行决定。
+
+#### Scenario: Clone of the same app is listed separately
+
+- **GIVEN** 同一包名在用户 0 与用户 10（应用分身）均已安装
+- **WHEN** 用户打开分应用列表
+- **THEN** 该包名出现两次，分属不同用户分组
+- **AND** 只勾选其中一个用户时，另一个用户的同包名应用不受影响
+
+#### Scenario: Empty whitelist does not become full interception
+
+- **GIVEN** 用户开启白名单模式但名单为空
+- **WHEN** 生成 Root 入站配置
+- **THEN** 运行时包含 `exclude_uid_range=["0:4294967294"]`
+- **AND** 不生成空 `include_uid`
+
+#### Scenario: Unresolvable legacy UID entries are kept for review
+
+- **GIVEN** 旧名单中有一条无法反查包名的 UID
+- **WHEN** 执行迁移
+- **THEN** 该条目保留在旧字段并提示用户手动确认
+- **AND** 其余可反查条目正常迁移
 
 ### Requirement: 模块诊断必须呈现模块已上报的退出与事件信息
 
@@ -463,6 +578,50 @@ Before enabling Smart Auto-stop on every supported Android version, Android MUST
 - **WHEN** 用户查看诊断区
 - **THEN** 只显示最近 5 条且最新一条在最前
 
+### Requirement: 设置页可一键导出脱敏诊断包
+
+设置页 MUST 提供一键“导出诊断包”入口，默认导出到系统 Download 目录，文件名固定为
+`wanbox-diagnostics-<时间>.tar.gz`（时间戳为 RFC 3339 本地时间转文件名安全形式，
+不含设备标识与用户标识）。导出前 MUST 显示确认说明，明确包内不含凭据、
+但含路由规则域名与脱敏后的地址信息（文案见 change 的 design.md §10 原句）。
+诊断包 MUST 为 gzip 压缩 tar（`.tar.gz`），先写同目录临时文件并 `fsync` 后原子重命名到目标；
+目标 MUST 是普通文件，已存在目录或 symlink 时 MUST 拒绝。包内 MUST 包含脱敏后的
+service/core 日志（轮转备份存在则收录、缺失不失败，每文件取尾部，上限 4 MiB/文件）、
+Root 快照、生成配置、模块状态与服务状态、本地规则，以及版本/时间/脱敏声明/缺失文件清单的
+README。包内 MUST NOT 包含远程规则集原文（只列名称/来源/哈希/更新时间）、用户备份文件、
+`cache.db`、私钥/证书或 Catalog staging 临时文件。导出完成 MUST 显示目标路径与大小；
+失败 MUST 显示可读原因。缺失的单个文件 MUST 只记入 README 缺失清单，MUST NOT 导致整包失败。
+诊断包 MUST NOT 含“可选脱敏用户备份”选项。
+
+脱敏规则 MUST 按 change 的 design.md §2 的表执行：订阅地址全文隐藏；节点链接全文隐藏；
+URL 内凭据、认证头与敏感 JSON 键值替换为 `***`；SSID 逐条替换为 `***`（条数保留）；
+分应用名单整体替换为 `***`；服务器地址与 SNI 替换为 `***`；公网 IPv4 保留前两个 octet、
+其余打码，公网 IPv6 保留前 32 位、其余打码，私网/回环/链路本地/CGNAT 只保留类别 token；
+MAC 地址全文打码；无法按字段脱敏的损坏 JSON MUST 省略原文并替换为固定 diagnostic_error 说明；
+单行脱敏消息截断上限 1024 rune。
+
+#### Scenario: Export succeeds with redaction applied
+
+- **GIVEN** 用户在设置页打开导出诊断包并确认说明
+- **WHEN** 导出完成
+- **THEN** 目标路径出现一个 `.tar.gz` 文件且界面显示路径与大小
+- **AND** 包内日志与配置不含订阅地址、节点凭据、服务器地址、SSID 明文、完整公网 IP 或 MAC 地址
+- **AND** README 列出版本、生成时间与缺失文件清单
+
+#### Scenario: Export refuses a non-file target
+
+- **GIVEN** 用户指定的导出目标是一个已存在目录
+- **WHEN** 执行导出
+- **THEN** 导出被拒绝并显示可读原因
+- **AND** 不创建或覆盖任何文件
+
+#### Scenario: Corrupted JSON is omitted instead of leaked
+
+- **GIVEN** 某份待导出 JSON 配置已损坏、无法按字段脱敏
+- **WHEN** 执行导出
+- **THEN** 包内该文件被替换为固定 diagnostic_error 说明，不含原文
+- **AND** 其余文件仍正常导出
+
 ### Requirement: 图形化 Selector/URLTest 编辑
 
 管理器 MUST 提供 Selector/URLTest 创建、成员增删及排序；URLTest MUST 可编辑 URL override、interval、tolerance、idle timeout、interrupt existing 并持久化重开。空 URL override MUST 保持既有继承语义；非空 URL MUST 为 HTTP(S)，interval MUST 为正秒数，tolerance MUST 为非负毫秒数，idle timeout MUST 为核心支持的非负时长。实现时 MUST 新增策略组成员图校验：以稳定实体 ID 为顶点、组到成员为有向边；从候选组可达自身即为循环，错误 MUST 定位到导致回边的成员 ID/编辑行，并在写入或生成候选快照前阻断。空成员、重复成员、缺失实体、循环或参数不合法 MUST 阻止保存并指出原因；取消 MUST 不改持久数据。普通编辑 MUST NOT 将已有 URLTest/LoadBalance 模式重置为 selector。
@@ -481,7 +640,7 @@ Before enabling Smart Auto-stop on every supported Android version, Android MUST
 
 ### Requirement: 策略组身份与分区隔离
 
-稳定实体 ID MUST 作为数据库键及节点成员引用键，节点与组采用独立命名空间。规则生成仍按既有 outbound tag 契约引用；Selector/URLTest 的直接成员仍为节点，组间引用沿用负载均衡目标组；本批不新增按组 ID 的规则或组直接成员。主组 Selector/URLTest/LoadBalance outbound 的运行时 tag MUST 固定为 `proxy`；非主组路由兼容名称 MUST 使用 trim 后组名。节点链路 tag MUST 按生成上下文区分：直接节点为 `g-<id>`，链式节点为 `chainTag-<id>`，不得要求所有节点均为 `g-<id>`。新建策略组的路由兼容名称 trim 后 MUST 非空；路由兼容名称和类型创建成功后 MUST 只读；主组运行时 tag `proxy` 不随名称变化。资源显示名改动 MUST NOT 隐式修改组身份/tag 或破坏引用，不新增全局历史分组禁改名规则。策略组编辑 MUST 只改变配置 outbounds 分区，MUST 保持其他分区内容、路由生成顺序和用户规则顺序。
+稳定实体 ID MUST 作为数据库键及节点成员引用键，节点与组采用独立命名空间。规则生成仍按既有 outbound tag 契约引用；Selector/URLTest 的直接成员仍为节点，组间引用沿用负载均衡目标组；N6（borrow-netproxy-nightly）起规则可按组 ID 指定策略组目标（见“Route rules may target a policy group”），仍不新增组直接成员。主组 Selector/URLTest/LoadBalance outbound 的运行时 tag MUST 固定为 `proxy`；非主组路由兼容名称 MUST 使用 trim 后组名。节点链路 tag MUST 按生成上下文区分：直接节点为 `g-<id>`，链式节点为 `chainTag-<id>`，不得要求所有节点均为 `g-<id>`。新建策略组的路由兼容名称 trim 后 MUST 非空；路由兼容名称和类型创建成功后 MUST 只读；主组运行时 tag `proxy` 不随名称变化。资源显示名改动 MUST NOT 隐式修改组身份/tag 或破坏引用，不新增全局历史分组禁改名规则。策略组编辑 MUST 只改变配置 outbounds 分区，MUST 保持其他分区内容、路由生成顺序和用户规则顺序。
 
 #### Scenario: 身份锁定与冲突
 
@@ -500,6 +659,38 @@ Before enabling Smart Auto-stop on every supported Android version, Android MUST
 - **GIVEN** 含路由、DNS、入站和用户规则的配置
 - **WHEN** 用户成功修改策略组成员
 - **THEN** 仅 outbounds 内容改变，其他分区及规则顺序相同；节点成员引用以稳定实体 ID 保存，并按直接/链式节点规则解析为对应运行时 tag，规则引用契约保持不变
+
+### Requirement: Route rules may target a policy group (N6)
+
+路由规则 MUST 支持以策略组为目标：`RuleEntity` 新增可空的策略组目标（稳定实体 ID 引用，数据库版本 11 的 `policyGroupId` 列，缺失即 NULL），与节点 `outbound: Long` 正交；两者同时存在时 MUST 拒绝保存并定位到目标字段（节点出站非 0，或动作为非路由动作时均违规）。内置目标（`0`=proxy、`-1`=bypass、`-2`=block）保持不变。生成配置时，规则 MUST 写原生 `route.rules` 的 `outbound=<策略组运行时 tag>`（主组固定 `proxy`，非主组为 trim 后组名；被引用的非主组在生成时获得一个 selector 出站，成员为该组节点）；插入位置 MUST 在默认全局模式、DNS 接管及本地快捷规则之后、内置站点分流之前（组目标规则仍在同一用户规则循环内生成，显式规则天然排在 fallback 层之前）；无法确认插入位置时（多条件/`logical`/`invert` 设置，或全局/当前节点自定义配置可能改写 `route.rules`）MUST 交给 JSON 编辑器，表单拒绝保存。规则引用的策略组不存在时 MUST 复用现有缺失引用预检：列表标红、启动前 modal 汇总（类型文案为“策略组”）。删除被路由规则引用的策略组时 MUST 在同一数据库事务内阻断并定位到该组与首条引用规则（对话框标题为组名，可跳转到引用规则）；已提交的改名 MUST NOT 使引用失效（引用按稳定 ID 解析，tag 在生成时由当前组名重算），空白组名在组设置保存时已有非空回退。组目标类型默认不启用，用户显式选择后才生效；默认规则与默认 Play/广告规则不受影响。多条件、logical、invert 与其他原生字段 MUST 保留原样，走 JSON 编辑器。备份恢复 MUST 校验策略组目标在备份分组或目标设备分组内，否则拒绝写入。
+
+#### Scenario: Rule targets a policy group
+
+- **GIVEN** 存在一个名为 `streaming` 的策略组与一条单条件域名规则
+- **WHEN** 用户将该规则目标设为 `streaming` 并启动核心
+- **THEN** 生成配置的对应 `route.rules` 条目 `outbound` 为 `streaming`
+- **AND** 该规则位于本地快捷规则之后、内置站点分流之前
+
+#### Scenario: Rule targets a missing group
+
+- **GIVEN** 一条规则的目标策略组已被删除
+- **WHEN** 用户打开路由规则列表并尝试启动核心
+- **THEN** 该规则显示红色错误状态与“该规则指向的策略组已不存在。”
+- **AND** 启动前出现列出规则与缺失策略组的提醒
+
+#### Scenario: Deleting a referenced group is blocked
+
+- **GIVEN** 一条启用规则引用策略组 `streaming`
+- **WHEN** 用户尝试删除 `streaming`
+- **THEN** 删除被阻断并定位到 `streaming`
+- **AND** 规则与配置保持不变，选中节点/分组不被迁移
+
+#### Scenario: Rule cannot target both a node and a group
+
+- **GIVEN** 一条规则已选节点目标
+- **WHEN** 用户同时为其选择策略组目标并提交
+- **THEN** 提交被拒绝并定位到目标字段
+- **AND** 原规则保持不变
 
 ### Requirement: Root 应用链与缺失引用阻断
 
