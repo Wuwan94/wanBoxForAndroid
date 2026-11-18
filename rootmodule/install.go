@@ -261,9 +261,11 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 		}
 		backup, e := os.MkdirTemp(parent, ".wanbox-previous-")
 		if e != nil {
+			releaseGuard()
 			return e
 		}
 		if e = os.Remove(backup); e != nil {
+			releaseGuard()
 			return e
 		}
 		if e = old.stop(ctx); e != nil {
