@@ -157,7 +157,7 @@ class AndroidSpeedTestSession(profile: ProxyEntity) : BoxInstance(profile), Spee
                 profileId = profile.id,
                 profileName = profile.displayName(),
                 mode = DataStore.speedTestMode,
-                stage = STAGE_PENDING,
+                stage = SpeedTestQueueRunner.STAGE_PENDING,
             ),
         )
         val result = io.nekohasekai.sagernet.bg.RootModuleClient.speedTest(
