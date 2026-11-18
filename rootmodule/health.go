@@ -575,11 +575,13 @@ func (r *Runtime) monitorGeneration(ctx context.Context, rev string, s *State, m
 	}
 	// B6（N3）：direct 动作在 monitor 层应用。裁决每 tick 重新评估，但模式
 	// 切换只在动作变化时执行一次；离开 direct 网络时用 AlignClashMode 恢复
-	// 默认模式；API 失败不重载、不重试风暴，只记录事件并保持当前模式。
+	// 默认模式；API 失败走有界退避重试（15s → 1min → 5min 封顶），不再一次
+	// 失败就永久锁存——瞬时失败不能让用户在要求直连的网络上一直走代理。
+	// 失败事件走 recordEventLimited（5 分钟窗口内只记一次），不退化成刷屏。
 	// 指纹未知时保持当前状态，只在转为未知时记录一次；开机首次评估未知时
 	// 校准一次默认模式（与上游“开机未知时校准默认模式”一致）。
 	lastAction := ""
-	directRetryBlocked := false
+	var directRetry directModeRetry
 	unknownRecorded := false
 	calibrated := false
 	applyNetworkAction := func(d networkDecision) networkDecision {
@@ -601,21 +603,22 @@ func (r *Runtime) monitorGeneration(ctx context.Context, rev string, s *State, m
 		}
 		unknownRecorded = false
 		if d.Action != "direct" {
-			directRetryBlocked = false
+			directRetry.reset()
 		}
 		if d.Action == "direct" && lastAction != "direct" {
-			// 同一网络指纹下 SetRuntimeMode 失败后不再每个 tick 重试：只记一次
-			// network_direct_failed，直到动作离开 direct 再进入（状态变化）才重试。
-			if directRetryBlocked {
+			// 同一网络指纹下失败后按有界退避重试：15s → 1min → 5min，之后
+			// 保持 5 分钟一次的慢速重试；事件在 5 分钟窗口内只记一次。
+			if !directRetry.allow(time.Now()) {
 				return d
 			}
 			mu.Lock()
 			core := s.Core
 			mu.Unlock()
 			if err := r.SetRuntimeMode(ctx, rev, core, "direct"); err != nil {
-				directRetryBlocked = true
-				r.recordEvent("network_direct_failed")
+				directRetry.failed(time.Now())
+				r.recordEventLimited("network_direct_failed", 5*time.Minute)
 			} else {
+				directRetry.reset()
 				lastAction = "direct"
 				r.recordEvent("network_direct")
 			}
