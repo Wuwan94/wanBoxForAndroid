@@ -8,9 +8,9 @@
 | 已发布预览版 | [v3.0.17-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.2)，prerelease；tag/commit `49e966197dd608b687b36eecdaf394274dacfe15`（PR #67，2026-11-18T08:44:27Z 合并；PR #68，2026-11-18T08:48:15Z 合并）；资产与 tag 同源出版 | APK `versionCode=10162` / Root 模块码 `2032`；PR 门禁 `Verify Android Build` #195/#196 全绿，main 验证 `Verify Android Build` run `44270851087` 第 2 次尝试全绿，`Preview Build` run `44281162788`（发布 job 断言 `APPROVED_SHA=49e96619`，回读 tag 一致） |
 | 上一正式版 | [v3.0.11](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.11)，非 prerelease，保留；tag `03c6eb70854c797ee1e4069e378145be5ca56b0d` | APK / Root 模块 `10065 / 2013`（历史资产核验记录，归档语境） |
 | 发布基线 | [v3.0.17-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.2) 的 tag/commit `49e966197dd608b687b36eecdaf394274dacfe15`（Release `targetCommitish` 与 APK 内 `version-control-info.textproto` 同为该提交） | 固定发布基线，不等同于后续 main HEAD |
-| 源码预览线 | `3.0.17-preview.2`（已发布，与上一行同一提交；下一预览升版前源码预览线保持该值） | `PRE_VERSION_NAME=3.0.17-preview.2`、`PRE_VERSION_CODE=2032`；共享向量计算 APK `versionCode=10162`、Root 模块码 `2032` |
+| 源码预览线 | `3.0.17-preview.3`（**未发布候选**，与「已发布预览版」已分离） | `PRE_VERSION_NAME=3.0.17-preview.3`、`PRE_VERSION_CODE=2033`；共享向量计算 APK `versionCode=10168`、Root 模块码 `2033`，均高于已发布 preview.2 的 `10162` / `2032` |
 
-源码元数据正式线保持 `VERSION_NAME=3.0.14`、`VERSION_CODE=2026`；preview.2 是当前已发布预览（APK `10162` / 模块 `2032`，源码 `49e96619`），其源码预览线同为 `PRE_VERSION_NAME=3.0.17-preview.2`、`PRE_VERSION_CODE=2032`。稳定版与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变。下一预览升版时，`PRE_VERSION_NAME` 前移后本文的「源码预览线」才与「已发布预览版」分离。
+源码元数据正式线保持 `VERSION_NAME=3.0.14`、`VERSION_CODE=2026`；preview.2 是当前已发布预览（APK `10162` / 模块 `2032`，源码 `49e96619`），源码预览线已前移到 `3.0.17-preview.3` 候选（`PRE_VERSION_CODE=2033`，派生 APK `10168`、模块 `2033`），状态为未发布候选。稳定版与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变；候选发布后由文档同步 PR 翻转本行并回填 run 号与四件套数据。
 
 preview.1 内容：修复 preview.4 复审发现的 P1 回归——存在悬空出站引用时「放弃未完成编辑」在锁内重建时反复撞上出站告警，恢复标记永不释放；现由同一次构建快照算出的告警替代该次重建确认，正常启动/重连/重载仍要求确认，提交点（确认成功才清标记）未放宽。同批修复同一状态下的第二层缺陷：配置构建在 IO 线程创建 Toast 抛 `NullPointerException`，使包括用户确认后的重建整条路径失败，两处规则告警改为主线程分发。
 

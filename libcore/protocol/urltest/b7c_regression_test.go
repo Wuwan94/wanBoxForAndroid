@@ -4,6 +4,9 @@ package urltest
 
 import (
 	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -61,6 +64,52 @@ func TestParseTierTagIndex(t *testing.T) {
 	}
 	if tierFallbackIndex <= 1000 {
 		t.Fatalf("fallback tier index must sort after any real tier, got %d", tierFallbackIndex)
+	}
+}
+
+// TestBudgetExpiryStillFinishesRoundAndAllowsSwitchBack 复现 P1-1：整轮预算
+// （生产为 probeBudget=5s）耗尽时，旧实现直接按 ctx.Err() 返回，跳过
+// performRoundEndCheck，consecutiveOK 永远不推进，高层恢复后也无法回切。
+// 这里用缩短的父上下文稳定模拟同一到期路径：本轮没有任何成功探测，但高层
+// 已有新鲜历史；连续 3 轮且距上次失败满 60 秒后，选择必须回到高层。
+func TestBudgetExpiryStillFinishesRoundAndAllowsSwitchBack(t *testing.T) {
+	// 探测请求不返回，直到客户端上下文到期；保证每轮都以预算耗尽收尾。
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+
+	grp := startupGroupWithMembers(t, context.Background(), server.URL,
+		tierMember("a [T1]"),
+		tierMember("b [T2]"),
+	)
+	// 先让低层成为当前层（高层无历史）。
+	storeTierHistory(t, grp, "b [T2]", 90)
+	grp.performRoundEndCheck()
+	if grp.currentTier != 1 {
+		t.Fatalf("expected currentTier 1 before recovery, got %d", grp.currentTier)
+	}
+
+	// 高层恢复（新鲜历史），但每轮仍在预算到期前无法完成任何探测。
+	storeTierHistory(t, grp, "a [T1]", 100)
+	grp.tierGate.lastFailure[0] = time.Now().Add(-61 * time.Second)
+	for i := 0; i < tierSwitchBackMinChecks; i++ {
+		roundCtx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
+		_, err := grp.urlTest(roundCtx, true)
+		cancel()
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("round %d: expected budget expiry, got %v", i+1, err)
+		}
+	}
+	if got := grp.tierGate.consecutiveOK[0]; got < tierSwitchBackMinChecks {
+		t.Fatalf("budget-expired rounds must still advance the recovery gate: got %d healthy rounds", got)
+	}
+	selected, healthy := grp.Select(N.NetworkTCP)
+	if selected == nil || selected.Tag() != "a [T1]" || !healthy {
+		t.Fatalf("expected switch-back to tier-1 after 3 budget-expired rounds and 60s, got %v healthy=%v", selected, healthy)
+	}
+	if grp.currentTier != 0 {
+		t.Fatalf("expected currentTier 0 after switch-back, got %d", grp.currentTier)
 	}
 }
 

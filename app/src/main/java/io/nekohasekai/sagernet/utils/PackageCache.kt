@@ -13,6 +13,9 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import moe.matsuri.nb4a.plugin.Plugins
+import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 object PackageCache {
@@ -140,15 +143,33 @@ object PackageCache {
     }
 
     private fun queryMultiUserUids(): Map<Int, Map<String, List<Int>>> {
+        // P2：su 可能卡在未响应的 Root 授权弹窗上。旧实现先 readText() 再
+        // waitFor()，读管道会无限等进程结束，从而永久占住 multiUserMutex 与
+        // 配置生成。这里用读线程 + 5 秒有界等待，超时强制结束并返回空表。
         fun su(cmd: String): String {
             val p = ProcessBuilder("su", "-c", cmd).start()
+            val buffer = ByteArrayOutputStream()
+            val reader = Thread {
+                try {
+                    p.inputStream.copyTo(buffer)
+                } catch (_: IOException) {
+                    // 进程被强制结束时管道会关闭；按失败路径统一处理。
+                }
+            }.apply {
+                isDaemon = true
+                start()
+            }
             try {
-                val out = p.inputStream.bufferedReader().readText()
-                p.waitFor()
-                if (p.exitValue() != 0) throw java.io.IOException("pm_failed")
-                return out
+                if (!p.waitFor(5, TimeUnit.SECONDS)) {
+                    p.destroyForcibly()
+                    throw IOException("pm_timeout")
+                }
+                reader.join(1_000)
+                if (p.exitValue() != 0) throw IOException("pm_failed")
+                return buffer.toString(Charsets.UTF_8.name())
             } finally {
-                p.destroy()
+                if (p.isAlive) p.destroyForcibly()
+                reader.join(500)
             }
         }
         val myUser = android.os.Process.myUid() / 100000

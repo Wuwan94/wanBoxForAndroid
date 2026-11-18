@@ -3,6 +3,7 @@ package urltest
 
 import (
 	"context"
+	"errors"
 	"io"
 	"maps"
 	"net"
@@ -373,24 +374,20 @@ func (s *URLTest) DialContext(ctx context.Context, network string, destination M
 	if detour == nil {
 		return nil, E.New("missing supported outbound")
 	}
-	// 容灾候选：先收集，后备存在时主选才受单步超时约束。
-	alternates := make([]adapter.Outbound, 0, len(s.group.outbounds))
-	for _, alt := range s.group.outbounds {
-		if alt == detour || !common.Contains(alt.Network(), network) {
-			continue
-		}
-		alternates = append(alternates, alt)
-	}
+	// 容灾候选：先按新鲜历史过滤/排序，后备存在时主选才受单步超时约束。
+	alternates := s.group.failoverCandidates(detour, networkName)
 	conn, err := s.dialOne(ctx, len(alternates) > 0, detour, network, destination)
 	if err == nil {
 		return s.group.interruptGroup.NewConn(conn, interrupt.IsExternalConnectionFromContext(ctx), interrupt.IsResourceDownloadFromContext(ctx)), nil
 	}
 	s.logger.ErrorContext(ctx, err)
 
-	// 容灾候选快速故障转移，防止主选节点临时抖动导致全量连接直接断连
+	// 容灾候选快速故障转移，防止主选节点临时抖动导致全量连接直接断连。
+	// 成功者立即成为当前选择，避免之后每条连接都先撞同一个坏主选。
 	for i, alt := range alternates {
 		altConn, altErr := s.dialOne(ctx, i < len(alternates)-1, alt, network, destination)
 		if altErr == nil {
+			s.group.promoteFailover(alt, networkName)
 			return s.group.interruptGroup.NewConn(altConn, interrupt.IsExternalConnectionFromContext(ctx), interrupt.IsResourceDownloadFromContext(ctx)), nil
 		}
 	}
@@ -415,28 +412,100 @@ func (s *URLTest) ListenPacket(ctx context.Context, destination M.Socksaddr) (ne
 	if detour == nil {
 		return nil, E.New("missing supported outbound")
 	}
-	// 容灾候选：先收集，后备存在时主选才受单步超时约束。
-	alternates := make([]adapter.Outbound, 0, len(s.group.outbounds))
-	for _, alt := range s.group.outbounds {
-		if alt == detour || !common.Contains(alt.Network(), N.NetworkUDP) {
-			continue
-		}
-		alternates = append(alternates, alt)
-	}
+	// 容灾候选：先按新鲜历史过滤/排序，后备存在时主选才受单步超时约束。
+	alternates := s.group.failoverCandidates(detour, N.NetworkUDP)
 	conn, err := s.listenOne(ctx, len(alternates) > 0, detour, destination)
 	if err == nil {
 		return s.group.interruptGroup.NewPacketConn(conn, interrupt.IsExternalConnectionFromContext(ctx), interrupt.IsResourceDownloadFromContext(ctx)), nil
 	}
 	s.logger.ErrorContext(ctx, err)
 
-	// UDP 候选快速容灾
+	// UDP 候选快速容灾；成功者同样提升为当前选择。
 	for i, alt := range alternates {
 		altConn, altErr := s.listenOne(ctx, i < len(alternates)-1, alt, destination)
 		if altErr == nil {
+			s.group.promoteFailover(alt, N.NetworkUDP)
 			return s.group.interruptGroup.NewPacketConn(altConn, interrupt.IsExternalConnectionFromContext(ctx), interrupt.IsResourceDownloadFromContext(ctx)), nil
 		}
 	}
 	return nil, err
+}
+
+// failoverCandidates 按新鲜历史为故障转移排序候选：新鲜优先、延迟升序；
+// 只要存在新鲜候选，就排除过期候选，避免先撞已知过期路径。全部过期时
+// 保留配置顺序，维持原有的兜底连通能力。
+func (g *URLTestGroup) failoverCandidates(primary adapter.Outbound, network string) []adapter.Outbound {
+	type candidate struct {
+		outbound adapter.Outbound
+		delay    uint16
+		fresh    bool
+		order    int
+	}
+	candidates := make([]candidate, 0, len(g.outbounds))
+	anyFresh := false
+	for order, alt := range g.outbounds {
+		if alt == primary || !common.Contains(alt.Network(), network) {
+			continue
+		}
+		history := g.freshHistory(group.RealTag(alt, network))
+		if history != nil {
+			anyFresh = true
+		}
+		delay := uint16(65535)
+		if history != nil {
+			delay = history.Delay
+		}
+		candidates = append(candidates, candidate{outbound: alt, delay: delay, fresh: history != nil, order: order})
+	}
+	sort.SliceStable(candidates, func(i, j int) bool {
+		if candidates[i].fresh != candidates[j].fresh {
+			return candidates[i].fresh
+		}
+		if candidates[i].fresh && candidates[i].delay != candidates[j].delay {
+			return candidates[i].delay < candidates[j].delay
+		}
+		return candidates[i].order < candidates[j].order
+	})
+	result := make([]adapter.Outbound, 0, len(candidates))
+	for _, item := range candidates {
+		if anyFresh && !item.fresh {
+			continue
+		}
+		result = append(result, item.outbound)
+	}
+	return result
+}
+
+// promoteFailover 把故障转移成功的成员提升为当前选择，并按组选项决定是否
+// 中断现有连接；下次建连直接走成功成员，不必重复等待坏主选超时。
+func (g *URLTestGroup) promoteFailover(winner adapter.Outbound, network string) {
+	if winner == nil {
+		return
+	}
+	g.updateAccess.Lock()
+	defer g.updateAccess.Unlock()
+	selected := false
+	switch network {
+	case N.NetworkTCP:
+		if g.selectedOutboundTCP != winner {
+			g.selectedOutboundTCP = winner
+			selected = true
+		}
+	case N.NetworkUDP:
+		if g.selectedOutboundUDP != winner {
+			g.selectedOutboundUDP = winner
+			selected = true
+		}
+	default:
+		return
+	}
+	tag := winner.Tag()
+	g.observedTag.Store(&tag)
+	g.currentTier = g.tierOfTag(tag)
+	if selected && g.interruptExternalConnections {
+		g.interruptGroup.Interrupt(true)
+	}
+	g.history.NotifyUpdated()
 }
 
 func (s *URLTest) NewConnection(ctx context.Context, conn net.Conn, metadata adapter.InboundContext, onClose N.CloseHandlerFunc) {
@@ -962,13 +1031,39 @@ func (g *URLTestGroup) urlTest(ctx context.Context, force bool) (result map[stri
 		g.checkAccess.Unlock()
 	}()
 	result = URLTestOutboundsWithGroup(ctx, g.outbound, g.history, g.logger, g.outbounds, g.link, g.interval, force, g)
-	if err := ctx.Err(); err != nil {
-		return result, err
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		// P1：整轮预算到期时不能直接丢弃本轮收尾。批量取消本身不代表成员失败
+		//（失败判定在 urlTestBatch 内已按 b.ctx.Err 跳过），但只要有本轮结果或
+		// 新鲜历史，就说明本轮具备可判定的观测，仍须推进层级恢复门并重算选择。
+		// 组关闭/调用方取消（Canceled）不计数，避免把中断当成健康轮次。
+		if g.ctx.Err() == nil &&
+			errors.Is(ctxErr, context.DeadlineExceeded) &&
+			(len(result) > 0 || g.hasFreshRoundEvidence()) {
+			g.performRoundEndCheck()
+		}
+		return result, ctxErr
 	}
 	// B7c/O7：轮次结束走 performRoundEndCheck（推进层级恢复门 + 重算选择）；
 	// 流式就绪仍走 performUpdateCheck（只重算选择，不计轮次）。
 	g.performRoundEndCheck()
 	return result, nil
+}
+
+// hasFreshRoundEvidence 报告本轮是否有可用于轮次收尾的新鲜历史。
+// 预算到期时批量探测会被取消，但已成功的成员（含嵌套组的流式结果）仍会
+// 写入 history；层级恢复门按轮次计数，不能因为其余成员拖到超时就整轮作废。
+func (g *URLTestGroup) hasFreshRoundEvidence() bool {
+	for _, detour := range g.outbounds {
+		if common.Contains(detour.Network(), N.NetworkTCP) &&
+			g.freshHistory(group.RealTag(detour, N.NetworkTCP)) != nil {
+			return true
+		}
+		if common.Contains(detour.Network(), N.NetworkUDP) &&
+			g.freshHistory(group.RealTag(detour, N.NetworkUDP)) != nil {
+			return true
+		}
+	}
+	return false
 }
 
 // urlTestFlight is one in-flight probe round. The leader publishes its result

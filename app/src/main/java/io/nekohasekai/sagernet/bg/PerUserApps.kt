@@ -115,6 +115,19 @@ object PerUserApps {
             }
             uids.filter { it >= 1000 }.forEach { out.add(it) }
         }
-        return out.toList()
+        return requireResolvedWhitelist(refs.size, out.toList())
+    }
+
+    /**
+     * P2：名单非空但过滤掉 uid < 1000 后一个有效 UID 都不剩（用户只选了纯系统
+     * 组件，或所选包都已卸载），旧实现会静默生成“空 include + 排除全部”，
+     * 表现为完全不代理任何应用且没有任何提示。这里显式报错，由配置构建/UI
+     * 把原因交给用户，而不是悄悄失效。
+     */
+    internal fun requireResolvedWhitelist(requestedCount: Int, resolvedUids: List<Int>): List<Int> {
+        if (requestedCount > 0 && resolvedUids.isEmpty()) {
+            throw IllegalStateException("per_user_app_whitelist_empty")
+        }
+        return resolvedUids
     }
 }

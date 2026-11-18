@@ -1,7 +1,6 @@
 package module
 
 import (
-	"errors"
 	"net"
 	"strings"
 	"testing"
@@ -151,96 +150,5 @@ func TestSharedSourceAllowed(t *testing.T) {
 	open, _ := CheckSharedConfig([]byte(`{"enabled":true,"interface":["wlan1"],"exclude_mac_address":["02:11:22:33:44:55"]}`))
 	if !SharedSourceAllowed(open, net.ParseIP("10.0.0.1"), "") || SharedSourceAllowed(open, net.ParseIP("10.0.0.1"), "02:11:22:33:44:55") {
 		t.Fatal("open filter must allow all except excluded MAC")
-	}
-}
-
-func TestParsePerUserAppRef(t *testing.T) {
-	u, pkg, err := ParsePerUserAppRef("10:com.example.app")
-	if err != nil || u != 10 || pkg != "com.example.app" {
-		t.Fatalf("valid ref: %d %s %v", u, pkg, err)
-	}
-	for _, bad := range []string{"com.example.app", "0:", ":com.example.app", "99999:com.example.app", "-1:com.example.app", "0:Com.Example", "0:com.example.app:extra", "0:1com.example"} {
-		if _, _, err := ParsePerUserAppRef(bad); err == nil {
-			t.Fatalf("accepted invalid ref %q", bad)
-		}
-	}
-}
-
-func TestResolvePerUserAppUIDs(t *testing.T) {
-	query := func(userID int, pkg string) (int, error) {
-		if pkg == "com.example.app" {
-			return 100000*userID + 10123, nil
-		}
-		return 0, errors.New("per_user_app_not_found")
-	}
-	uids, missing, err := ResolvePerUserAppUIDs([]string{"0:com.example.app", "10:com.example.app", "10:com.missing.app"}, query)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(uids) != 2 || uids[0] != 10123 || uids[1] != 1010123 {
-		t.Fatalf("same package under two users must resolve to two UIDs: %v", uids)
-	}
-	if len(missing) != 1 || missing[0] != "10:com.missing.app" {
-		t.Fatalf("missing must be reported, not dropped silently: %v", missing)
-	}
-	// UID 0 永不自动加入。
-	zero := func(userID int, pkg string) (int, error) { return 0, nil }
-	uids, _, err = ResolvePerUserAppUIDs([]string{"0:com.example.app"}, zero)
-	if err != nil || len(uids) != 0 {
-		t.Fatalf("UID 0 must never be auto-added: %v %v", uids, err)
-	}
-	// 非法引用报错。
-	if _, _, err := ResolvePerUserAppUIDs([]string{"com.example.app"}, query); err == nil {
-		t.Fatal("bare package must be rejected")
-	}
-}
-
-func TestEmptyWhitelistGuard(t *testing.T) {
-	// 白名单开启但解析后与原生 include 均为空 → 护栏生效。
-	if !EmptyWhitelistGuard(true, false, nil, nil, nil) {
-		t.Fatal("empty whitelist must trigger the guard")
-	}
-	if EmptyWhitelistGuard(true, false, []int{10123}, nil, nil) {
-		t.Fatal("non-empty whitelist must not trigger the guard")
-	}
-	if EmptyWhitelistGuard(true, false, nil, []int{10123}, nil) {
-		t.Fatal("native include UID must not trigger the guard")
-	}
-	if EmptyWhitelistGuard(true, false, nil, nil, []string{"10000:20000"}) {
-		t.Fatal("native include range must not trigger the guard")
-	}
-	if EmptyWhitelistGuard(true, true, nil, nil, nil) {
-		t.Fatal("blacklist mode must not trigger the guard")
-	}
-	if EmptyWhitelistGuard(false, false, nil, nil, nil) {
-		t.Fatal("per-app disabled must not trigger the guard")
-	}
-	if ExcludeAllUIDRange != "0:4294967294" {
-		t.Fatalf("guard range changed: %s", ExcludeAllUIDRange)
-	}
-}
-
-func TestMigrateLegacyIndividual(t *testing.T) {
-	reverse := func(uid int) (string, bool) {
-		if uid == 10123 {
-			return "com.example.app", true
-		}
-		return "", false
-	}
-	migrated, retained := MigrateLegacyIndividual([]string{
-		"com.example.app", "10123", "10999", "10:com.clone.app", "com.example.app", "", "bad uid!!",
-	}, reverse)
-	// com.example.app → 0:com.example.app；10123 反查同一包（去重）；
-	// 10999 无法反查保留；10:com.clone.app 原样保留；非法行保留待确认。
-	if len(migrated) != 2 || migrated[0] != "0:com.example.app" || migrated[1] != "10:com.clone.app" {
-		t.Fatalf("migrated wrong: %v", migrated)
-	}
-	if len(retained) != 2 || retained[0] != "10999" || retained[1] != "bad uid!!" {
-		t.Fatalf("unresolvable must be retained: %v", retained)
-	}
-	// 无反查函数时数字 UID 一律保留。
-	_, retained = MigrateLegacyIndividual([]string{"10123"}, nil)
-	if len(retained) != 1 || retained[0] != "10123" {
-		t.Fatalf("without reverse lookup UID must be retained: %v", retained)
 	}
 }

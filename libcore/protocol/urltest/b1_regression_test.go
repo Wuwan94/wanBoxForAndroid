@@ -89,6 +89,9 @@ func TestProbeFailurePenalizeAndEvict(t *testing.T) {
 	}
 
 	// 复位已生效：再次失败只记惩罚，不直接清史。
+	// Windows 的 time.Now 粒度可能让相邻两次写入落到同一时间戳；留出极短间隔，
+	// 保持“失败续期 Time”这个断言的跨平台稳定性。
+	time.Sleep(2 * time.Millisecond)
 	dead.dead = true
 	probe()
 	h4 := grp.history.LoadURLTestHistory("dead")
@@ -188,6 +191,15 @@ func TestDialBlackholeTimeoutFailover(t *testing.T) {
 	if h := grp.history.LoadURLTestHistory("blackhole-primary"); h == nil || h.Delay != 340 {
 		t.Fatalf("expected first timeout to penalize only (delay 340), got %+v", h)
 	}
+	// P2-7：故障转移成功后必须把成功者提升为当前选择。
+	if grp.selectedOutboundTCP != backup {
+		t.Fatalf("expected failover winner to become current selection, got %v", grp.selectedOutboundTCP)
+	}
+	// 下一轮择优仍会按惩罚后的延迟回到坏主选（340 < 5000），模拟轮次选择重算。
+	grp.performUpdateCheck()
+	if grp.selectedOutboundTCP != blackhole {
+		t.Fatalf("expected round-end selection to reselect penalized primary, got %v", grp.selectedOutboundTCP)
+	}
 
 	// 第二次超时：连续失败计数到 2，故障史被清理。
 	conn2, err := u.DialContext(parentCtx, N.NetworkTCP, dest)
@@ -200,6 +212,48 @@ func TestDialBlackholeTimeoutFailover(t *testing.T) {
 	}
 	if h := grp.history.LoadURLTestHistory("blackhole-primary"); h != nil {
 		t.Fatalf("expected blackhole history to be evicted after 2 consecutive timeouts, got %+v", h)
+	}
+}
+
+// TestFailoverPrefersFreshCandidateAndPromotesSelection 复现 P2-7：故障转移后
+// 旧实现仍把成功节点只当一次性备用，选择仍是黑洞主选，下一次连接还要再超时；
+// 候选顺序也只看配置顺序，过期历史排在新鲜历史之前。修复后：有过期候选被
+// 排除、新鲜候选按延迟升序尝试，成功者立即成为当前选择。
+func TestFailoverPrefersFreshCandidateAndPromotesSelection(t *testing.T) {
+	primary := &startupOutbound{Adapter: outbound.NewAdapter("loopback", "primary-dead", []string{"tcp", "udp"}, nil), dead: true}
+	stale := &stubDialOutbound{Adapter: outbound.NewAdapter("loopback", "stale-alt", []string{"tcp", "udp"}, nil)}
+	fast := &stubDialOutbound{Adapter: outbound.NewAdapter("loopback", "fast-alt", []string{"tcp", "udp"}, nil)}
+	slow := &stubDialOutbound{Adapter: outbound.NewAdapter("loopback", "slow-alt", []string{"tcp", "udp"}, nil)}
+	grp := startupGroupWithMembers(t, context.Background(), "http://127.0.0.1/generate_204", primary, stale, fast, slow)
+	grp.interval = 3 * time.Minute
+	now := time.Now()
+	grp.history.StoreURLTestHistory("primary-dead", &adapter.URLTestHistory{Time: now, Delay: 40})
+	// stale-alt 在列表里排在前面，但历史已过期，不得作为转移候选。
+	grp.history.StoreURLTestHistory("stale-alt", &adapter.URLTestHistory{Time: now.Add(-4 * grp.interval), Delay: 10})
+	grp.history.StoreURLTestHistory("fast-alt", &adapter.URLTestHistory{Time: now, Delay: 300})
+	grp.history.StoreURLTestHistory("slow-alt", &adapter.URLTestHistory{Time: now, Delay: 900})
+	close(grp.startupDone)
+
+	u := &URLTest{group: grp, logger: log.NewNOPFactory().Logger()}
+	conn, err := u.DialContext(context.Background(), N.NetworkTCP, M.ParseSocksaddrHostPort("example.com", 443))
+	if err != nil {
+		t.Fatalf("expected failover to a fresh candidate, got %v", err)
+	}
+	_ = conn.Close()
+	if stale.calls.Load() != 0 {
+		t.Fatalf("stale candidate must be filtered out, got %d calls", stale.calls.Load())
+	}
+	if fast.calls.Load() != 1 {
+		t.Fatalf("expected fresh fastest candidate to be tried once, got %d", fast.calls.Load())
+	}
+	if slow.calls.Load() != 0 {
+		t.Fatalf("later fresh candidate must not be tried after success, got %d", slow.calls.Load())
+	}
+	if grp.selectedOutboundTCP != fast {
+		t.Fatalf("expected failover winner promoted to current selection, got %v", grp.selectedOutboundTCP)
+	}
+	if tag := grp.observedTag.Load(); tag == nil || *tag != "fast-alt" {
+		t.Fatalf("expected observed tag fast-alt, got %v", tag)
 	}
 }
 

@@ -218,6 +218,14 @@ func TestListenPacketBlackholeTimeoutFailover(t *testing.T) {
 	if h := grp.history.LoadURLTestHistory("blackhole-primary"); h == nil || h.Delay != 340 {
 		t.Fatalf("expected first timeout to penalize only (delay 340), got %+v", h)
 	}
+	// P2-7：UDP 故障转移成功后同样提升当前选择。
+	if grp.selectedOutboundUDP != backup {
+		t.Fatalf("expected UDP failover winner to become current selection, got %v", grp.selectedOutboundUDP)
+	}
+	grp.performUpdateCheck()
+	if grp.selectedOutboundUDP != blackhole {
+		t.Fatalf("expected round-end selection to reselect penalized primary, got %v", grp.selectedOutboundUDP)
+	}
 
 	conn2, err := u.ListenPacket(parentCtx, dest)
 	if err != nil {

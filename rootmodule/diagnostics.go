@@ -599,6 +599,8 @@ func writeDiagnosticsArchive(dest string, entries []diagnosticsEntry) error {
 	}
 	tmpName := tmp.Name()
 	defer os.Remove(tmpName)
+	// 中间文件保持 0600，避免生成过程中被其它应用读到半成品；重命名完成
+	// 后再统一设为 0644 并交给目标目录属主（Android root 场景）。
 	if err := tmp.Chmod(0600); err != nil {
 		tmp.Close()
 		return err
@@ -631,6 +633,12 @@ func writeDiagnosticsArchive(dest string, entries []diagnosticsEntry) error {
 	if err := os.Rename(tmpName, dest); err != nil {
 		return err
 	}
+	// 重命名后再固定最终权限并交给 Download 目录属主；chown 失败按非 root
+	// 环境安全降级，不阻断已脱敏包的导出。
+	if err := os.Chmod(dest, 0644); err != nil {
+		return err
+	}
+	applyDiagnosticsOwnership(dest, dir)
 	return syncDir(dir)
 }
 

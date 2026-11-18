@@ -4,6 +4,13 @@
 
 ## wanBox 3.0.x 发布记录
 
+### v3.0.17-preview.3（未发布候选）
+
+- 候选基于 main `c0ecbf78a9211ef1198ac2df8c95db1708578b8f`（preview.2 发布后的文档同步，无代码差异）；元数据升为 `3.0.17-preview.3` / `2033`，派生 APK `10168`、Root 模块 `2033`（preview.2 为 `10162` / `2032`）。正式线 `3.0.14 / 2026` 与 `SINGBOX_VERSION` 不变。
+- P1：URLTest 5 秒整轮预算到期时仍执行轮次收尾，层级恢复门可推进并回切；诊断包最终 0644、按 Download 属主 `Chown`，App 侧媒体扫描，Android 12+ 可读取。
+- P2：补 Room 11 schema；非法网络规则记录限频 `network_policy_invalid`；direct 失败只在状态变化时重试；`su -c` 5 秒超时强制结束；空白名单显式报错；Root 测速会话互斥；故障转移按新鲜历史排序并提升选择；订阅日志只记 ID；清理 Go 侧重复死代码并对齐系统组件名单注释。
+- 本条目在候选阶段记录；发布后由文档同步 PR 翻转状态并回填 CI run 号与四件套数据。
+
 ### v3.0.17-preview.2（已发布预览）
 
 - [GitHub Release v3.0.17-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.2) 由 `Preview Build` run `44281162788` 在 main commit/tag `49e966197dd608b687b36eecdaf394274dacfe15`（PR #67，2026-11-18T08:44:27Z 合并；PR #68，2026-11-18T08:48:15Z 合并；`Verify Android Build` run `44270851087` 第 2 次尝试全绿）于 2026-11-18T10:18:19Z 发布；tag 对象、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `49e96619`。

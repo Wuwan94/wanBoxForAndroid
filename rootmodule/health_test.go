@@ -5,6 +5,7 @@ package module
 import (
 	"context"
 	"errors"
+	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -138,6 +139,27 @@ func waitFor(t *testing.T, cond func() bool) {
 		time.Sleep(2 * time.Millisecond)
 	}
 	t.Fatal("condition not reached")
+}
+
+// TestRecordEventLimitedDedupesBurst 覆盖非法网络规则事件的限频：同一 code
+// 在窗口内只落一条，避免每个 health tick 刷满 events.json。
+func TestRecordEventLimitedDedupesBurst(t *testing.T) {
+	r, _ := fixture(t)
+	if err := os.MkdirAll(r.Root, 0700); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 5; i++ {
+		r.recordEventLimited("network_policy_invalid", time.Hour)
+	}
+	count := 0
+	for _, event := range r.Events() {
+		if event.Code == "network_policy_invalid" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("expected one rate-limited network_policy_invalid event, got %d", count)
+	}
 }
 
 func TestMonitorNotifyModeNeverSwitches(t *testing.T) {
