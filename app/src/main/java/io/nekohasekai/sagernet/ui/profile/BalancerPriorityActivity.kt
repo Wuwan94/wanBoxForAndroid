@@ -78,7 +78,7 @@ class BalancerPriorityActivity : ThemedActivity(R.layout.layout_balancer_priorit
 
         val memberIds = intent.getLongArrayExtra(EXTRA_MEMBER_IDS)?.toList().orEmpty()
         val names = intent.getStringArrayExtra(EXTRA_MEMBER_NAMES).orEmpty()
-        val pings = intent.getIntArrayExtra(EXTRA_MEMBER_PINGS).orEmpty()
+        val pings = intent.getIntArrayExtra(EXTRA_MEMBER_PINGS) ?: intArrayOf()
         memberIds.forEachIndexed { index, id ->
             namesById[id] = names.getOrNull(index).orEmpty()
             pingById[id] = pings.getOrNull(index)?.takeIf { it > 0 }

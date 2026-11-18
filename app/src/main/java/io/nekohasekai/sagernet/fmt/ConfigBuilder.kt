@@ -1068,7 +1068,7 @@ fun buildConfig(
                 val lockedTag = if (!forTest && !forExport) {
                     lockedMemberTag(
                         memberTagPairs,
-                        BalancerManualLock.decode(DataStore.balancerManualLock),
+                        BalancerLockState.decode(DataStore.balancerManualLock),
                         entity.id,
                     )
                 } else null
