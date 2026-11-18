@@ -3,6 +3,7 @@ package urltest
 
 import (
 	"context"
+	"errors"
 	"io"
 	"maps"
 	"net"
@@ -962,13 +963,39 @@ func (g *URLTestGroup) urlTest(ctx context.Context, force bool) (result map[stri
 		g.checkAccess.Unlock()
 	}()
 	result = URLTestOutboundsWithGroup(ctx, g.outbound, g.history, g.logger, g.outbounds, g.link, g.interval, force, g)
-	if err := ctx.Err(); err != nil {
-		return result, err
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		// P1：整轮预算到期时不能直接丢弃本轮收尾。批量取消本身不代表成员失败
+		//（失败判定在 urlTestBatch 内已按 b.ctx.Err 跳过），但只要有本轮结果或
+		// 新鲜历史，就说明本轮具备可判定的观测，仍须推进层级恢复门并重算选择。
+		// 组关闭/调用方取消（Canceled）不计数，避免把中断当成健康轮次。
+		if g.ctx.Err() == nil &&
+			errors.Is(ctxErr, context.DeadlineExceeded) &&
+			(len(result) > 0 || g.hasFreshRoundEvidence()) {
+			g.performRoundEndCheck()
+		}
+		return result, ctxErr
 	}
 	// B7c/O7：轮次结束走 performRoundEndCheck（推进层级恢复门 + 重算选择）；
 	// 流式就绪仍走 performUpdateCheck（只重算选择，不计轮次）。
 	g.performRoundEndCheck()
 	return result, nil
+}
+
+// hasFreshRoundEvidence 报告本轮是否有可用于轮次收尾的新鲜历史。
+// 预算到期时批量探测会被取消，但已成功的成员（含嵌套组的流式结果）仍会
+// 写入 history；层级恢复门按轮次计数，不能因为其余成员拖到超时就整轮作废。
+func (g *URLTestGroup) hasFreshRoundEvidence() bool {
+	for _, detour := range g.outbounds {
+		if common.Contains(detour.Network(), N.NetworkTCP) &&
+			g.freshHistory(group.RealTag(detour, N.NetworkTCP)) != nil {
+			return true
+		}
+		if common.Contains(detour.Network(), N.NetworkUDP) &&
+			g.freshHistory(group.RealTag(detour, N.NetworkUDP)) != nil {
+			return true
+		}
+	}
+	return false
 }
 
 // urlTestFlight is one in-flight probe round. The leader publishes its result
