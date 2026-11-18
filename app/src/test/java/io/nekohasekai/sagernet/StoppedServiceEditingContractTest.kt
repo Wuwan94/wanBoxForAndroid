@@ -104,7 +104,7 @@ class StoppedServiceEditingContractTest {
             overrideLink = "http://127.0.0.1/generate_204",
             runningProfileTags = RunningProfileTagResolver(tagsReader = { throw IOException("profile_tags_unavailable") }),
             controllerDelayClient = ThinControllerDelayClient(),
-            rootTestSession = { _, _ -> fail("unrelated tag failure must not fall back to a Root session") },
+            rootTestSession = { _, _ -> throw AssertionError("unrelated tag failure must not fall back to a Root session") },
         )
         try {
             urlTest.doTest(profile, useCache = false)
