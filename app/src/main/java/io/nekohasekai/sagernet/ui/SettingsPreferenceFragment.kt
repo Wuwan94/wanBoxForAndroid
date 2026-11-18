@@ -725,6 +725,7 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
                         singBoxVersion = io.nekohasekai.sagernet.BuildConfig.SINGBOX_VERSION,
                     ),
                 )
+                io.nekohasekai.sagernet.bg.DiagnosticsExport.scanFile(context, file)
                 val size = android.text.format.Formatter.formatFileSize(context, file.length())
                 Toast.makeText(
                     context,

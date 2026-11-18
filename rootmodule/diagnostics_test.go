@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -289,12 +290,12 @@ func readDiagnosticsTar(t *testing.T, path string) map[string][]byte {
 
 func diagnosticsRequest(dest string) DiagnosticsRequest {
 	return DiagnosticsRequest{
-		Destination:       dest,
-		AppVersion:        "3.0.14",
-		AppVersionCode:    2026,
-		PreviewVersion:    "3.0.17-preview.1",
+		Destination:        dest,
+		AppVersion:         "3.0.14",
+		AppVersionCode:     2026,
+		PreviewVersion:     "3.0.17-preview.1",
 		PreviewVersionCode: 2031,
-		SingBoxVersion:    "v1.15.0-alpha.13-reF1nd",
+		SingBoxVersion:     "v1.15.0-alpha.13-reF1nd",
 	}
 }
 
@@ -307,6 +308,17 @@ func TestExportDiagnostics(t *testing.T) {
 	}
 	if len(missing) != 0 {
 		t.Fatalf("unexpected missing files: %v", missing)
+	}
+	// P1：Android 12+ 用户必须能直接读取导出包；0600 会让普通文件管理器与
+	// 分享面板无权打开。Windows 无 POSIX 权限位，跳过该断言（CI Linux 覆盖）。
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(dest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if perm := info.Mode().Perm(); perm != 0644 {
+			t.Fatalf("diagnostics archive must be 0644 for Android 12+, got %04o", perm)
+		}
 	}
 	entries := readDiagnosticsTar(t, dest)
 	for _, name := range []string{
