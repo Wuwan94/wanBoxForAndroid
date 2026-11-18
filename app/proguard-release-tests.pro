@@ -319,6 +319,11 @@
 # in verification builds; shipping builds never include this file.
 # Preserve this cross-APK test entry's original name and signature while R8 stays enabled.
 -keep class io.nekohasekai.sagernet.bg.proto.UrlTest {
+    # GroupUrlTestSnapshotTest:64,69,75,89,92,94,95 calls UrlTest(null) across APKs.
+    # B5 added defaulted constructor parameters, so the call binds to the synthetic
+    # default-argument constructor; R8 folds the in-app call to the no-arg
+    # constructor and drops the synthetic one — keep it, as GroupSettingsActivity does.
+    public <init>(java.lang.String, io.nekohasekai.sagernet.bg.proto.RunningProfileTagResolver, io.nekohasekai.sagernet.bg.proto.ThinControllerDelayClient, kotlin.jvm.functions.Function3, int, kotlin.jvm.internal.DefaultConstructorMarker);
     public java.lang.String resolveLink(io.nekohasekai.sagernet.database.ProxyEntity);
 }
 -keep,allowobfuscation class io.nekohasekai.sagernet.core.CoreRuntime {
