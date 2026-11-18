@@ -524,7 +524,13 @@ func runMonitor(ctx context.Context, hc HealthCheck, d monitorDeps) error {
 // monitorGeneration wires runMonitor to the live generation and supervisor state.
 func (r *Runtime) monitorGeneration(ctx context.Context, rev string, s *State, mu *sync.Mutex, persist func(), suppressed *string) error {
 	// B6（N3）：统一按网络规则表；旧 F1 文件不存在新表时回退迁移。
-	policy, _ := readUnifiedPolicy(r.path("generations", rev, "files"))
+	// 规则文件非法时不能静默变空表（fail-open）：记录限频事件，便于用户与
+	// 诊断包发现“规则没有生效”，而不是让按网络规则悄悄失效。
+	policy, policyErr := readUnifiedPolicy(r.path("generations", rev, "files"))
+	if policyErr != nil {
+		policy = NetworkPolicy{}
+		r.recordEventLimited("network_policy_invalid", 5*time.Minute)
+	}
 	hc := r.loadHealthCheck(rev)
 	c, e := r.clashClientFor(rev)
 	if e != nil {
@@ -573,6 +579,7 @@ func (r *Runtime) monitorGeneration(ctx context.Context, rev string, s *State, m
 	// 指纹未知时保持当前状态，只在转为未知时记录一次；开机首次评估未知时
 	// 校准一次默认模式（与上游“开机未知时校准默认模式”一致）。
 	lastAction := ""
+	directRetryBlocked := false
 	unknownRecorded := false
 	calibrated := false
 	applyNetworkAction := func(d networkDecision) networkDecision {
@@ -593,11 +600,20 @@ func (r *Runtime) monitorGeneration(ctx context.Context, rev string, s *State, m
 			return d
 		}
 		unknownRecorded = false
+		if d.Action != "direct" {
+			directRetryBlocked = false
+		}
 		if d.Action == "direct" && lastAction != "direct" {
+			// 同一网络指纹下 SetRuntimeMode 失败后不再每个 tick 重试：只记一次
+			// network_direct_failed，直到动作离开 direct 再进入（状态变化）才重试。
+			if directRetryBlocked {
+				return d
+			}
 			mu.Lock()
 			core := s.Core
 			mu.Unlock()
 			if err := r.SetRuntimeMode(ctx, rev, core, "direct"); err != nil {
+				directRetryBlocked = true
 				r.recordEvent("network_direct_failed")
 			} else {
 				lastAction = "direct"

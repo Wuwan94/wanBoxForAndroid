@@ -132,6 +132,27 @@ func (r *Runtime) recordEvent(code string) {
 	_ = jsonWrite(r.path("events.json"), events)
 }
 
+// recordEventLimited 记录限频事件：同一 code 在 minInterval 内只记一次。
+// 用于持续存在的坏状态（如网络规则文件非法），避免每个 health tick 刷屏，
+// 又不至于完全静默。事件时间只有秒级，因此窗口按秒比较。
+func (r *Runtime) recordEventLimited(code string, minInterval time.Duration) {
+	if !eventCode.MatchString(code) {
+		return
+	}
+	now := time.Now()
+	events := r.Events()
+	for i := len(events) - 1; i >= 0; i-- {
+		if events[i].Code != code {
+			continue
+		}
+		if now.Sub(time.Unix(events[i].Time, 0)) < minInterval {
+			return
+		}
+		break
+	}
+	r.recordEvent(code)
+}
+
 type Runtime struct {
 	Root      string
 	ModuleDir string
