@@ -77,7 +77,8 @@ class RouteRuleEditorTest {
         assertTrue(source.indexOf("RouteRuleEditor.problems(candidate)") < source.indexOf("ProfileManager.createRule(candidate)"))
         assertTrue(source.contains("saveAndExit(true)")); assertTrue(source.contains("SagerNet.restartService()")); assertTrue(source.contains("registerChangeListener(this)"))
         val db = File("src/main/java/io/nekohasekai/sagernet/database/SagerDatabase.kt").readText()
-        assertTrue(db.contains("version = 10")); assertFalse(db.contains("fallbackToDestructiveMigration"))
+        // N6：Room 10→11（policyGroupId 字段，手写 MIGRATION_10_11）。
+        assertTrue(db.contains("version = 11")); assertFalse(db.contains("fallbackToDestructiveMigration"))
         val entity = File("src/main/java/io/nekohasekai/sagernet/database/RuleEntity.kt").readText()
         assertTrue(entity.contains("var config: String")); assertFalse(entity.contains("routeProfile"))
         val builder = File("src/main/java/io/nekohasekai/sagernet/fmt/ConfigBuilder.kt").readText()
