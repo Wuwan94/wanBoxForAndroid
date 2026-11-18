@@ -19,11 +19,21 @@ import com.google.android.material.progressindicator.CircularProgressIndicator
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.bg.BaseService
-import io.nekohasekai.sagernet.database.DataStore
-import io.nekohasekai.sagernet.database.SagerDatabase
+import io.nekohasekai.sagernet.bg.RootModuleClient
 import io.nekohasekai.sagernet.bg.RootTunService
+import io.nekohasekai.sagernet.bg.proto.BalancerStats
+import io.nekohasekai.sagernet.bg.proto.PolicyGroupControllerClient
+import io.nekohasekai.sagernet.bg.proto.PolicyMemberNameResolver
+import io.nekohasekai.sagernet.database.DataStore
+import io.nekohasekai.sagernet.database.ProxyEntity
+import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.GroupType
 import io.nekohasekai.sagernet.group.GroupUpdater
+import io.nekohasekai.sagernet.fmt.BalancerLockState
+import io.nekohasekai.sagernet.fmt.BalancerMemberRef
+import io.nekohasekai.sagernet.fmt.internal.BalancerBean
+import io.nekohasekai.sagernet.fmt.resolveBalancerMembers
+import io.nekohasekai.sagernet.fmt.snapshotTagForMember
 import io.nekohasekai.sagernet.ktx.onMainDispatcher
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import io.nekohasekai.sagernet.ktx.Logs
@@ -39,6 +49,10 @@ import java.util.Locale
 class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     private var statsJob: Job? = null
     private var nodeJob: Job? = null
+    // B7b/O7：策略组横幅（Root 快照/Clash API 既有通道，30 秒一刷 + 每次回到首页即刷）。
+    private var bannerJob: Job? = null
+    private val policyController = PolicyGroupControllerClient()
+    private var renderedBanner: BalancerBannerState? = null
     private var operationUntil = 0L
     private var renderedHero: Hero? = null
     private var renderedDetail: CharSequence? = null
@@ -79,6 +93,10 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         view.findViewById<View>(R.id.btnFailover).setOnClickListener { failover(it) }
         view.findViewById<View>(R.id.currentNodeLayout).setOnClickListener {
             (activity as? MainActivity)?.navigateToNodes()
+        }
+        // B7b/O7：点横幅进策略统计页。
+        view.findViewById<View>(R.id.balancerBanner).setOnClickListener {
+            startActivity(android.content.Intent(requireContext(), PolicyGroupsActivity::class.java))
         }
         listOf(R.id.modeRule, R.id.modeGlobal, R.id.modeDirect).forEachIndexed { mode, id ->
             view.findViewById<Button>(id).setOnClickListener {
@@ -243,6 +261,116 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         }
     }
 
+    // B7b/O7：主页策略组横幅的数据只来自既有通道——Root `node tags`、
+    // Clash API 快照（PolicyGroupControllerClient）与本地 DB/统计，
+    // 不另开核心直连。快照读不到时保留上一次横幅（不猜状态）；未连接或
+    // 当前不是策略组时隐藏。
+    private suspend fun refreshBalancerBanner() {
+        val root = view ?: return
+        if (!DataStore.serviceState.connected) {
+            applyBannerState(root, buildBalancerBanner(false, false, null, null, null, null, true, null))
+            return
+        }
+        val profileId = if (DataStore.currentProfile > 0) DataStore.currentProfile else DataStore.selectedProxy
+        val directLabel = getString(R.string.policy_direct)
+        val blockLabel = getString(R.string.policy_block)
+        val state = try {
+            withContext(Dispatchers.IO) {
+                val profile = SagerDatabase.proxyDao.getById(profileId)
+                if (profile?.type != ProxyEntity.TYPE_BALANCER) {
+                    return@withContext buildBalancerBanner(true, false, null, null, null, null, true, null)
+                }
+                val bean = profile.balancerBean
+                    ?: return@withContext buildBalancerBanner(true, false, null, null, null, null, true, null)
+                val lock = BalancerLockState.decode(DataStore.balancerManualLock).lockedMember(profileId)
+                val status = runCatching { RootModuleClient.call("node tags") }.getOrNull()
+                    ?.takeIf { it.connected } ?: return@withContext null
+                val tagsById = status.profileTags
+                val groupTag = tagsById[profileId]
+                val snapshot = runCatching { policyController.snapshot() }.getOrNull()
+                val group = snapshot?.groups?.firstOrNull { it.tag == groupTag }
+                val profileNames = SagerDatabase.proxyDao.getAll().associate { it.id to it.displayName() }
+                val names = PolicyMemberNameResolver(tagsById, profileNames,
+                    snapshot?.groups?.map { it.tag }?.toSet().orEmpty(), directLabel, blockLabel)
+                // 该策略组已解析成员的 id→展示名（隔离链成员的 tag 回退解析用）。
+                val memberNames: Map<Long, String> = runCatching {
+                    val ids = resolveBalancerMembers(bean) { gid ->
+                        runCatching { SagerDatabase.proxyDao.getByGroup(gid) }.getOrDefault(emptyList())
+                            .map { BalancerMemberRef(it.id, it.displayName()) }
+                    }.memberIds
+                    if (ids.isEmpty()) emptyMap<Long, String>() else SagerDatabase.proxyDao.getEntities(ids)
+                        .associate { it.id to it.displayName() }
+                }.getOrDefault(emptyMap())
+                val lockedMemberName = lock?.let {
+                    memberNames[it.memberId] ?: profileNames[it.memberId] ?: "#${it.memberId}"
+                }
+                val lockedTag = lock?.let {
+                    snapshotTagForMember(it.memberId, tagsById, memberNames, group?.members.orEmpty())
+                }
+                // 锁定成员可用 = 在快照成员列表里且无连续失败；否则红字提示。
+                val lockedAvailable = lock == null || (lockedTag != null &&
+                    BalancerStats.store.failures(groupTag.orEmpty(), lockedTag) == 0)
+                val currentName = group?.now?.let { names.name(it) }
+                val latencyTag = lockedTag ?: group?.now
+                val latencyMs = latencyTag?.let { tag ->
+                    BalancerStats.store.stat(groupTag.orEmpty(), tag)?.lastLatencyMs
+                        ?: runCatching {
+                            val memberId = tagsById.entries.firstOrNull { it.value == tag }?.key
+                                ?: memberNames.entries.firstOrNull { it.value == tag }?.key
+                            memberId?.let {
+                                SagerDatabase.proxyDao.getById(it)?.takeIf { e -> e.status == 1 }?.ping
+                            }
+                        }.getOrNull()
+                }
+                buildBalancerBanner(
+                    connected = true, isBalancer = true, strategy = bean.strategy,
+                    lockedMemberName = lockedMemberName, currentMemberName = currentName,
+                    currentLatencyMs = latencyMs, lockedAvailable = lockedAvailable, groupTag = groupTag,
+                )
+            }
+        } catch (error: CancellationException) { throw error }
+        catch (error: Exception) {
+            Logs.w("balancer banner refresh failed: ${error.readableMessage}")
+            null
+        }
+        if (state != null) applyBannerState(root, state)
+    }
+
+    private fun applyBannerState(root: View, state: BalancerBannerState) {
+        if (state == renderedBanner) return
+        renderedBanner = state
+        val banner = root.findViewById<View>(R.id.balancerBanner)
+        banner.isVisible = state.visible
+        if (!state.visible) return
+        val strategyText = strategyLabel(state.strategy)
+        val modeText = when (state.mode) {
+            BalancerBannerMode.LOCKED -> getString(R.string.balancer_banner_locked, strategyText)
+            BalancerBannerMode.AUTO -> getString(R.string.balancer_banner_auto, strategyText)
+        }
+        root.findViewById<TextView>(R.id.balancerBannerTitle).text =
+            if (state.carrierName.isBlank()) modeText else "$modeText · ${state.carrierName}"
+        val detail = root.findViewById<TextView>(R.id.balancerBannerDetail)
+        if (state.lockedUnavailable) {
+            detail.text = getString(R.string.balancer_locked_unavailable)
+            detail.setTextColor(ContextCompat.getColor(requireContext(), R.color.connect_error_fill))
+        } else {
+            detail.text = state.latencyMs?.let { getString(R.string.policy_latency, it) } ?: "—"
+            detail.setTextColor(ContextCompat.getColor(requireContext(), R.color.minimal_secondary))
+        }
+    }
+
+    private fun strategyLabel(strategy: String?): String = when (strategy) {
+        BalancerBean.STRATEGY_LEAST_PING, "least_ping" -> getString(R.string.balancer_strategy_least_ping)
+        BalancerBean.STRATEGY_LEAST_LOAD -> getString(R.string.balancer_strategy_least_load)
+        BalancerBean.STRATEGY_RANDOM -> getString(R.string.balancer_strategy_random)
+        BalancerBean.STRATEGY_ROUND_ROBIN, BalancerBean.STRATEGY_ROUND_ROBIN_LEGACY -> getString(R.string.balancer_strategy_round_robin)
+        BalancerBean.STRATEGY_FAILOVER -> getString(R.string.balancer_strategy_failover)
+        BalancerBean.STRATEGY_STABLE -> getString(R.string.balancer_strategy_stable)
+        BalancerBean.STRATEGY_PRIORITY_ORDER -> getString(R.string.balancer_strategy_priority_order)
+        BalancerBean.STRATEGY_CONSISTENT_HASH, BalancerBean.STRATEGY_CONSISTENT_HASH_CAMEL -> getString(R.string.balancer_strategy_consistent_hash)
+        else -> strategy?.takeIf { it.isNotBlank() } ?: getString(R.string.balancer_strategy_least_ping)
+    }
+
     override fun onResume() {
         super.onResume()
         val root = view ?: return
@@ -251,6 +379,14 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
             while (isActive) {
                 render(root)
                 delay(1000)
+            }
+        }
+        bannerJob?.cancel()
+        bannerJob = viewLifecycleOwner.lifecycleScope.launch {
+            refreshBalancerBanner()
+            while (isActive) {
+                delay(30_000)
+                refreshBalancerBanner()
             }
         }
     }
@@ -415,9 +551,11 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         }
     }
 
-    override fun onPause() { statsJob?.cancel(); statsJob = null; super.onPause() }
+    override fun onPause() { statsJob?.cancel(); statsJob = null; bannerJob?.cancel(); bannerJob = null; super.onPause() }
     override fun onDestroyView() {
         statsJob?.cancel(); statsJob = null
+        bannerJob?.cancel(); bannerJob = null
+        renderedBanner = null
         nodeJob?.cancel(); nodeJob = null
         testJob?.cancel(); testJob = null
         landingJob?.cancel(); landingJob = null

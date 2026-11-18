@@ -66,6 +66,11 @@ class SagerConnection(
                 return
             }
             DataStore.serviceState = s
+            // B2/O5: connection-success catch-up for due subscriptions that require
+            // a connection (the periodic worker skips them while disconnected).
+            if (s == BaseService.State.Connected) {
+                SubscriptionUpdater.checkPendingUpdates(onlyIfConnected = true)
+            }
             val callback = callback ?: return
             runOnMainDispatcher {
                 callback.stateChanged(s, profileName, msg)

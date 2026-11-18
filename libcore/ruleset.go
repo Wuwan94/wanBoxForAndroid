@@ -12,6 +12,10 @@ package libcore
 // 生成的 .srs 缓存于 <externalAssets>/srs/，db 更新后自动重建。
 
 import (
+	"bufio"
+	"bytes"
+	"compress/zlib"
+	"encoding/binary"
 	"fmt"
 	"log"
 	"os"
@@ -83,6 +87,34 @@ func prepareLocalGeoRuleSets(ruleSets []option.RuleSet) error {
 	return nil
 }
 
+// isPopulatedSRSFile 判断缓存规则集是否为有效非空文件（排除启动兜底生成的 0 规则空 SRS 占位）。
+// B3/O6：借鉴 OwnBox 8.8（上游 commit d401e93），与 Kotlin 侧 RuleSetCache.isPopulatedSrsCache 同一条判定。
+func isPopulatedSRSFile(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() || info.Size() == 0 {
+		return false
+	}
+	// 正常包含规则的 .srs/.json 文件远超 128 字节，直接放行避免启动遍历读盘
+	if info.Size() > 128 {
+		return true
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || len(data) == 0 {
+		return false
+	}
+	if len(data) < 4 || !bytes.Equal(data[:3], srs.MagicBytes[:]) {
+		// 非二进制 SRS（例如极简 JSON 规则源）只需非空
+		return len(data) > 2
+	}
+	zr, err := zlib.NewReader(bytes.NewReader(data[4:]))
+	if err != nil {
+		return false
+	}
+	defer zr.Close()
+	ruleCount, err := binary.ReadUvarint(bufio.NewReader(zr))
+	return err == nil && ruleCount > 0
+}
+
 // prepareRemoteRuleSets 预处理远端 rule-set，配置本地 initial_path 兜底文件。
 // 当首次启动或无缓存时，生成空 SRS 占位，避免 sing-box 在 box.Start 同步下载超时（context deadline exceeded），
 // 确保核心在几毫秒内秒启并畅通 VPN，随后由内置 RuleSetUpdater 在后台异步平滑拉取并更新规则。
@@ -96,10 +128,9 @@ func prepareRemoteRuleSets(ruleSets []option.RuleSet) error {
 		if rs.Type != C.RuleSetTypeRemote {
 			continue
 		}
-		if rs.RemoteOptions.InitialPath != "" {
-			if _, err := os.Stat(rs.RemoteOptions.InitialPath); err == nil {
-				continue
-			}
+		// 已指定的初始路径只有真实填充过才信任；0 规则占位不得当作有效缓存。
+		if rs.RemoteOptions.InitialPath != "" && isPopulatedSRSFile(rs.RemoteOptions.InitialPath) {
+			continue
 		}
 		tag := ""
 		if len(rs.Tag) > 0 {
@@ -108,15 +139,29 @@ func prepareRemoteRuleSets(ruleSets []option.RuleSet) error {
 		safeTag := strings.NewReplacer(":", "_", "/", "_", "\\", "_", "?", "_", "&", "_", "=", "_").Replace(tag)
 		dstPath := filepath.Join(dir, safeTag+".srs")
 
-		info, err := os.Stat(dstPath)
-		if err != nil || info.Size() == 0 {
-			file, createErr := os.Create(dstPath)
+		// 兼顾 Kotlin 端 tagFor 标准命名（如 geoip-cn.srs 与 geoip_cn.srs 互通），优先复用真实已填充缓存
+		altTag := strings.NewReplacer(":", "-", "/", "-", "\\", "-", "?", "-", "&", "-", "=", "-").Replace(tag)
+		altPath := filepath.Join(dir, altTag+".srs")
+
+		if isPopulatedSRSFile(altPath) {
+			rs.RemoteOptions.InitialPath = altPath
+			continue
+		}
+		if isPopulatedSRSFile(dstPath) {
+			rs.RemoteOptions.InitialPath = dstPath
+			continue
+		}
+
+		// 两者均无真实缓存时，保留或创建占位文件避免启动阻塞
+		effectivePath := altPath
+		if _, statErr := os.Stat(effectivePath); statErr != nil {
+			file, createErr := os.Create(effectivePath)
 			if createErr == nil {
 				_ = srs.Write(file, option.PlainRuleSet{}, C.RuleSetVersionCurrent)
 				_ = file.Close()
 			}
 		}
-		rs.RemoteOptions.InitialPath = dstPath
+		rs.RemoteOptions.InitialPath = effectivePath
 	}
 	return nil
 }
@@ -131,9 +176,11 @@ func convertGeoRuleSetToSRS(tag string, code string, dbPath string, isGeoIP bool
 	safeTag := strings.NewReplacer(":", "_", "/", "_", "\\", "_").Replace(tag)
 	dst := filepath.Join(dir, safeTag+".srs")
 
-	// 缓存复用：.srs 比 db 新则无需重建
+	// 缓存复用：.srs 比 db 新且真实填充过才无需重建；0 规则占位不得当作有效缓存
+	//（B3：上游 8.8 未动此处，但 wanBox 的空回退写盘使该分支可达——转换失败写出的
+	// 空 SRS 若只凭新旧复用，会被永久当作有效缓存）。
 	if dbInfo, err := os.Stat(dbPath); err == nil {
-		if srsInfo, err := os.Stat(dst); err == nil && srsInfo.ModTime().After(dbInfo.ModTime()) {
+		if srsInfo, err := os.Stat(dst); err == nil && srsInfo.ModTime().After(dbInfo.ModTime()) && isPopulatedSRSFile(dst) {
 			return dst, nil
 		}
 	}

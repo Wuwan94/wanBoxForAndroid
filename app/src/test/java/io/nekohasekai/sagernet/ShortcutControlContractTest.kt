@@ -38,7 +38,16 @@ class ShortcutControlContractTest {
         assertFalse(File("src/main/java/io/nekohasekai/sagernet/ui/VpnRequestActivity.kt").exists())
         val core = File("src/main/java/io/nekohasekai/sagernet/SagerNet.kt").readText()
         assertTrue(core.contains("RootModuleClient.startOrReload()"))
-        assertTrue(File("src/main/java/io/nekohasekai/sagernet/ui/SwitchActivity.kt").readText().contains("SagerNet.startService()"))
+        // 修红 CI #179/#180：O2d 之后 SwitchActivity 不再直调 startService()——那样运行中
+        // 也会全量重建、中断现有连接，改为走热切换通道；“选中节点后停止时也能连上”
+        // 的旧契约意图改由通道的停止分支守住：它走规范的 startService() 入口。
+        // 旧的字面断言（SwitchActivity 源码含 "SagerNet.startService()"）已被 O2d 适配
+        // 取代，见 design.md 的 O2d 修红记录；此处不断言旧字面形式。
+        val switchActivity = File("src/main/java/io/nekohasekai/sagernet/ui/SwitchActivity.kt").readText()
+        assertTrue(switchActivity.contains("SagerNet.switchProfileService(profileId)"))
+        val channel = core.substringAfter("fun switchProfileService(profileId: Long)").substringBefore("\n        fun ", "")
+        // 按调用行（含换行 + 16 空格缩进）断言，避免注释里的同名文字把断言骗过
+        assertTrue(channel.contains("\n                startService()"))
         assertTrue(core.contains("RootModuleClient.stop()"))
         val shortcuts = File("src/main/res/xml/shortcuts.xml").readText()
         assertTrue(shortcuts.contains("QuickToggleShortcut")); assertTrue(shortcuts.contains("QuickEnableShortcut"))

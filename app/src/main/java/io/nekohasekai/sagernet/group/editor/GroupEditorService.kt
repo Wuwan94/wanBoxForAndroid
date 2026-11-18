@@ -38,6 +38,13 @@ object GroupEditorService {
             val children = when {
                 chain != null -> chain.proxies.map { EntityId.Node(it) }
                 balancer != null && balancer.balancerType == BalancerBean.TYPE_LIST -> balancer.proxies.map { EntityId.Node(it) }
+                // B7a/O7：混搭同时引用分组与散装节点，两类边都要进图，否则经由
+                // 散装成员的环引用检查不到；分组 id 只取 >0，避免无分组的混搭
+                // 凭空多一条 Group(0) 边。
+                balancer != null && balancer.balancerType == BalancerBean.TYPE_MIXED ->
+                    (balancer.targetGroupIds.takeIf { it.isNotEmpty() }
+                        ?: listOf(balancer.targetGroupId)).filter { it > 0L }
+                        .map { EntityId.Group(it) } + balancer.proxies.map { EntityId.Node(it) }
                 balancer != null -> (balancer.targetGroupIds.takeIf { it.isNotEmpty() }
                     ?: listOf(balancer.targetGroupId)).map { EntityId.Group(it) }
                 else -> emptyList()

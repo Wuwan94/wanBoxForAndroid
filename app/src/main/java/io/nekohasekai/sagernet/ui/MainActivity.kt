@@ -787,7 +787,10 @@ class MainActivity : ThemedActivity(),
             ProfileManager.postUpdate(old, true)
             ProfileManager.postUpdate(id, true)
         }
-        if (id == DataStore.selectedProxy) LandingIpManager.clearCache()
+        // B1/O9a: 选择器上报的任何变化都意味着出口可能已变，必须清缓存。
+        // 旧条件（id == selectedProxy）漏掉了组内成员切换：那时 id 是新成员、
+        // selectedProxy 仍是组 id，缓存不清会在 60 秒内返回旧成员的出口 IP。
+        LandingIpManager.clearCache()
     }
 
     override fun onPreferenceDataStoreChanged(store: PreferenceDataStore, key: String) {

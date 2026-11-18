@@ -273,12 +273,36 @@ class GroupEditorPersistenceTest {
                 val baselineTags = com.google.gson.JsonParser.parseString(String(
                     java.util.Base64.getDecoder().decode(baseline["files"].asJsonObject["files/profile_tags.json"].asString),
                     Charsets.UTF_8)).asJsonObject
-                val expectedMembers = listOf(baselineTags["99125"].asJsonObject["tag"].asString)
                 val config = baseline["config"].asJsonObject
                 val outbounds = config["outbounds"].asJsonArray.map { it.asJsonObject }
                 assertTrue(outbounds.any { it["tag"]?.asString == "created" })
                 val loadbalance = outbounds.first { it["type"]?.asString == "loadbalance" }
-                assertEquals(expectedMembers, loadbalance["outbounds"].asJsonArray.map { it.asString })
+                // B7a/O7：策略组为成员建隔离链，其 tag 与 tagMap/profileTagMap 里的
+                // 共享链 tag 是同名两次分配（bare 与 -1，顺序不定），不再相等——
+                // 不要再断言 loadbalance 成员等于 profileTagMap[99125]。改为经由
+                // 生成配置解析：每个 loadbalance 成员都必须是服务本组稳定节点
+                //（192.0.2.1:1080）的链，且 profile_tags.json 里的共享链 tag
+                // 也服务同一节点（两条链并存是隔离的有意代价）。
+                // 隔离事实必须钉住：两条链的 tag 必须不同——若隔离失效、
+                // loadbalance 复用共享链，上面两条“服务同一节点”断言仍会通过，
+                // B7a 回归就测不出了。成员身份按稳定 id 锚定：profile_tags.json
+                // 里 99125 的 name 就是该节点的展示名，两条链的 tag 必须是该
+                // 展示名的两次分配（bare 与 -1，顺序不定）。
+                val outboundByTag = outbounds.associateBy { it["tag"]?.asString }
+                fun servesNode(tag: String?): Boolean {
+                    val outbound = outboundByTag[tag] ?: return false
+                    return outbound["type"]?.asString == "socks" &&
+                        outbound["server"]?.asString == "192.0.2.1" &&
+                        outbound["server_port"]?.asInt == 1080
+                }
+                val memberTags = loadbalance["outbounds"].asJsonArray.map { it.asString }
+                assertEquals(1, memberTags.size)
+                assertTrue(memberTags.all(::servesNode))
+                val sharedTag = baselineTags["99125"].asJsonObject["tag"].asString
+                assertTrue(servesNode(sharedTag))
+                assertEquals("192.0.2.1:1080", baselineTags["99125"].asJsonObject["name"].asString)
+                assertNotEquals(sharedTag, memberTags.single())
+                assertEquals(setOf("192.0.2.1:1080", "192.0.2.1:1080-1"), setOf(memberTags.single(), sharedTag))
             } finally { instance.close() }
         } finally { BackupRestore.apply(original, true, true, true) }
     }

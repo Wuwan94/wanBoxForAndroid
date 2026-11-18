@@ -18,7 +18,8 @@ func extractAssets() {
 	extract := func(name string) {
 		err := extractAssetName(name, useOfficialAssets)
 		if err != nil {
-			log.Println("Extract", geoipDat, "failed:", err)
+			// B1/O2: 日志必须写本次解压的资产名，不是写死的 geoipDat。
+			log.Println("Extract", name, "failed:", err)
 		}
 	}
 
@@ -84,7 +85,8 @@ func extractAssetName(name string, useOfficialAssets bool) error {
 		if err != nil {
 			// versionFileMissing
 			doExtract = true
-			_ = os.RemoveAll(version)
+			// B1/O2: 清理的是 dir 下的版本文件，不是当前工作目录下的同名路径。
+			_ = os.RemoveAll(dir + version)
 		} else {
 			localVersion = string(b)
 			if localVersion == "Custom" {
@@ -121,7 +123,12 @@ func extractAssetName(name string, useOfficialAssets bool) error {
 	}
 
 	if f, err := asset.Open(apkPrefix + name + ".xz"); err == nil {
-		extractXz(f)
+		// B1/O2: 解压失败必须返回错误，不得静默吞掉（否则会留下一个不完整资产
+		// 却继续写版本文件，下次启动误判为已解压成功）。
+		// wanBox 已移除 yacd 网页面板，不再有 yacd.zip 分支。
+		if err := extractXz(f); err != nil {
+			return err
+		}
 	} // TODO normal file
 
 	o, err := os.Create(dir + version)

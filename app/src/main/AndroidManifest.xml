@@ -364,6 +364,12 @@
             android:name="io.nekohasekai.sagernet.ui.profile.BalancerSettingsActivity"
             android:configChanges="uiMode" />
         <activity
+            android:name="io.nekohasekai.sagernet.ui.profile.BalancerPriorityActivity"
+            android:configChanges="uiMode"
+            android:exported="false"
+            android:label="@string/balancer_node_priority"
+            android:parentActivityName="io.nekohasekai.sagernet.ui.profile.BalancerSettingsActivity" />
+        <activity
             android:name="moe.matsuri.nb4a.proxy.shadowtls.ShadowTLSSettingsActivity"
             android:configChanges="uiMode" />
         <activity

@@ -6,6 +6,9 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
+import android.widget.EditText
+import android.widget.LinearLayout
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -15,6 +18,7 @@ import androidx.core.view.updatePadding
 import androidx.core.widget.NestedScrollView
 import androidx.preference.EditTextPreference
 import androidx.preference.Preference
+import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceFragmentCompat
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -27,7 +31,21 @@ import io.nekohasekai.sagernet.database.ProxyEntity
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.databinding.LayoutAddEntityBinding
 import io.nekohasekai.sagernet.databinding.LayoutProfileBinding
+import io.nekohasekai.sagernet.fmt.BALANCER_MAX_TIERS
+import io.nekohasekai.sagernet.fmt.BalancerMemberRef
+import io.nekohasekai.sagernet.fmt.BalancerTierRule
+import io.nekohasekai.sagernet.fmt.applyPriorityOrder
+import io.nekohasekai.sagernet.fmt.balancerRegexError
+import io.nekohasekai.sagernet.fmt.balancerTierRulesError
+import io.nekohasekai.sagernet.fmt.decodeBalancerTierRules
+import io.nekohasekai.sagernet.fmt.decodePriorityOrderIds
+import io.nekohasekai.sagernet.fmt.encodeBalancerTierRules
+import io.nekohasekai.sagernet.fmt.formatPriorityNumber
 import io.nekohasekai.sagernet.fmt.internal.BalancerBean
+import io.nekohasekai.sagernet.fmt.moveTierRuleDown
+import io.nekohasekai.sagernet.fmt.moveTierRuleUp
+import io.nekohasekai.sagernet.fmt.removeTierRule
+import io.nekohasekai.sagernet.fmt.resolveBalancerMembers
 import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.ui.ProfileSelectActivity
 import io.nekohasekai.sagernet.widget.OutboundPreference
@@ -105,6 +123,11 @@ class BalancerSettingsActivity : ProfileSettingsActivity<BalancerBean>(R.layout.
         DataStore.balancerLandingProxyTmp = if (landingProxy > 0L) OutboundPreference.VALUE_SELECT_PROFILE.toInt() else 0
         DataStore.balancerNameExclude = nameExclude ?: ""
         DataStore.balancerNameInclude = nameInclude ?: ""
+        DataStore.balancerMaxMembers = maxMembers
+        // B7c/O7：层级规则与节点优先级顺序/排除名单（v7 字段的编辑草稿）。
+        DataStore.balancerTierRules = tierRules ?: ""
+        DataStore.balancerPriorityOrder = (priorityOrder ?: emptyList()).joinToString(",")
+        DataStore.balancerPriorityExcluded = (priorityExcluded ?: emptyList()).joinToString(",")
         DataStore.serverProtocol = proxies.joinToString(",")
     }
 
@@ -135,8 +158,300 @@ class BalancerSettingsActivity : ProfileSettingsActivity<BalancerBean>(R.layout.
         }
         nameExclude = DataStore.balancerNameExclude
         nameInclude = DataStore.balancerNameInclude
+        // B7a/O7：0 = 不限；非法负值归一化为 0（与 initializeDefaultValues 同口径）。
+        maxMembers = DataStore.balancerMaxMembers.coerceAtLeast(0)
+        // B7c/O7：层级规则与节点优先级顺序/排除名单（v7 字段的编辑草稿）。
+        tierRules = DataStore.balancerTierRules
+        priorityOrder = ArrayList(decodePriorityOrderIds(DataStore.balancerPriorityOrder))
+        priorityExcluded = ArrayList(decodePriorityOrderIds(DataStore.balancerPriorityExcluded))
         proxies = proxyList.map { it.id }
         initializeDefaultValues()
+    }
+
+    // B7a/O7：当前编辑态拼出的 bean（与 serialize() 同字段来源），供匹配计数与保存校验共用。
+    private fun currentBalancerBean(): BalancerBean {
+        return BalancerBean().apply {
+            balancerType = DataStore.balancerType
+            val gids = DataStore.balancerTargetGroups.split(",")
+                .mapNotNull { it.trim().toLongOrNull() }
+                .filter { it > 0L }
+            targetGroupIds = ArrayList(gids)
+            targetGroupId = gids.firstOrNull() ?: 0L
+            nameExclude = DataStore.balancerNameExclude
+            nameInclude = DataStore.balancerNameInclude
+            maxMembers = DataStore.balancerMaxMembers.coerceAtLeast(0)
+            // B7c/O7：层级规则与优先级顺序/排除名单（优先级摘要与层级校验用）。
+            tierRules = DataStore.balancerTierRules
+            priorityOrder = ArrayList(decodePriorityOrderIds(DataStore.balancerPriorityOrder))
+            priorityExcluded = ArrayList(decodePriorityOrderIds(DataStore.balancerPriorityExcluded))
+            proxies = proxyList.map { it.id }
+        }
+    }
+
+    private var memberCountPref: Preference? = null
+
+    // B7a/O7：混搭来源实时匹配计数（分组正则过滤 + 散装节点去重后）。
+    // 正则语法错误时摘要直接显示错误（保存时另行拦截）。
+    private fun updateMemberCount() {
+        val pref = memberCountPref ?: return
+        val bean = currentBalancerBean()
+        val resolution = runCatching {
+            resolveBalancerMembers(bean) { gid ->
+                runCatching { SagerDatabase.proxyDao.getByGroup(gid) }.getOrDefault(emptyList())
+                    .map { BalancerMemberRef(it.id, it.displayName()) }
+            }
+        }.getOrNull()
+        pref.summary = when {
+            resolution == null -> getString(R.string.balancer_member_count_empty)
+            resolution.hasRegexError -> getString(
+                R.string.balancer_member_count_regex_error,
+                listOfNotNull(resolution.includeRegexError, resolution.excludeRegexError).first(),
+            )
+            resolution.totalMatched == 0 -> getString(R.string.balancer_member_count_empty)
+            else -> getString(
+                R.string.balancer_member_count_matched,
+                resolution.totalMatched,
+                resolution.groupMatched,
+                resolution.looseMatched,
+                resolution.duplicatesRemoved,
+            )
+        }
+        // B7c/O7：成员变化后优先级摘要也要刷新（数量与前 3 名预览）。
+        updatePrioritySummary()
+    }
+
+    // ---- B7c/O7：层级规则编辑与节点优先级二级页 ----
+
+    private var priorityPref: Preference? = null
+    private var addTierPref: Preference? = null
+    private var tierCategory: PreferenceCategory? = null
+
+    /** 节点优先级摘要：数量 + 前 3 个节点预览（按显式优先级顺序）。 */
+    private fun updatePrioritySummary() {
+        val pref = priorityPref ?: return
+        val bean = currentBalancerBean()
+        val namesById = HashMap<Long, String>()
+        proxyList.forEach { namesById[it.id] = it.displayName() }
+        val resolution = runCatching {
+            resolveBalancerMembers(bean) { gid ->
+                runCatching { SagerDatabase.proxyDao.getByGroup(gid) }.getOrDefault(emptyList())
+                    .map { BalancerMemberRef(it.id, it.displayName()) }
+                    .also { refs -> refs.forEach { namesById[it.id] = it.name } }
+            }
+        }.getOrNull()
+        val memberIds = resolution?.memberIds.orEmpty()
+        if (memberIds.isEmpty()) {
+            pref.summary = getString(R.string.balancer_priority_empty)
+            return
+        }
+        val orderedIds = applyPriorityOrder(
+            memberIds,
+            decodePriorityOrderIds(DataStore.balancerPriorityOrder),
+        )
+        val preview = orderedIds.take(3).mapNotNull { namesById[it] }.joinToString(", ")
+        pref.summary = getString(
+            R.string.balancer_priority_summary,
+            orderedIds.size,
+            preview.ifBlank { "—" },
+        )
+    }
+
+    /** 层级行摘要：包含正则 / 排除正则（空白包含显示 *，空白排除显示 —）。 */
+    private fun tierRuleSummary(rule: BalancerTierRule): String {
+        val include = rule.includeRegex.ifBlank { "*" }
+        val exclude = rule.excludeRegex.ifBlank { "—" }
+        return "$include / $exclude"
+    }
+
+    /** 重建层级行（每条规则一行，点开编辑；无规则时显示一行空态说明）。 */
+    private fun updateTierRows() {
+        val category = tierCategory ?: return
+        category.removeAll()
+        val rules = decodeBalancerTierRules(DataStore.balancerTierRules)
+        rules.forEachIndexed { index, rule ->
+            category.addPreference(
+                Preference(this).apply {
+                    key = "balancerTier_$index"
+                    title = getString(R.string.balancer_tier, index + 1)
+                    summary = tierRuleSummary(rule)
+                    setOnPreferenceClickListener {
+                        showTierEditor(index)
+                        true
+                    }
+                }
+            )
+        }
+        if (rules.isEmpty()) {
+            category.addPreference(
+                Preference(this).apply {
+                    key = "balancerTierEmpty"
+                    title = getString(R.string.balancer_tier_empty)
+                    isSelectable = false
+                }
+            )
+        }
+    }
+
+    private fun applyTierRules(rules: List<BalancerTierRule>) {
+        DataStore.balancerTierRules = encodeBalancerTierRules(rules)
+        DataStore.dirty = true
+        updateTierRows()
+    }
+
+    /** 层级编辑弹窗：包含/排除正则 + 上移/下移/删除（同一弹窗内完成，不另开页面）。 */
+    private fun showTierEditor(index: Int) {
+        val rules = decodeBalancerTierRules(DataStore.balancerTierRules)
+        if (index !in rules.indices) return
+        val rule = rules[index]
+        val density = resources.displayMetrics.density
+        val pad = (16 * density).toInt()
+        val includeInput = EditText(this).apply {
+            setText(rule.includeRegex)
+            hint = getString(R.string.balancer_tier_include)
+        }
+        val excludeInput = EditText(this).apply {
+            setText(rule.excludeRegex)
+            hint = getString(R.string.balancer_tier_exclude)
+        }
+        val buttonRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            val moveUp = Button(this@BalancerSettingsActivity).apply {
+                text = getString(R.string.balancer_tier_move_up)
+            }
+            val moveDown = Button(this@BalancerSettingsActivity).apply {
+                text = getString(R.string.balancer_tier_move_down)
+            }
+            val delete = Button(this@BalancerSettingsActivity).apply {
+                text = getString(R.string.balancer_tier_delete)
+            }
+            addView(moveUp)
+            addView(moveDown)
+            addView(delete)
+            moveUp.setOnClickListener {
+                applyTierRules(moveTierRuleUp(rules, index))
+                tierDialog?.dismiss()
+            }
+            moveDown.setOnClickListener {
+                applyTierRules(moveTierRuleDown(rules, index))
+                tierDialog?.dismiss()
+            }
+            delete.setOnClickListener {
+                applyTierRules(removeTierRule(rules, index))
+                tierDialog?.dismiss()
+            }
+        }
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, pad)
+            addView(buttonRow)
+            addView(includeInput)
+            addView(excludeInput)
+        }
+        tierDialog = MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.balancer_tier, index + 1))
+            .setView(layout)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val updated = rules.toMutableList()
+                updated[index] = BalancerTierRule(
+                    includeInput.text.toString(),
+                    excludeInput.text.toString(),
+                )
+                applyTierRules(updated)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+        tierDialog?.show()
+    }
+
+    private var tierDialog: androidx.appcompat.app.AlertDialog? = null
+
+    /** 打开节点优先级二级页：当前解析成员 + 名称/延迟 + 层级规则 + 草稿顺序随 intent 过去，改完随结果回传（见 editPriorityOrder）。 */
+    private fun openPriorityPage() {
+        val bean = currentBalancerBean()
+        val resolution = runCatching {
+            resolveBalancerMembers(bean) { gid ->
+                runCatching { SagerDatabase.proxyDao.getByGroup(gid) }.getOrDefault(emptyList())
+                    .map { BalancerMemberRef(it.id, it.displayName()) }
+            }
+        }.getOrNull() ?: return
+        val memberIds = resolution.memberIds
+        runOnDefaultDispatcher {
+            val profiles = ProfileManager.getProfiles(memberIds).associateBy { it.id }
+            val names = memberIds.map { profiles[it]?.displayName() ?: "" }.toTypedArray()
+            val pings = memberIds.map { id ->
+                val entity = profiles[id]
+                if (entity != null && entity.ping > 0) entity.ping else -1
+            }.toIntArray()
+            val intent = Intent(this@BalancerSettingsActivity, BalancerPriorityActivity::class.java).apply {
+                putExtra(BalancerPriorityActivity.EXTRA_MEMBER_IDS, memberIds.toLongArray())
+                putExtra(BalancerPriorityActivity.EXTRA_MEMBER_NAMES, names)
+                putExtra(BalancerPriorityActivity.EXTRA_MEMBER_PINGS, pings)
+                putExtra(
+                    BalancerPriorityActivity.EXTRA_PRIORITY_ORDER,
+                    decodePriorityOrderIds(DataStore.balancerPriorityOrder).toLongArray(),
+                )
+                putExtra(
+                    BalancerPriorityActivity.EXTRA_EXCLUDED_IDS,
+                    decodePriorityOrderIds(DataStore.balancerPriorityExcluded).toLongArray(),
+                )
+                putExtra(BalancerPriorityActivity.EXTRA_TIER_RULES, DataStore.balancerTierRules)
+                putExtra(BalancerPriorityActivity.EXTRA_LOOSE_IDS, proxyList.map { it.id }.toLongArray())
+            }
+            onMainDispatcher { editPriorityOrder.launch(intent) }
+        }
+    }
+
+    /** 优先级页返回：顺序/排除/散装列表随结果回传，写回草稿并刷新列表与摘要（返回即自动生效，无需在二级页另存）。 */
+    val editPriorityOrder = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode != Activity.RESULT_OK) return@registerForActivityResult
+        val data = result.data ?: return@registerForActivityResult
+        val order = data.getLongArrayExtra(BalancerPriorityActivity.EXTRA_PRIORITY_ORDER)?.toList().orEmpty()
+        val excluded = data.getLongArrayExtra(BalancerPriorityActivity.EXTRA_EXCLUDED_IDS)?.toList().orEmpty()
+        val loose = data.getLongArrayExtra(BalancerPriorityActivity.EXTRA_LOOSE_IDS)?.toList().orEmpty()
+        DataStore.balancerPriorityOrder = order.joinToString(",")
+        DataStore.balancerPriorityExcluded = excluded.joinToString(",")
+        DataStore.dirty = true
+        runOnDefaultDispatcher {
+            val profiles = ProfileManager.getProfiles(loose).associateBy { it.id }
+            val newList = loose.mapNotNull { profiles[it] }
+            onMainDispatcher {
+                proxyList.clear()
+                proxyList.addAll(newList)
+                configurationAdapter.notifyDataSetChanged()
+                updateMemberCount()
+                updatePrioritySummary()
+            }
+        }
+    }
+
+    // B7a/O7：名称正则语法错误阻止保存（delta spec 要求）；其余字段沿用既有保存路径。
+    override suspend fun saveAndExit() {
+        val errors = listOfNotNull(
+            balancerRegexError(DataStore.balancerNameInclude),
+            balancerRegexError(DataStore.balancerNameExclude),
+        )
+        // B7c/O7：层级正则语法错误同样阻止保存。
+        val tierError = balancerTierRulesError(decodeBalancerTierRules(DataStore.balancerTierRules))
+        if (errors.isNotEmpty() || tierError != null) {
+            val message = buildString {
+                if (tierError != null) {
+                    append(getString(R.string.balancer_tier_invalid_message, tierError))
+                }
+                if (errors.isNotEmpty()) {
+                    if (isNotEmpty()) append("\n")
+                    append(getString(R.string.balancer_regex_invalid_message, errors.joinToString("\n")))
+                }
+            }
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.balancer_regex_invalid_title)
+                .setMessage(message)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+            return
+        }
+        super.saveAndExit()
     }
 
     override fun PreferenceFragmentCompat.createPreferences(
@@ -232,6 +547,7 @@ class BalancerSettingsActivity : ProfileSettingsActivity<BalancerBean>(R.layout.
                     DataStore.balancerTargetGroups = newGids.joinToString(",")
                     DataStore.balancerTargetGroup = newGids.firstOrNull() ?: 0L
                     updateGroupSummary()
+                    updateMemberCount()
                 }
                 .setNegativeButton(android.R.string.cancel, null)
                 .show()
@@ -242,16 +558,49 @@ class BalancerSettingsActivity : ProfileSettingsActivity<BalancerBean>(R.layout.
         val useLandingProxyPref = findPreference<Preference>("balancerUseLandingProxy")
         val nameExcludePref = findPreference<EditTextPreference>("balancerNameExclude")
         val nameIncludePref = findPreference<EditTextPreference>("balancerNameInclude")
+        val maxMembersPref = findPreference<EditTextPreference>("balancerMaxMembers")
+        memberCountPref = findPreference<Preference>("balancerMemberCount")
+        priorityPref = findPreference<Preference>("balancerPriority")
+        addTierPref = findPreference<Preference>("balancerAddTier")
+        // B7c/O7：层级行分类（动态行，见 updateTierRows）；优先级入口与添加层级
+        // 只在「按优先级顺序」模式显示（见 updateStrategyVisibility）。
+        val category = PreferenceCategory(this@BalancerSettingsActivity).apply {
+            key = "balancerTierCategory"
+            title = getString(R.string.balancer_tiers)
+        }
+        tierCategory = category
+        preferenceScreen.addPreference(category)
+
+        priorityPref?.setOnPreferenceClickListener {
+            openPriorityPage()
+            true
+        }
+
+        addTierPref?.setOnPreferenceClickListener {
+            val rules = decodeBalancerTierRules(DataStore.balancerTierRules)
+            if (rules.size >= BALANCER_MAX_TIERS) {
+                updateTierRows()
+                return@setOnPreferenceClickListener true
+            }
+            val newRules = rules + BalancerTierRule("", "")
+            applyTierRules(newRules)
+            // 新层级直接打开编辑框（空白包含 = 匹配全部，再由用户收窄）。
+            showTierEditor(newRules.size - 1)
+            true
+        }
 
         fun updateTypeVisibility(type: Int) {
-            val isGroup = type == BalancerBean.TYPE_GROUP
+            // B7a/O7：混搭同时显示分组选择与散装节点列表。
+            val isGroup = type == BalancerBean.TYPE_GROUP || type == BalancerBean.TYPE_MIXED
+            val isList = type == BalancerBean.TYPE_LIST || type == BalancerBean.TYPE_MIXED
             groupPref?.isVisible = isGroup
+            memberCountPref?.isVisible = isGroup
             useFrontProxyPref?.isVisible = isGroup
             useLandingProxyPref?.isVisible = isGroup
             nameExcludePref?.isVisible = isGroup
             nameIncludePref?.isVisible = isGroup
-            configurationList.isVisible = !isGroup
-            listCell.isVisible = !isGroup
+            configurationList.isVisible = isList
+            listCell.isVisible = isList
         }
 
         val typePref = findPreference<SimpleMenuPreference>("balancerType")
@@ -259,6 +608,7 @@ class BalancerSettingsActivity : ProfileSettingsActivity<BalancerBean>(R.layout.
             val type = (newValue as? String)?.toIntOrNull() ?: 0
             DataStore.balancerType = type
             updateTypeVisibility(type)
+            updateMemberCount()
             true
         }
 
@@ -286,12 +636,19 @@ class BalancerSettingsActivity : ProfileSettingsActivity<BalancerBean>(R.layout.
         val toleranceUnitPref = findPreference<SimpleMenuPreference>("balancerToleranceUnit")
 
         // Strategy-based visibility: only leastPing uses tolerance / url / interval probe settings
+        // B7c/O7：优先级模式同样走 urltest 探测，复用同一套探针设置；
+        // 层级相关入口（添加层级、层级行、节点优先级列表）只在「按优先级顺序」
+        // 模式显示——「最快最稳」（leastPing）与其它模式 MUST 隐藏。
         fun updateStrategyVisibility(strategy: String) {
             val isLeastPing = strategy == BalancerBean.STRATEGY_LEAST_PING
-            tolerancePref?.isVisible = isLeastPing
-            toleranceUnitPref?.isVisible = isLeastPing
-            urlPref?.isVisible = isLeastPing
-            intervalPref?.isVisible = isLeastPing
+            val isPriority = strategy == BalancerBean.STRATEGY_PRIORITY_ORDER
+            tolerancePref?.isVisible = isLeastPing || isPriority
+            toleranceUnitPref?.isVisible = isLeastPing || isPriority
+            urlPref?.isVisible = isLeastPing || isPriority
+            intervalPref?.isVisible = isLeastPing || isPriority
+            priorityPref?.isVisible = isPriority
+            addTierPref?.isVisible = isPriority
+            tierCategory?.isVisible = isPriority
         }
 
         fun updateToleranceSummary() {
@@ -313,6 +670,9 @@ class BalancerSettingsActivity : ProfileSettingsActivity<BalancerBean>(R.layout.
             val strategy = (newValue as? String) ?: BalancerBean.STRATEGY_LEAST_PING
             DataStore.balancerStrategy = strategy
             updateStrategyVisibility(strategy)
+            // B7c/O7：切到优先级模式时刷新层级行与优先级摘要；切走时隐藏（数据保留）。
+            updateTierRows()
+            updatePrioritySummary()
             true
         }
 
@@ -342,8 +702,44 @@ class BalancerSettingsActivity : ProfileSettingsActivity<BalancerBean>(R.layout.
             if (pref.text.isNullOrBlank()) getString(androidx.preference.R.string.not_set) else pref.text
         }
 
+        // B7a/O7：正则改动后刷新匹配计数（值由 store 写入 DataStore 后再算，
+        // 故 post 到下一帧）；非法正则只在计数摘要里提示，保存时拦截。
+        fun refreshCountAfterChange(): Boolean {
+            view?.post { updateMemberCount() }
+            return true
+        }
+        nameExcludePref?.setOnPreferenceChangeListener { _, _ -> refreshCountAfterChange() }
+        nameIncludePref?.setOnPreferenceChangeListener { _, _ -> refreshCountAfterChange() }
+
+        // B7a/O7：成员上限（0 = 不限）；负值归一化为 0。
+        fun updateMaxMembersSummary() {
+            val text = maxMembersPref?.text?.trim()
+            val value = text?.toIntOrNull()
+            maxMembersPref?.summary = when {
+                value != null && value > 0 -> value.toString()
+                else -> getString(R.string.balancer_max_members_unlimited)
+            }
+        }
+        updateMaxMembersSummary()
+        maxMembersPref?.setOnPreferenceChangeListener { _, newValue ->
+            val str = (newValue as? String)?.trim().orEmpty()
+            val v = str.toIntOrNull()?.coerceAtLeast(0)
+            if (v != null) {
+                DataStore.balancerMaxMembers = v
+                maxMembersPref.text = v.toString()
+                updateMaxMembersSummary()
+                view?.post { updateMemberCount() }
+            }
+            true
+        }
+
 
         updateTypeVisibility(DataStore.balancerType)
+        updateMemberCount()
+        // B7c/O7：层级行与优先级摘要随策略可见性初始化（updateMemberCount 内
+        // 已调用 updatePrioritySummary，此处补一次层级行）。
+        updateTierRows()
+        updatePrioritySummary()
     }
 
     lateinit var configurationList: RecyclerView
@@ -440,6 +836,8 @@ class BalancerSettingsActivity : ProfileSettingsActivity<BalancerBean>(R.layout.
             }
             onMainDispatcher {
                 notifyDataSetChanged()
+                // B7a/O7：散装节点异步加载完成后再算一次匹配计数。
+                updateMemberCount()
             }
         }
 
@@ -455,6 +853,7 @@ class BalancerSettingsActivity : ProfileSettingsActivity<BalancerBean>(R.layout.
             proxyList.removeAt(index - 1)
             notifyItemRemoved(index)
             DataStore.dirty = true
+            updateMemberCount()
         }
 
         override fun getItemId(position: Int): Long {
@@ -532,6 +931,7 @@ class BalancerSettingsActivity : ProfileSettingsActivity<BalancerBean>(R.layout.
                         proxyList.clear()
                         proxyList.addAll(newProxyList)
                         configurationAdapter.notifyDataSetChanged()
+                        updateMemberCount()
                     }
                 } else {
                     val singleId = data.getLongExtra(ProfileSelectActivity.EXTRA_PROFILE_ID, 0L)
@@ -557,6 +957,7 @@ class BalancerSettingsActivity : ProfileSettingsActivity<BalancerBean>(R.layout.
                                             configurationAdapter.notifyItemInserted(proxyList.size)
                                         }
                                     }
+                                    updateMemberCount()
                                 }
                             }
                         }
@@ -599,7 +1000,14 @@ class BalancerSettingsActivity : ProfileSettingsActivity<BalancerBean>(R.layout.
         fun bind(proxyEntity: ProxyEntity) {
             val profile = proxyEntity.requireBean()
 
-            binding.profileName.text = profile.displayName()
+            // B7c/O7：优先级模式下内嵌节点顺序列表显示紧凑编号（1. 名称）；
+            // 其它模式保持原样（无编号）。编号 = 散装列表内下标 + 1。
+            val positionNumber = if (DataStore.balancerStrategy == BalancerBean.STRATEGY_PRIORITY_ORDER) {
+                "${formatPriorityNumber(bindingAdapterPosition - 1)}. "
+            } else {
+                ""
+            }
+            binding.profileName.text = positionNumber + profile.displayName()
             binding.profileType.text = proxyEntity.displayType()
             binding.profileType.setTextColor(getProtocolColor(proxyEntity.type))
 
@@ -638,6 +1046,7 @@ class BalancerSettingsActivity : ProfileSettingsActivity<BalancerBean>(R.layout.
                 if (pos > 0 && pos <= proxyList.size) {
                     proxyList.removeAt(pos - 1)
                     configurationAdapter.notifyItemRemoved(pos)
+                    updateMemberCount()
                 }
             }
             binding.share.isVisible = false

@@ -190,6 +190,38 @@
                             android:contentDescription="@null"
                             android:src="@drawable/ic_minimal_chevron" />
                     </LinearLayout>
+
+                    <!-- B7b/O7：策略组状态横幅（仅当前为策略组且已连接时显示），点进策略统计页。 -->
+                    <LinearLayout
+                        android:id="@+id/balancerBanner"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:orientation="vertical"
+                        android:paddingVertical="8dp"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:id="@+id/balancerBannerTitle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:ellipsize="end"
+                            android:fontFamily="sans-serif-medium"
+                            android:maxLines="2"
+                            android:textColor="@color/minimal_text"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:id="@+id/balancerBannerDetail"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="3dp"
+                            android:fontFamily="@font/jetbrains_mono"
+                            android:textColor="@color/minimal_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

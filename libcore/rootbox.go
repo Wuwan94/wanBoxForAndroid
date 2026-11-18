@@ -194,7 +194,9 @@ func validateRootGeoResources(rules []option.RuleSet, assetsPath string) error {
 			name = geoipDat
 		}
 		if !legacy {
-			if _, e := os.Stat(filepath.Join(assetsPath, name[:len(name)-3]+"-"+code+".srs")); e == nil {
+			// B3/O6：官方 .srs 只有真实填充过才算有效；0 规则占位落到下面的 db 加载校验，
+			// 不得只凭文件存在就放行。
+			if isPopulatedSRSFile(filepath.Join(assetsPath, name[:len(name)-3]+"-"+code+".srs")) {
 				continue
 			}
 		}
