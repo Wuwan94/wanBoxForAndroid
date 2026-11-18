@@ -170,6 +170,24 @@ O1 上游三条（8.20）对表 wanBox 自家约束：
   `QuickToggleShortcut` 的 `toggleService` START 分支在运行中切另一节点时直接
   `call("node select …")` 热切（已持有 `changes` 锁，不得调 `selectNode()`，会死锁）；
   确认失败抛 `node_switch_not_confirmed`，不静默回退到全量重建。
+- **O2d 修红（2026-11-18，CI #179/#180）**：O2d 把 `SwitchActivity.returnProfile` 从直调
+  `SagerNet.startService()` 改为走 `switchProfileService` 热切换通道后，既有契约测试
+  `ShortcutControlContractTest.toggleKeepsNodeValidationAndServiceSemanticsAndSystemAuthorization`
+  在 `:41` 失败——它用字面形式断言 SwitchActivity 源码含 `"SagerNet.startService()"`，
+  而 B1 自己的 `SwitchProfileHotSwitchTest` 反而断言 SwitchActivity 不含它，两处断言
+  直接冲突，不可能同时成立。旧字面断言的意图是“快捷选择保留停止时也能连上”
+  （改动前源码注释原话），不是“必须直调 startService() 本身”：改回直调会让运行中
+  切换也走全量 `startOrReload`、中断现有连接，违反 O2d 与“切换不中断现有连接”约束；
+  在 SwitchActivity 里按缓存 `DataStore.serviceState` 分支也不可取——缓存可能过期，
+  判错会把运行中切换打回全量重建、或把停止时切换打进死模块；运行状态的唯一活判断
+  在 `switchProfileService` 内（`call("status").connected`），不应再造第二个决策点。
+  因此旧字面契约确实被 O2d 适配取代，修法是实现 + 测试各改一半：实现上，
+  `switchProfileService` 的停止分支改走规范的 `startService()` 入口（其本体即
+  `moduleCommand { RootModuleClient.startOrReload() }`，行为与原来相同，错误仍由
+  moduleCommand 的 try/catch 上报），不再绕过应用层入口直调模块；测试上，
+  契约测试改断言 SwitchActivity 走 `switchProfileService` 通道、且通道停止分支
+  按调用行调用 `startService()`，原意图（停止时选中节点必须连上）继续被守住，
+  没有放宽。`SwitchProfileHotSwitchTest` 同步加固为同样的调用行断言。
 - O3 惩罚增量：沿用 wanBox 既有 +300，不照抄上游的 5000 下限。
 - **O3 Time 续期冲突（B1 实施中发现，2026-11-17）**：第一阶段规格按上游 8.13 要求
   惩罚写入“保留旧 Time、不续期”，但本地构建跑测试时既有测试

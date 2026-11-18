@@ -331,7 +331,8 @@ class SagerNet : Application(),
 
         /** B1/O2d: 纯节点切换通道（上游 switchProfileService 的 wanBox 等价物）。
          * 运行时走既有热切换通道（selectNode 确认后才持久化，失败保持旧连接与旧选择）；
-         * 停止时保存选择并连接（SwitchActivity 快捷选择保留“停止时也能连上”的能力）。
+         * 停止时保存选择并连接（SwitchActivity 快捷选择保留“停止时也能连上”的能力），
+         * 连接走规范的 startService() 入口，不直接调 RootModuleClient.startOrReload()。
          * 路由规则、代理模式及分组设置等配置类变更 MUST NOT 走这里，仍走
          * reloadService()/startOrReload() 完整配置重建。 */
         fun switchProfileService(profileId: Long) = moduleCommand {
@@ -352,7 +353,10 @@ class SagerNet : Application(),
                     io.nekohasekai.sagernet.database.ProfileManager.postUpdate(previous, noTraffic = true)
                 }
                 io.nekohasekai.sagernet.widget.OwnBoxWidgetProvider.updateWidgets(application)
-                io.nekohasekai.sagernet.bg.RootModuleClient.startOrReload()
+                // 修红 CI #179/#180：停止分支走规范的 startService() 入口（其本体即
+                // moduleCommand { RootModuleClient.startOrReload() }，行为与原来相同，
+                // 错误仍由 moduleCommand 的 try/catch 上报），不再绕过应用层入口直调模块。
+                startService()
             }
         }
 

@@ -18,11 +18,13 @@ class SwitchProfileHotSwitchTest {
         assertTrue(source.contains("fun switchProfileService(profileId: Long)"))
         // 运行时走既有热切换通道
         assertTrue(source.contains("selectProfile(profileId)"))
-        // 停止时保存选择并连接（保留快捷选择“停止时也能连上”的能力）
-        assertTrue(source.contains("RootModuleClient.startOrReload()"))
-        // 纯节点切换不得走完整配置重建
         val body = source.substringAfter("fun switchProfileService(profileId: Long)")
             .substringBefore("\n        fun ", "")
+        // 停止时保存选择并连接（保留快捷选择“停止时也能连上”的能力）：
+        // 停止分支走规范的 startService() 入口（其本体即 RootModuleClient.startOrReload()）。
+        // 按调用行（含换行 + 16 空格缩进）断言，避免注释里的同名文字把断言骗过。
+        assertTrue(body.contains("\n                startService()"))
+        // 纯节点切换不得走完整配置重建
         assertFalse(body.contains("reloadService()"))
         assertFalse(body.contains("configurationReload.request()"))
     }
