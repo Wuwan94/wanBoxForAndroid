@@ -70,18 +70,25 @@ func TestParseTierTagIndex(t *testing.T) {
 // TestBudgetExpiryStillFinishesRoundAndAllowsSwitchBack 复现 P1-1：整轮预算
 // （生产为 probeBudget=5s）耗尽时，旧实现直接按 ctx.Err() 返回，跳过
 // performRoundEndCheck，consecutiveOK 永远不推进，高层恢复后也无法回切。
-// 这里用缩短的父上下文稳定模拟同一到期路径：本轮没有任何成功探测，但高层
-// 已有新鲜历史；连续 3 轮且距上次失败满 60 秒后，选择必须回到高层。
+// 这里用缩短的父上下文稳定模拟同一到期路径：高层成员拖到预算到期，但同轮
+// 底层成员已完成一次真实探测（本轮有观测）；连续 3 轮且距上次失败满 60 秒后，
+// 选择必须回到高层。P2-5 的“零观测轮次不计健康轮”由
+// TestBudgetExpiryWithoutProbesDoesNotAdvanceTierGate 守护。
 func TestBudgetExpiryStillFinishesRoundAndAllowsSwitchBack(t *testing.T) {
-	// 探测请求不返回，直到客户端上下文到期；保证每轮都以预算耗尽收尾。
+	// 高层成员吊住连接直到上下文到期；底层成员拨向自己的快速服务器，
+	// 每轮都能完成一次真实探测。
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		<-r.Context().Done()
 	}))
 	defer server.Close()
+	fastServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer fastServer.Close()
 
 	grp := startupGroupWithMembers(t, context.Background(), server.URL,
-		tierMember("a [T1]"),
-		tierMember("b [T2]"),
+		&blackholeOutbound{Adapter: outbound.NewAdapter("loopback", "a [T1]", []string{"tcp", "udp"}, nil)},
+		&delayedDialOutbound{Adapter: outbound.NewAdapter("loopback", "b [T2]", []string{"tcp", "udp"}, nil), server: fastServer},
 	)
 	// 先让低层成为当前层（高层无历史）。
 	storeTierHistory(t, grp, "b [T2]", 90)
@@ -90,15 +97,18 @@ func TestBudgetExpiryStillFinishesRoundAndAllowsSwitchBack(t *testing.T) {
 		t.Fatalf("expected currentTier 1 before recovery, got %d", grp.currentTier)
 	}
 
-	// 高层恢复（新鲜历史），但每轮仍在预算到期前无法完成任何探测。
+	// 高层恢复（新鲜历史），但每轮都拖到预算到期才结束。
 	storeTierHistory(t, grp, "a [T1]", 100)
 	grp.tierGate.lastFailure[0] = time.Now().Add(-61 * time.Second)
 	for i := 0; i < tierSwitchBackMinChecks; i++ {
-		roundCtx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
-		_, err := grp.urlTest(roundCtx, true)
+		roundCtx, cancel := context.WithTimeout(context.Background(), 120*time.Millisecond)
+		_, probed, err := grp.urlTest(roundCtx, true)
 		cancel()
 		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("round %d: expected budget expiry, got %v", i+1, err)
+		}
+		if probed == 0 {
+			t.Fatalf("round %d: expected the fast low-tier member to complete a probe, got 0", i+1)
 		}
 	}
 	if got := grp.tierGate.consecutiveOK[0]; got < tierSwitchBackMinChecks {
