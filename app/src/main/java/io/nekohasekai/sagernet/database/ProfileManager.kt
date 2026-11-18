@@ -8,7 +8,6 @@ import io.nekohasekai.sagernet.fmt.AbstractBean
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.app
 import io.nekohasekai.sagernet.ktx.applyDefaultValues
-import io.nekohasekai.sagernet.route.SystemExcludedPackages
 import java.io.IOException
 import java.sql.SQLException
 import java.util.*
@@ -299,12 +298,13 @@ object ProfileManager {
                     rule.packages = rule.packages + setOf("com.android.vending", "com.google.android.gms")
                     changed = true
                 }
-                // B3/O6：系统组件排除与 ConfigBuilder 同源（SystemExcludedPackages），
-                // 不再另造一份名单。原先只剔两个下载器包名，现按完整系统名单剔除。
                 if (rule.domains.contains("googleapis.cn") && rule.packages.any {
-                        it in SystemExcludedPackages.PACKAGES
+                        it == "com.android.providers.downloads" || it == "com.android.providers.downloads.ui"
                     }) {
-                    rule.packages = rule.packages - SystemExcludedPackages.PACKAGES
+                    rule.packages = rule.packages - setOf(
+                        "com.android.providers.downloads",
+                        "com.android.providers.downloads.ui"
+                    )
                     changed = true
                 }
                 if (changed) {
