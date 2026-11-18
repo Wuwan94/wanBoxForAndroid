@@ -101,6 +101,19 @@ class PerUserAppsTest {
     }
 
     @Test
+    fun resolvedWhitelistMustNotSilentlyBecomeEmpty() {
+        // 只选了纯系统组件（uid < 1000 被过滤）时不得静默变成“不代理任何应用”。
+        val error = runCatching {
+            PerUserApps.requireResolvedWhitelist(requestedCount = 2, resolvedUids = emptyList())
+        }.exceptionOrNull()
+        assertTrue(error is IllegalStateException)
+        assertEquals("per_user_app_whitelist_empty", error?.message)
+        // 没有请求条目时仍允许空表（分应用代理关闭/用户没选应用）。
+        assertEquals(emptyList<Int>(), PerUserApps.requireResolvedWhitelist(0, emptyList()))
+        assertEquals(listOf(10123), PerUserApps.requireResolvedWhitelist(1, listOf(10123)))
+    }
+
+    @Test
     fun serializeRefsRoundTrip() {
         val refs = listOf(PerUserApps.Ref(0, "com.a"), PerUserApps.Ref(10, "com.a"))
         assertEquals(
