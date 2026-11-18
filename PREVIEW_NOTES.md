@@ -1,12 +1,12 @@
-# v3.0.17-preview.3 发行说明（候选）
+# v3.0.17-preview.3 发行说明
 
-**状态：未发布的稳定性预览版候选。**
+**状态：已发布的稳定性预览版。**
 
-本候选基于 `main` 的 `c0ecbf78a9211ef1198ac2df8c95db1708578b8f`（preview.2 发布后的文档同步，仅文档/规范，无代码差异）。正式稳定版 `v3.0.14`（`VERSION_CODE=2026`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 均未改变；预览元数据升为 `PRE_VERSION_CODE=2033`，派生 APK `versionCode=10168`、Root 模块码 `2033`，均高于已发布 preview.2 的 `10162` / `2032`。
+本版基于 `main` 的 `6adc5ac0bcbd87bf9ff4b2097fe367761a4bc841`（PR #69，`Verify Android Build` run `44295650161` 全绿后合并）。正式稳定版 `v3.0.14`（`VERSION_CODE=2026`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 均未改变；预览元数据为 `PRE_VERSION_CODE=2033`，派生 APK `versionCode=10168`、Root 模块码 `2033`，均高于已发布 preview.2 的 `10162` / `2032`。
 
 ## ✦ 与上一版对比
 
-| 项目 | v3.0.17-preview.2 | v3.0.17-preview.3（候选） |
+| 项目 | v3.0.17-preview.2 | v3.0.17-preview.3 |
 |---|---|---|
 | 内容 | 两路借鉴移植合集首个预览 | 修复 URLTest 预算到期后层级永不回切、诊断包 Android 12+ 不可读取；收口八项 P2 与 Room 11 schema |
 | APK `versionCode` | 10162 | 10168 |
@@ -45,12 +45,16 @@ URLTest 稳定性约束（检测间隔 ≥ 10 秒、空闲超时 ≥ 30 分钟�
 
 ## 🛡️ 验证与边界
 
-- 本候选的 RED/GREEN 证据、URLTest 全套、Root 模块与 Python 工具测试结果以 PR 的 `Verify Android Build` 与候选 `Preview Build` 实际结果为准；本地 Windows 无法执行 `-race`（需要 cgo）与 Linux cgroup/channel 用例，已用目标回归与平台无关子集验证。
-- 未执行 Magisk / KernelSU / APatch 真机矩阵：Android 12+ 诊断包实际可见性、Root 测试会话并发与层级回切仍需真机确认；任何自动化结果都不代替真机验证，本候选不晋升正式版。
+- PR #69 的 `Verify Android Build` run `44295650161` 全绿；发布 `Preview Build` run `44306599880` 的 Native Build (LibCore)、Build OSS APK、Candidate cold-start measurement 与 Publish Preview Release 四个 job 全部成功，发布 job 断言 `APPROVED_SHA=6adc5ac0`。本地 Windows 无法执行 `-race`（需要 cgo）与 Linux cgroup/channel 用例，已用目标回归与平台无关子集验证。
+- 未执行 Magisk / KernelSU / APatch 真机矩阵：Android 12+ 诊断包实际可见性、Root 测试会话并发与层级回切仍需真机确认；任何自动化结果都不代替真机验证，本版未晋升正式版。
 
 ---
 
 ## 历史归档
+
+### v3.0.17-preview.2 已发布说明
+
+[v3.0.17-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.2) 已作为稳定性预览版发布（tag/commit `49e966197dd608b687b36eecdaf394274dacfe15`，PR #67/#68；`Preview Build` run `44281162788` 于 2026-11-18T10:18:19Z 发布）。内容为 OwnBox/NetProxy 两路借鉴移植合并后的首个预览：核心稳定性与故障转移、订阅自动更新、智能分流、冷启动秒连、策略组混搭/锁定/优先级、停核可编辑与脱敏诊断包、按网络规则、路由规则指定策略组；APK `10162` / 模块 `2032`。资产快照见[版本对照](docs/current-version.zh-CN.md)；其 Release/tag 已在 preview.3 发布后按单预览策略清理，下载链接不再可用。
 
 ### v3.0.17-preview.1 已发布说明
 
