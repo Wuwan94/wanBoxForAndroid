@@ -45,7 +45,7 @@ wanBox 把「界面」和「代理本体」拆成两件独立的事。管理器�
 
 ## 与 VPN 客户端的差别
 
-| | 传统 VpnService 客户端 | wanBox |
+| 对比项 | 传统 VpnService 客户端 | wanBox |
 |:--|:--|:--|
 | 代理进程 | 应用内的 `VpnService` 加原生核心常驻 | Root 模块内的 sing-box，管理器不承载核心 |
 | 系统权限 | 申请 VPN 权限，状态栏常驻钥匙图标 | 不申请 VPN 权限，状态栏无 VPN 图标 |
