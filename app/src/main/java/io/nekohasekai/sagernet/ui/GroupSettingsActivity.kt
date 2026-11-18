@@ -17,6 +17,7 @@ import androidx.core.view.ViewCompat
 import androidx.preference.*
 import com.github.shadowsocks.plugin.Empty
 import com.github.shadowsocks.plugin.fragment.AlertDialogFragment
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.nekohasekai.sagernet.GroupType
 import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
@@ -300,10 +301,31 @@ class GroupSettingsActivity(
         override fun AlertDialog.Builder.prepare(listener: DialogInterface.OnClickListener) {
             setTitle(R.string.delete_group_prompt)
             setPositiveButton(R.string.yes) { _, _ ->
+                val activity = requireActivity()
                 runOnDefaultDispatcher {
-                    GroupManager.deleteGroup(arg.groupId)
+                    try {
+                        GroupManager.deleteGroup(arg.groupId)
+                    } catch (blocked: GroupManager.GroupReferencedByRoutesException) {
+                        // N6：阻断时不关闭设置页，对话框定位到该组并可跳转到引用规则。
+                        val groupName = SagerDatabase.groupDao.getById(blocked.groupId)?.displayName()
+                            ?: return@runOnDefaultDispatcher
+                        onMainDispatcher {
+                            MaterialAlertDialogBuilder(activity)
+                                .setTitle(groupName)
+                                .setMessage(activity.getString(R.string.route_policy_group_blocked_delete,
+                                    groupName, blocked.ruleName))
+                                .setPositiveButton(R.string.route_policy_group_review_rule) { _, _ ->
+                                    activity.startActivity(Intent(activity, RouteSettingsActivity::class.java).apply {
+                                        putExtra(RouteSettingsActivity.EXTRA_ROUTE_ID, blocked.ruleId)
+                                    })
+                                }
+                                .setNegativeButton(android.R.string.cancel, null)
+                                .show()
+                        }
+                        return@runOnDefaultDispatcher
+                    }
+                    onMainDispatcher { activity.finish() }
                 }
-                requireActivity().finish()
             }
             setNegativeButton(R.string.no, null)
         }

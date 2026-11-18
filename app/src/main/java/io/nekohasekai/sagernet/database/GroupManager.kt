@@ -99,10 +99,24 @@ object GroupManager {
         }
     }
 
+    /** N6：删除被路由规则引用的策略组时阻断，并定位到该组与首条引用规则。 */
+    class GroupReferencedByRoutesException(
+        val groupId: Long,
+        val ruleId: Long,
+        val ruleName: String,
+    ) : IllegalStateException("route_group_referenced")
+
     suspend fun deleteGroup(groupId: Long) {
         val removed = SagerDatabase.proxyDao.getIdsByGroup(groupId).toSet()
-        SagerDatabase.groupDao.deleteById(groupId)
-        SagerDatabase.proxyDao.deleteByGroup(groupId)
+        // 检查与删除在同一事务内：检查通过后组行与节点行一起删，检查失败则一行不动。
+        SagerDatabase.instance.runInTransaction(java.util.concurrent.Callable {
+            val blocking = io.nekohasekai.sagernet.route.RouteGroupTarget.firstBlockingReference(
+                SagerDatabase.rulesDao.allRules(), setOf(groupId))
+            if (blocking != null) throw GroupReferencedByRoutesException(
+                blocking.groupId, blocking.rule.id, blocking.rule.displayName())
+            SagerDatabase.groupDao.deleteById(groupId)
+            SagerDatabase.proxyDao.deleteByGroup(groupId)
+        })
         io.nekohasekai.sagernet.group.editor.GroupEditorStore.removeDeletedMembers(removed)
         iterator { groupRemoved(groupId) }
         SubscriptionUpdater.reconfigureUpdater()
@@ -110,8 +124,14 @@ object GroupManager {
 
     suspend fun deleteGroup(group: List<ProxyGroup>) {
         val removed = group.flatMap { SagerDatabase.proxyDao.getIdsByGroup(it.id) }.toSet()
-        SagerDatabase.groupDao.deleteGroup(group)
-        SagerDatabase.proxyDao.deleteByGroup(group.map { it.id }.toLongArray())
+        SagerDatabase.instance.runInTransaction(java.util.concurrent.Callable {
+            val blocking = io.nekohasekai.sagernet.route.RouteGroupTarget.firstBlockingReference(
+                SagerDatabase.rulesDao.allRules(), group.map { it.id }.toSet())
+            if (blocking != null) throw GroupReferencedByRoutesException(
+                blocking.groupId, blocking.rule.id, blocking.rule.displayName())
+            SagerDatabase.groupDao.deleteGroup(group)
+            SagerDatabase.proxyDao.deleteByGroup(group.map { it.id }.toLongArray())
+        })
         io.nekohasekai.sagernet.group.editor.GroupEditorStore.removeDeletedMembers(removed)
         for (proxyGroup in group) iterator { groupRemoved(proxyGroup.id) }
         SubscriptionUpdater.reconfigureUpdater()

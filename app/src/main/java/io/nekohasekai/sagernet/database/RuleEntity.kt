@@ -26,6 +26,9 @@ data class RuleEntity(
     @ColumnInfo(name = "ruleset", defaultValue = "")
     var ruleset: String = "",
     var outbound: Long = 0,
+    /** N6：可空的策略组目标，存稳定实体 ID（ProxyGroup.id），与 [outbound] 正交；两者同存时保存拒绝。 */
+    @ColumnInfo(defaultValue = "NULL")
+    var policyGroupId: Long? = null,
     var packages: Set<String> = emptySet(),
 ) : Parcelable {
 
@@ -56,6 +59,12 @@ data class RuleEntity(
     }
 
     fun displayOutbound(): String {
+        policyGroupId?.let { groupId ->
+            val group = runCatching { SagerDatabase.groupDao.getById(groupId) }.getOrNull()
+            return group?.name?.trim()?.takeIf { it.isNotEmpty() }
+                ?: group?.displayName()
+                ?: app.getString(R.string.route_policy_group)
+        }
         return when (outbound) {
             0L -> app.getString(R.string.route_proxy)
             -1L -> app.getString(R.string.route_bypass)

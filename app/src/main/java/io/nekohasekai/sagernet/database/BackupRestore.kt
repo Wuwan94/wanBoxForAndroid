@@ -70,6 +70,10 @@ object BackupRestore {
                 }
             }
             rules?.let { require(it.all { r -> proxyRef(r.outbound) }) { "备份路由出站引用无效" } }
+            // N6：规则的策略组目标必须在备份的分组内，否则恢复后立刻悬空。
+            rules?.let {
+                require(it.all { r -> r.policyGroupId == null || r.policyGroupId in groupIds }) { "备份路由策略组引用无效" }
+            }
         }
         rules?.let { require(it.map { r -> r.id }.distinct().size == it.size) { "规则 ID 重复" } }
         settings?.let { list ->
@@ -97,6 +101,10 @@ object BackupRestore {
             val ids = if (profile && plan.profiles != null) plan.profiles.map { it.id }.toSet()
                 else room.proxyDao().getAll().map { it.id }.toSet()
             require(plan.rules.all { it.outbound <= 0 || it.outbound in ids }) { "备份路由引用的节点不在目标设备，请同时恢复配置" }
+            // N6：仅恢复规则时，策略组目标必须已在目标设备存在，否则拒绝写入。
+            val groupIds = if (profile && plan.groups != null) plan.groups.map { it.id }.toSet()
+                else room.groupDao().getAll().map { it.id }.toSet()
+            require(plan.rules.all { it.policyGroupId == null || it.policyGroupId in groupIds }) { "备份路由引用的策略组不在目标设备，请同时恢复配置" }
         }
         val sql = room.openHelper.writableDatabase
         val settings = plan.settings?.takeIf { setting }

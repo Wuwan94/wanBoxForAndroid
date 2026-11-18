@@ -292,7 +292,8 @@ class RouteFragment : ToolbarFragment(R.layout.layout_route), Toolbar.OnMenuItem
             val generation = reloadGeneration.incrementAndGet()
             val rules = ProfileManager.getRules()
             val errors = io.nekohasekai.sagernet.route.OutboundReferenceValidator.validate(
-                rules, SagerDatabase.proxyDao.getAll().map { it.id }.toSet()).associateBy { it.ruleId }
+                rules, SagerDatabase.proxyDao.getAll().map { it.id }.toSet(),
+                SagerDatabase.groupDao.allGroups().map { it.id }.toSet()).associateBy { it.ruleId }
             ruleListView.post {
                 if (generation != reloadGeneration.get()) return@post
                 outboundErrors = errors
@@ -433,7 +434,12 @@ class RouteFragment : ToolbarFragment(R.layout.layout_route), Toolbar.OnMenuItem
                 rule = ruleEntity
                 val issue = outboundErrors[rule.id]
                 outboundError.visibility = if (issue == null) View.GONE else View.VISIBLE
-                outboundError.text = issue?.let { itemView.context.getString(R.string.outbound_reference_item, it.ruleName, it.ruleId, itemView.context.getString(R.string.outbound_reference_type), it.missingId) }.orEmpty()
+                // N6：缺失策略组用 design.md §10 原句；缺失节点沿用既有条目格式。
+                outboundError.text = when (issue?.kind) {
+                    io.nekohasekai.sagernet.route.OutboundReferenceValidator.ReferenceKind.POLICY_GROUP ->
+                        itemView.context.getString(R.string.route_policy_group_missing)
+                    else -> issue?.let { itemView.context.getString(R.string.outbound_reference_item, it.ruleName, it.ruleId, itemView.context.getString(R.string.outbound_reference_type), it.missingId) }.orEmpty()
+                }
                 outboundError.setTextColor(ContextCompat.getColor(itemView.context, R.color.color_route_block))
                 profileName.text = rule.displayName()
                 profileType.text = rule.mkSummary()

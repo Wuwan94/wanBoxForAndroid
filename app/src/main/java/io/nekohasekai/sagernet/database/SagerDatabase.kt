@@ -21,7 +21,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ProxyGroup::class, ProxyEntity::class, RuleEntity::class],
-    version = 10,
+    version = 11,
     autoMigrations = [
         AutoMigration(from = 3, to = 4),
         AutoMigration(from = 4, to = 5),
@@ -74,6 +74,30 @@ abstract class SagerDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            // N6：rules 表新增可空策略组目标列（稳定实体 ID 引用，缺失即 NULL）。
+            override fun migrate(database: SupportSQLiteDatabase) {
+                try {
+                    val cursor = database.query("PRAGMA table_info(rules)")
+                    var hasColumn = false
+                    val nameIndex = cursor.getColumnIndex("name")
+                    while (cursor.moveToNext()) {
+                        if (nameIndex >= 0 && cursor.getString(nameIndex) == "policyGroupId") {
+                            hasColumn = true
+                            break
+                        }
+                    }
+                    cursor.close()
+                    if (!hasColumn) {
+                        database.execSQL("ALTER TABLE rules ADD COLUMN policyGroupId INTEGER DEFAULT NULL")
+                    }
+                } catch (e: Throwable) {
+                    Logs.w(e)
+                    throw e
+                }
+            }
+        }
+
         @OptIn(DelicateCoroutinesApi::class)
         @Suppress("EXPERIMENTAL_API_USAGE")
         val instance by lazy {
@@ -84,7 +108,7 @@ abstract class SagerDatabase : RoomDatabase() {
                     .setJournalMode(JournalMode.TRUNCATE)
                     .allowMainThreadQueries()
                     .enableMultiInstanceInvalidation()
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_9_10)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_9_10, MIGRATION_10_11)
                     .setQueryExecutor(java.util.concurrent.Executors.newFixedThreadPool(2))
                     .build()
             }

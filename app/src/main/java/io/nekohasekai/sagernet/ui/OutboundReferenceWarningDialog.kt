@@ -72,8 +72,13 @@ class OutboundReferenceWarningDialog : DialogFragment() {
                     putString("pending_review_id", pendingReviewId)
                     putString("message", context.getString(if (result) R.string.outbound_reference_result
                         else R.string.outbound_reference_message) + "\n\n" + warning.issues.joinToString("\n") {
-                        context.getString(R.string.outbound_reference_item, it.ruleName, it.ruleId,
-                            context.getString(R.string.outbound_reference_type), it.missingId)
+                        // N6：策略组缺失的类型文案用“策略组”，与节点/策略组出站区分。
+                        val type = when (it.kind) {
+                            io.nekohasekai.sagernet.route.OutboundReferenceValidator.ReferenceKind.POLICY_GROUP ->
+                                context.getString(R.string.route_policy_group)
+                            else -> context.getString(R.string.outbound_reference_type)
+                        }
+                        context.getString(R.string.outbound_reference_item, it.ruleName, it.ruleId, type, it.missingId)
                     })
                 }
             }

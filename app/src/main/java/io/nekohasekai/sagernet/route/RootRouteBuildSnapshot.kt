@@ -23,7 +23,8 @@ class RootRouteBuildSnapshot private constructor(
         KryoConverters.deserializeStrict(ProxyEntity(), it)
     }
     fun issues(): List<OutboundReferenceValidator.Issue> =
-        OutboundReferenceValidator.validate(enabledRules(), profiles.keys)
+        OutboundReferenceValidator.validate(
+            enabledRules(), profiles.keys, allGroups().map { it.id }.toSet())
 
     companion object {
         suspend fun capture(): RootRouteBuildSnapshot {
