@@ -19,6 +19,7 @@ import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.group.GroupUpdater
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.app
+import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -58,6 +59,10 @@ object SubscriptionUpdater {
     }
 
     suspend fun reconfigureUpdater() {
+        // B2/O5: the scheduler stays on the :bg cross-process RemoteWorkManager.
+        // Moving it to the main-process WorkManager (upstream 8.6) needs a new
+        // serviceState source for UpdateTask and is pending a user decision (2.4);
+        // until then only the dialog (2.2) and catch-up triggers (2.3) change.
         val workManager = RemoteWorkManager.getInstance(app)
         val subscriptions = SagerDatabase.groupDao.subscriptions()
             .filter { it.subscription!!.autoUpdate }
@@ -107,6 +112,57 @@ object SubscriptionUpdater {
             throw e
         } catch (e: Exception) {
             Logs.w("SubscriptionUpdater: enqueue work failed", e)
+        }
+    }
+
+    /**
+     * B2/O5: catch-up check for due subscriptions, called when the user enters the
+     * subscription group page ([onlyIfConnected] = false) and when the proxy
+     * connects ([onlyIfConnected] = true). Unlike the upstream 8.6 version, this
+     * respects wanBox's per-group failure backoff: a group inside its backoff
+     * window is skipped and the backoff is left untouched. Due-ness is decided by
+     * [SubscriptionSchedule.isDue]; undue subscriptions are never updated early.
+     * Runs on the default dispatcher; failures are logged, never thrown.
+     */
+    fun checkPendingUpdates(onlyIfConnected: Boolean = false) {
+        runOnDefaultDispatcher {
+            runCatching {
+                val now = System.currentTimeMillis() / 1000L
+                var subscriptions = SagerDatabase.groupDao.subscriptions()
+                    .filter { it.subscription?.autoUpdate == true && !it.subscription?.link.isNullOrBlank() }
+
+                if (onlyIfConnected) {
+                    // Only subscriptions that require a connection are due for a
+                    // connect-time catch-up; the periodic worker covers the rest.
+                    subscriptions = subscriptions.filter { it.subscription?.updateWhenConnectedOnly == true }
+                } else if (!DataStore.serviceState.connected) {
+                    subscriptions = subscriptions.filter { it.subscription?.updateWhenConnectedOnly != true }
+                }
+
+                for (profile in subscriptions) {
+                    val subscription = profile.subscription ?: continue
+                    if (!SubscriptionSchedule.isDue(
+                            SubscriptionSchedule.Entry(
+                                subscription.autoUpdateDelay ?: 360,
+                                subscription.lastUpdated ?: 0
+                            ),
+                            now
+                        )
+                    ) {
+                        Logs.d("SubscriptionUpdater: not due yet " + profile.displayName())
+                        continue
+                    }
+                    if (shouldBackoff(profile.id)) {
+                        Logs.d("SubscriptionUpdater: backing off " + profile.displayName())
+                        continue
+                    }
+                    Logs.d("SubscriptionUpdater: executing pending update for " + profile.displayName())
+                    val ok = GroupUpdater.executeUpdate(profile, false)
+                    recordUpdateResult(profile.id, ok)
+                }
+            }.onFailure { e ->
+                Logs.w("SubscriptionUpdater: checkPendingUpdates failed", e)
+            }
         }
     }
 

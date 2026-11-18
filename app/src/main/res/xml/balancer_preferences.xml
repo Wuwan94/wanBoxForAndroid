@@ -30,8 +30,23 @@
 
         <Preference
             app:icon="@drawable/ic_line_list"
+            app:key="balancerPriority"
+            app:title="@string/balancer_node_priority" />
+
+        <Preference
+            app:icon="@drawable/ic_line_text"
+            app:key="balancerAddTier"
+            app:title="@string/balancer_add_tier" />
+
+        <Preference
+            app:icon="@drawable/ic_line_list"
             app:key="balancerTargetGroup"
             app:title="@string/balancer_select_group" />
+
+        <Preference
+            app:icon="@drawable/ic_minimal_search"
+            app:key="balancerMemberCount"
+            app:title="@string/balancer_member_count" />
 
         <io.nekohasekai.sagernet.widget.OutboundPreference
             app:icon="@drawable/ic_line_server"
@@ -67,6 +82,13 @@
             app:icon="@drawable/ic_minimal_search"
             app:key="balancerNameInclude"
             app:title="@string/balancer_name_include"
+            app:useSimpleSummaryProvider="false" />
+
+        <EditTextPreference
+            app:defaultValue="0"
+            app:icon="@drawable/ic_line_filter"
+            app:key="balancerMaxMembers"
+            app:title="@string/balancer_max_members"
             app:useSimpleSummaryProvider="false" />
 
         <EditTextPreference

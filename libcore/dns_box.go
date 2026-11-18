@@ -159,6 +159,9 @@ func (c *ExchangeContext) Success(result string) {
 	}), func(it string) netip.Addr {
 		return M.ParseSocksaddrHostPort(it, 0).Unwrap().Addr
 	})
+	// B1/O2a: 与 RawSuccess/ErrorCode/ErrnoCode 对齐，写入地址后必须发送完成信号，
+	// 否则等待 done 的 Exchange 会挂起直至调用方上下文超时。
+	c.done()
 }
 
 func (c *ExchangeContext) RawSuccess(result []byte) {

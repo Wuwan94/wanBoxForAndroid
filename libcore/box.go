@@ -120,6 +120,9 @@ type BoxInstance struct {
 	v2api        *v2rayapi.StatsService
 	selector     *group.Selector
 	pauseManager pause.Manager
+	// B1/O3: 该 box 的平台接口包装器（每 box 独立，非单例），用于切网时只重置
+	// 路由器 DNS/HTTP 连接池而不拆出站；Close 时清掉，避免野指针回调。
+	platformWrapper *boxPlatformInterfaceWrapper
 
 	diagnosticID  uint64
 	diagnosticTag string
@@ -251,14 +254,15 @@ func newSingBoxInstance(config string, localTransport LocalDNSTransport, platfor
 	platformWrapper.diagnosticTag = diagnosticTag
 
 	b = &BoxInstance{
-		Box:           instance,
-		cancel:        cancel,
-		startBox:      instance.Start,
-		closeBox:      instance.Close,
-		pauseManager:  service.FromContext[pause.Manager](ctx),
-		diagnosticID:  diagnosticID,
-		diagnosticTag: diagnosticTag,
-		isURLTest:     !platformLog,
+		Box:             instance,
+		cancel:          cancel,
+		startBox:        instance.Start,
+		closeBox:        instance.Close,
+		pauseManager:    service.FromContext[pause.Manager](ctx),
+		platformWrapper: platformWrapper,
+		diagnosticID:    diagnosticID,
+		diagnosticTag:   diagnosticTag,
+		isURLTest:       !platformLog,
 	}
 	b.urlTestTrace("create-box", "ok elapsed=%s", time.Since(createStarted))
 
@@ -314,6 +318,13 @@ func (b *BoxInstance) Start() (err error) {
 	} else {
 		err = errors.New("box is nil")
 	}
+	// B1/O3: 启动成功后把路由器的 ResetNetwork 交给平台包装器，供切网时
+	// 在 networkChangeResetConnections=false 的分支里只清 DNS/HTTP 连接池。
+	if err == nil && b.platformWrapper != nil && b.Box != nil {
+		if router := b.Box.Router(); router != nil {
+			b.platformWrapper.setRouterReset(router.ResetNetwork)
+		}
+	}
 	return err
 }
 
@@ -347,6 +358,11 @@ func (b *BoxInstance) Close() (err error) {
 	if mainInstance == b {
 		mainInstance = nil
 		goServeProtect(false)
+	}
+
+	// B1/O3: 关闭时清掉路由器重置钩子，之后切网不再回调已关闭的 box。
+	if b.platformWrapper != nil {
+		b.platformWrapper.setRouterReset(nil)
 	}
 
 	// close box

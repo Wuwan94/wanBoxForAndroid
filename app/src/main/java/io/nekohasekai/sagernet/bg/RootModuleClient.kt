@@ -572,9 +572,28 @@ object RootModuleClient {
                 }
                 ServiceToggleAction.RESUME -> { call("resume"); action }
                 ServiceToggleAction.START -> {
-                    if (profileId >= 0L) DataStore.selectedProxy = profileId
-                    startOrReloadLocked(startIfStopped = true, beforeStatus = status)
-                    action
+                    if (profileId >= 0L && status.state.canStop && status.profileId != profileId) {
+                        // B1/O2d: 运行中切到另一节点 → 走热切换（selector 直接切成员），
+                        // 不做完整配置重建，现有连接不断。确认失败时保持旧连接与旧选择
+                        // 并报错（与 selectProfile 通道一致），不静默回退到全量重载。
+                        // 注意：已持有 changes 锁，直接 call("node select …")，
+                        // 不得调 selectNode()（会重复加锁死锁）。
+                        val switched = call("node select $profileId")
+                        if (switched.connected && switched.profileId == profileId) {
+                            if (DataStore.selectedProxy != profileId) {
+                                val previous = DataStore.selectedProxy
+                                DataStore.selectedProxy = profileId
+                                io.nekohasekai.sagernet.database.ProfileManager.postUpdate(previous, noTraffic = true)
+                            }
+                            action
+                        } else {
+                            throw IOException("node_switch_not_confirmed:$profileId")
+                        }
+                    } else {
+                        if (profileId >= 0L) DataStore.selectedProxy = profileId
+                        startOrReloadLocked(startIfStopped = true, beforeStatus = status)
+                        action
+                    }
                 }
             }
         }
