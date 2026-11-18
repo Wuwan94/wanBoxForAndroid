@@ -52,7 +52,9 @@ class ColdStartMemberOrderTest {
         val source = File("src/main/java/io/nekohasekai/sagernet/fmt/ConfigBuilder.kt").readText()
         assertTrue(source.contains("sortBalancerMembersForColdStart(memberEntities)"))
         assertTrue(source.contains("BalancerBean.STRATEGY_LEAST_PING"))
-        // 成员顺序进入 urltest 出站的是排序后的列表
-        assertTrue(source.contains("val memberTags = sortedMemberEntities.mapNotNull"))
+        // 成员顺序进入 urltest 出站的是排序后的列表（B7c 拆成两步：先由排序后
+        // 列表建 (id, tag) 对照，再由对照取 tag 列表，顺序不变）。
+        assertTrue(source.contains("val memberTagPairs = sortedMemberEntities.mapNotNull"))
+        assertTrue(source.contains("val memberTags = memberTagPairs.map { it.second }"))
     }
 }

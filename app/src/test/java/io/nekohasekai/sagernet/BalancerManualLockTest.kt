@@ -251,7 +251,8 @@ class BalancerManualLockTest {
         ).readText()
         // 锁定时该策略组生成 selector（default = 锁定成员），核心不再自动切换；
         // 导出/测试配置不带运行时锁定（与 useAutoSelect 同一守卫）。
-        assertTrue(source.contains("BalancerManualLock.decode(DataStore.balancerManualLock)"))
+        // decode 在 BalancerLockState 的伴生对象上（BalancerManualLock 只是数据类）。
+        assertTrue(source.contains("BalancerLockState.decode(DataStore.balancerManualLock)"))
         assertTrue(source.contains("lockedMemberTag("))
         assertTrue(source.contains("if (lockedTag != null) {"))
         assertTrue(source.contains("buildSelectorOutbound(defaultTag = lockedTag"))
