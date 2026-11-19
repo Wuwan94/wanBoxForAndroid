@@ -682,6 +682,7 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
                 }
             }
             addHealthCheckPreferences()
+            addModuleActionPreferences()
             // B5（N2）：脱敏诊断包一键导出。目标为系统 Download 目录，
             // 导出前用 design.md §10 原句确认残留风险。
             val exportDiagnostics = Preference(requireContext()).apply {
@@ -786,6 +787,97 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
                             else io.nekohasekai.sagernet.bg.RootModuleErrors.message(activity, error), android.widget.Toast.LENGTH_LONG).show()
                     }
                 }
+                true
+            }
+        })
+    }
+
+    /** UI 对齐模块：给模块已有但 App 没入口的动作补开关/按钮——开机自启、
+     * 重启核心、回滚到上一版配置。全部走 RootModuleClient 既有命令，
+     * 不新增模块侧能力。 */
+    private fun addModuleActionPreferences() {
+        val ctx = requireContext()
+        fun report(activity: android.app.Activity, error: Exception?, doneText: String) {
+            onMainDispatcher {
+                if (activity.isFinishing || activity.isDestroyed) return@onMainDispatcher
+                android.widget.Toast.makeText(activity, if (error == null) doneText
+                    else io.nekohasekai.sagernet.bg.RootModuleErrors.message(activity, error), android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+        // 开机自启：模块开机时按 autostart 设置拉起核心；此前 persistAcrossReboot
+        // 在 UI 层没有任何绑定，config apply 永远按默认 false 下发，用户开不了。
+        // 开关写回同一 DataStore 值（apply 路径也读它），并立即下发模块命令。
+        preferenceScreen.addPreference(SwitchPreference(ctx).apply {
+            key = "moduleAutostart"
+            setTitle(R.string.autostart_title)
+            setSummary(R.string.autostart_summary)
+            setIcon(R.drawable.ic_baseline_power_24)
+            isPersistent = false
+            isChecked = DataStore.persistAcrossReboot
+            order = 102
+            setOnPreferenceChangeListener { _, newValue ->
+                val enabled = newValue as Boolean
+                DataStore.persistAcrossReboot = enabled
+                val activity = requireActivity()
+                val doneText = getString(if (enabled) R.string.autostart_enabled else R.string.autostart_disabled)
+                runOnDefaultDispatcher {
+                    val error = try {
+                        io.nekohasekai.sagernet.bg.RootModuleClient.setAutoStart(enabled); null
+                    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { e }
+                    report(activity, error, doneText)
+                }
+                true
+            }
+        })
+        // 重启核心：模块 restart/reload 早已实现且在 App 白名单内，此前零调用方。
+        preferenceScreen.addPreference(Preference(ctx).apply {
+            key = "moduleRestartCore"
+            setTitle(R.string.restart_core_title)
+            setIcon(R.drawable.ic_baseline_refresh_24)
+            isPersistent = false
+            order = 103
+            setOnPreferenceClickListener {
+                MaterialAlertDialogBuilder(ctx).apply {
+                    setTitle(R.string.restart_core_title)
+                    setMessage(R.string.restart_core_confirm)
+                    setNegativeButton(android.R.string.cancel, null)
+                    setPositiveButton(R.string.restart_core_title) { _, _ ->
+                        val activity = requireActivity()
+                        val doneText = getString(R.string.restart_core_done)
+                        runOnDefaultDispatcher {
+                            val error = try {
+                                io.nekohasekai.sagernet.bg.RootModuleClient.call("restart"); null
+                            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { e }
+                            report(activity, error, doneText)
+                        }
+                    }
+                }.show()
+                true
+            }
+        })
+        // 配置回滚：模块保留 previous generation 专门供回滚（核心起不来时的
+        // 自救通道），此前 App 命令白名单不含 config rollback、UI 也无入口。
+        preferenceScreen.addPreference(Preference(ctx).apply {
+            key = "moduleConfigRollback"
+            setTitle(R.string.config_rollback_title)
+            isPersistent = false
+            order = 104
+            setOnPreferenceClickListener {
+                MaterialAlertDialogBuilder(ctx).apply {
+                    setTitle(R.string.config_rollback_title)
+                    setMessage(R.string.config_rollback_confirm)
+                    setNegativeButton(android.R.string.cancel, null)
+                    setPositiveButton(R.string.config_rollback_title) { _, _ ->
+                        val activity = requireActivity()
+                        val doneText = getString(R.string.config_rollback_done)
+                        runOnDefaultDispatcher {
+                            val error = try {
+                                io.nekohasekai.sagernet.bg.RootModuleClient.call("config rollback"); null
+                            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { e }
+                            report(activity, error, doneText)
+                        }
+                    }
+                }.show()
                 true
             }
         })
