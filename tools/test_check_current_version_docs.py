@@ -73,12 +73,29 @@ class CurrentVersionDocsTest(unittest.TestCase):
             current = root / checker.FILES["current"]
             current.write_text(
                 current.read_text(encoding="utf-8").replace(
-                    "| 发布基线 |", "| 当前源码基线 |"
+                    "| 源码预览线 |", "| 当前源码基线 |"
                 ),
                 encoding="utf-8",
             )
             errors = checker.failures(root)
             self.assertTrue(any("当前源码基线" in e for e in errors), errors)
+        finally:
+            tmp.cleanup()
+
+    def test_checker_flags_previous_stable_tag(self):
+        root, tmp = make_tree()
+        try:
+            readme = root / checker.FILES["readme"]
+            readme.write_text(
+                readme.read_text(encoding="utf-8").replace(
+                    f"已发布正式版为 [{checker.STABLE_TAG}]",
+                    "已发布正式版为 [v3.0.14]",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            errors = checker.failures(root)
+            self.assertTrue(any("v3.0.14" in e for e in errors), errors)
         finally:
             tmp.cleanup()
 

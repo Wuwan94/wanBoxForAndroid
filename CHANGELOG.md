@@ -4,6 +4,14 @@
 
 ## wanBox 3.0.x 发布记录
 
+### v3.0.17（正式版）
+
+- **晋升说明**：3.0.17 由预览线（preview.1–.4）晋升为正式版，聚合 v3.0.14 之后的全部变更：OwnBox 移植 B1–B4/B7a–c（含 O9a 落地 IP 缓存按实际在跑节点失效）、NetProxy 线 B5/B6/N6/B8、preview.3 的 URLTest 预算到期回切与诊断包 Android 12+ 读取、preview.4 的层级回切门与过期候选兜底，以及 PR #74（合并提交 `6a20a0ca7113decbe6155500dd9e70c79650bb5a`，`Verify Android Build` run `44465876305` 全绿）的分层向下容灾与回切门新观测计数。正式说明见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。
+- 版本映射为 Root 模块码 `2035`、APK `versionCode=10175`，严格高于 v3.0.14（`10130 / 2026`）、v3.0.17-preview.4（`10174 / 2034`）与 v3.0.11（`10065 / 2013`），同包名同签名可覆盖安装；`PRE_VERSION_NAME=3.0.18-preview.1` / `PRE_VERSION_CODE=2036` 仅为下一预览占位。
+- 发布方式：`release.yml` 两阶段（阶段一候选构建 `publish_release=false` → 核对 `SHA256SUMS` → 阶段二 `publish_release=true` 带 `candidate_run_id` 与 `expected_checksums_sha256`）；不执行 merge 之外的清理，正式版不触发 `prune_prereleases.py`，v3.0.14、v3.0.11 与 v3.0.17-preview.4 均保留。
+- 候选/正式 run ID 与四件套实测字节、SHA-256 属发布回读数据，发布完成后回填到[版本对照](docs/current-version.zh-CN.md)。
+- 未做 Magisk / KernelSU / APatch 真机矩阵；自动化结果不等于 Root 真机签核，本版不宣称真机通过。
+
 ### v3.0.17-preview.4（已发布预览）
 
 - [GitHub Release v3.0.17-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.4) 由 `Preview Build` run `44378329740` 在 main commit/tag `906a6ea3f48779cc96c7a4116cfd1faeb63aa354`（PR #72，2026-11-18T19:13:48Z 合并；`Verify Android Build` run `44372679147` 全绿）于 2026-11-18T19:38:07Z 发布；tag 对象、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `906a6ea3`。

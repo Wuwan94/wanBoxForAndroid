@@ -1,6 +1,18 @@
-# v3.0.17-preview.4 发行说明
+# v3.0.18-preview.1 发行说明（候选）
 
-**状态：已发布的稳定性预览版。**
+**状态：未发布的稳定性预览版候选。**
+
+本条目是 `nb4a.properties` 的下一预览占位：`PRE_VERSION_NAME=3.0.18-preview.1`、`PRE_VERSION_CODE=2036`（派生 APK `versionCode=10181`、Root 模块码 `2036`），仅用于满足 `PRE > FORMAL` 断言，**尚未发布、不含本版内容**；若下一预览要发布，必须在提交里把本区段替换为该版真实内容。正式线已晋升 `3.0.17 / 2035`（APK `10175`、模块 `2035`），正式说明见 [RELEASE_NOTES.md](RELEASE_NOTES.md)；下一次预览升版时以此为元数据基准，并在提交中补齐本区段内容。
+
+最近一次发布的预览是 `v3.0.17-preview.4`（`10174 / 2034`，源码 `906a6ea3`）：正式发布不触发 `prune_prereleases.py`，其 Release/tag 与资产保留，说明见下方历史归档。
+
+---
+
+## 历史归档
+
+### v3.0.17-preview.4 已发布说明
+
+**状态：已作为稳定性预览版发布。**
 
 本版基于 `main` 的 `906a6ea3f48779cc96c7a4116cfd1faeb63aa354`（PR #72，`Verify Android Build` run `44372679147` 全绿后于 2026-11-18T19:13:48Z 合并），`Preview Build` run `44378329740` 于 2026-11-18T19:38:07Z 发布（发布 job 断言 `APPROVED_SHA=906a6ea3`）。正式稳定版 `v3.0.14`（`VERSION_CODE=2026`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 均未改变；预览元数据为 `PRE_VERSION_CODE=2034`，派生 APK `versionCode=10174`、Root 模块码 `2034`，均高于已发布 preview.3 的 `10168` / `2033`。
 
@@ -64,10 +76,6 @@ APK 与普通 Root 模块合计 `24,494,833` 字节（23.36 MiB），上限 `27,
 - **发布门禁**：`Preview Build` run `44378329740` 四个 job 全绿，发布 job 断言 `APPROVED_SHA=906a6ea3` 并回读 tag；`prune_prereleases.py --keep-tag v3.0.17-preview.4` 在 19:38:15Z 删除了 preview.3 的 Release/tag。
 - **四件套复核**：`sha256sum -c SHA256SUMS` 三件 OK；三个 ZIP `testzip` 无损坏；`version-control-info.textproto` 的 `revision` 为 `906a6ea3f48779cc96c7a4116cfd1faeb63aa354`，与 tag、`targetCommitish`、`APPROVED_SHA` 同源；合一包内 `manager.apk` 与外部 APK 逐字节相同；签名证书 SHA-256 `80ecee1c42d861d59cdc460447335fc4bfdf80103d6225a17c1bdf83a33521f6`（与正式版 v3.0.14 同一张）。
 - **未验证边界**：未执行 Magisk / KernelSU / APatch 真机矩阵（CI 自标 `runtime_regression: not_verified`）；层级回切在真实订阅下的收敛速度、Root 授权弹窗延迟下的分应用名单行为仍需真机确认。任何自动化结果都不代替真机验证，本版未晋升正式版。
-
----
-
-## 历史归档
 
 ### v3.0.17-preview.3 已发布说明
 
