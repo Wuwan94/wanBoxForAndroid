@@ -381,6 +381,9 @@ func (s *URLTest) DialContext(ctx context.Context, network string, destination M
 		return s.group.interruptGroup.NewConn(conn, interrupt.IsExternalConnectionFromContext(ctx), interrupt.IsResourceDownloadFromContext(ctx)), nil
 	}
 	s.logger.ErrorContext(ctx, err)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, ctxErr
+	}
 
 	// 容灾候选快速故障转移，防止主选节点临时抖动导致全量连接直接断连。
 	// 成功者立即成为当前选择，避免之后每条连接都先撞同一个坏主选。
@@ -389,6 +392,9 @@ func (s *URLTest) DialContext(ctx context.Context, network string, destination M
 		if altErr == nil {
 			s.group.promoteFailover(alt, networkName)
 			return s.group.interruptGroup.NewConn(altConn, interrupt.IsExternalConnectionFromContext(ctx), interrupt.IsResourceDownloadFromContext(ctx)), nil
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
 		}
 	}
 	return nil, err
@@ -419,6 +425,9 @@ func (s *URLTest) ListenPacket(ctx context.Context, destination M.Socksaddr) (ne
 		return s.group.interruptGroup.NewPacketConn(conn, interrupt.IsExternalConnectionFromContext(ctx), interrupt.IsResourceDownloadFromContext(ctx)), nil
 	}
 	s.logger.ErrorContext(ctx, err)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, ctxErr
+	}
 
 	// UDP 候选快速容灾；成功者同样提升为当前选择。
 	for i, alt := range alternates {
@@ -427,18 +436,22 @@ func (s *URLTest) ListenPacket(ctx context.Context, destination M.Socksaddr) (ne
 			s.group.promoteFailover(alt, N.NetworkUDP)
 			return s.group.interruptGroup.NewPacketConn(altConn, interrupt.IsExternalConnectionFromContext(ctx), interrupt.IsResourceDownloadFromContext(ctx)), nil
 		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
 	}
 	return nil, err
 }
 
-// failoverCandidates 为故障转移排序候选，口径两条：
-//  1. 候选只在当前生效层级内（B7c 层级语义统一由轮次收尾的回切门裁决，
-//     故障转移不得跨层抢先切换；全层都没有健康成员时退回全部成员兜底）；
-//  2. 新鲜候选优先、延迟升序，过期候选保留在最后梯队兜底——新鲜候选全部
-//     已挂时仍能换到过期但可用的成员，而不是让这次连接直接失败。
+// failoverCandidates 为实际建连失败后的向下容灾排序候选：
+//  1. 当前生效层的其他成员优先，随后按优先级尝试更低层；更高层只有轮次
+//     收尾的回切门才能启用，故障转移不得因一次成功就绕过回切迟滞；
+//  2. 每层内部新鲜候选优先、延迟升序，过期候选保留在该层末尾兜底；
+//  3. 全组没有新鲜历史时保持原有全成员排序，普通非分层组行为不变。
 func (g *URLTestGroup) failoverCandidates(primary adapter.Outbound, network string) []adapter.Outbound {
 	type candidate struct {
 		outbound adapter.Outbound
+		tier     int
 		delay    uint16
 		fresh    bool
 		order    int
@@ -451,7 +464,8 @@ func (g *URLTestGroup) failoverCandidates(primary adapter.Outbound, network stri
 		if alt == primary || !common.Contains(alt.Network(), network) {
 			continue
 		}
-		if hasEffectiveTier && g.tierAt(order) != effectiveTier {
+		tier := g.tierAt(order)
+		if hasEffectiveTier && tier < effectiveTier {
 			continue
 		}
 		history := g.freshHistory(group.RealTag(alt, network))
@@ -459,9 +473,12 @@ func (g *URLTestGroup) failoverCandidates(primary adapter.Outbound, network stri
 		if history != nil {
 			delay = history.Delay
 		}
-		candidates = append(candidates, candidate{outbound: alt, delay: delay, fresh: history != nil, order: order})
+		candidates = append(candidates, candidate{outbound: alt, tier: tier, delay: delay, fresh: history != nil, order: order})
 	}
 	sort.SliceStable(candidates, func(i, j int) bool {
+		if hasEffectiveTier && candidates[i].tier != candidates[j].tier {
+			return candidates[i].tier < candidates[j].tier
+		}
 		if candidates[i].fresh != candidates[j].fresh {
 			return candidates[i].fresh
 		}
@@ -505,6 +522,10 @@ func (g *URLTestGroup) promoteFailover(winner adapter.Outbound, network string) 
 	}
 	tag := winner.Tag()
 	g.observedTag.Store(&tag)
+	// 向下容灾必须把生效层一并下移：否则高层历史仍新鲜时，下一次
+	// performUpdateCheckLocked 会立刻按“当前层就是高层”把选择拉回去，
+	// 回切门形同虚设。向上回切仍只由轮次收尾的新观测门裁决。
+	g.currentTier = g.tierOfTag(tag)
 	if selected && g.interruptExternalConnections {
 		g.interruptGroup.Interrupt(true)
 	}
@@ -930,33 +951,52 @@ func (g *URLTestGroup) canSwitchBackTo(tier int, now time.Time) bool {
 	return true
 }
 
-// updateTierGateLocked 按当前新鲜历史推进层级恢复门（调用方须持有写锁，
-// 每轮探测结束调一次）：有新鲜成员的层连续计数 +1，全灭的层清零并记失败时间。
-func (g *URLTestGroup) updateTierGateLocked(now time.Time) {
-	healthy := make(map[int]bool)
-	for i, detour := range g.outbounds {
-		tier := g.tierAt(i)
-		if healthy[tier] {
-			continue
-		}
-		if common.Contains(detour.Network(), N.NetworkTCP) &&
-			g.freshHistory(group.RealTag(detour, N.NetworkTCP)) != nil {
-			healthy[tier] = true
-			continue
-		}
-		if common.Contains(detour.Network(), N.NetworkUDP) &&
-			g.freshHistory(group.RealTag(detour, N.NetworkUDP)) != nil {
-			healthy[tier] = true
-		}
-	}
+// updateTierGateLocked 只按本轮的新观测推进层级恢复门（调用方须持有写锁）。
+// 层内任一成员本轮新成功即为一个健康轮；没有新成功但至少一个新失败时，
+// 连续健康计数清零并记录失败时间。全部跳过/取消/未观测的层保持原状态，
+// 既不累计也不清零；旧历史只用于选路，不再冒充本轮成功。
+func (g *URLTestGroup) updateTierGateLocked(now time.Time, round *urlTestRound) {
+	observations := round.snapshot()
 	for _, tier := range g.distinctTiers() {
-		if healthy[tier] {
+		tierObservation := urlTestUnobserved
+		for i, detour := range g.outbounds {
+			if g.tierAt(i) != tier {
+				continue
+			}
+			observation := g.memberObservation(detour, observations)
+			if observation == urlTestSuccess {
+				tierObservation = urlTestSuccess
+				break
+			}
+			if observation == urlTestFailure {
+				tierObservation = urlTestFailure
+			}
+		}
+		switch tierObservation {
+		case urlTestSuccess:
 			g.tierGate.consecutiveOK[tier]++
-		} else {
+		case urlTestFailure:
 			g.tierGate.consecutiveOK[tier] = 0
 			g.tierGate.lastFailure[tier] = now
 		}
 	}
+}
+
+// memberObservation 读取直接成员的轮次结果。嵌套 URLTest 在批量探测时
+// 会按直接成员 tag 汇总整棵子树；其他组则回退到其实际选中的叶子 tag。
+func (g *URLTestGroup) memberObservation(detour adapter.Outbound, observations map[string]urlTestObservation) urlTestObservation {
+	if observation := observations[detour.Tag()]; observation != urlTestUnobserved {
+		return observation
+	}
+	for _, network := range []string{N.NetworkTCP, N.NetworkUDP} {
+		if !common.Contains(detour.Network(), network) {
+			continue
+		}
+		if observation := observations[group.RealTag(detour, network)]; observation != urlTestUnobserved {
+			return observation
+		}
+	}
+	return urlTestUnobserved
 }
 
 func (g *URLTestGroup) loopCheck(ticker *time.Ticker, closeChan <-chan struct{}) {
@@ -994,15 +1034,14 @@ func (g *URLTestGroup) URLTest(ctx context.Context) (map[string]uint16, error) {
 	return result, err
 }
 
-// urlTest 跑一轮探测。第二个返回值是本轮真正得到判定的成员数（成功或失败，
-// 不含被整轮预算取消的成员）：层级恢复门按“有观测的轮次”计数，零观测的
-// 轮次不得只凭历史新鲜度被算成健康轮（P2-5）。
-func (g *URLTestGroup) urlTest(ctx context.Context, force bool) (result map[string]uint16, probed int, err error) {
+// urlTest 跑一轮探测。第二个返回值记录本轮按成员划分的成功、失败、跳过
+// 与取消：层级恢复门只能使用这些新观测，不能从旧历史或其他层借计数。
+func (g *URLTestGroup) urlTest(ctx context.Context, force bool) (result map[string]uint16, round *urlTestRound, err error) {
 	// Every probe entry point belongs to the group lifecycle, including explicit
 	// checks whose caller supplied an independent context. Closed groups cannot
 	// restart probes, and closing a group also cancels an in-flight manual check.
 	if err := g.ctx.Err(); err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 	// 入口统一施加总预算：批量并发只有六槽，单成员三秒超时挡不住成员众多的整轮拖长。@author 雾晚
 	ctx, cancel := context.WithTimeout(ctx, probeBudget)
@@ -1010,7 +1049,7 @@ func (g *URLTestGroup) urlTest(ctx context.Context, force bool) (result map[stri
 	defer stop()
 	defer cancel()
 	if err := ctx.Err(); err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 	g.checkAccess.Lock()
 	if flight := g.checkFlight; flight != nil {
@@ -1020,11 +1059,11 @@ func (g *URLTestGroup) urlTest(ctx context.Context, force bool) (result map[stri
 		// check must not mistake the joined round for its own empty success.
 		select {
 		case <-flight.done:
-			return flight.result, flight.probed, flight.err
+			return flight.result, flight.round, flight.err
 		case <-ctx.Done():
-			return nil, 0, ctx.Err()
+			return nil, nil, ctx.Err()
 		case <-g.ctx.Done():
-			return nil, 0, g.ctx.Err()
+			return nil, nil, g.ctx.Err()
 		}
 	}
 	flight := &urlTestFlight{done: make(chan struct{})}
@@ -1032,29 +1071,26 @@ func (g *URLTestGroup) urlTest(ctx context.Context, force bool) (result map[stri
 	g.checkAccess.Unlock()
 	defer func() {
 		g.checkAccess.Lock()
-		flight.result, flight.probed, flight.err = result, probed, err
+		flight.result, flight.round, flight.err = result, round, err
 		g.checkFlight = nil
 		close(flight.done)
 		g.checkAccess.Unlock()
 	}()
-	result, probed = urlTestOutboundsWithGroup(ctx, g.outbound, g.history, g.logger, g.outbounds, g.link, g.interval, force, g)
+	result, round = urlTestOutboundsWithGroup(ctx, g.outbound, g.history, g.logger, g.outbounds, g.link, g.interval, force, g)
 	if ctxErr := ctx.Err(); ctxErr != nil {
-		// P1：整轮预算到期时不能直接丢弃本轮收尾。批量取消本身不代表成员失败
-		//（失败判定在 urlTestBatch 内已按 b.ctx.Err 跳过），但只要本轮有成员
-		//得到判定（成功或失败），本轮就具备可判定的观测，仍须推进层级恢复门
-		//并重算选择。P2-5：零观测的轮次不得只凭历史新鲜度被算作健康轮。
-		// 组关闭/调用方取消（Canceled）不计数，避免把中断当成健康轮次。
+		// 整轮预算到期时仍收尾本轮已经完成的观测；正常结束与预算到期共用
+		// 同一套按层计数口径。调用方/组取消（Canceled）不算成员失败，也不收尾。
 		if g.ctx.Err() == nil &&
 			errors.Is(ctxErr, context.DeadlineExceeded) &&
-			probed > 0 {
-			g.performRoundEndCheck()
+			round.probed() > 0 {
+			g.performRoundEndCheck(round)
 		}
-		return result, probed, ctxErr
+		return result, round, ctxErr
 	}
 	// B7c/O7：轮次结束走 performRoundEndCheck（推进层级恢复门 + 重算选择）；
 	// 流式就绪仍走 performUpdateCheck（只重算选择，不计轮次）。
-	g.performRoundEndCheck()
-	return result, probed, nil
+	g.performRoundEndCheck(round)
+	return result, round, nil
 }
 
 // urlTestFlight is one in-flight probe round. The leader publishes its result
@@ -1063,8 +1099,86 @@ func (g *URLTestGroup) urlTest(ctx context.Context, force bool) (result map[stri
 type urlTestFlight struct {
 	done   chan struct{}
 	result map[string]uint16
-	probed int
+	round  *urlTestRound
 	err    error
+}
+
+// urlTestObservation 是成员在本轮的唯一结局。跳过与取消都是未观测，
+// 不会被当成新成功或新失败；只有成功/失败计入 probed。
+type urlTestObservation uint8
+
+const (
+	urlTestUnobserved urlTestObservation = iota
+	urlTestSuccess
+	urlTestFailure
+	urlTestSkipped
+	urlTestCanceled
+)
+
+// urlTestRound 是一次轮次私有的观测集合。批量 goroutine 通过互斥锁写入；
+// batch.Wait 返回后才做轮次收尾，因此迟到的底层 IO 结果不会跨轮追加。
+type urlTestRound struct {
+	access       sync.Mutex
+	observations map[string]urlTestObservation
+	completed    int
+}
+
+func newURLTestRound() *urlTestRound {
+	return &urlTestRound{observations: make(map[string]urlTestObservation)}
+}
+
+// observationRank 给出观测强度：成功 > 失败 > 跳过/取消 > 未观测。
+// 同一轮里嵌套组与直接成员可能重复上报同一叶子 tag，弱观测不得覆盖
+// 已经确认的新成功，否则会把并发合并变成随机回切。
+func observationRank(observation urlTestObservation) uint8 {
+	switch observation {
+	case urlTestSuccess:
+		return 3
+	case urlTestFailure:
+		return 2
+	case urlTestSkipped, urlTestCanceled:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func (r *urlTestRound) record(tag string, observation urlTestObservation) {
+	if r == nil || tag == "" {
+		return
+	}
+	r.access.Lock()
+	if observationRank(observation) > observationRank(r.observations[tag]) {
+		r.observations[tag] = observation
+	}
+	r.access.Unlock()
+}
+
+func (r *urlTestRound) addProbed(count int) {
+	if r == nil || count <= 0 {
+		return
+	}
+	r.access.Lock()
+	r.completed += count
+	r.access.Unlock()
+}
+
+func (r *urlTestRound) probed() int {
+	if r == nil {
+		return 0
+	}
+	r.access.Lock()
+	defer r.access.Unlock()
+	return r.completed
+}
+
+func (r *urlTestRound) snapshot() map[string]urlTestObservation {
+	if r == nil {
+		return nil
+	}
+	r.access.Lock()
+	defer r.access.Unlock()
+	return maps.Clone(r.observations)
 }
 
 type urlTestResult struct {
@@ -1084,8 +1198,9 @@ type urlTestBatch struct {
 	groups  []adapter.OutboundGroup
 	access  sync.Mutex
 	result  map[string]uint16
-	// P2-5：本轮得到判定的成员数（成功或失败；被整轮预算取消的不计）。
-	probed atomic.Int32
+	// 本轮私有观测：成功/失败/跳过/取消按成员记录，只有前两者计入 completed。
+	// 每轮一个实例，batch.Wait() 之后才做轮次收尾，迟到结果无法跨轮写入。
+	round *urlTestRound
 }
 
 func URLTestOutbounds(ctx context.Context, outboundManager adapter.OutboundManager, history *urltest.HistoryStorage, logger log.Logger, outbounds []adapter.Outbound, link string, interval time.Duration, force bool) map[string]uint16 {
@@ -1102,8 +1217,9 @@ func URLTestOutboundsWithGroup(ctx context.Context, outboundManager adapter.Outb
 // owner 为空时（如 loadbalance 调用方，无归属组）只做饱和惩罚，不做连续失败清史。
 // 注意：参数名不用 group——包内已有同名 group 包（group.RealTag），用 group
 // 会遮住它，导致下面嵌套组的 groupHistory 读不到。
-func urlTestOutboundsWithGroup(ctx context.Context, outboundManager adapter.OutboundManager, history *urltest.HistoryStorage, logger log.Logger, outbounds []adapter.Outbound, link string, interval time.Duration, force bool, owner *URLTestGroup) (map[string]uint16, int) {
+func urlTestOutboundsWithGroup(ctx context.Context, outboundManager adapter.OutboundManager, history *urltest.HistoryStorage, logger log.Logger, outbounds []adapter.Outbound, link string, interval time.Duration, force bool, owner *URLTestGroup) (map[string]uint16, *urlTestRound) {
 	b, _ := batch.New(ctx, batch.WithConcurrencyNum[any](6))
+	round := newURLTestRound()
 	testBatch := &urlTestBatch{
 		ctx:      ctx,
 		outbound: outboundManager,
@@ -1113,16 +1229,36 @@ func urlTestOutboundsWithGroup(ctx context.Context, outboundManager adapter.Outb
 		checked:  make(map[string]bool),
 		result:   make(map[string]uint16),
 		group:    owner,
+		round:    round,
 	}
 	testBatch.test(outbounds, link, interval, force)
 	b.Wait()
-	for _, outboundGroup := range testBatch.groups {
+	// 嵌套组按直接成员 tag 汇总真实叶子观测。groups 是外层→内层追加，
+	// 逆序汇总才能让内层组的 summary 先落盘、供外层取用。
+	for i := len(testBatch.groups) - 1; i >= 0; i-- {
+		outboundGroup := testBatch.groups[i]
+		observations := round.snapshot()
+		summary := urlTestUnobserved
+		for _, tag := range outboundGroup.All() {
+			switch observations[tag] {
+			case urlTestSuccess:
+				summary = urlTestSuccess
+			case urlTestFailure:
+				if summary != urlTestSuccess {
+					summary = urlTestFailure
+				}
+			}
+			if summary == urlTestSuccess {
+				break
+			}
+		}
+		round.record(outboundGroup.Tag(), summary)
 		groupHistory := history.LoadURLTestHistory(group.RealTag(outboundGroup, N.NetworkTCP))
 		if groupHistory != nil {
 			testBatch.result[outboundGroup.Tag()] = groupHistory.Delay
 		}
 	}
-	return testBatch.result, int(testBatch.probed.Load())
+	return testBatch.result, round
 }
 
 func (b *urlTestBatch) test(outbounds []adapter.Outbound, link string, interval time.Duration, force bool) {
@@ -1136,8 +1272,13 @@ func (b *urlTestBatch) test(outbounds []adapter.Outbound, link string, interval 
 			b.checked[tag] = true
 			b.groups = append(b.groups, nested)
 			b.batch.Go(tag, func() (any, error) {
-				nestedResult, nestedProbed, _ := nested.group.urlTest(b.ctx, force)
-				b.probed.Add(int32(nestedProbed))
+				nestedResult, nestedRound, _ := nested.group.urlTest(b.ctx, force)
+				if nestedRound != nil {
+					for memberTag, observation := range nestedRound.snapshot() {
+						b.round.record(memberTag, observation)
+					}
+					b.round.addProbed(nestedRound.probed())
+				}
 				b.access.Lock()
 				maps.Copy(b.result, nestedResult)
 				b.access.Unlock()
@@ -1153,11 +1294,14 @@ func (b *urlTestBatch) test(outbounds []adapter.Outbound, link string, interval 
 		default:
 			history := b.history.LoadURLTestHistory(tag)
 			if !force && history != nil && time.Since(history.Time) < interval {
+				// 缓存新鲜而跳过：本轮没有新观测，不能算成功也不能算失败。
+				b.round.record(tag, urlTestSkipped)
 				continue
 			}
 			b.checked[tag] = true
 			b.batch.Go(tag, func() (any, error) {
 				if b.ctx.Err() != nil {
+					b.round.record(tag, urlTestCanceled)
 					return nil, nil
 				}
 				testCtx, cancel := context.WithTimeout(b.ctx, 3*time.Second)
@@ -1178,11 +1322,14 @@ func (b *urlTestBatch) test(outbounds []adapter.Outbound, link string, interval 
 				// fresh and expired history instead of penalizing/deleting it.
 				// A member's own timeout still uses the normal failure policy.
 				if b.ctx.Err() != nil {
+					// 整轮预算/调用方取消：不是成员失败，也不写失败策略。
+					b.round.record(tag, urlTestCanceled)
 					return nil, nil
 				}
 				if testResult.err != nil {
 					b.logger.Debug("outbound ", tag, " unavailable: ", testResult.err)
-					b.probed.Add(1)
+					b.round.record(tag, urlTestFailure)
+					b.round.addProbed(1)
 					if b.group != nil {
 						// 归属组：按连续失败策略处理（首次惩罚、连续两次清史）。
 						b.group.applyMemberFailure(tag)
@@ -1192,7 +1339,8 @@ func (b *urlTestBatch) test(outbounds []adapter.Outbound, link string, interval 
 					}
 				} else {
 					b.logger.Debug("outbound ", tag, " available: ", testResult.delay, "ms")
-					b.probed.Add(1)
+					b.round.record(tag, urlTestSuccess)
+					b.round.addProbed(1)
 					b.history.StoreURLTestHistory(tag, &adapter.URLTestHistory{
 						Time:  time.Now(),
 						Delay: testResult.delay,
@@ -1224,14 +1372,15 @@ func (g *URLTestGroup) performUpdateCheck() {
 	g.performUpdateCheckLocked()
 }
 
-// performRoundEndCheck 是每轮探测结束的更新入口：先按本轮结果推进层级恢复门
-// （健康层连续计数 +1，全灭层清零并记失败时间），再重算选择。
+// performRoundEndCheck 是每轮探测结束的更新入口：先只按本轮新观测推进层级
+// 恢复门（层内有新成功 +1，无新成功但有新失败清零并记失败时间，全跳过/取消
+// 的层保持原状），再按新鲜历史重算选择。
 // 流式就绪（单成员成功）只调 performUpdateCheck，不推进门计数——
-// “检查次数”按轮次计，不按单个成员成功计。
-func (g *URLTestGroup) performRoundEndCheck() {
+// “检查次数”按轮次计，不按单个成员成功计；旧历史只用于选路。
+func (g *URLTestGroup) performRoundEndCheck(round *urlTestRound) {
 	g.updateAccess.Lock()
 	defer g.updateAccess.Unlock()
-	g.updateTierGateLocked(time.Now())
+	g.updateTierGateLocked(time.Now(), round)
 	g.performUpdateCheckLocked()
 }
 
