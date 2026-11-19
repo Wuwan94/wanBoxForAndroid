@@ -13,18 +13,19 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# v3.0.17 正式版：正式线元数据升至 3.0.17 / 2035（APK 10175），由 3.0.17 预览线晋升。
-# 两阶段发布完成后，候选/正式 run ID 与四件套实测字节、SHA-256 由收尾 PR 回填。
+# v3.0.17 正式版：正式线元数据为 3.0.17 / 2035（APK 10175），两阶段发布已完成并回填。
 STABLE_TAG = "v3.0.17"
 STABLE_CODE = "2035"
 STABLE_APK_CODE = "10175"
-# 正式发布不触发 prune：preview.4 仍是最近一次已发布预览，保留在 Releases 中。
-PUBLISHED_PREVIEW = "v3.0.17-preview.4"
-PUBLISHED_PREVIEW_COMMIT = "906a6ea3f48779cc96c7a4116cfd1faeb63aa354"
-# 源码预览线已前移到下一预览占位，仅为满足 PRE > FORMAL 断言，尚未发布。
+# v3.0.18-preview.1 已作为稳定性预览发布：Preview Build run 44516333684（2026-11-19T11:55:25Z 上架），
+# 发布触发 prune，上一预览 v3.0.17-preview.4 的 Release/tag 已删除。
+PUBLISHED_PREVIEW = "v3.0.18-preview.1"
+PUBLISHED_PREVIEW_COMMIT = "0a30baaf939a97b1941210609ce377e00d386157"
+# 源码预览线仍停在同一值（nb4a.properties 未再次升版）：已发布预览即源码预览，不再有未发布候选。
 SOURCE_PREVIEW = "v3.0.18-preview.1"
 SOURCE_PREVIEW_CODE = "2036"
-ARCHIVED_PREVIEW = "v3.0.17-preview.3"
+# 上一预览的 Release/tag 已在本次发布时清理，只保留历史说明与资产快照。
+ARCHIVED_PREVIEW = "v3.0.17-preview.4"
 HISTORY_MARKER = "历史归档"
 
 FILES = {
