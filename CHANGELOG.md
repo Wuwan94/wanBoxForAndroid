@@ -9,7 +9,7 @@
 - **晋升说明**：3.0.17 由预览线（preview.1–.4）晋升为正式版，聚合 v3.0.14 之后的全部变更：OwnBox 移植 B1–B4/B7a–c（含 O9a 落地 IP 缓存按实际在跑节点失效）、NetProxy 线 B5/B6/N6/B8、preview.3 的 URLTest 预算到期回切与诊断包 Android 12+ 读取、preview.4 的层级回切门与过期候选兜底，以及 PR #74（合并提交 `6a20a0ca7113decbe6155500dd9e70c79650bb5a`，`Verify Android Build` run `44465876305` 全绿）的分层向下容灾与回切门新观测计数。正式说明见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。
 - 版本映射为 Root 模块码 `2035`、APK `versionCode=10175`，严格高于 v3.0.14（`10130 / 2026`）、v3.0.17-preview.4（`10174 / 2034`）与 v3.0.11（`10065 / 2013`），同包名同签名可覆盖安装；`PRE_VERSION_NAME=3.0.18-preview.1` / `PRE_VERSION_CODE=2036` 仅为下一预览占位。
 - 发布方式：`release.yml` 两阶段（阶段一候选构建 `publish_release=false` → 核对 `SHA256SUMS` → 阶段二 `publish_release=true` 带 `candidate_run_id` 与 `expected_checksums_sha256`）；不执行 merge 之外的清理，正式版不触发 `prune_prereleases.py`，v3.0.14、v3.0.11 与 v3.0.17-preview.4 均保留。
-- 候选/正式 run ID 与四件套实测字节、SHA-256 属发布回读数据，发布完成后回填到[版本对照](docs/current-version.zh-CN.md)。
+- 发布结果：升版 PR #75 合并提交 `d4e7c5d049d877660108ea11f7212a9f04824cd6`；候选 run `44474557410`、正式 run `44477065390`（首次因 plugins.gradle.org 解析 Kotlin 插件瞬时不可用红在 `Build OSS APK`，未创建 Release/tag，重跑后全绿），2026-11-19T07:24:49Z 上架。四件套：APK `6363231` B / `5e21c0bf…b76dba`、Root ZIP `18133473` B / `8e4d9d16…493ef4`、合一 ZIP `23776260` B / `2a7ea8b1…b50b29`、`SHA256SUMS` `315` B / `c513a2c5…066d1ca`；APK + 模块 `24496704` 字节（23.36 MiB），低于 26 MiB 上限。逐项回读与四处同源核验见[版本对照](docs/current-version.zh-CN.md)。
 - 未做 Magisk / KernelSU / APatch 真机矩阵；自动化结果不等于 Root 真机签核，本版不宣称真机通过。
 
 ### v3.0.17-preview.4（已发布预览）

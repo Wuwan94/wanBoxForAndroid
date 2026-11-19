@@ -137,7 +137,7 @@ flowchart TB
 |:--|:--|:--|
 | 版本 | [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17)（非 prerelease） | [v3.0.17-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17-preview.4)（prerelease） |
 | 版本码 | APK `10175` · 模块码 `2035` | APK `10174` · 模块码 `2034` |
-| 体积 | 发布回读后回填（APK + 模块须低于 26 MiB 硬门禁） | APK 6.07 MiB · 模块 17.29 MiB · 合一包 22.67 MiB |
+| 体积 | APK 6.07 MiB · 模块 17.29 MiB · 合一包 22.67 MiB | APK 6.07 MiB · 模块 17.29 MiB · 合一包 22.67 MiB |
 | 适合 | 稳定优先，日常使用 | 想先试新功能，可随时回退 |
 
 | 资产 | 用途 |
