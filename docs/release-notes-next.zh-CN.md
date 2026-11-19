@@ -1,6 +1,18 @@
-# v3.0.17-preview.4 发行说明
+# v3.0.18-preview.1 发行说明（候选）
 
-**状态：已发布的稳定性预览版。**
+**状态：未发布的稳定性预览版候选。**
+
+本条目是 `nb4a.properties` 的下一预览占位：`PRE_VERSION_NAME=3.0.18-preview.1`、`PRE_VERSION_CODE=2036`（派生 APK `versionCode=10181`、Root 模块码 `2036`），仅用于满足 `PRE > FORMAL` 断言，**尚未发布、不含本版内容**；若下一预览要发布，必须在提交里把本区段替换为该版真实内容。正式线已晋升 `3.0.17 / 2035`（APK `10175`、模块 `2035`），正式说明见 [RELEASE_NOTES.md](RELEASE_NOTES.md)；下一次预览升版时以此为元数据基准，并在提交中补齐本区段内容。
+
+最近一次发布的预览是 `v3.0.17-preview.4`（`10174 / 2034`，源码 `906a6ea3`）：正式发布不触发 `prune_prereleases.py`，其 Release/tag 与资产保留，说明见下方历史归档。
+
+---
+
+## 历史归档
+
+### v3.0.17-preview.4 已发布说明
+
+**状态：已作为稳定性预览版发布。**
 
 本版基于 main `906a6ea3f48779cc96c7a4116cfd1faeb63aa354`（PR #72，`Verify Android Build` run `44372679147` 全绿后合并，2026-11-18T19:13:48Z），`Preview Build` run `44378329740` 于 2026-11-18T19:38:07Z 发布，发布 job 断言 `APPROVED_SHA=906a6ea3`。正式稳定版 `v3.0.14` / `2026` 与 sing-box pin `v1.15.0-alpha.13-reF1nd` 未变；预览元数据 `3.0.17-preview.4` / `2034`，派生 APK `versionCode=10174`、Root 模块码 `2034`（preview.3 为 `10168` / `2033`）。
 
@@ -24,11 +36,7 @@ URLTest 间隔 ≥10 秒、空闲 ≥30 分钟、切换不中断连接等硬约�
 
 ## 升级与验证边界
 
-同一 Release 的瘦管理器 APK 与 Root 模块必须成套安装。回退使用正式版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 与配套模块（模块码 `2026`）。PR #72 的 `Verify Android Build` run `44372679147` 全绿（插桩 debug/release 各 81 项 + 2 项定向复跑，0 失败）；发布 `Preview Build` run `44378329740` 四个 job 全部成功，四件套 `sha256sum -c` 与 digest 回读一致（APK `6363791` / 模块 `18131042` / 合一 `23774566` / `SHA256SUMS` `333` 字节，APK+模块 `24494833` 字节，余量 `2768143`，PASS）。未执行 Root 真机矩阵，自动化结果不等同于真实设备验证。
-
----
-
-## 历史归档
+同一 Release 的瘦管理器 APK 与 Root 模块必须成套安装。回退使用当前正式版 [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17) 的 APK 与配套模块（模块码 `2035`）。PR #72 的 `Verify Android Build` run `44372679147` 全绿（插桩 debug/release 各 81 项 + 2 项定向复跑，0 失败）；发布 `Preview Build` run `44378329740` 四个 job 全部成功，四件套 `sha256sum -c` 与 digest 回读一致（APK `6363791` / 模块 `18131042` / 合一 `23774566` / `SHA256SUMS` `333` 字节，APK+模块 `24494833` 字节，余量 `2768143`，PASS）。未执行 Root 真机矩阵，自动化结果不等同于真实设备验证。
 
 v3.0.17-preview.3 的已发布说明：tag/commit `6adc5ac0`，PR #69，`Verify Android Build` run `44295650161`，`Preview Build` run `44306599880` 于 2026-11-18T13:08:01Z 发布；APK `10168` / 模块 `2033`，Release/tag 已在 preview.4 发布后（19:38:15Z）按单预览策略清理。
 
