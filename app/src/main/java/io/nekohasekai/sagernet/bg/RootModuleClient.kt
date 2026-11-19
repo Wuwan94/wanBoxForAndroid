@@ -76,7 +76,7 @@ object RootModuleClient {
     @android.annotation.SuppressLint("SdCardPath")
     const val CLI = "/data/adb/modules/wanbox/bin/wanboxctl"
     private val commands = setOf("status", "module", "logs", "dashboard", "start", "stop", "resume", "restart", "reload",
-        "config apply", "config validate", "autostart on", "autostart off", "data prepare", "data finish", "data rollback",
+        "config apply", "config validate", "config rollback", "autostart on", "autostart off", "data prepare", "data finish", "data rollback",
         "node failover", "node tags", "diagnostics export")
     private val changes = Mutex()
     // @author 雾晚: status cache TTL. The foreground observer samples every

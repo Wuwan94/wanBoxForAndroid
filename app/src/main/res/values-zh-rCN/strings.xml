@@ -1288,6 +1288,13 @@
     <string name="health_check_summary_notify">仅提示（默认）：节点连续不通时在首页提示，不自动切换</string>
     <string name="health_check_summary_auto">自动切换：节点连续不通时切到同组最快节点（每小时最多 3 次）</string>
     <string name="health_check_apply_hint">下次连接或重载后生效</string>
+    <string name="module_version_subtitle">模块版本码 %1$d</string>
+    <string name="restart_core_title">重启核心</string>
+    <string name="restart_core_confirm">现在重启模块核心？正在使用的连接会中断。</string>
+    <string name="restart_core_done">核心已重启</string>
+    <string name="config_rollback_title">回滚配置</string>
+    <string name="config_rollback_confirm">回滚到模块保留的上一版配置？将替换当前配置并重启核心。</string>
+    <string name="config_rollback_done">已回滚到上一版配置</string>
     <string name="module_events_title">模块最近事件</string>
     <string name="module_events_empty">（暂无模块事件，或模块未安装）</string>
     <string name="update_storage_failed">更新文件写入失败，请检查剩余存储空间后重试；本次下载文件已清理。</string>

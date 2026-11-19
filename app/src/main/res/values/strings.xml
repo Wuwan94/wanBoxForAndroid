@@ -1403,6 +1403,13 @@
     <string name="health_check_summary_notify">Notify only (default): show a hint on the home page, never switch</string>
     <string name="health_check_summary_auto">Auto switch: move to the fastest node of the same group (max 3/hour)</string>
     <string name="health_check_apply_hint">Takes effect on next connect or reload</string>
+    <string name="module_version_subtitle">Module version code %1$d</string>
+    <string name="restart_core_title">Restart core</string>
+    <string name="restart_core_confirm">Restart the module core now? Active connections will drop.</string>
+    <string name="restart_core_done">Core restarted</string>
+    <string name="config_rollback_title">Roll back configuration</string>
+    <string name="config_rollback_confirm">Roll back to the previous configuration saved by the module? It replaces the current one and restarts the core.</string>
+    <string name="config_rollback_done">Rolled back to the previous configuration</string>
     <string name="module_events_title">Recent module events</string>
     <string name="module_events_empty">(no module events, or module not installed)</string>
     <string name="update_storage_failed">Unable to save this update. Check free storage and try again; files from this attempt were removed.</string>

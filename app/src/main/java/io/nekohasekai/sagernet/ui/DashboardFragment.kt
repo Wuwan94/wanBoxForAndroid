@@ -76,6 +76,15 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         toolbar.title = "wanBox"
+        // UI 对齐模块：顶栏副标题跟随模块版本流（热更新提交后版本号会跳），
+        // 让用户在首页就能看到模块版本；离开首页时在 onDestroyView 清掉。
+        viewLifecycleOwner.lifecycleScope.launch {
+            RootModuleClient.moduleVersionFlow.collect { code ->
+                if (isToolbarInitialized) {
+                    toolbar.subtitle = if (code > 0) getString(R.string.module_version_subtitle, code) else null
+                }
+            }
+        }
         view.findViewById<View>(R.id.connectButton).setOnClickListener { button ->
             if (SystemClock.elapsedRealtime() < operationUntil) return@setOnClickListener
             val host = activity as? MainActivity ?: return@setOnClickListener
@@ -562,6 +571,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         testResult = "—"; landingCheckedProfile = -1L
         renderedProfile = -1L; renderedState = null; operationUntil = 0L
         renderedHero = null; renderedDetail = null; nodeBound = false
+        if (isToolbarInitialized) toolbar.subtitle = null
         super.onDestroyView()
     }
     companion object {

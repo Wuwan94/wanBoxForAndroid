@@ -682,6 +682,7 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
                 }
             }
             addHealthCheckPreferences()
+            addModuleActionPreferences()
             // B5（N2）：脱敏诊断包一键导出。目标为系统 Download 目录，
             // 导出前用 design.md §10 原句确认残留风险。
             val exportDiagnostics = Preference(requireContext()).apply {
@@ -786,6 +787,88 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
                             else io.nekohasekai.sagernet.bg.RootModuleErrors.message(activity, error), android.widget.Toast.LENGTH_LONG).show()
                     }
                 }
+                true
+            }
+        })
+    }
+
+    /** UI 对齐模块：给模块已有但 App 没入口的动作补按钮——重启核心、
+     * 回滚到上一版配置；并给恢复的开机自启 XML 开关补即时下发。
+     * 全部走 RootModuleClient 既有命令，不新增模块侧能力。 */
+    private fun addModuleActionPreferences() {
+        val ctx = requireContext()
+        suspend fun report(activity: android.app.Activity, error: Exception?, doneText: String) {
+            onMainDispatcher {
+                if (activity.isFinishing || activity.isDestroyed) return@onMainDispatcher
+                if (error == null && doneText.isEmpty()) return@onMainDispatcher
+                android.widget.Toast.makeText(activity, if (error == null) doneText
+                    else io.nekohasekai.sagernet.bg.RootModuleErrors.message(activity, error), android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+        // 开机自启：isAutoConnect 已恢复为 XML 开关（global_preferences.xml），框架经
+        // preferenceDataStore 写入 configurationStore，与 DataStore.persistAcrossReboot
+        // 同一存储，持久化由框架负责；这里只补即时下发，让切换立刻同步模块的
+        // autostart 标志（config apply 时也会按同一值再下发一次）。
+        findPreference<SwitchPreference>(Key.PERSIST_ACROSS_REBOOT)?.setOnPreferenceChangeListener { _, newValue ->
+            val enabled = newValue as Boolean
+            val activity = requireActivity()
+            runOnDefaultDispatcher {
+                val error = try {
+                    io.nekohasekai.sagernet.bg.RootModuleClient.setAutoStart(enabled); null
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { e }
+                if (error != null) report(activity, error, "")
+            }
+            true
+        }
+        // 重启核心：模块 restart/reload 早已实现且在 App 白名单内，此前零调用方。
+        preferenceScreen.addPreference(Preference(ctx).apply {
+            key = "moduleRestartCore"
+            setTitle(R.string.restart_core_title)
+            setIcon(R.drawable.ic_baseline_refresh_24)
+            isPersistent = false
+            order = 103
+            setOnPreferenceClickListener {
+                MaterialAlertDialogBuilder(ctx).apply {
+                    setTitle(R.string.restart_core_title)
+                    setMessage(R.string.restart_core_confirm)
+                    setNegativeButton(android.R.string.cancel, null)
+                    setPositiveButton(R.string.restart_core_title) { _, _ ->
+                        val activity = requireActivity()
+                        val doneText = getString(R.string.restart_core_done)
+                        runOnDefaultDispatcher {
+                            val error = try {
+                                io.nekohasekai.sagernet.bg.RootModuleClient.call("restart"); null
+                            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { e }
+                            report(activity, error, doneText)
+                        }
+                    }
+                }.show()
+                true
+            }
+        })
+        // 配置回滚：模块保留 previous generation 专门供回滚（核心起不来时的
+        // 自救通道），此前 App 命令白名单不含 config rollback、UI 也无入口。
+        preferenceScreen.addPreference(Preference(ctx).apply {
+            key = "moduleConfigRollback"
+            setTitle(R.string.config_rollback_title)
+            isPersistent = false
+            order = 104
+            setOnPreferenceClickListener {
+                MaterialAlertDialogBuilder(ctx).apply {
+                    setTitle(R.string.config_rollback_title)
+                    setMessage(R.string.config_rollback_confirm)
+                    setNegativeButton(android.R.string.cancel, null)
+                    setPositiveButton(R.string.config_rollback_title) { _, _ ->
+                        val activity = requireActivity()
+                        val doneText = getString(R.string.config_rollback_done)
+                        runOnDefaultDispatcher {
+                            val error = try {
+                                io.nekohasekai.sagernet.bg.RootModuleClient.call("config rollback"); null
+                            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { e }
+                            report(activity, error, doneText)
+                        }
+                    }
+                }.show()
                 true
             }
         })
@@ -928,8 +1011,8 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
                 "showLandingIp", "alwaysShowAddress", "show_subscription_info_card",
                 "hapticFeedback",
             ),
-            // 设置首页「连接与核心」：只留首屏需要的两项，其余下沉到「高级设置」
-            "root" to listOf("connectionTestURL", "ipv6Mode"),
+            // 设置首页「连接与核心」：首屏项，其余下沉到「高级设置」
+            "root" to listOf("connectionTestURL", "ipv6Mode", "isAutoConnect"),
         )
 
         /** 「高级设置」分组（标题 to 键）。仅重新分组，键与默认值均不变。 */
