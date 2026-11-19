@@ -28,7 +28,7 @@ func TestFailoverCandidatesStayInCurrentTier(t *testing.T) {
 	storeTierHistory(t, grp, "a [T1]", 100)
 	storeTierHistory(t, grp, "b [T2]", 90)
 	// 当前生效层是 T2（currentTier=1），高层 T1 健康但门一次都没数过。
-	grp.currentTier = 1
+	grp.tierTCP.currentTier = 1
 	grp.selectedOutboundTCP = primary
 	close(grp.startupDone)
 
@@ -41,10 +41,10 @@ func TestFailoverCandidatesStayInCurrentTier(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected the connection to fail inside the exhausted current tier, got success")
 	}
-	if grp.currentTier != 1 {
-		t.Fatalf("failover must not rewrite currentTier across tiers, got %d", grp.currentTier)
+	if grp.tierTCP.currentTier != 1 {
+		t.Fatalf("failover must not rewrite currentTier across tiers, got %d", grp.tierTCP.currentTier)
 	}
-	if got := grp.tierGate.consecutiveOK[0]; got != 0 {
+	if got := grp.tierTCP.gate.consecutiveOK[0]; got != 0 {
 		t.Fatalf("failover must not advance the recovery gate, got %d healthy rounds", got)
 	}
 }
@@ -87,7 +87,7 @@ func TestFailoverUsesLowerTierAfterFreshPrimaryDialFailure(t *testing.T) {
 	grp := tierGroup(t, primary, lower)
 	storeTierHistory(t, grp, primary.Tag(), 100)
 	storeTierHistory(t, grp, lower.Tag(), 90)
-	grp.currentTier = 0
+	grp.tierTCP.currentTier = 0
 	grp.selectedOutboundTCP = primary
 	close(grp.startupDone)
 
@@ -122,12 +122,12 @@ func TestFailoverDowngradeKeepsSelectionUntilGateOpens(t *testing.T) {
 		t.Fatalf("expected lower-tier failover, got %v", err)
 	}
 	_ = conn.Close()
-	if grp.currentTier != 1 {
-		t.Fatalf("downward failover must move currentTier to the working lower tier, got %d", grp.currentTier)
+	if grp.tierTCP.currentTier != 1 {
+		t.Fatalf("downward failover must move currentTier to the working lower tier, got %d", grp.tierTCP.currentTier)
 	}
 
 	// 一轮只有低层的新观测：高层计数不涨，选择也不得回到高层。
-	grp.tierGate.lastFailure[0] = time.Now().Add(-61 * time.Second)
+	grp.tierTCP.gate.lastFailure[0] = time.Now().Add(-61 * time.Second)
 	grp.performRoundEndCheck(newObservedRound(observedOK("b [T2]")))
 	if selected, _ := grp.Select(N.NetworkTCP); selected == nil || selected.Tag() != "b [T2]" {
 		t.Fatalf("fresh high-tier history must not undo a downward failover, got %v", selected)
@@ -137,7 +137,7 @@ func TestFailoverDowngradeKeepsSelectionUntilGateOpens(t *testing.T) {
 	for i := 0; i < tierSwitchBackMinChecks; i++ {
 		grp.performRoundEndCheck(newObservedRound(observedOK("a [T1]"), observedOK("b [T2]")))
 	}
-	if got := grp.tierGate.consecutiveOK[0]; got != tierSwitchBackMinChecks {
+	if got := grp.tierTCP.gate.consecutiveOK[0]; got != tierSwitchBackMinChecks {
 		t.Fatalf("expected %d observed high-tier rounds, got %d", tierSwitchBackMinChecks, got)
 	}
 	selected, healthy := grp.Select(N.NetworkTCP)
@@ -297,10 +297,12 @@ func TestCachedOnlyRoundsDoNotAdvanceHigherTier(t *testing.T) {
 	grp := tierGroup(t, tierMember("a [T1]"), tierMember("b [T2]"))
 	storeTierHistory(t, grp, "a [T1]", 100)
 	storeTierHistory(t, grp, "b [T2]", 90)
-	grp.currentTier = 1
+	grp.tierTCP.currentTier = 1
+	grp.tierUDP.currentTier = 1
 	grp.selectedOutboundTCP = grp.outbounds[1]
 	grp.selectedOutboundUDP = grp.outbounds[1]
-	grp.tierGate.lastFailure[0] = time.Now().Add(-61 * time.Second)
+	grp.tierTCP.gate.lastFailure[0] = time.Now().Add(-61 * time.Second)
+	grp.tierUDP.gate.lastFailure[0] = time.Now().Add(-61 * time.Second)
 	for i := 0; i < tierSwitchBackMinChecks; i++ {
 		_, round, err := grp.urlTest(context.Background(), false)
 		if err != nil {
@@ -314,8 +316,11 @@ func TestCachedOnlyRoundsDoNotAdvanceHigherTier(t *testing.T) {
 			t.Fatalf("cached round %d must record both members as skipped, got %v", i+1, observations)
 		}
 	}
-	if got := grp.tierGate.consecutiveOK[0]; got != 0 {
+	if got := grp.tierTCP.gate.consecutiveOK[0]; got != 0 {
 		t.Fatalf("three cache-only rounds must not count as new high-tier successes, got %d", got)
+	}
+	if got := grp.tierUDP.gate.consecutiveOK[0]; got != 0 {
+		t.Fatalf("three cache-only rounds must not count as new UDP high-tier successes, got %d", got)
 	}
 	selected, _ := grp.Select(N.NetworkTCP)
 	if selected == nil || selected.Tag() != "b [T2]" {
@@ -339,7 +344,7 @@ func TestBudgetExpiryWithOnlyLowerTierProgressDoesNotSwitchBack(t *testing.T) {
 	storeTierHistory(t, grp, "b [T2]", 90)
 	grp.performRoundEndCheck(newObservedRound(observedFailed("a [T1]"), observedOK("b [T2]")))
 	storeTierHistory(t, grp, "a [T1]", 100)
-	grp.tierGate.lastFailure[0] = time.Now().Add(-61 * time.Second)
+	grp.tierTCP.gate.lastFailure[0] = time.Now().Add(-61 * time.Second)
 	for i := 0; i < tierSwitchBackMinChecks; i++ {
 		roundCtx, cancel := context.WithTimeout(context.Background(), 120*time.Millisecond)
 		_, round, err := grp.urlTest(roundCtx, true)
@@ -354,7 +359,7 @@ func TestBudgetExpiryWithOnlyLowerTierProgressDoesNotSwitchBack(t *testing.T) {
 			t.Fatalf("round %d: the high tier must stay unobserved, got %v", i+1, got)
 		}
 	}
-	if got := grp.tierGate.consecutiveOK[0]; got != 0 {
+	if got := grp.tierTCP.gate.consecutiveOK[0]; got != 0 {
 		t.Fatalf("lower-tier probes must not advance the unobserved higher tier, got %d", got)
 	}
 	selected, _ := grp.Select(N.NetworkTCP)
@@ -377,8 +382,10 @@ func TestBudgetExpiryWithoutProbesDoesNotAdvanceTierGate(t *testing.T) {
 	)
 	storeTierHistory(t, grp, "a [T1]", 100)
 	storeTierHistory(t, grp, "b [T2]", 90)
-	grp.currentTier = 1
-	grp.tierGate.consecutiveOK[0] = 0
+	grp.tierTCP.currentTier = 1
+	grp.tierUDP.currentTier = 1
+	grp.tierTCP.gate.consecutiveOK[0] = 0
+	grp.tierUDP.gate.consecutiveOK[0] = 0
 
 	roundCtx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
 	_, _, err := grp.urlTest(roundCtx, true)
@@ -386,7 +393,7 @@ func TestBudgetExpiryWithoutProbesDoesNotAdvanceTierGate(t *testing.T) {
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expected budget expiry, got %v", err)
 	}
-	if got := grp.tierGate.consecutiveOK[0]; got != 0 {
+	if got := grp.tierTCP.gate.consecutiveOK[0]; got != 0 {
 		t.Fatalf("a round with zero completed probes must not advance the tier gate, got %d healthy rounds", got)
 	}
 }

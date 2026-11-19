@@ -65,36 +65,44 @@ func TestTierGateObservationInvariants(t *testing.T) {
 	grp := tierGroup(t, tierMember("a [T1]"), tierMember("b [T2]"))
 
 	grp.performRoundEndCheck(newObservedRound(observedOK("a [T1]"), observedFailed("b [T2]")))
-	if grp.tierGate.consecutiveOK[0] != 1 || grp.tierGate.consecutiveOK[1] != 0 {
-		t.Fatalf("mixed round: want tier1=1 tier2=0, got %d/%d", grp.tierGate.consecutiveOK[0], grp.tierGate.consecutiveOK[1])
+	if grp.tierTCP.gate.consecutiveOK[0] != 1 || grp.tierTCP.gate.consecutiveOK[1] != 0 {
+		t.Fatalf("mixed round: want tier1=1 tier2=0, got %d/%d", grp.tierTCP.gate.consecutiveOK[0], grp.tierTCP.gate.consecutiveOK[1])
 	}
-	if _, failed := grp.tierGate.lastFailure[1]; !failed {
+	if _, failed := grp.tierTCP.gate.lastFailure[1]; !failed {
 		t.Fatal("low-tier failure must record its failure time")
 	}
 
 	grp.performRoundEndCheck(newObservedRound(observedSkipped("a [T1]"), observedSkipped("b [T2]")))
-	if grp.tierGate.consecutiveOK[0] != 1 || grp.tierGate.consecutiveOK[1] != 0 {
-		t.Fatalf("cache-skipped round must be neutral, got %d/%d", grp.tierGate.consecutiveOK[0], grp.tierGate.consecutiveOK[1])
+	if grp.tierTCP.gate.consecutiveOK[0] != 1 || grp.tierTCP.gate.consecutiveOK[1] != 0 {
+		t.Fatalf("cache-skipped round must be neutral, got %d/%d", grp.tierTCP.gate.consecutiveOK[0], grp.tierTCP.gate.consecutiveOK[1])
 	}
 
 	grp.performRoundEndCheck(newObservedRound(observedCanceled("a [T1]"), observedOK("b [T2]")))
-	if grp.tierGate.consecutiveOK[0] != 1 || grp.tierGate.consecutiveOK[1] != 1 {
-		t.Fatalf("canceled high tier must not advance: got %d/%d", grp.tierGate.consecutiveOK[0], grp.tierGate.consecutiveOK[1])
+	if grp.tierTCP.gate.consecutiveOK[0] != 1 || grp.tierTCP.gate.consecutiveOK[1] != 1 {
+		t.Fatalf("canceled high tier must not advance: got %d/%d", grp.tierTCP.gate.consecutiveOK[0], grp.tierTCP.gate.consecutiveOK[1])
 	}
 
 	// 高层完全没有条目（未观测），低层失败：高层计数既不加也不清。
 	grp.performRoundEndCheck(newObservedRound(observedFailed("b [T2]")))
-	if grp.tierGate.consecutiveOK[0] != 1 || grp.tierGate.consecutiveOK[1] != 0 {
-		t.Fatalf("unobserved high tier must stay untouched: got %d/%d", grp.tierGate.consecutiveOK[0], grp.tierGate.consecutiveOK[1])
+	if grp.tierTCP.gate.consecutiveOK[0] != 1 || grp.tierTCP.gate.consecutiveOK[1] != 0 {
+		t.Fatalf("unobserved high tier must stay untouched: got %d/%d", grp.tierTCP.gate.consecutiveOK[0], grp.tierTCP.gate.consecutiveOK[1])
 	}
 
 	before := time.Now()
 	grp.performRoundEndCheck(newObservedRound(observedFailed("a [T1]"), observedOK("b [T2]")))
-	if grp.tierGate.consecutiveOK[0] != 0 {
-		t.Fatalf("a new high-tier failure must reset consecutiveOK, got %d", grp.tierGate.consecutiveOK[0])
+	if grp.tierTCP.gate.consecutiveOK[0] != 0 {
+		t.Fatalf("a new high-tier failure must reset consecutiveOK, got %d", grp.tierTCP.gate.consecutiveOK[0])
 	}
-	if last, failed := grp.tierGate.lastFailure[0]; !failed || last.Before(before) {
+	if last, failed := grp.tierTCP.gate.lastFailure[0]; !failed || last.Before(before) {
 		t.Fatalf("a new high-tier failure must refresh lastFailure, got %v", last)
+	}
+
+	// 成员同时支持两个网络时，两侧门必须推进到完全一致的状态。
+	if !reflect.DeepEqual(grp.tierTCP.gate.consecutiveOK, grp.tierUDP.gate.consecutiveOK) ||
+		!reflect.DeepEqual(grp.tierTCP.gate.lastFailure, grp.tierUDP.gate.lastFailure) {
+		t.Fatalf("both-network members must advance both gates identically: TCP=%v/%v UDP=%v/%v",
+			grp.tierTCP.gate.consecutiveOK, grp.tierTCP.gate.lastFailure,
+			grp.tierUDP.gate.consecutiveOK, grp.tierUDP.gate.lastFailure)
 	}
 }
 
@@ -119,10 +127,10 @@ func TestMixedTierObservationsInOneRound(t *testing.T) {
 	if round.probed() != 2 {
 		t.Fatalf("expected two completed probes, got %d", round.probed())
 	}
-	if grp.tierGate.consecutiveOK[0] != 1 || grp.tierGate.consecutiveOK[1] != 0 {
-		t.Fatalf("mixed round gate: got %d/%d", grp.tierGate.consecutiveOK[0], grp.tierGate.consecutiveOK[1])
+	if grp.tierTCP.gate.consecutiveOK[0] != 1 || grp.tierTCP.gate.consecutiveOK[1] != 0 {
+		t.Fatalf("mixed round gate: got %d/%d", grp.tierTCP.gate.consecutiveOK[0], grp.tierTCP.gate.consecutiveOK[1])
 	}
-	if _, failed := grp.tierGate.lastFailure[1]; !failed {
+	if _, failed := grp.tierTCP.gate.lastFailure[1]; !failed {
 		t.Fatal("low-tier failure time must be recorded")
 	}
 }
@@ -143,7 +151,7 @@ func TestRoundObservationsDoNotLeakAcrossRounds(t *testing.T) {
 		&delayedDialOutbound{Adapter: outbound.NewAdapter("loopback", "b [T2]", []string{"tcp", "udp"}, nil), server: fastServer},
 	)
 	storeTierHistory(t, grp, "b [T2]", 90)
-	grp.tierGate.lastFailure[0] = time.Now().Add(-61 * time.Second)
+	grp.tierTCP.gate.lastFailure[0] = time.Now().Add(-61 * time.Second)
 
 	runExpiredRound := func() *urlTestRound {
 		t.Helper()
@@ -169,16 +177,16 @@ func TestRoundObservationsDoNotLeakAcrossRounds(t *testing.T) {
 	if !reflect.DeepEqual(firstSnapshot, first.snapshot()) {
 		t.Fatalf("late result leaked into the closed round: before=%v after=%v", firstSnapshot, first.snapshot())
 	}
-	if grp.tierGate.consecutiveOK[0] != 0 || grp.tierGate.consecutiveOK[1] != 1 {
-		t.Fatalf("first round gate: got %d/%d", grp.tierGate.consecutiveOK[0], grp.tierGate.consecutiveOK[1])
+	if grp.tierTCP.gate.consecutiveOK[0] != 0 || grp.tierTCP.gate.consecutiveOK[1] != 1 {
+		t.Fatalf("first round gate: got %d/%d", grp.tierTCP.gate.consecutiveOK[0], grp.tierTCP.gate.consecutiveOK[1])
 	}
 
 	second := runExpiredRound()
 	if second == first {
 		t.Fatal("each probe round must own a fresh observation set")
 	}
-	if grp.tierGate.consecutiveOK[0] != 0 || grp.tierGate.consecutiveOK[1] != 2 {
-		t.Fatalf("second round must not resurrect the unobserved high tier: %d/%d", grp.tierGate.consecutiveOK[0], grp.tierGate.consecutiveOK[1])
+	if grp.tierTCP.gate.consecutiveOK[0] != 0 || grp.tierTCP.gate.consecutiveOK[1] != 2 {
+		t.Fatalf("second round must not resurrect the unobserved high tier: %d/%d", grp.tierTCP.gate.consecutiveOK[0], grp.tierTCP.gate.consecutiveOK[1])
 	}
 	selected, _ := grp.Select(N.NetworkTCP)
 	if selected == nil || selected.Tag() != "b [T2]" {
@@ -237,7 +245,7 @@ func TestConcurrentChecksShareOneRound(t *testing.T) {
 			t.Fatalf("joiner %d did not share the leader round", i)
 		}
 	}
-	if got := grp.tierGate.consecutiveOK[0]; got != 1 {
+	if got := grp.tierTCP.gate.consecutiveOK[0]; got != 1 {
 		t.Fatalf("the shared round must advance the high tier exactly once, got %d", got)
 	}
 }
