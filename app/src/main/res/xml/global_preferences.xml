@@ -138,6 +138,14 @@
             app:summary="@string/performance_priority_mode_summary"
             app:title="@string/performance_priority_mode" />
 
+        <!-- @author 雾晚：2026-11-19 经作者决定恢复（原 Root 精简移除）：开机自启，模块 autostart 命令为底层 -->
+        <SwitchPreference
+            app:defaultValue="false"
+            app:icon="@drawable/ic_communication_phonelink_ring"
+            app:key="isAutoConnect"
+            app:summary="@string/auto_connect_summary"
+            app:title="@string/auto_connect" />
+
     </moe.matsuri.nb4a.ui.ExpandablePreferenceCategory>
 
     <!-- 3. 维护与诊断：日志、测速、诊断 -->

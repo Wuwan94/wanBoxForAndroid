@@ -1404,10 +1404,6 @@
     <string name="health_check_summary_auto">Auto switch: move to the fastest node of the same group (max 3/hour)</string>
     <string name="health_check_apply_hint">Takes effect on next connect or reload</string>
     <string name="module_version_subtitle">Module version code %1$d</string>
-    <string name="autostart_title">Start on boot</string>
-    <string name="autostart_summary">Start the core automatically when the device boots</string>
-    <string name="autostart_enabled">Start on boot enabled</string>
-    <string name="autostart_disabled">Start on boot disabled</string>
     <string name="restart_core_title">Restart core</string>
     <string name="restart_core_confirm">Restart the module core now? Active connections will drop.</string>
     <string name="restart_core_done">Core restarted</string>

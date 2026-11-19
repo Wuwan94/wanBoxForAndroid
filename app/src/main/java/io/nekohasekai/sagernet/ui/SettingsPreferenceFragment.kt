@@ -792,43 +792,34 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
         })
     }
 
-    /** UI 对齐模块：给模块已有但 App 没入口的动作补开关/按钮——开机自启、
-     * 重启核心、回滚到上一版配置。全部走 RootModuleClient 既有命令，
-     * 不新增模块侧能力。 */
+    /** UI 对齐模块：给模块已有但 App 没入口的动作补按钮——重启核心、
+     * 回滚到上一版配置；并给恢复的开机自启 XML 开关补即时下发。
+     * 全部走 RootModuleClient 既有命令，不新增模块侧能力。 */
     private fun addModuleActionPreferences() {
         val ctx = requireContext()
         suspend fun report(activity: android.app.Activity, error: Exception?, doneText: String) {
             onMainDispatcher {
                 if (activity.isFinishing || activity.isDestroyed) return@onMainDispatcher
+                if (error == null && doneText.isEmpty()) return@onMainDispatcher
                 android.widget.Toast.makeText(activity, if (error == null) doneText
                     else io.nekohasekai.sagernet.bg.RootModuleErrors.message(activity, error), android.widget.Toast.LENGTH_LONG).show()
             }
         }
-        // 开机自启：模块开机时按 autostart 设置拉起核心；此前 persistAcrossReboot
-        // 在 UI 层没有任何绑定，config apply 永远按默认 false 下发，用户开不了。
-        // 开关写回同一 DataStore 值（apply 路径也读它），并立即下发模块命令。
-        preferenceScreen.addPreference(SwitchPreference(ctx).apply {
-            key = "moduleAutostart"
-            setTitle(R.string.autostart_title)
-            setSummary(R.string.autostart_summary)
-            setIcon(R.drawable.ic_baseline_power_24)
-            isPersistent = false
-            setChecked(DataStore.persistAcrossReboot)
-            order = 102
-            setOnPreferenceChangeListener { _, newValue ->
-                val enabled = newValue as Boolean
-                DataStore.persistAcrossReboot = enabled
-                val activity = requireActivity()
-                val doneText = getString(if (enabled) R.string.autostart_enabled else R.string.autostart_disabled)
-                runOnDefaultDispatcher {
-                    val error = try {
-                        io.nekohasekai.sagernet.bg.RootModuleClient.setAutoStart(enabled); null
-                    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { e }
-                    report(activity, error, doneText)
-                }
-                true
+        // 开机自启：isAutoConnect 已恢复为 XML 开关（global_preferences.xml），框架经
+        // preferenceDataStore 写入 configurationStore，与 DataStore.persistAcrossReboot
+        // 同一存储，持久化由框架负责；这里只补即时下发，让切换立刻同步模块的
+        // autostart 标志（config apply 时也会按同一值再下发一次）。
+        findPreference<SwitchPreference>(Key.PERSIST_ACROSS_REBOOT)?.setOnPreferenceChangeListener { _, newValue ->
+            val enabled = newValue as Boolean
+            val activity = requireActivity()
+            runOnDefaultDispatcher {
+                val error = try {
+                    io.nekohasekai.sagernet.bg.RootModuleClient.setAutoStart(enabled); null
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { e }
+                if (error != null) report(activity, error, "")
             }
-        })
+            true
+        }
         // 重启核心：模块 restart/reload 早已实现且在 App 白名单内，此前零调用方。
         preferenceScreen.addPreference(Preference(ctx).apply {
             key = "moduleRestartCore"
@@ -1020,8 +1011,8 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
                 "showLandingIp", "alwaysShowAddress", "show_subscription_info_card",
                 "hapticFeedback",
             ),
-            // 设置首页「连接与核心」：只留首屏需要的两项，其余下沉到「高级设置」
-            "root" to listOf("connectionTestURL", "ipv6Mode"),
+            // 设置首页「连接与核心」：首屏项，其余下沉到「高级设置」
+            "root" to listOf("connectionTestURL", "ipv6Mode", "isAutoConnect"),
         )
 
         /** 「高级设置」分组（标题 to 键）。仅重新分组，键与默认值均不变。 */

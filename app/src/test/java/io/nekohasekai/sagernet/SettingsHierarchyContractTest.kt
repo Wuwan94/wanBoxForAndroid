@@ -16,7 +16,8 @@ class SettingsHierarchyContractTest {
         "acquireWakeLock", "wakeResetConnections", "networkChangeResetConnections", "showDirectSpeed", "speedInterval",
         "appTheme", "showBottomBar", "showAllGroupsTab")
     // @author 雾晚：明确授权移除的 UI 项（Root 精简），key 保留迁移兼容
-    private val authorizedUiRemovals = setOf("enableClashAPI", "hideFromRecentApps", "isAutoConnect",
+    // isAutoConnect 已于 2026-11-19 经作者决定恢复为 XML 开关，不再属于移除项
+    private val authorizedUiRemovals = setOf("enableClashAPI", "hideFromRecentApps",
         // phase2 D8/D9/D10b：只读伪设置行、恒隐藏项与重复开关已移除 UI；键保留，proxyApps/hideUnavailableProfiles 仍由分应用页与节点页读写
         "serviceMode", "tunImplementation", "perAppProxyEntry", "proxyApps", "hideUnavailableProfiles")
     @Test fun everyOldKeyKeepsItsValueContractAndControlType() {
@@ -98,7 +99,7 @@ class SettingsHierarchyContractTest {
         }
 
         val fragment = File("src/main/java/io/nekohasekai/sagernet/ui/SettingsPreferenceFragment.kt").readText()
-        for (keyName in listOf("PERSIST_ACROSS_REBOOT", "ENABLE_CLASH_API", "HIDE_FROM_RECENT_APPS")) {
+        for (keyName in listOf("ENABLE_CLASH_API", "HIDE_FROM_RECENT_APPS")) {
             assertFalse("Fragment must not look up Key.$keyName", fragment.contains("findPreference<SwitchPreference>(Key.$keyName)"))
             assertFalse("Fragment must not reference Key.$keyName", fragment.contains("Key.$keyName"))
         }
@@ -116,7 +117,7 @@ class SettingsHierarchyContractTest {
 
         val store = File("src/main/java/io/nekohasekai/sagernet/database/DataStore.kt").readText()
         assertTrue("DataStore must keep persistAcrossReboot delegation",
-            store.contains("val persistAcrossReboot by configurationStore.boolean(Key.PERSIST_ACROSS_REBOOT) { false }"))
+            store.contains("var persistAcrossReboot by configurationStore.boolean(Key.PERSIST_ACROSS_REBOOT) { false }"))
         assertTrue("DataStore must keep enableClashAPI delegation",
             store.contains("var enableClashAPI by configurationStore.boolean(Key.ENABLE_CLASH_API) { true }"))
         assertTrue("DataStore must keep hideFromRecentApps delegation",

@@ -1289,10 +1289,6 @@
     <string name="health_check_summary_auto">自动切换：节点连续不通时切到同组最快节点（每小时最多 3 次）</string>
     <string name="health_check_apply_hint">下次连接或重载后生效</string>
     <string name="module_version_subtitle">模块版本码 %1$d</string>
-    <string name="autostart_title">开机自启</string>
-    <string name="autostart_summary">设备开机后自动启动核心</string>
-    <string name="autostart_enabled">已开启开机自启</string>
-    <string name="autostart_disabled">已关闭开机自启</string>
     <string name="restart_core_title">重启核心</string>
     <string name="restart_core_confirm">现在重启模块核心？正在使用的连接会中断。</string>
     <string name="restart_core_done">核心已重启</string>
