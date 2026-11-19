@@ -58,7 +58,7 @@ URLTest 稳定性约束（检测间隔 ≥ 10 秒、空闲超时 ≥ 30 分钟�
 
 - **运行要求**：Android 12+（API 31+）、arm64-v8a、Magisk / KernelSU / APatch 等 Root 环境。
 - **版本对齐**：APK `versionName=3.0.17-preview.4` / `versionCode=10174`；Root 模块码 `2034`。瘦管理器和 Root 模块必须来自同一 Release、同版成套使用。
-- **回退**：使用正式稳定版 [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14) 的 APK 与配套 Root 模块（模块码 `2026`）；不要混用不同 Release 的 APK 和模块。上一预览 preview.3 已按单预览策略在本版发布后被清理。
+- **回退**：使用当前正式版 [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17) 的 APK 与配套 Root 模块（模块码 `2035`）；不要混用不同 Release 的 APK 和模块。上一预览 preview.3 已按单预览策略在本版发布后被清理。
 
 | 文件 | 字节 | SHA-256 |
 |---|---:|---|
