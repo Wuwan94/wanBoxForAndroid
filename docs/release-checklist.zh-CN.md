@@ -1,6 +1,6 @@
 # v3.0.17 正式版发布清单
 
-本版 **v3.0.17 为正式版（非预览）**：正式线元数据由 `3.0.14 / 2026` 晋升为 `3.0.17 / 2035`（APK `versionCode=10175`、Root 模块码 `2035`），内容承接 3.0.17 预览线（preview.1–.4）与 PR #74 的全部修复。用户已明确指令“我新的提交通过了，你帮我合并发布正式版”（2026-11-19），本次按 `release.yml` **两阶段**流程执行：阶段一候选构建（`publish_release=false`）→ 核对 `SHA256SUMS` → 阶段二正式上架（`publish_release=true`，带 `candidate_run_id` 与 `expected_checksums_sha256`）。候选/正式 run ID 与四件套实测字节、SHA-256 属发布回读数据，发布完成后由收尾 PR 回填。**Root 真机矩阵仍未执行**，不以自动化结果代替真机签核。
+本版 **v3.0.17 为正式版（非预览）**：正式线元数据由 `3.0.14 / 2026` 晋升为 `3.0.17 / 2035`（APK `versionCode=10175`、Root 模块码 `2035`），内容承接 3.0.17 预览线（preview.1–.4）与 PR #74 的全部修复。用户已明确指令“我新的提交通过了，你帮我合并发布正式版”（2026-11-19），本次按 `release.yml` **两阶段**流程执行：阶段一候选构建（`publish_release=false`）→ 核对 `SHA256SUMS` → 阶段二正式上架（`publish_release=true`，带 `candidate_run_id` 与 `expected_checksums_sha256`）。本版已于 2026-11-19T07:24:49Z 上架（候选 run `44474557410` → 正式 run `44477065390`），四件套字节与 SHA-256 已回读入本清单与[版本对照](current-version.zh-CN.md)。**Root 真机矩阵仍未执行**，不以自动化结果代替真机签核。
 
 ## 当前基线与不可变约束
 
@@ -56,15 +56,18 @@ S4 阶段二（正式上架）：二次触发 release.yml，tag=v3.0.17、publis
 S5 发布后回读 Release API：prerelease=false、四件套名称/大小/SHA256 吻合、
    tag / targetCommitish / APPROVED_SHA / APK 内 version-control-info 四处同源、
    v3.0.14、v3.0.11 与 v3.0.17-preview.4 均完好保留
-S6 收尾 PR：把候选/正式 run ID、实测字节与 SHA-256 回填到本清单与版本对照
+S6 收尾 PR：把候选/正式 run ID、实测字节与 SHA-256 回填到本清单与版本对照（已完成）
 ```
 
 > Release 正文由 CI 从 `RELEASE_NOTES.md` 复制生成；发布后若需勘误，只编辑 Release 正文（`PATCH /repos/{owner}/{repo}/releases/{id}`），不覆盖 tag、不重发同名 Release。
 
-## 本次发布证据（截至升版 PR）
+## 本次发布证据
 
 - PR #74（`fix/urltest-tier-failover-observations`）：`Verify Android Build` run `44465876305` 在 head `1553d0b2` 全绿，2026-11-19T06:07:25Z 以 `--merge` 合入，合并提交 `6a20a0ca7113decbe6155500dd9e70c79650bb5a`；远端分支已删除。
-- 升版 PR 内本地门禁：`python3 -m unittest discover -s tools -p 'test_*.py'`、`tools/check_current_version_docs.py`、`tools/version_code.py --enforce`、`--check-kotlin`、`--check-app-tag`、`git diff --check` 全部通过；CI 侧以 `Verify Android Build` 为准。
+- 升版 PR #75：`Verify Android Build` run `44470604018`（head `b8a29c4`）全绿，2026-11-19T06:45:34Z 以 `--merge` 合入，合并提交 `d4e7c5d049d877660108ea11f7212a9f04824cd6`（即 `APPROVED_SHA`）。本地另跑 `tools` 125 项单测、`check_current_version_docs`、`version_code --enforce` / `--check-kotlin` / `--check-app-tag`、`check_core_gate`、`roo_check_repo_governance`、`git diff --check`，全部通过。
+- 阶段一（候选，run `44474557410`，main @ `d4e7c5d0`）：`Native Build (LibCore)`、`Build OSS APK`、`Verify formal update contract`、`Prepare Release Candidate Assets (No Publish)` 全 success，`Publish Release` 按设计 skipped。候选 `SHA256SUMS` 文件自身 SHA-256 `c513a2c5ee823bec096e5b8413cefc6270c2c853c83d59c604d039065c66d1ca`。
+- 阶段二（正式，run `44477065390`）：首次在 `Build OSS APK` 的「Run unit and Android tests」红于 plugins.gradle.org 解析 `org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.21` / `kotlin-gradle-plugins-bom` 瞬时不可用，失败在发布断言之前，未创建任何 Release/tag；`gh run rerun --failed` 后四作业全绿，2026-11-19T07:24:49Z 发布。
+- 发布后回读：`prerelease=false`、资产 4 个、名称/大小/digest 与 `SHA256SUMS` 一致；APK `6363231` B / `5e21c0bf…b76dba`、Root ZIP `18133473` B / `8e4d9d16…493ef4`、合一 ZIP `23776260` B / `2a7ea8b1…b50b29`、`SHA256SUMS` `315` B / `c513a2c5…066d1ca`；APK + 模块 `24496704` B（23.36 MiB）< `27262976` B。本地 `sha256sum -c` 三件 OK；APK manifest `versionCode=10175` / `versionName=3.0.17`，无 `lib/`；模块 `3.0.17 / 2035`；四处同源均为 `d4e7c5d0`；`v3.0.14`、`v3.0.11` 与 `v3.0.17-preview.4` 保留。
 
 ## 真机待签核矩阵（不能用模拟器代替）
 
