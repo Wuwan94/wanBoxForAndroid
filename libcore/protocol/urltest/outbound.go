@@ -525,7 +525,10 @@ func (g *URLTestGroup) promoteFailover(winner adapter.Outbound, network string) 
 	// 向下容灾必须把生效层一并下移：否则高层历史仍新鲜时，下一次
 	// performUpdateCheckLocked 会立刻按“当前层就是高层”把选择拉回去，
 	// 回切门形同虚设。向上回切仍只由轮次收尾的新观测门裁决。
-	g.currentTier = g.tierOfTag(tag)
+	// 只下移本网络的生效层：另一网络可能仍在高层健康运行，不得连带下移。
+	if state := g.tierStateLocked(network); state != nil {
+		state.currentTier = g.tierOfTag(tag)
+	}
 	if selected && g.interruptExternalConnections {
 		g.interruptGroup.Interrupt(true)
 	}
@@ -577,17 +580,51 @@ type URLTestGroup struct {
 	failCount  map[string]int
 	// B7c/O7：与 outbounds 等长的层级序号（由成员 tag 后缀解析；未分层组全为 0）。
 	tiers []int
-	// B7c/O7：层级恢复门状态（每层连续健康轮次数与上次失败时间）与当前
-	// 所在层级（-1 = 尚未选过）。门状态只在 performRoundEndCheck
-	//（每轮探测结束，持有 updateAccess 写锁）里更新，selectLocked 只读。
-	tierGate    tierRecoveryGateState
-	currentTier int
+	// B7c/O7：层级状态按网络各存一份（TCP 与 UDP 分开）：各自的当前所在
+	// 层级（-1 = 尚未选过）与恢复门。两个网络的故障转移/回切互不影响——
+	// 共用一份会让 TCP 的降级把 UDP 也拖离高层（反之亦然）。门状态只在
+	// performRoundEndCheck（每轮探测结束，持有 updateAccess 写锁）里更新，
+	// selectLocked 只读。
+	tierTCP tierNetworkState
+	tierUDP tierNetworkState
 }
 
 // tierRecoveryGateState 是层级恢复门的状态：每层连续健康轮次数与上次失败时间。
 type tierRecoveryGateState struct {
 	consecutiveOK map[int]int
 	lastFailure   map[int]time.Time
+}
+
+// tierNetworkState 是单个网络（TCP 或 UDP）的层级状态：当前所在层级
+// 与该网络自己的恢复门。两个网络各持一份，状态互不共享（包括 map 实例）。
+type tierNetworkState struct {
+	currentTier int
+	gate        tierRecoveryGateState
+}
+
+// newTierNetworkState 初始化一个网络的层级状态：currentTier=-1
+// （尚未选过），恢复门的两个 map 独立新建。
+func newTierNetworkState() tierNetworkState {
+	return tierNetworkState{
+		currentTier: -1,
+		gate: tierRecoveryGateState{
+			consecutiveOK: make(map[int]int),
+			lastFailure:   make(map[int]time.Time),
+		},
+	}
+}
+
+// tierStateLocked 返回指定网络的层级状态（调用方须已持有 updateAccess
+// 读锁或写锁）。非 TCP/UDP 网络返回 nil。
+func (g *URLTestGroup) tierStateLocked(network string) *tierNetworkState {
+	switch network {
+	case N.NetworkTCP:
+		return &g.tierTCP
+	case N.NetworkUDP:
+		return &g.tierUDP
+	default:
+		return nil
+	}
 }
 
 func NewURLTestGroup(ctx context.Context, outboundManager adapter.OutboundManager, logger log.Logger, outbounds []adapter.Outbound, link string, interval time.Duration, tolerance uint16, idleTimeout time.Duration, interruptExternalConnections bool) (*URLTestGroup, error) {
@@ -643,11 +680,8 @@ func NewURLTestGroup(ctx context.Context, outboundManager adapter.OutboundManage
 		interruptGroup:               interrupt.NewGroup(),
 		interruptExternalConnections: interruptExternalConnections,
 		tiers:                        tiers,
-		tierGate: tierRecoveryGateState{
-			consecutiveOK: make(map[int]int),
-			lastFailure:   make(map[int]time.Time),
-		},
-		currentTier: -1,
+		tierTCP:                      newTierNetworkState(),
+		tierUDP:                      newTierNetworkState(),
 	}, nil
 }
 
@@ -931,70 +965,84 @@ func (g *URLTestGroup) effectiveTierLocked(network string) (int, bool) {
 	if candidate < 0 {
 		return 0, false
 	}
-	if g.currentTier >= 0 && candidate < g.currentTier &&
-		!g.canSwitchBackTo(candidate, time.Now()) &&
-		g.tierHealthyLocked(g.currentTier, network) {
-		return g.currentTier, true
+	state := g.tierStateLocked(network)
+	if state != nil && state.currentTier >= 0 && candidate < state.currentTier &&
+		!g.canSwitchBackTo(network, candidate, time.Now()) &&
+		g.tierHealthyLocked(state.currentTier, network) {
+		return state.currentTier, true
 	}
 	return candidate, true
 }
 
-// canSwitchBackTo 判定是否允许切回某高层：连续健康轮次达标，且距上次失败
-// 已满无失败持续时间；从未失败过的层只看轮次。
-func (g *URLTestGroup) canSwitchBackTo(tier int, now time.Time) bool {
-	if g.tierGate.consecutiveOK[tier] < tierSwitchBackMinChecks {
+// canSwitchBackTo 判定指定网络是否允许切回某高层：只读该网络自己的
+// 恢复门——连续健康轮次达标，且距上次失败已满无失败持续时间；
+// 从未失败过的层只看轮次。未知网络无门可依，不允许回切。
+func (g *URLTestGroup) canSwitchBackTo(network string, tier int, now time.Time) bool {
+	state := g.tierStateLocked(network)
+	if state == nil {
 		return false
 	}
-	if lastFail, failed := g.tierGate.lastFailure[tier]; failed {
+	if state.gate.consecutiveOK[tier] < tierSwitchBackMinChecks {
+		return false
+	}
+	if lastFail, failed := state.gate.lastFailure[tier]; failed {
 		return !now.Before(lastFail.Add(tierSwitchBackMinFailureFree))
 	}
 	return true
 }
 
-// updateTierGateLocked 只按本轮的新观测推进层级恢复门（调用方须持有写锁）。
-// 层内任一成员本轮新成功即为一个健康轮；没有新成功但至少一个新失败时，
+// updateTierGateLocked 只按本轮的新观测推进层级恢复门（调用方须持有写锁），
+// TCP 与 UDP 各自推进自己网络的门：成员按其支持的网络分别归属，一个
+// 网络的观测不推进另一个网络的门。层内任一成员在该网络上本轮新成功
+// 即为该网络的一个健康轮；没有新成功但至少一个新失败时，该网络的
 // 连续健康计数清零并记录失败时间。全部跳过/取消/未观测的层保持原状态，
 // 既不累计也不清零；旧历史只用于选路，不再冒充本轮成功。
 func (g *URLTestGroup) updateTierGateLocked(now time.Time, round *urlTestRound) {
 	observations := round.snapshot()
-	for _, tier := range g.distinctTiers() {
-		tierObservation := urlTestUnobserved
-		for i, detour := range g.outbounds {
-			if g.tierAt(i) != tier {
-				continue
-			}
-			observation := g.memberObservation(detour, observations)
-			if observation == urlTestSuccess {
-				tierObservation = urlTestSuccess
-				break
-			}
-			if observation == urlTestFailure {
-				tierObservation = urlTestFailure
-			}
+	for _, network := range []string{N.NetworkTCP, N.NetworkUDP} {
+		state := g.tierStateLocked(network)
+		if state == nil {
+			continue
 		}
-		switch tierObservation {
-		case urlTestSuccess:
-			g.tierGate.consecutiveOK[tier]++
-		case urlTestFailure:
-			g.tierGate.consecutiveOK[tier] = 0
-			g.tierGate.lastFailure[tier] = now
+		for _, tier := range g.distinctTiers() {
+			tierObservation := urlTestUnobserved
+			for i, detour := range g.outbounds {
+				if g.tierAt(i) != tier || !common.Contains(detour.Network(), network) {
+					continue
+				}
+				observation := g.memberObservation(detour, observations, network)
+				if observation == urlTestSuccess {
+					tierObservation = urlTestSuccess
+					break
+				}
+				if observation == urlTestFailure {
+					tierObservation = urlTestFailure
+				}
+			}
+			switch tierObservation {
+			case urlTestSuccess:
+				state.gate.consecutiveOK[tier]++
+			case urlTestFailure:
+				state.gate.consecutiveOK[tier] = 0
+				state.gate.lastFailure[tier] = now
+			}
 		}
 	}
 }
 
-// memberObservation 读取直接成员的轮次结果。嵌套 URLTest 在批量探测时
-// 会按直接成员 tag 汇总整棵子树；其他组则回退到其实际选中的叶子 tag。
-func (g *URLTestGroup) memberObservation(detour adapter.Outbound, observations map[string]urlTestObservation) urlTestObservation {
+// memberObservation 读取直接成员在指定网络上的轮次结果。成员不支持该
+// 网络时无观测；嵌套 URLTest 在批量探测时会按直接成员 tag 汇总整棵
+// 子树；其他组则回退到其在该网络上实际选中的叶子 tag（RealTag 按网络
+// 取 key，TCP 的观测不会被 UDP 读到，反之亦然）。
+func (g *URLTestGroup) memberObservation(detour adapter.Outbound, observations map[string]urlTestObservation, network string) urlTestObservation {
+	if !common.Contains(detour.Network(), network) {
+		return urlTestUnobserved
+	}
 	if observation := observations[detour.Tag()]; observation != urlTestUnobserved {
 		return observation
 	}
-	for _, network := range []string{N.NetworkTCP, N.NetworkUDP} {
-		if !common.Contains(detour.Network(), network) {
-			continue
-		}
-		if observation := observations[group.RealTag(detour, network)]; observation != urlTestUnobserved {
-			return observation
-		}
+	if observation := observations[group.RealTag(detour, network)]; observation != urlTestUnobserved {
+		return observation
 	}
 	return urlTestUnobserved
 }
@@ -1405,11 +1453,14 @@ func (g *URLTestGroup) performUpdateCheckLocked() {
 		g.selectedOutboundUDP = outbound
 		selected = true
 	}
-	// B7c/O7：记录当前选中成员所在的层级，供下一轮回切门控参考。
+	// B7c/O7：把每个网络当前选中成员所在的层级同步到该网络自己的状态，
+	// 供下一轮回切门控参考。两个网络独立同步，不用互斥的 else if——
+	// TCP 已有选择时也不能跳过 UDP 的同步。
 	if g.selectedOutboundTCP != nil {
-		g.currentTier = g.tierOfTag(g.selectedOutboundTCP.Tag())
-	} else if g.selectedOutboundUDP != nil {
-		g.currentTier = g.tierOfTag(g.selectedOutboundUDP.Tag())
+		g.tierTCP.currentTier = g.tierOfTag(g.selectedOutboundTCP.Tag())
+	}
+	if g.selectedOutboundUDP != nil {
+		g.tierUDP.currentTier = g.tierOfTag(g.selectedOutboundUDP.Tag())
 	}
 	if updated && g.interruptExternalConnections {
 		g.interruptGroup.Interrupt(true)

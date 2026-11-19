@@ -87,10 +87,10 @@ func TestBudgetExpiryStillFinishesRoundAndAllowsSwitchBack(t *testing.T) {
 		storeTierHistory(t, grp, "b [T2]", 90)
 		// 显式声明高层本轮被观测为失败：删除/缺少历史本身不是新失败。
 		grp.performRoundEndCheck(newObservedRound(observedFailed("a [T1]"), observedOK("b [T2]")))
-		if grp.currentTier != 1 {
-			t.Fatalf("expected currentTier 1 before recovery, got %d", grp.currentTier)
+		if grp.tierTCP.currentTier != 1 {
+			t.Fatalf("expected currentTier 1 before recovery, got %d", grp.tierTCP.currentTier)
 		}
-		grp.tierGate.lastFailure[0] = time.Now().Add(-61 * time.Second)
+		grp.tierTCP.gate.lastFailure[0] = time.Now().Add(-61 * time.Second)
 	}
 	runExpiredRound := func(grp *URLTestGroup, i int) *urlTestRound {
 		t.Helper()
@@ -115,7 +115,7 @@ func TestBudgetExpiryStillFinishesRoundAndAllowsSwitchBack(t *testing.T) {
 			&delayedDialOutbound{Adapter: outbound.NewAdapter("loopback", "b [T2]", []string{"tcp", "udp"}, nil), server: fast},
 		)
 		startOnLowerTier(grp)
-		baseline := grp.tierGate.consecutiveOK[1]
+		baseline := grp.tierTCP.gate.consecutiveOK[1]
 		for i := 0; i < tierSwitchBackMinChecks; i++ {
 			round := runExpiredRound(grp, i)
 			if round.snapshot()["a [T1]"] != urlTestCanceled {
@@ -123,10 +123,10 @@ func TestBudgetExpiryStillFinishesRoundAndAllowsSwitchBack(t *testing.T) {
 			}
 		}
 		// 轮次收尾确实执行过（低层计数按轮次推进），但高层一格也不能涨。
-		if got := grp.tierGate.consecutiveOK[1]; got != baseline+tierSwitchBackMinChecks {
+		if got := grp.tierTCP.gate.consecutiveOK[1]; got != baseline+tierSwitchBackMinChecks {
 			t.Fatalf("budget-expired rounds must still finish round-end checks, got %d low-tier rounds (baseline %d)", got, baseline)
 		}
-		if got := grp.tierGate.consecutiveOK[0]; got != 0 {
+		if got := grp.tierTCP.gate.consecutiveOK[0]; got != 0 {
 			t.Fatalf("lower-tier probes must not advance the unobserved high tier, got %d", got)
 		}
 		selected, _ := grp.Select(N.NetworkTCP)
@@ -151,15 +151,15 @@ func TestBudgetExpiryStillFinishesRoundAndAllowsSwitchBack(t *testing.T) {
 				t.Fatalf("round %d: expected a real high-tier success, got %v", i+1, round.snapshot())
 			}
 		}
-		if got := grp.tierGate.consecutiveOK[0]; got != tierSwitchBackMinChecks {
+		if got := grp.tierTCP.gate.consecutiveOK[0]; got != tierSwitchBackMinChecks {
 			t.Fatalf("budget-expired rounds must still advance the recovery gate, got %d healthy rounds", got)
 		}
 		selected, healthy := grp.Select(N.NetworkTCP)
 		if selected == nil || selected.Tag() != "a [T1]" || !healthy {
 			t.Fatalf("expected switch-back to tier-1 after 3 observed rounds and 60s, got %v healthy=%v", selected, healthy)
 		}
-		if grp.currentTier != 0 {
-			t.Fatalf("expected currentTier 0 after switch-back, got %d", grp.currentTier)
+		if grp.tierTCP.currentTier != 0 {
+			t.Fatalf("expected currentTier 0 after switch-back, got %d", grp.tierTCP.currentTier)
 		}
 	})
 }
@@ -240,8 +240,8 @@ func TestTieredSwitchBackGatedByRecoveryGate(t *testing.T) {
 	if selected == nil || selected.Tag() != "c [T2]" {
 		t.Fatalf("expected tier-2 member c selected while tier 1 is down, got %v", selected)
 	}
-	if grp.currentTier != 1 {
-		t.Fatalf("expected currentTier 1, got %d", grp.currentTier)
+	if grp.tierTCP.currentTier != 1 {
+		t.Fatalf("expected currentTier 1, got %d", grp.tierTCP.currentTier)
 	}
 
 	// 层级 1 恢复（新鲜历史），但只过 1 轮检查：门未通过，留在层级 2。
@@ -255,8 +255,8 @@ func TestTieredSwitchBackGatedByRecoveryGate(t *testing.T) {
 	// 再过 2 轮（共 3 轮健康），但距失败仅数毫秒（< 60 秒）：仍不回切。
 	grp.performRoundEndCheck(newObservedRound(observedOK("a [T1]"), observedOK("c [T2]")))
 	grp.performRoundEndCheck(newObservedRound(observedOK("a [T1]"), observedOK("c [T2]")))
-	if grp.tierGate.consecutiveOK[0] != 3 {
-		t.Fatalf("expected 3 consecutive healthy rounds for tier 0, got %d", grp.tierGate.consecutiveOK[0])
+	if grp.tierTCP.gate.consecutiveOK[0] != 3 {
+		t.Fatalf("expected 3 consecutive healthy rounds for tier 0, got %d", grp.tierTCP.gate.consecutiveOK[0])
 	}
 	selected, _ = grp.Select(N.NetworkTCP)
 	if selected == nil || selected.Tag() != "c [T2]" {
@@ -264,14 +264,14 @@ func TestTieredSwitchBackGatedByRecoveryGate(t *testing.T) {
 	}
 
 	// 距失败满 60 秒（把失败时间拨回 61 秒前）且 3 轮健康：回切层级 1。
-	grp.tierGate.lastFailure[0] = time.Now().Add(-61 * time.Second)
+	grp.tierTCP.gate.lastFailure[0] = time.Now().Add(-61 * time.Second)
 	grp.performRoundEndCheck(newObservedRound(observedOK("a [T1]"), observedOK("c [T2]")))
 	selected, healthy := grp.Select(N.NetworkTCP)
 	if selected == nil || selected.Tag() != "a [T1]" || !healthy {
 		t.Fatalf("expected switch-back to tier-1 member a after both gates pass, got %v healthy=%v", selected, healthy)
 	}
-	if grp.currentTier != 0 {
-		t.Fatalf("expected currentTier 0 after switch-back, got %d", grp.currentTier)
+	if grp.tierTCP.currentTier != 0 {
+		t.Fatalf("expected currentTier 0 after switch-back, got %d", grp.tierTCP.currentTier)
 	}
 
 	// 当前层也全灭时门控不得把流量留在死层：直接回退到有健康成员的层。
