@@ -797,7 +797,7 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
      * 不新增模块侧能力。 */
     private fun addModuleActionPreferences() {
         val ctx = requireContext()
-        fun report(activity: android.app.Activity, error: Exception?, doneText: String) {
+        suspend fun report(activity: android.app.Activity, error: Exception?, doneText: String) {
             onMainDispatcher {
                 if (activity.isFinishing || activity.isDestroyed) return@onMainDispatcher
                 android.widget.Toast.makeText(activity, if (error == null) doneText
@@ -813,7 +813,7 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             setSummary(R.string.autostart_summary)
             setIcon(R.drawable.ic_baseline_power_24)
             isPersistent = false
-            isChecked = DataStore.persistAcrossReboot
+            setChecked(DataStore.persistAcrossReboot)
             order = 102
             setOnPreferenceChangeListener { _, newValue ->
                 val enabled = newValue as Boolean
