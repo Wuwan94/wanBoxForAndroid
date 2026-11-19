@@ -9,8 +9,8 @@
 - 内核 `reF1nd/sing-box v1.15.0-alpha.13-reF1nd`。内核和 targetSdk 阶段只评估，升级须另获确认。
 - 模块拥有代理生命周期；管理器为瘦 APK，不引入多内核、不恢复 VPN、不重做 UI。
 - 不删除或改名设置键、不改默认值；TLS 默认验证证书；日志不得含备份内容、节点凭据、订阅原文。
-- 本版元数据：正式线 `3.0.17 / 2035`（APK `10175`、模块 `2035`）；`PRE_VERSION_NAME=3.0.18-preview.1`、`PRE_VERSION_CODE=2036` 仅为满足 `PRE > FORMAL` 断言的下一预览占位，尚未发布、不含本版内容；`SINGBOX_VERSION` 不变。
-- 已发布预览 `v3.0.17-preview.4`（`10174 / 2034`，源码 `906a6ea3`）保留在 Releases 中：正式发布不执行 `prune_prereleases.py`。
+- 本版元数据：正式线 `3.0.17 / 2035`（APK `10175`、模块 `2035`）；预览线 `PRE_VERSION_NAME=3.0.18-preview.1`、`PRE_VERSION_CODE=2036` 已于 2026-11-19T11:55:25Z 作为稳定性预览发布（见下方「预览线现状」）；`SINGBOX_VERSION` 不变。
+- 正式发布时保留的预览 `v3.0.17-preview.4`（`10174 / 2034`，源码 `906a6ea3`）当时仍在 Releases 中（正式发布不执行 `prune_prereleases.py`）；它已在 `v3.0.18-preview.1` 发布后按单预览策略清理，现为 404。
 
 ## 版本规则（`nb4a.properties`）
 
@@ -18,7 +18,7 @@
 |---|---|---|
 | `VERSION_NAME` | `3.0.17` | tag 必须严格等于 `v$VERSION_NAME` → `v3.0.17` |
 | `VERSION_CODE` | `2035` | APK `versionCode = 2035 × 5 = 10175`；Root 模块码 `2035` |
-| `PRE_VERSION_NAME` | `3.0.18-preview.1` | **未发布占位**，只为满足 `PRE > FORMAL` 断言 |
+| `PRE_VERSION_NAME` | `3.0.18-preview.1` | 预览线元数据，已作为稳定性预览发布（`0a30baaf`） |
 | `PRE_VERSION_CODE` | `2036` | 必须 `> VERSION_CODE`（`preview.yml` 硬断言）；预览 APK `10181` |
 | `SINGBOX_VERSION` | `v1.15.0-alpha.13-reF1nd` | 与 v3.0.14 一致 |
 
@@ -68,6 +68,17 @@ S6 收尾 PR：把候选/正式 run ID、实测字节与 SHA-256 回填到本清
 - 阶段一（候选，run `44474557410`，main @ `d4e7c5d0`）：`Native Build (LibCore)`、`Build OSS APK`、`Verify formal update contract`、`Prepare Release Candidate Assets (No Publish)` 全 success，`Publish Release` 按设计 skipped。候选 `SHA256SUMS` 文件自身 SHA-256 `c513a2c5ee823bec096e5b8413cefc6270c2c853c83d59c604d039065c66d1ca`。
 - 阶段二（正式，run `44477065390`）：首次在 `Build OSS APK` 的「Run unit and Android tests」红于 plugins.gradle.org 解析 `org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.21` / `kotlin-gradle-plugins-bom` 瞬时不可用，失败在发布断言之前，未创建任何 Release/tag；`gh run rerun --failed` 后四作业全绿，2026-11-19T07:24:49Z 发布。
 - 发布后回读：`prerelease=false`、资产 4 个、名称/大小/digest 与 `SHA256SUMS` 一致；APK `6363231` B / `5e21c0bf…b76dba`、Root ZIP `18133473` B / `8e4d9d16…493ef4`、合一 ZIP `23776260` B / `2a7ea8b1…b50b29`、`SHA256SUMS` `315` B / `c513a2c5…066d1ca`；APK + 模块 `24496704` B（23.36 MiB）< `27262976` B。本地 `sha256sum -c` 三件 OK；APK manifest `versionCode=10175` / `versionName=3.0.17`，无 `lib/`；模块 `3.0.17 / 2035`；四处同源均为 `d4e7c5d0`；`v3.0.14`、`v3.0.11` 与 `v3.0.17-preview.4` 保留。
+
+## 预览线现状（v3.0.18-preview.1，2026-11-19）
+
+正式版 `v3.0.17` 发布后，预览线 `3.0.18-preview.1` 已按预览门禁发布，本条只记录发布事实与遗留；预览本身不走 `release.yml` 两阶段，也不执行深度真机矩阵。
+
+- 内容：PR #77（`urltest` 层级状态按 TCP/UDP 拆分）与 PR #78（App UI 对齐模块功能：开机自启、重启核心、配置回滚、顶栏模块版本）。
+- 溯源：轻量 tag / `targetCommitish` / APK `version-control-info.textproto` / `APPROVED_SHA` 四者同为 `0a30baaf939a97b1941210609ce377e00d386157`；`Preview Build` run `44516333684` 四作业全绿，2026-11-19T11:55:25Z 上架。
+- 门禁缺口：`0a30baa` 是 `preview.yml` 的热修直推提交，没有单独的 `Verify Android Build` 记录；其代码树与已全绿的 `4a8ab9b`（run `44506930043`）相同。后续 CI 热修也走分支 + PR，以保留门禁记录。
+- 资产：APK `6366243` B / `459e5bee…bdacd4d`，Root ZIP `18134172` B / `b53e8653…3b5f398f`，合一 ZIP `23778516` B / `8d219e33…e2b6be794`，`SHA256SUMS` `333` B / `5ac21d47…062234e5`；APK + 模块 `24500415` B（23.37 MiB）低于 26 MiB 门禁。
+- 清理：发布 run 在 11:55:35Z 删除了 `v3.0.17-preview.4` 的 Release/tag；正式版 `v3.0.17` / `v3.0.14` / `v3.0.11` 未动。
+- 遗留：Root 真机矩阵未执行；两个新 UI 入口无自动化覆盖；观测层仍按 tag 共享（仅 `currentTier`/`tierGate` 按网络隔离）。
 
 ## 真机待签核矩阵（不能用模拟器代替）
 

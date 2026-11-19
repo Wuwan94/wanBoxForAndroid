@@ -4,6 +4,14 @@
 
 ## wanBox 3.0.x 发布记录
 
+### v3.0.18-preview.1（已发布预览）
+
+- [GitHub Release v3.0.18-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.1) 由 `Preview Build` run `44516333684` 在 main commit/tag `0a30baaf939a97b1941210609ce377e00d386157`（轻量 tag）于 2026-11-19T11:55:25Z 发布；tag 对象、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `0a30baaf`，发布 job 四作业全绿。`0a30baa` 是 PR #78 合入后直接推 main 的 `preview.yml` 热修（正式版 APK 版本断言改读 `nb4a.properties` 的 `VERSION_NAME`，替代硬编码 `3.0.14`）；该提交只有 `Preview Build` 运行、未单独经过 `Verify Android Build`，其 Go/Kotlin 树与已过门禁的 `4a8ab9b` 相同。首个 `Preview Build` run `44511891425`（`6215b45`）红在这条硬编码断言，未创建 Release/tag。
+- 内容：PR #77（`fix(urltest): 层级状态按 TCP/UDP 拆分，消除跨协议污染`，合并提交 `31b3b07334ba6a8ee6b3a38c087798291ad1b128`，2026-11-19T08:55:54Z，+591/−109，5 文件，`Verify Android Build` run `44486772559` 全绿）——`currentTier`/`tierGate` 按网络各存一份，`effectiveTierLocked`/`canSwitchBackTo` 按网络取状态，`promoteFailover` 只动被拨网络，新增 11 条隔离回归；PR #78（`feat(app): UI 对齐模块功能`，合并提交 `6215b450c3345bccd2ba0ab059939f5b34b8ba52`，2026-11-19T11:07:00Z，+123/−7，8 文件，run `44506930043` 全绿）——恢复开机自启开关（写回 DataStore 并即时 `setAutoStart`）、新增「重启核心」与「回滚配置」入口（白名单补 `config rollback`）、顶栏副标题跟随 `moduleVersionFlow`，模块侧零改动。
+- 元数据为模块 `2036` / APK `10181`（preview.4 为 `2034` / `10174`）；正式线 `3.0.17 / 2035` 与 `SINGBOX_VERSION` 不变。
+- 四件套经 API digest 与公开 `SHA256SUMS` 回读一致（本地 `sha256sum -c` 三件 OK）：APK `6366243` 字节 / `459e5bee…bdacd4d`、普通 Root ZIP `18134172` 字节 / `b53e8653…3b5f398f`、合一 ZIP `23778516` 字节 / `8d219e33…e2b6be794`、`SHA256SUMS` `333` 字节 / `5ac21d47…062234e5`；APK + 普通 Root ZIP 为 `24500415` 字节（23.37 MiB），`size_budget --enforce-limit` PASS。发布后 `prune_prereleases.py` 在 11:55:35Z 删除了 `v3.0.17-preview.4` 的 Release/tag，正式版 `v3.0.17` / `v3.0.14` / `v3.0.11` 保留。
+- 边界：跨协议隔离做到 `currentTier`/`tierGate` 层，一次探测的观测仍按 tag 共享、嵌套组聚合 summary 仍与网络无关；两个新 UI 入口无自动化覆盖。Root 真机矩阵未执行（CI 自标 `runtime_regression: not_verified`），本版不宣称真机通过。
+
 ### v3.0.17（正式版）
 
 - **晋升说明**：3.0.17 由预览线（preview.1–.4）晋升为正式版，聚合 v3.0.14 之后的全部变更：OwnBox 移植 B1–B4/B7a–c（含 O9a 落地 IP 缓存按实际在跑节点失效）、NetProxy 线 B5/B6/N6/B8、preview.3 的 URLTest 预算到期回切与诊断包 Android 12+ 读取、preview.4 的层级回切门与过期候选兜底，以及 PR #74（合并提交 `6a20a0ca7113decbe6155500dd9e70c79650bb5a`，`Verify Android Build` run `44465876305` 全绿）的分层向下容灾与回切门新观测计数。正式说明见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。
