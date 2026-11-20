@@ -182,16 +182,19 @@ func TestPerNetworkObservationsDoNotLeakAcrossMembersAndGroups(t *testing.T) {
 	})
 }
 
-// 生产路径：同一轮里 TCP 探测成功而 UDP 关联失败，两层门必须各自裁决。
+// 生产路径：同一轮里 TCP 探测成功而 UDP 往返探测失败，两层门必须各自裁决。
+// 本用例显式配置可回显的 UDP 端点：UDP 的“失败”必须是真实探测的结论，
+// 不是关联建不起来就顺手记的失败。
 func TestRealProbeRoundKeepsTCPAndUDPObservationsApart(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
-	// tcpOK：TCP 可达、UDP 关联报错；deadTCP：TCP 不可达、UDP 关联可用。
+	echo := newUDPTestEndpoint(t, udpEndpointEcho)
+	// tcpOK：TCP 可达、UDP 关联报错；deadTCP：TCP 不可达、UDP 往返可用。
 	tcpOK := &udpBrokenOutbound{Adapter: outbound.NewAdapter("loopback", "a [T1]", []string{"tcp", "udp"}, nil), server: server}
 	deadTCP := &startupOutbound{Adapter: outbound.NewAdapter("loopback", "b [T2]", []string{"tcp", "udp"}, nil), dead: true}
-	grp := startupGroupWithMembers(t, context.Background(), server.URL, tcpOK, deadTCP)
+	grp := startupGroupWithMembersAndProbe(t, context.Background(), server.URL, echo.probeConfig(time.Second), tcpOK, deadTCP)
 
 	_, round, err := grp.urlTest(context.Background(), true)
 	if err != nil {
@@ -204,7 +207,7 @@ func TestRealProbeRoundKeepsTCPAndUDPObservationsApart(t *testing.T) {
 		t.Fatalf("expected UDP failure for a [T1], got %v", got)
 	}
 	if got := round.snapshotNetwork(N.NetworkUDP)["b [T2]"]; got != urlTestSuccess {
-		t.Fatalf("expected UDP association success for b [T2], got %v", got)
+		t.Fatalf("expected a verified UDP round trip for b [T2], got %v", got)
 	}
 	if grp.tierTCP.gate.consecutiveOK[0] != 1 {
 		t.Fatalf("TCP gate must advance by the real TCP success, got %v", grp.tierTCP.gate.consecutiveOK)
@@ -213,7 +216,7 @@ func TestRealProbeRoundKeepsTCPAndUDPObservationsApart(t *testing.T) {
 		t.Fatalf("UDP gate must not borrow the TCP success, got %d", got)
 	}
 	if _, failed := grp.tierUDP.gate.lastFailure[0]; !failed {
-		t.Fatal("the real UDP association failure must be recorded on the UDP gate")
+		t.Fatal("the real UDP probe failure must be recorded on the UDP gate")
 	}
 	// UDP 关联失败 MUST NOT 清掉 TCP 的选路历史，也不计 TCP 连续失败。
 	if grp.history.LoadURLTestHistory("a [T1]") == nil {

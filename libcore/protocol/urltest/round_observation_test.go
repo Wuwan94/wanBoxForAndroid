@@ -134,7 +134,8 @@ func TestMixedTierObservationsInOneRound(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
-	grp := startupGroupWithMembers(t, context.Background(), server.URL,
+	echo := newUDPTestEndpoint(t, udpEndpointEcho)
+	grp := startupGroupWithMembersAndProbe(t, context.Background(), server.URL, echo.probeConfig(time.Second),
 		&delayedDialOutbound{Adapter: outbound.NewAdapter("loopback", "a [T1]", []string{"tcp", "udp"}, nil), server: server},
 		&startupOutbound{Adapter: outbound.NewAdapter("loopback", "b [T2]", []string{"tcp", "udp"}, nil), dead: true},
 	)
@@ -147,7 +148,7 @@ func TestMixedTierObservationsInOneRound(t *testing.T) {
 		t.Fatalf("expected high=success low=failure, got %v", observations)
 	}
 	if round.probed() != 4 {
-		// 两个成员都是双栈：每人一次 TCP 探测 + 一次 UDP 关联，共 4 个完结观测。
+		// 两个成员都是双栈：每人一次 TCP 探测 + 一次 UDP 往返探测，共 4 个完结观测。
 		t.Fatalf("expected four completed observations (2 members × TCP/UDP), got %d", round.probed())
 	}
 	if grp.tierTCP.gate.consecutiveOK[0] != 1 || grp.tierTCP.gate.consecutiveOK[1] != 0 {
@@ -230,7 +231,8 @@ func TestConcurrentChecksShareOneRound(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
-	grp := startupGroupWithMembers(t, context.Background(), server.URL,
+	echo := newUDPTestEndpoint(t, udpEndpointEcho)
+	grp := startupGroupWithMembersAndProbe(t, context.Background(), server.URL, echo.probeConfig(time.Second),
 		&delayedDialOutbound{Adapter: outbound.NewAdapter("loopback", "a [T1]", []string{"tcp", "udp"}, nil), server: server},
 		&delayedDialOutbound{Adapter: outbound.NewAdapter("loopback", "b [T2]", []string{"tcp", "udp"}, nil), server: server},
 	)
@@ -261,7 +263,7 @@ func TestConcurrentChecksShareOneRound(t *testing.T) {
 	leader := <-leaderDone
 	wg.Wait()
 	if leader == nil || leader.probed() != 4 {
-		// 两个双栈成员 × (TCP 探测 + UDP 关联)：共享轮只收尾一次，计数不重复。
+		// 两个双栈成员 × (TCP 探测 + UDP 往返探测)：共享轮只收尾一次，计数不重复。
 		t.Fatalf("expected four completed observations in the shared round, got %v", leader)
 	}
 	for i, round := range joined {

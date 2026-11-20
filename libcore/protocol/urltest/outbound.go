@@ -106,12 +106,65 @@ func penalizeOrDeleteHistory(history *urltest.HistoryStorage, tag string, interv
 }
 
 type URLTestOptions struct {
-	Outbounds                 []string           `json:"outbounds" reference:"outbound"`
-	URL                       string             `json:"url,omitempty"`
-	Interval                  badoption.Duration `json:"interval,omitempty"`
-	Tolerance                 *uint16            `json:"tolerance,omitempty"`
-	IdleTimeout               badoption.Duration `json:"idle_timeout,omitempty"`
-	InterruptExistConnections bool               `json:"interrupt_exist_connections,omitempty"`
+	Outbounds                 []string                `json:"outbounds" reference:"outbound"`
+	URL                       string                  `json:"url,omitempty"`
+	Interval                  badoption.Duration      `json:"interval,omitempty"`
+	Tolerance                 *uint16                 `json:"tolerance,omitempty"`
+	IdleTimeout               badoption.Duration      `json:"idle_timeout,omitempty"`
+	InterruptExistConnections bool                    `json:"interrupt_exist_connections,omitempty"`
+	UDPProbe                  *URLTestUDPProbeOptions `json:"udp_probe,omitempty"`
+}
+
+// URLTestUDPProbeOptions 是 UDP 健康观测的唯一证据来源配置：把一条探测数据报
+// 发给一个会把内容原样回显的 UDP 端点，只有收到同一份回包才算“UDP 可往返”。
+//
+// @author 雾晚: 为什么需要显式配置——任何“默认探测端点”要么是第三方服务
+// （擅自引入额外流量与隐私暴露），要么假定目标一定回包（Web/HTTP 目标不会）。
+// 未配置时本轮不做 UDP 操作、不产生任何流量，UDP 恢复门只等真正的往返证据；
+// 这是刻意的 fail-closed：宁可让 UDP 留在低层，也不用“打开并关闭一个关联”
+// 这种伪证据把高层拉回来。
+//
+// Server MUST 是 IP:port（域名需要解析方，而解析结果属于成员/本机两种口径，
+// 会把探测变成不确定的量）；Payload 缺省用 DefaultUDPProbePayload，长度上限
+// 512 字节；Timeout 缺省 3 秒，上限 5 秒（与整轮预算一致）。
+type URLTestUDPProbeOptions struct {
+	Server  string             `json:"server,omitempty"`
+	Payload string             `json:"payload,omitempty"`
+	Timeout badoption.Duration `json:"timeout,omitempty"`
+}
+
+// udpProbeConfig 是构建期校验过的探测端点：目标已是 IP:port，长度与超时都已钳制。
+type udpProbeConfig struct {
+	target  M.Socksaddr
+	payload []byte
+	timeout time.Duration
+}
+
+// build 校验并冻结 UDP 探测配置。非法配置 MUST 在构建期报错（fail-closed），
+// 不能悄悄退化成“没有探测”或“探测一个不可达目标”。
+func (o *URLTestUDPProbeOptions) build() (*udpProbeConfig, error) {
+	if o == nil || strings.TrimSpace(o.Server) == "" {
+		return nil, nil
+	}
+	target := M.ParseSocksaddr(strings.TrimSpace(o.Server))
+	if !target.IsValid() || !target.IsIP() || target.Port == 0 {
+		return nil, E.New("udp_probe.server must be an ip:port, got: ", o.Server)
+	}
+	payload := []byte(o.Payload)
+	if len(payload) == 0 {
+		payload = []byte(DefaultUDPProbePayload)
+	}
+	if len(payload) > 512 {
+		return nil, E.New("udp_probe.payload too large: ", len(payload))
+	}
+	timeout := time.Duration(o.Timeout)
+	if timeout <= 0 {
+		timeout = 3 * time.Second
+	}
+	if timeout > probeBudget {
+		timeout = probeBudget
+	}
+	return &udpProbeConfig{target: target, payload: payload, timeout: timeout}, nil
 }
 
 func RegisterURLTest(registry *outbound.Registry) {
@@ -141,6 +194,8 @@ type URLTest struct {
 	checkAccess                  sync.Mutex
 	lastInterfaceCheck           atomic.Int64
 	interruptExternalConnections bool
+	// udpProbe 是用户配置的 UDP 往返探测端点（nil = 不探测）。
+	udpProbe *udpProbeConfig
 }
 
 func NewURLTest(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options URLTestOptions) (adapter.Outbound, error) {
@@ -156,6 +211,10 @@ func NewURLTest(ctx context.Context, router adapter.Router, logger log.ContextLo
 	if idleTimeout == 0 {
 		idleTimeout = C.DefaultURLTestIdleTimeout
 	}
+	udpProbe, err := options.UDPProbe.build()
+	if err != nil {
+		return nil, err
+	}
 	outbound := &URLTest{
 		Adapter:                      outbound.NewAdapter(C.TypeURLTest, tag, []string{N.NetworkTCP, N.NetworkUDP}, options.Outbounds),
 		ctx:                          ctx,
@@ -168,6 +227,7 @@ func NewURLTest(ctx context.Context, router adapter.Router, logger log.ContextLo
 		tolerance:                    tolerance,
 		idleTimeout:                  idleTimeout,
 		interruptExternalConnections: options.InterruptExistConnections,
+		udpProbe:                     udpProbe,
 	}
 	if len(outbound.tags) == 0 {
 		return nil, E.New("missing tags")
@@ -201,6 +261,7 @@ func (s *URLTest) initialize() error {
 	if err != nil {
 		return err
 	}
+	grp.udpProbe = s.udpProbe
 	s.group = grp
 	return nil
 }
@@ -670,6 +731,10 @@ type URLTestGroup struct {
 	// selectLocked 只读。
 	tierTCP tierNetworkState
 	tierUDP tierNetworkState
+	// udpProbe 是用户配置的 UDP 往返探测端点（nil = 不探测）。只有在启用时
+	// probeMemberUDP 才会发出探测数据报；未启用时 UDP 观测一律记为跳过，
+	// 绝不凭“关联建立成功”冒充 UDP 健康。
+	udpProbe *udpProbeConfig
 }
 
 // tierRecoveryGateState 是层级恢复门的状态：每层连续健康轮次数与上次失败时间。
@@ -1102,11 +1167,11 @@ func (g *URLTestGroup) canSwitchBackTo(network string, tier int, now time.Time) 
 }
 
 // updateTierGateLocked 只按本轮的新观测推进层级恢复门（调用方须持有写锁），
-// 每个网络只读自己的观测表：TCP 探测只推进 TCP 门，UDP 关联探测只推进
+// 每个网络只读自己的观测表：TCP 探测只推进 TCP 门，UDP 往返探测只推进
 // UDP 门，一个网络的观测（包括双栈成员的同轮结果）不推进另一个网络的门。
 // 层内任一成员在该网络上本轮新成功即为该网络的一个健康轮；没有新成功但
 // 至少一个新失败时，该网络的连续健康计数清零并记录失败时间。全部跳过/取消/
-// 未观测的层保持原状态，既不累计也不清零；旧历史只用于选路，不冒充本轮成功。
+// 未知/未观测的层保持原状态，既不累计也不清零；旧历史只用于选路，不冒充本轮成功。
 // 若本轮开始后该网络的门被数据面降级作废（代次变化），本轮的成功观测
 // 不再计向回切资格（失败仍如实清零）：降级前就在跑的旧观测不能重发资格。
 func (g *URLTestGroup) updateTierGateLocked(now time.Time, round *urlTestRound) {
@@ -1281,14 +1346,18 @@ const (
 	urlTestFailure
 	urlTestSkipped
 	urlTestCanceled
+	// urlTestUnverified 表示“发出去了但拿不到有效响应”：未知结果，与跳过/取消
+	// 一样中性，既不推进也不清零连续健康计数。@author 雾晚
+	urlTestUnverified
 )
 
 // urlTestRound 是一次轮次私有的观测集合。批量 goroutine 通过互斥锁写入；
 // batch.Wait 返回后才做轮次收尾，因此迟到的底层 IO 结果不会跨轮追加。
 //
-// 观测按网络分开存：TCP 的 HTTP 探测只能证明 TCP，UDP 的证据只能来自真实
-// UDP 操作（ProbeOutboundUDP）。只按 tag 存会让双栈成员的 TCP 成功被 UDP
-// 恢复门读到，从而在没有 UDP 证据的情况下推进 UDP 健康轮次。
+// 观测按网络分开存：TCP 的 HTTP 探测只能证明 TCP，UDP 的证据只能来自
+// ProbeOutboundUDP 验证过的真实往返（探测数据报 + 目标原样回显）。只按 tag 存
+// 会让双栈成员的 TCP 成功被 UDP 恢复门读到，从而在没有 UDP 证据的情况下推进
+// UDP 健康轮次。
 type urlTestRound struct {
 	access    sync.Mutex
 	tcp       map[string]urlTestObservation
@@ -1347,7 +1416,7 @@ func (r *urlTestRound) gateChanged(network string, current uint64) bool {
 	return r.epoch[network] != current
 }
 
-// observationRank 给出观测强度：成功 > 失败 > 跳过/取消 > 未观测。
+// observationRank 给出观测强度：成功 > 失败 > 跳过/取消/未知 > 未观测。
 // 同一轮里嵌套组与直接成员可能重复上报同一叶子 tag，弱观测不得覆盖
 // 已经确认的新成功，否则会把并发合并变成随机回切。
 func observationRank(observation urlTestObservation) uint8 {
@@ -1356,7 +1425,7 @@ func observationRank(observation urlTestObservation) uint8 {
 		return 3
 	case urlTestFailure:
 		return 2
-	case urlTestSkipped, urlTestCanceled:
+	case urlTestSkipped, urlTestCanceled, urlTestUnverified:
 		return 1
 	default:
 		return 0
@@ -1561,8 +1630,8 @@ func (b *urlTestBatch) test(outbounds []adapter.Outbound, link string, interval 
 }
 
 // probeMember 跑一个成员本轮的观测：TCP 的 HTTP 探测（唯一写 history 的口径）
-// 加一次真实 UDP 关联探测（仅当成员支持 UDP）。两个网络各记各的观测：结果互不
-// 冒充，失败/跳过/取消也不跨网络。
+// 加一次真实 UDP 往返探测（仅在成员支持 UDP 且用户配置了可验证端点时）。两个
+// 网络各记各的观测：结果互不冒充，失败/跳过/取消/未知也不跨网络。
 func (b *urlTestBatch) probeMember(detour adapter.Outbound, link string, interval time.Duration) {
 	b.probeMemberTCP(detour, link, interval)
 	b.probeMemberUDP(detour)
@@ -1632,51 +1701,81 @@ func (b *urlTestBatch) probeMemberTCP(detour adapter.Outbound, link string, inte
 	}
 }
 
-// probeMemberUDP 用数据面同一个原语向成员建立一次 UDP 关联，作为该成员
-// UDP 侧的唯一证据。
+// probeMemberUDP 是成员 UDP 侧的唯一观测入口：只有在用户配置了可验证的往返
+// 端点时，才用真实数据报证明“关联可用 + 会话建立 + 目标可达”；否则本轮对
+// 该成员不做任何 UDP 操作。
 //
-// 边界（写进 openspec/specs/libcore-integration）：关联成功证明成员接受
-// UDP 流（UDP ASSOCIATE 一类握手已经完成），不证明某个目的端会回包；往回包里
-// 塞合成 DNS 查询需要额外目标配置与第三方流量，与“不引入网络泄漏”相冲突。
+// 结论映射（决定连续健康计数，见 updateTierGateLocked）：
+//   - verified  → 新成功（唯一能推进 UDP 回切计数的结果）；
+//   - rejected  → 新失败（关联失败 / 首次发送失败 / 读失败 / 回包不符）；
+//   - unverified→ 未观测（发出去了但没回包：既不涨也不清零）；
+//   - canceled  → 未观测（轮次预算/调用方/组关闭）；
+//   - skipped   → 未观测（未配置端点或成员不支持 UDP）。
 //
-// @author 雾晚: UDP 观测 MUST NOT 写 history：history 是 TCP 探测的延迟口径，
-// 写入会同时把 UDP 结果冒充成 TCP 延迟，并让 UDP 借用 TCP 的选路种子；也 MUST NOT
-// 计入 TCP 的连续失败计数——否则 UDP 故障会清掉 TCP 的选路历史，反向污染仍存在。
+// 边界：UDP 观测 MUST NOT 写 history（history 是 TCP 延迟口径，写入会把 UDP 结果
+// 冒充成 TCP 延迟并让 UDP 借用 TCP 的选路种子），也 MUST NOT 计入成员连续失败
+// 计数/清史（否则 UDP 故障会反向清掉 TCP 的选路历史）。
 func (b *urlTestBatch) probeMemberUDP(detour adapter.Outbound) {
 	if !common.Contains(detour.Network(), N.NetworkUDP) {
 		return
 	}
 	tag := detour.Tag()
+	probe := b.udpProbeConfig()
+	if probe == nil {
+		// 没有可验证的往返端点：不做探测、不产生流量，也不把关联成功当证据。
+		b.round.record(tag, N.NetworkUDP, urlTestSkipped)
+		return
+	}
 	if b.ctx.Err() != nil {
 		b.round.record(tag, N.NetworkUDP, urlTestCanceled)
 		return
 	}
-	probeCtx, cancel := context.WithTimeout(b.ctx, 3*time.Second)
+	probeCtx, cancel := context.WithTimeout(b.ctx, probe.timeout)
 	defer cancel()
 	// 与 TCP 探测同一道保险：即使成员实现不守 ctx，轮次也不会被它挂住。
-	probeChan := make(chan error, 1)
+	probeChan := make(chan UDPProbeOutcome, 1)
 	go func() {
-		probeChan <- ProbeOutboundUDP(probeCtx, detour, 3*time.Second)
+		probeChan <- ProbeOutboundUDP(probeCtx, detour, probe.target, probe.payload, probe.timeout)
 	}()
-	var probeErr error
+	var outcome UDPProbeOutcome
 	select {
-	case probeErr = <-probeChan:
+	case outcome = <-probeChan:
 	case <-probeCtx.Done():
-		probeErr = probeCtx.Err()
+		// 探测没在期限内给出结论：本成员的 UDP 本轮无结论，不当成功也不当失败。
+		outcome = UDPProbeUnverified
 	}
 	if b.ctx.Err() != nil {
 		// 轮次预算/调用方取消：本轮 UDP 无结论，不冒充失败也不冒充成功。
 		b.round.record(tag, N.NetworkUDP, urlTestCanceled)
 		return
 	}
-	if probeErr != nil {
-		b.logger.Debug("outbound ", tag, " udp unavailable: ", probeErr)
+	switch outcome {
+	case UDPProbeVerified:
+		b.logger.Debug("outbound ", tag, " udp verified by round trip")
+		b.round.record(tag, N.NetworkUDP, urlTestSuccess)
+		b.round.addProbed(1)
+	case UDPProbeRejected:
+		b.logger.Debug("outbound ", tag, " udp rejected: no udp session")
 		b.round.record(tag, N.NetworkUDP, urlTestFailure)
 		b.round.addProbed(1)
-		return
+	case UDPProbeUnverified:
+		// 发出去了但没回包：未知。这一轮不推进也不清零 UDP 健康计数。
+		b.logger.Debug("outbound ", tag, " udp unverified: no valid reply")
+		b.round.record(tag, N.NetworkUDP, urlTestUnverified)
+		b.round.addProbed(1)
+	case UDPProbeCanceled:
+		b.round.record(tag, N.NetworkUDP, urlTestCanceled)
+	default:
+		b.round.record(tag, N.NetworkUDP, urlTestSkipped)
 	}
-	b.round.record(tag, N.NetworkUDP, urlTestSuccess)
-	b.round.addProbed(1)
+}
+
+// udpProbeConfig 返回本批次的 UDP 探测端点（无归属组或未配置时为 nil）。
+func (b *urlTestBatch) udpProbeConfig() *udpProbeConfig {
+	if b.group == nil {
+		return nil
+	}
+	return b.group.udpProbe
 }
 
 func (g *URLTestGroup) performUpdateCheck() {
