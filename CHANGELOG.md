@@ -4,6 +4,13 @@
 
 ## wanBox 3.0.x 发布记录
 
+### v3.0.18-preview.2（预览候选，未发布）
+
+- 候选未发布：收口 v3.0.18-preview.1 源码复审与代码复审的六项缺陷（PR #80，合并提交 `ad032285b3ff181677ed6c0ea9c88a7bb4e482a6`，2026-11-20T10:53:47Z，22 个文件 +2887/−167，`Verify Android Build` run `44717598549` 在 head `58ed0c7` 全绿）。
+- 内容：URLTest 观测按（成员, 网络）分账（tcp/udp 两张观测表，两层恢复门只读自己那份，嵌套组 summary 按网络各算一份）；UDP 探测改真实往返回显（`verified` / `rejected` / `unverified` / `skipped` / `canceled`，目标只来自用户配置 `udp_probe`，无配置零流量）；降级即作废旧回切资格（`promoteFailover` 同锁清空失败层与更高层计数、`currentTier` 只下移、门代次递增使迟到观测失效）；组关闭停拨备用（`bindGroupLifecycle` + `wrapConn` / `wrapPacketConn`）；开机自启「下发→回读→落库」闭环（模块只读 `autoStart`、`AutoStartSync` 重试与「待同步」提示）；`boot.json` 三态与 `Boot()` 同口径（`boot_settings_invalid` / `boot_settings_unreadable`，坏文件不改写、`SetAutoStart` 为唯一修复路径）。
+- 元数据升为模块 `2037` / APK `10187`（已发布 preview.1 为 `10181 / 2036`）；正式线 `3.0.17 / 2035` 与 `SINGBOX_VERSION` 不变。候选阶段记录，发布后由文档同步 PR 翻转状态并回填 run 号与四件套资产数据。
+- 边界：UDP 探测为本机可控回显端点，非真实代理服务端往返；应用侧暂无 `udp_probe` 配置入口；Root 真机矩阵未执行。
+
 ### v3.0.18-preview.1（已发布预览）
 
 - [GitHub Release v3.0.18-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.1) 由 `Preview Build` run `44516333684` 在 main commit/tag `0a30baaf939a97b1941210609ce377e00d386157`（轻量 tag）于 2026-11-19T11:55:25Z 发布；tag 对象、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `0a30baaf`，发布 job 四作业全绿。`0a30baa` 是 PR #78 合入后直接推 main 的 `preview.yml` 热修（正式版 APK 版本断言改读 `nb4a.properties` 的 `VERSION_NAME`，替代硬编码 `3.0.14`）；该提交只有 `Preview Build` 运行、未单独经过 `Verify Android Build`，其 Go/Kotlin 树与已过门禁的 `4a8ab9b` 相同。首个 `Preview Build` run `44511891425`（`6215b45`）红在这条硬编码断言，未创建 Release/tag。
