@@ -871,16 +871,26 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             // 用户再切一次开关即可重新下发（不静默改写用户数据）。
             val preference = this
             lifecycleScope.launch {
-                val mismatch = try {
+                val result = try {
                     io.nekohasekai.sagernet.bg.AutoStartSettings.check()
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (_: Exception) {
                     null
                 }
-                if (mismatch != null && isAdded) {
-                    val moduleText = getString(if (mismatch.moduleValue) R.string.autostart_state_on else R.string.autostart_state_off)
-                    preference.summary = getString(R.string.autostart_sync_mismatch, moduleText)
+                if (result != null && isAdded) {
+                    when (result) {
+                        is io.nekohasekai.sagernet.bg.AutoStartSync.Check.Mismatch -> {
+                            val moduleText = getString(if (result.moduleValue) R.string.autostart_state_on else R.string.autostart_state_off)
+                            preference.summary = getString(R.string.autostart_sync_mismatch, moduleText)
+                        }
+                        is io.nekohasekai.sagernet.bg.AutoStartSync.Check.Unavailable -> {
+                            // 模块的 boot 配置损坏/不可读：本次开机不会自启。开关显示什么都是猜，
+                            // 所以只说待处理并给出修复动作（再切一次开关即重写配置）。
+                            preference.summary = getString(R.string.autostart_boot_config_broken,
+                                io.nekohasekai.sagernet.bg.RootModuleErrors.message(requireContext(), result.code))
+                        }
+                    }
                 }
             }
         }

@@ -1461,4 +1461,7 @@
     <string name="autostart_state_off">关</string>
     <string name="autostart_module_not_applied">模块里仍是旧值</string>
     <string name="autostart_module_unconfirmed">模块没有确认这次修改</string>
+    <string name="autostart_boot_config_broken">模块的开机自启配置损坏或读不出来，本次开机不会自启；再切一次开关即可重写配置。%1$s</string>
+    <string name="autostart_boot_config_invalid">模块的开机自启配置文件损坏或字段无效</string>
+    <string name="autostart_boot_config_unreadable">模块的开机自启配置文件读不出来（权限或 I/O 错误）</string>
 </resources>

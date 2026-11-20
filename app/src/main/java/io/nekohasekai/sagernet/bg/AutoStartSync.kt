@@ -28,12 +28,23 @@ class AutoStartSync(
     private val host: Host,
     private val attempts: Int = 2,
 ) {
+    /** 模块侧回读的三种结局：有效值 / 配置损坏不可用 / 老模块不支持回读。 */
+    sealed class ModuleState {
+        data class Value(val enabled: Boolean) : ModuleState()
+
+        /** boot.json 损坏或读不出来：模块本次开机不会自启，这次回读没有可用值。 */
+        data class Unavailable(val code: String) : ModuleState()
+
+        /** 老模块没有 autoStart 字段：只能按命令成功处理。 */
+        object Unsupported : ModuleState()
+    }
+
     interface Host {
         /** 向模块下发设置（幂等，模块未运行时也应生效）；失败抛异常，错误码走 [RootModuleClient.safeError]。 */
         suspend fun writeModule(enabled: Boolean)
 
-        /** 回读模块实际生效值；模块不支持回读时返回 null。 */
-        suspend fun readModule(): Boolean?
+        /** 回读模块实际生效值。 */
+        suspend fun readModule(): ModuleState
 
         /** App 侧已确认值（DataStore）。 */
         fun confirmed(): Boolean
@@ -52,8 +63,14 @@ class AutoStartSync(
         object Superseded : Outcome()
     }
 
-    /** 回读到的模块值与 App 已确认值不一致：可见的“待同步”状态。 */
-    data class Mismatch(val moduleValue: Boolean)
+    /** 回到设置页的核对结果：不一致就提示待同步；模块配置损坏就提示待处理。 */
+    sealed class Check {
+        /** 回读到的模块值与 App 已确认值不一致：可见的“待同步”状态。 */
+        data class Mismatch(val moduleValue: Boolean) : Check()
+
+        /** 模块侧的 boot 配置损坏/不可读：本次开机不会自启，开关状态不可信。 */
+        data class Unavailable(val code: String) : Check()
+    }
 
     private val mutex = Mutex()
     private val sequence = AtomicLong()
@@ -74,13 +91,21 @@ class AutoStartSync(
                 val target = desired.get() ?: enabled
                 try {
                     host.writeModule(target)
-                    val actual = host.readModule()
-                    if (actual == null || actual == target) {
+                    when (val actual = host.readModule()) {
+                        is ModuleState.Value -> if (actual.enabled == target) {
+                            confirmedValue = target
+                            break
+                        } else {
+                            lastCode = CODE_NOT_APPLIED
+                        }
+                        // 模块侧配置损坏/不可读：这次没有生效，按失败处理（不得落库）。
+                        is ModuleState.Unavailable -> lastCode = actual.code
                         // 老模块没有回读字段：能力边界，命令成功即视为已生效。
-                        confirmedValue = target
-                        break
+                        ModuleState.Unsupported -> {
+                            confirmedValue = target
+                            break
+                        }
                     }
-                    lastCode = CODE_NOT_APPLIED
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -102,19 +127,23 @@ class AutoStartSync(
     }
 
     /**
-     * 打开设置页或回到前台时核对模块与 App：返回非空表示模块侧的设置与
-     * 用户已确认值不同（例如上次下发超时但模块其实写成功了），界面应显示
-     * “待同步”并允许重新切换。
+     * 打开设置页或回到前台时核对模块与 App：返回非空表示需要提示——模块侧设置与
+     * 用户已确认值不同（待同步），或模块侧 boot 配置损坏/不可读（待处理）。
      */
-    suspend fun check(): Mismatch? {
-        val moduleValue = try {
+    suspend fun check(): Check? {
+        val moduleState = try {
             host.readModule()
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
             return null
-        } ?: return null
-        return if (moduleValue != host.confirmed()) Mismatch(moduleValue) else null
+        }
+        return when (moduleState) {
+            is ModuleState.Value ->
+                if (moduleState.enabled != host.confirmed()) Check.Mismatch(moduleState.enabled) else null
+            is ModuleState.Unavailable -> Check.Unavailable(moduleState.code)
+            ModuleState.Unsupported -> null
+        }
     }
 
     companion object {

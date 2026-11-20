@@ -7,6 +7,9 @@ import io.nekohasekai.sagernet.R
 
 /** Fixed error codes only: never render exception messages containing user data. @author 雾晚 */
 object RootModuleErrors {
+    /** 与 rootmodule/runtime.go 的稳定错误码保持一致。 */
+    const val BootSettingsInvalid = "boot_settings_invalid"
+    const val BootSettingsUnreadable = "boot_settings_unreadable"
     internal fun resource(code: String): Int = when (code) {
         "install_data_update_pending", "data_update_pending" -> R.string.root_module_data_pending
         "stop_node_tests_before_update" -> R.string.root_module_data_test_busy
@@ -31,6 +34,9 @@ object RootModuleErrors {
         // 开机自启：下发后回读不一致 / 没有取得可用结论——都已回滚为原设置。
         "module_autostart_not_applied" -> R.string.autostart_module_not_applied
         "module_autostart_unconfirmed" -> R.string.autostart_module_unconfirmed
+        // 模块 boot 配置损坏/不可读：不是“已生效”也不是“已关闭”，给待处理提示。
+        BootSettingsInvalid -> R.string.autostart_boot_config_invalid
+        BootSettingsUnreadable -> R.string.autostart_boot_config_unreadable
         else -> R.string.root_module_action_failed
     }
 

@@ -1576,4 +1576,7 @@
     <string name="autostart_state_off">off</string>
     <string name="autostart_module_not_applied">The module still reports the old value</string>
     <string name="autostart_module_unconfirmed">The module did not confirm the change</string>
+    <string name="autostart_boot_config_broken">The module\'s boot setting is unreadable or corrupt, so it will not start at boot. Toggle this switch once to rewrite it. %1$s</string>
+    <string name="autostart_boot_config_invalid">The module\'s boot setting file is corrupt or has an invalid field</string>
+    <string name="autostart_boot_config_unreadable">The module\'s boot setting file cannot be read (permissions or I/O error)</string>
 </resources>

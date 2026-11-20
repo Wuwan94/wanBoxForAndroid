@@ -23,7 +23,14 @@ object AutoStartSettings {
             RootModuleClient.setAutoStart(enabled)
         }
 
-        override suspend fun readModule(): Boolean? = RootModuleClient.callFreshStatus().autoStart
+        override suspend fun readModule(): AutoStartSync.ModuleState {
+            val status = RootModuleClient.callFreshStatus()
+            // 模块侧配置损坏/不可读：这次回读没有可用值，不能当成开或关。
+            if (status.autoStartError.isNotEmpty()) return AutoStartSync.ModuleState.Unavailable(status.autoStartError)
+            // 老模块没有 autoStart 字段：能力边界，不是错误。
+            val value = status.autoStart ?: return AutoStartSync.ModuleState.Unsupported
+            return AutoStartSync.ModuleState.Value(value)
+        }
 
         override fun confirmed(): Boolean = DataStore.persistAcrossReboot
 
@@ -39,7 +46,7 @@ object AutoStartSettings {
         }
     }
 
-    suspend fun check(): AutoStartSync.Mismatch? = sync.check()
+    suspend fun check(): AutoStartSync.Check? = sync.check()
 
     /** 任何来源改了持久值（开关、备份恢复、旧版本升级）都让接收器立刻跟上。 */
     fun syncBootReceiver() {
