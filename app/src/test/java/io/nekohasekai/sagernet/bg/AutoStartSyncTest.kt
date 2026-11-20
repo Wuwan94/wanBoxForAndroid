@@ -71,7 +71,7 @@ class AutoStartSyncTest {
 
     @Test
     fun `command failure keeps the confirmed value and reports the code`() = runTest {
-        val host = Host(failWrites = 2)
+        val host = Host().apply { failWrites = 2 }
         val sync = AutoStartSync(host)
         val outcome = sync.request(true)
         assertEquals(AutoStartSync.Outcome.Failed("root_required"), outcome)
@@ -82,7 +82,7 @@ class AutoStartSyncTest {
 
     @Test
     fun `a retry recovers a transient failure`() = runTest {
-        val host = Host(failWrites = 1)
+        val host = Host().apply { failWrites = 1 }
         val sync = AutoStartSync(host)
         val outcome = sync.request(true)
         assertEquals(AutoStartSync.Outcome.Confirmed(true), outcome)
@@ -91,7 +91,7 @@ class AutoStartSyncTest {
 
     @Test
     fun `module that keeps the old value is not treated as applied`() = runTest {
-        val host = Host(ignoreWrites = true)
+        val host = Host().apply { ignoreWrites = true }
         val sync = AutoStartSync(host)
         val outcome = sync.request(true)
         assertEquals(AutoStartSync.Outcome.Failed(AutoStartSync.CODE_NOT_APPLIED), outcome)
@@ -101,7 +101,7 @@ class AutoStartSyncTest {
 
     @Test
     fun `read-back failure is retried and then reported`() = runTest {
-        val host = Host(failReads = 2)
+        val host = Host().apply { failReads = 2 }
         val sync = AutoStartSync(host)
         val outcome = sync.request(true)
         assertEquals(AutoStartSync.Outcome.Failed("module_status_invalid"), outcome)
@@ -110,7 +110,7 @@ class AutoStartSyncTest {
 
     @Test
     fun `older module without read-back is applied on command success`() = runTest {
-        val host = Host(noReadBack = true)
+        val host = Host().apply { noReadBack = true }
         val sync = AutoStartSync(host)
         val outcome = sync.request(true)
         assertEquals(AutoStartSync.Outcome.Confirmed(true), outcome)
