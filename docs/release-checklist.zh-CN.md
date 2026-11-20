@@ -69,17 +69,18 @@ S6 收尾 PR：把候选/正式 run ID、实测字节与 SHA-256 回填到本清
 - 阶段二（正式，run `44477065390`）：首次在 `Build OSS APK` 的「Run unit and Android tests」红于 plugins.gradle.org 解析 `org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.21` / `kotlin-gradle-plugins-bom` 瞬时不可用，失败在发布断言之前，未创建任何 Release/tag；`gh run rerun --failed` 后四作业全绿，2026-11-19T07:24:49Z 发布。
 - 发布后回读：`prerelease=false`、资产 4 个、名称/大小/digest 与 `SHA256SUMS` 一致；APK `6363231` B / `5e21c0bf…b76dba`、Root ZIP `18133473` B / `8e4d9d16…493ef4`、合一 ZIP `23776260` B / `2a7ea8b1…b50b29`、`SHA256SUMS` `315` B / `c513a2c5…066d1ca`；APK + 模块 `24496704` B（23.36 MiB）< `27262976` B。本地 `sha256sum -c` 三件 OK；APK manifest `versionCode=10175` / `versionName=3.0.17`，无 `lib/`；模块 `3.0.17 / 2035`；四处同源均为 `d4e7c5d0`；`v3.0.14`、`v3.0.11` 与 `v3.0.17-preview.4` 保留。
 
-## 预览线候选（v3.0.18-preview.2，2026-11-20）
+## 预览线现状（v3.0.18-preview.2，2026-11-20）
 
-正式版 `v3.0.17` 仍是唯一正式版本；预览线由 `3.0.18-preview.1` 前移到 `3.0.18-preview.2`，本条按预览门禁（`preview.yml`，不走 `release.yml` 两阶段、不执行深度真机矩阵）执行，候选阶段记录。
+正式版 `v3.0.17` 仍是唯一正式版本；预览线 `3.0.18-preview.2` 已按预览门禁（`preview.yml`，不走 `release.yml` 两阶段、不执行深度真机矩阵）发布。
 
 - 内容：PR #80（`fix/urltest,app`）收口 preview.1 源码复审与代码复审六项——观测按（成员, 网络）分账、UDP 探测只认真实往返回显、降级即作废旧回切资格、组关闭停拨备用、开机自启「下发→回读→落库」闭环、`boot.json` 三态与 `Boot()` 同口径。
-- 元数据：`PRE_VERSION_NAME=3.0.18-preview.2`、`PRE_VERSION_CODE=2037`，派生 APK `10187` / 模块 `2037`，严格高于已发布 preview.1 的 `10181 / 2036`（`version_code.py --channel preview --enforce` 通过）；正式线 `3.0.17 / 2035` 与 `SINGBOX_VERSION` 不变。
-- 溯源要求：`approved_sha` 必须是升版 PR 合入后的精确 main 提交，且 tag 对象 / Release `targetCommitish` / APK 内 `version-control-info.textproto` / 发布 job 的 `APPROVED_SHA` 四处同源；升版 PR 的 `Verify Android Build` 必须先全绿。
-- 发布后动作：回读四件套名称/字节/digest，`sha256sum -c` 校验，确认 `prune_prereleases.py` 已清理 `v3.0.18-preview.1`，正式版 `v3.0.17` / `v3.0.14` / `v3.0.11` 保留。
+- 元数据：`PRE_VERSION_NAME=3.0.18-preview.2`、`PRE_VERSION_CODE=2037`，派生 APK `10187` / 模块 `2037`，严格高于 preview.1 的 `10181 / 2036`。正式线 `3.0.17 / 2035` 与 `SINGBOX_VERSION` 不变。
+- 溯源：轻量 tag / `targetCommitish` / APK `version-control-info.textproto` / `APPROVED_SHA` 四者同为 `e7f1f9366316974d8318e8708dcaaa669bc896a0`（升版 PR #81 合并提交）；`Preview Build` run `44728368529` 四作业全绿，2026-11-20T11:51:54Z 上架。升版 PR 的 `Verify Android Build` run `44723295827` 首跑红在 plugins.gradle.org 瞬时不可用，重跑后全绿。
+- 资产：APK `6371663` B / `2ecd6d93…b8666b`，Root ZIP `18149031` B / `b191ff89…07be3b`，合一 ZIP `23794995` B / `96055b46…072295`，`SHA256SUMS` `333` B / `b199faa8…10d5be`；APK + 模块 `24520694` B（23.38 MiB）低于 26 MiB 门禁。
+- 清理：发布 run 在 11:52:04Z 删除了 `v3.0.18-preview.1` 的 Release/tag；正式版 `v3.0.17` / `v3.0.14` / `v3.0.11` 未动。
 - 未验证边界：Root 真机矩阵同前未执行；UDP 探测为本机可控回显端点，非真实代理服务端往返；应用侧无 `udp_probe` 配置入口；真机 `boot.json` 权限与开机行为未验。
 
-## 预览线现状（v3.0.18-preview.1，2026-11-19）
+## 预览线现状（v3.0.18-preview.1，2026-11-19，Release/tag 已在 preview.2 发布后清理）
 
 正式版 `v3.0.17` 发布后，预览线 `3.0.18-preview.1` 已按预览门禁发布，本条只记录发布事实与遗留；预览本身不走 `release.yml` 两阶段，也不执行深度真机矩阵。
 

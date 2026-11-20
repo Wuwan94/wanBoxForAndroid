@@ -4,12 +4,12 @@
 
 ## wanBox 3.0.x 发布记录
 
-### v3.0.18-preview.2（预览候选，未发布）
+### v3.0.18-preview.2（已发布预览）
 
-- 候选未发布：收口 v3.0.18-preview.1 源码复审与代码复审的六项缺陷（PR #80，合并提交 `ad032285b3ff181677ed6c0ea9c88a7bb4e482a6`，2026-11-20T10:53:47Z，22 个文件 +2887/−167，`Verify Android Build` run `44717598549` 在 head `58ed0c7` 全绿）。
-- 内容：URLTest 观测按（成员, 网络）分账（tcp/udp 两张观测表，两层恢复门只读自己那份，嵌套组 summary 按网络各算一份）；UDP 探测改真实往返回显（`verified` / `rejected` / `unverified` / `skipped` / `canceled`，目标只来自用户配置 `udp_probe`，无配置零流量）；降级即作废旧回切资格（`promoteFailover` 同锁清空失败层与更高层计数、`currentTier` 只下移、门代次递增使迟到观测失效）；组关闭停拨备用（`bindGroupLifecycle` + `wrapConn` / `wrapPacketConn`）；开机自启「下发→回读→落库」闭环（模块只读 `autoStart`、`AutoStartSync` 重试与「待同步」提示）；`boot.json` 三态与 `Boot()` 同口径（`boot_settings_invalid` / `boot_settings_unreadable`，坏文件不改写、`SetAutoStart` 为唯一修复路径）。
-- 元数据升为模块 `2037` / APK `10187`（已发布 preview.1 为 `10181 / 2036`）；正式线 `3.0.17 / 2035` 与 `SINGBOX_VERSION` 不变。候选阶段记录，发布后由文档同步 PR 翻转状态并回填 run 号与四件套资产数据。
-- 边界：UDP 探测为本机可控回显端点，非真实代理服务端往返；应用侧暂无 `udp_probe` 配置入口；Root 真机矩阵未执行。
+- [GitHub Release v3.0.18-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.2) 由 `Preview Build` run `44728368529` 在 main commit/tag `e7f1f9366316974d8318e8708dcaaa669bc896a0`（轻量 tag，升版 PR #81 合并提交，2026-11-20T11:31:39Z）于 2026-11-20T11:51:54Z 发布；tag 对象、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `e7f1f936`，四个作业全绿。升版 PR #81 的 `Verify Android Build` run `44723295827` 首跑红在 plugins.gradle.org 解析 `kotlin-gradle-plugin:2.0.21` 瞬时不可用（未创建 tag/Release），`gh run rerun --failed` 后全绿。
+- 内容：收口 v3.0.18-preview.1 源码复审与代码复审的六项缺陷（PR #80，合并提交 `ad032285b3ff181677ed6c0ea9c88a7bb4e482a6`，22 个文件 +2887/−167，`Verify Android Build` run `44717598549` 在 head `58ed0c7` 全绿）：URLTest 观测按（成员, 网络）分账（tcp/udp 两张观测表，两层恢复门只读自己那份，嵌套组 summary 按网络各算一份）；UDP 探测改真实往返回显（`verified` / `rejected` / `unverified` / `skipped` / `canceled`，目标只来自用户配置 `udp_probe`，无配置零流量）；降级即作废旧回切资格（`promoteFailover` 同锁清空失败层与更高层计数、`currentTier` 只下移、门代次递增使迟到观测失效）；组关闭停拨备用（`bindGroupLifecycle` + `wrapConn` / `wrapPacketConn`）；开机自启「下发→回读→落库」闭环（模块只读 `autoStart`、`AutoStartSync` 重试与「待同步」提示）；`boot.json` 三态与 `Boot()` 同口径（`boot_settings_invalid` / `boot_settings_unreadable`，坏文件不改写、`SetAutoStart` 为唯一修复路径）。
+- 元数据为模块 `2037` / APK `10187`（preview.1 为 `2036` / `10181`）；正式线 `3.0.17 / 2035` 与 `SINGBOX_VERSION` 不变。四件套经 API digest 与公开 `SHA256SUMS` 回读一致（本地 `sha256sum -c` 三件 OK）：APK `6371663` 字节 / `2ecd6d93…b8666b`、普通 Root ZIP `18149031` 字节 / `b191ff89…07be3b`、合一 ZIP `23794995` 字节 / `96055b46…072295`、`SHA256SUMS` `333` 字节 / `b199faa8…10d5be`；APK + 普通 Root ZIP 为 `24520694` 字节（23.38 MiB），`size_budget --enforce-limit` PASS。发布后 `prune_prereleases.py` 在 11:52:04Z 删除了 `v3.0.18-preview.1` 的 Release/tag，正式版 `v3.0.17` / `v3.0.14` / `v3.0.11` 保留。
+- 边界：UDP 探测为本机可控回显端点，非真实代理服务端往返；应用侧暂无 `udp_probe` 配置入口（默认零流量）；Root 真机矩阵未执行（CI 自标 `runtime_regression: not_verified`）。
 
 ### v3.0.18-preview.1（已发布预览）
 

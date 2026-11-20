@@ -1,12 +1,14 @@
-# v3.0.18-preview.2 发行说明（候选）
+# v3.0.18-preview.2 发行说明
 
-**状态：未发布的稳定性预览版候选。**
+**状态：已发布的稳定性预览版。**
 
-本版收口 `v3.0.18-preview.1` 源码复审与代码复审提出的六项缺陷（PR #80，合并提交 `ad032285b3ff181677ed6c0ea9c88a7bb4e482a6`，22 个文件 +2887/−167，`Verify Android Build` run `44717598549` 在 head `58ed0c7` 全绿）。正式线 `3.0.17 / 2035` 与 sing-box pin `v1.15.0-alpha.13-reF1nd` 未变；预览元数据升为 `3.0.18-preview.2 / 2037`，派生 APK `versionCode=10187`、Root 模块码 `2037`（已发布 preview.1 为 `10181 / 2036`）。候选阶段记录，发布后由文档同步 PR 回填 run 号与四件套字节、SHA-256 并翻转状态。
+本版收口 `v3.0.18-preview.1` 源码复审与代码复审提出的六项缺陷（PR #80，合并提交 `ad032285b3ff181677ed6c0ea9c88a7bb4e482a6`，22 个文件 +2887/−167，`Verify Android Build` run `44717598549` 在 head `58ed0c7` 全绿）。正式线 `3.0.17 / 2035` 与 sing-box pin `v1.15.0-alpha.13-reF1nd` 未变；预览元数据为 `3.0.18-preview.2 / 2037`，派生 APK `versionCode=10187`、Root 模块码 `2037`（preview.1 为 `10181 / 2036`）。
+
+[v3.0.18-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.2) 以 `main` 的 `e7f1f9366316974d8318e8708dcaaa669bc896a0`（升版 PR #81 合并提交，轻量 tag）发布：`Preview Build` run `44728368529` 四个作业全绿、2026-11-20T11:51:54Z 上架（发布 job 断言 `APPROVED_SHA=e7f1f936` 并回读 tag）；四件套 APK `6371663` / 普通模块 `18149031` / 合一包 `23794995` / `SHA256SUMS` `333` 字节，APK+模块 `24520694` 字节（23.38 MiB）余量 `2742282` → PASS，`sha256sum -c` 三件 OK。发布后 11:52:04Z 由 `prune_prereleases.py` 清理 `v3.0.18-preview.1`，正式版 `v3.0.17` / `v3.0.14` / `v3.0.11` 保留。
 
 ## 与上一版对比
 
-| 项目 | v3.0.18-preview.1 | v3.0.18-preview.2（候选） |
+| 项目 | v3.0.18-preview.1 | v3.0.18-preview.2 |
 |---|---|---|
 | 内容 | 层级状态按 TCP/UDP 拆分；App UI 对齐模块功能 | 观测按（成员, 网络）分账、UDP 只认真实回显、降级作废旧回切资格、组关闭停拨备用；自启下发→回读→落库闭环、`boot.json` 三态 |
 | APK `versionCode` | 10181 | 10187 |
@@ -25,7 +27,7 @@ URLTest 间隔 ≥10 秒、空闲 ≥30 分钟、切换不中断现有连接与�
 
 ## 升级与验证边界
 
-同一 Release 的瘦管理器 APK 与 Root 模块必须成套安装；回退用正式版 [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17) 的 APK 与配套模块（模块码 `2035`）。PR 门禁 `Verify Android Build` run `44717598549` 全绿（`go test -race`、`go vet`、Python 工具 125 项、`rootmodule` 28 项、文档门禁、JVM 单测与插桩）。未执行 Root 真机矩阵（CI 自标 `runtime_regression: not_verified`）；UDP 探测为本机可控回显端点，非真实代理服务端往返；真机 `boot.json` 权限与开机行为未验证。自动化结果不等同于真机验证。
+同一 Release 的瘦管理器 APK 与 Root 模块必须成套安装；回退用正式版 [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17) 的 APK 与配套模块（模块码 `2035`）。PR 门禁 `Verify Android Build` run `44717598549` 全绿（`go test -race`、`go vet`、Python 工具 125 项、`rootmodule` 28 项、文档门禁、JVM 单测与插桩）；升版 PR #81 的 run `44723295827` 首跑红在 plugins.gradle.org 解析 `kotlin-gradle-plugin:2.0.21` 瞬时不可用，重跑后全绿。发布 `Preview Build` run `44728368529` 四作业全绿，四处同源均为 `e7f1f936`；合一包内 `manager.apk` 与外部 APK 逐字节相同；签名证书仍为 `80ecee1c…21f6`。未执行 Root 真机矩阵（CI 自标 `runtime_regression: not_verified`）；UDP 探测为本机可控回显端点，非真实代理服务端往返；真机 `boot.json` 权限与开机行为未验证。自动化结果不等同于真机验证。
 
 ---
 
@@ -33,7 +35,7 @@ URLTest 间隔 ≥10 秒、空闲 ≥30 分钟、切换不中断现有连接与�
 
 ### v3.0.18-preview.1 已发布说明
 
-[v3.0.18-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.1) 已作为稳定性预览版发布：main `0a30baaf939a97b1941210609ce377e00d386157`（轻量 tag），`Preview Build` run `44516333684` 四作业全绿、2026-11-19T11:55:25Z 上架；预览元数据 `2036`，APK `10181` / 模块 `2036`。内容为 PR #77（层级状态按 TCP/UDP 拆分）与 PR #78（UI 对齐模块功能）。已知边界：一次探测的观测仍按 tag 共享、嵌套组 summary 与网络无关。本版 Release 将在 preview.2 发布时由 `prune_prereleases.py` 清理。
+[v3.0.18-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.1) 已作为稳定性预览版发布：main `0a30baaf939a97b1941210609ce377e00d386157`（轻量 tag），`Preview Build` run `44516333684` 四作业全绿、2026-11-19T11:55:25Z 上架；预览元数据 `2036`，APK `10181` / 模块 `2036`。内容为 PR #77（层级状态按 TCP/UDP 拆分）与 PR #78（UI 对齐模块功能）。已知边界：一次探测的观测仍按 tag 共享、嵌套组 summary 与网络无关。本版 Release 已于 11:52:04Z 在 preview.2 发布时由 `prune_prereleases.py` 清理（现为 404）。
 
 ### v3.0.17-preview.4 已发布说明
 
