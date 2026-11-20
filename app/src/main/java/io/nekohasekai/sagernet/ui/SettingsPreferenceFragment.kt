@@ -253,6 +253,11 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
                 listView?.adapter?.notifyDataSetChanged()
             }
         }
+        if (key == Key.PERSIST_ACROSS_REBOOT) {
+            // 任何来源（开关、备份恢复、旧版本升级）改了持久值，都立刻让
+            // BOOT_COMPLETED 接收器跟上，不等下一次服务启动。
+            io.nekohasekai.sagernet.bg.AutoStartSettings.syncBootReceiver()
+        }
     }
 
     private val reloadListener = Preference.OnPreferenceChangeListener { _, _ ->
@@ -805,20 +810,89 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
                     else io.nekohasekai.sagernet.bg.RootModuleErrors.message(activity, error), android.widget.Toast.LENGTH_LONG).show()
             }
         }
-        // 开机自启：isAutoConnect 已恢复为 XML 开关（global_preferences.xml），框架经
-        // preferenceDataStore 写入 configurationStore，与 DataStore.persistAcrossReboot
-        // 同一存储，持久化由框架负责；这里只补即时下发，让切换立刻同步模块的
-        // autostart 标志（config apply 时也会按同一值再下发一次）。
-        findPreference<SwitchPreference>(Key.PERSIST_ACROSS_REBOOT)?.setOnPreferenceChangeListener { _, newValue ->
-            val enabled = newValue as Boolean
-            val activity = requireActivity()
-            runOnDefaultDispatcher {
-                val error = try {
-                    io.nekohasekai.sagernet.bg.RootModuleClient.setAutoStart(enabled); null
-                } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { e }
-                if (error != null) report(activity, error, "")
+        // 开机自启：isAutoConnect 由 XML 开关承载，但模块的 boot.json 才是
+        // “开机是否拉起核心”的依据。这里不让框架直接落库（listener 返回 false），
+        // 而是「下发 → 回读确认 → 落库」：失败/超时/结果未知时保持原值并回滚显示；
+        // 确认后由 AutoStartSettings 同时写 DataStore 与 BOOT_COMPLETED 接收器，
+        // 两侧永远一致（配置应用时还会按同一值再下发一次，作为自愈路径）。
+        findPreference<SwitchPreference>(Key.PERSIST_ACROSS_REBOOT)?.apply {
+            val defaultSummary = summary
+            val originalPersistent = isPersistent
+            isPersistent = false
+            try {
+                isChecked = DataStore.persistAcrossReboot
+            } finally {
+                isPersistent = originalPersistent
             }
-            true
+            setOnPreferenceChangeListener { pref, newValue ->
+                val enabled = newValue as Boolean
+                val switch = pref as SwitchPreference
+                switch.summary = getString(R.string.autostart_sync_pending)
+                val activity = requireActivity()
+                io.nekohasekai.sagernet.bg.AutoStartSettings.request(enabled) { outcome ->
+                    runOnMainDispatcher {
+                        if (activity.isFinishing || activity.isDestroyed) return@runOnMainDispatcher
+                        when (outcome) {
+                            is io.nekohasekai.sagernet.bg.AutoStartSync.Outcome.Confirmed -> {
+                                val persistent = switch.isPersistent
+                                switch.isPersistent = false
+                                try {
+                                    switch.isChecked = outcome.enabled
+                                } finally {
+                                    switch.isPersistent = persistent
+                                }
+                                switch.summary = defaultSummary
+                            }
+                            is io.nekohasekai.sagernet.bg.AutoStartSync.Outcome.Failed -> {
+                                // 保持旧值：界面、DataStore、模块都不动，只把错误说清楚。
+                                val persistent = switch.isPersistent
+                                switch.isPersistent = false
+                                try {
+                                    switch.isChecked = DataStore.persistAcrossReboot
+                                } finally {
+                                    switch.isPersistent = persistent
+                                }
+                                switch.summary = defaultSummary
+                                android.widget.Toast.makeText(activity,
+                                    getString(R.string.autostart_sync_failed,
+                                        io.nekohasekai.sagernet.bg.RootModuleErrors.message(activity, outcome.code)),
+                                    android.widget.Toast.LENGTH_LONG).show()
+                            }
+                            io.nekohasekai.sagernet.bg.AutoStartSync.Outcome.Superseded -> {
+                                // 更新的切换已接管：不落库、不改界面。
+                                switch.summary = defaultSummary
+                            }
+                        }
+                    }
+                }
+                false
+            }
+            // 返回页面时核对模块与 App：不一致就显示可见的“待同步”状态，
+            // 用户再切一次开关即可重新下发（不静默改写用户数据）。
+            val preference = this
+            lifecycleScope.launch {
+                val result = try {
+                    io.nekohasekai.sagernet.bg.AutoStartSettings.check()
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    null
+                }
+                if (result != null && isAdded) {
+                    when (result) {
+                        is io.nekohasekai.sagernet.bg.AutoStartSync.Check.Mismatch -> {
+                            val moduleText = getString(if (result.moduleValue) R.string.autostart_state_on else R.string.autostart_state_off)
+                            preference.summary = getString(R.string.autostart_sync_mismatch, moduleText)
+                        }
+                        is io.nekohasekai.sagernet.bg.AutoStartSync.Check.Unavailable -> {
+                            // 模块的 boot 配置损坏/不可读：本次开机不会自启。开关显示什么都是猜，
+                            // 所以只说待处理并给出修复动作（再切一次开关即重写配置）。
+                            preference.summary = getString(R.string.autostart_boot_config_broken,
+                                io.nekohasekai.sagernet.bg.RootModuleErrors.message(requireContext(), result.code))
+                        }
+                    }
+                }
+            }
         }
         // 重启核心：模块 restart/reload 早已实现且在 App 白名单内，此前零调用方。
         preferenceScreen.addPreference(Preference(ctx).apply {

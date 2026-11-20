@@ -162,6 +162,189 @@ func TestFileLimitAndMissingOrAppResource(t *testing.T) {
 		t.Fatal("confused HTTP URL path with filesystem path", e)
 	}
 }
+
+// 开机自启的回读契约：App 下发 autostart on/off 后 MUST 能从状态读回同一值，
+// 且不得因模块停止运行而拒绝写入（boot.json 与快照都不依赖核心进程）。
+func TestAutoStartReadBackReflectsBootSettings(t *testing.T) {
+	r, s := fixture(t)
+	if _, e := r.Apply(context.Background(), s); e != nil {
+		t.Fatal(e)
+	}
+	// 从未写过 boot.json：回落到快照自带的 autoStart=true。
+	state := r.Status()
+	if state.AutoStart == nil || !*state.AutoStart {
+		t.Fatalf("expected snapshot autoStart=true before any boot.json, got %v", state.AutoStart)
+	}
+	if state.AutoStartSource != AutoStartSourceSnapshot || state.AutoStartError != "" {
+		t.Fatalf("expected snapshot source without error, got source=%q error=%q", state.AutoStartSource, state.AutoStartError)
+	}
+	// 模块处于 stopped 也必须能下发并回读。
+	if e := r.SetAutoStart(false); e != nil {
+		t.Fatal(e)
+	}
+	state = r.Status()
+	if state.AutoStart == nil || *state.AutoStart {
+		t.Fatalf("expected read-back false after autostart off, got %v", state.AutoStart)
+	}
+	if state.AutoStartSource != AutoStartSourceBoot {
+		t.Fatalf("expected the boot.json overlay as the source, got %q", state.AutoStartSource)
+	}
+	if e := r.SetAutoStart(true); e != nil {
+		t.Fatal(e)
+	}
+	state = r.Status()
+	if state.AutoStart == nil || !*state.AutoStart {
+		t.Fatalf("expected read-back true after autostart on, got %v", state.AutoStart)
+	}
+	// boot.json 丢失：回落到快照值，而不是报错或永远 false。
+	if e := os.Remove(r.path("boot.json")); e != nil {
+		t.Fatal(e)
+	}
+	state = r.Status()
+	if state.AutoStart == nil || !*state.AutoStart || state.AutoStartSource != AutoStartSourceSnapshot {
+		t.Fatalf("a missing boot.json must fall back to the snapshot flag, got %v source=%q", state.AutoStart, state.AutoStartSource)
+	}
+}
+
+// 复审 P2 的复现用例：boot.json 损坏、快照为开启时，状态 MUST NOT 声称“已生效”，
+// Boot MUST 保持安全行为（拒绝启动且不自启），两边的口径必须一致。
+func TestCorruptBootSettingsReportedAsUnknownAndNeverBooted(t *testing.T) {
+	r, s := fixture(t)
+	if _, e := r.Apply(context.Background(), s); e != nil {
+		t.Fatal(e)
+	}
+	if s.AutoStart != true {
+		t.Fatal("fixture must start enabled so the fallback would be visible")
+	}
+	if e := os.WriteFile(r.path("boot.json"), []byte("{"), 0600); e != nil {
+		t.Fatal(e)
+	}
+
+	state := r.Status()
+	if state.AutoStart != nil {
+		t.Fatalf("a corrupt boot.json must not report a value, got %v", *state.AutoStart)
+	}
+	if state.AutoStartError != BootSettingsInvalid {
+		t.Fatalf("expected %s, got %q", BootSettingsInvalid, state.AutoStartError)
+	}
+	if state.AutoStartSource != "" {
+		t.Fatalf("no source may be claimed for an unreadable setting, got %q", state.AutoStartSource)
+	}
+
+	// Boot 必须拒绝启动，并且给出与状态一致的错误码。
+	r.Validate = func(context.Context, string, string) error { t.Fatal("booted with a corrupt setting"); return nil }
+	if e := r.Boot(context.Background(), func() bool { return true }); e == nil || e.Error() != BootSettingsInvalid {
+		t.Fatalf("expected %s from Boot, got %v", BootSettingsInvalid, e)
+	}
+	// 文件没有被偷偷改写或删除：损坏内容保留给用户/诊断，修复只由用户显式下发触发。
+	if raw, e := os.ReadFile(r.path("boot.json")); e != nil || string(raw) != "{" {
+		t.Fatalf("the corrupt file must be left untouched, got %q err=%v", raw, e)
+	}
+}
+
+// 不同的损坏形态要分开归类：缺文件 / 空文件 / 字段无效是 invalid；
+// 读不出来（这里用同名目录模拟权限或 I/O 错误）是 unreadable。
+func TestBootSettingsDistinguishMissingInvalidAndUnreadable(t *testing.T) {
+	cases := []struct {
+		name    string
+		prepare func(t *testing.T, r *Runtime)
+		wantErr string
+	}{
+		{
+			name:    "empty file",
+			prepare: func(t *testing.T, r *Runtime) { t.Helper(); writeBoot(t, r, ``) },
+			wantErr: BootSettingsInvalid,
+		},
+		{
+			name:    "truncated json",
+			prepare: func(t *testing.T, r *Runtime) { t.Helper(); writeBoot(t, r, `{"autoStart":`) },
+			wantErr: BootSettingsInvalid,
+		},
+		{
+			name:    "wrong field type",
+			prepare: func(t *testing.T, r *Runtime) { t.Helper(); writeBoot(t, r, `{"autoStart":"on"}`) },
+			wantErr: BootSettingsInvalid,
+		},
+		{
+			name:    "missing field",
+			prepare: func(t *testing.T, r *Runtime) { t.Helper(); writeBoot(t, r, `{}`) },
+			wantErr: BootSettingsInvalid,
+		},
+		{
+			name:    "null field",
+			prepare: func(t *testing.T, r *Runtime) { t.Helper(); writeBoot(t, r, `{"autoStart":null}`) },
+			wantErr: BootSettingsInvalid,
+		},
+		{
+			name: "unreadable file",
+			prepare: func(t *testing.T, r *Runtime) {
+				t.Helper()
+				if e := os.Mkdir(r.path("boot.json"), 0700); e != nil {
+					t.Fatal(e)
+				}
+			},
+			wantErr: BootSettingsUnreadable,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r, s := fixture(t)
+			if _, e := r.Apply(context.Background(), s); e != nil {
+				t.Fatal(e)
+			}
+			tc.prepare(t, r)
+			state := r.Status()
+			if state.AutoStart != nil || state.AutoStartError != tc.wantErr {
+				t.Fatalf("want unknown + %s, got value=%v error=%q", tc.wantErr, state.AutoStart, state.AutoStartError)
+			}
+			r.Validate = func(context.Context, string, string) error { t.Fatal("booted with an unusable setting"); return nil }
+			if e := r.Boot(context.Background(), func() bool { return true }); e == nil || e.Error() != tc.wantErr {
+				t.Fatalf("Boot must refuse with %s, got %v", tc.wantErr, e)
+			}
+		})
+	}
+}
+
+// 写入失败 / 结果未知时状态不得假装生效；用户显式下发是修复路径（重写覆盖项）。
+func TestBootSettingsWriteFailureAndRepair(t *testing.T) {
+	r, s := fixture(t)
+	if _, e := r.Apply(context.Background(), s); e != nil {
+		t.Fatal(e)
+	}
+	// 用同名目录让原子写入的 rename 失败：写入不成立，状态也不能变。
+	if e := os.Mkdir(r.path("boot.json"), 0700); e != nil {
+		t.Fatal(e)
+	}
+	if e := r.SetAutoStart(false); e == nil {
+		t.Fatal("a failed write must be reported")
+	}
+	state := r.Status()
+	if state.AutoStart != nil || state.AutoStartError != BootSettingsUnreadable {
+		t.Fatalf("a failed write must leave an unknown setting, got value=%v error=%q", state.AutoStart, state.AutoStartError)
+	}
+	// 用户把障碍清掉后再下发一次：覆盖项被重写，状态回到可读值。
+	if e := os.Remove(r.path("boot.json")); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.WriteFile(r.path("boot.json"), []byte("not json"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	if e := r.SetAutoStart(true); e != nil {
+		t.Fatal(e)
+	}
+	state = r.Status()
+	if state.AutoStart == nil || !*state.AutoStart || state.AutoStartError != "" || state.AutoStartSource != AutoStartSourceBoot {
+		t.Fatalf("an explicit write must repair the overlay, got value=%v error=%q source=%q", state.AutoStart, state.AutoStartError, state.AutoStartSource)
+	}
+}
+
+func writeBoot(t *testing.T, r *Runtime, content string) {
+	t.Helper()
+	if e := os.WriteFile(r.path("boot.json"), []byte(content), 0600); e != nil {
+		t.Fatal(e)
+	}
+}
+
 func TestPersistedAutoStartOptOutAndNoConfigBoot(t *testing.T) {
 	r, s := fixture(t)
 	if e := r.Boot(context.Background(), func() bool { return true }); e != nil {

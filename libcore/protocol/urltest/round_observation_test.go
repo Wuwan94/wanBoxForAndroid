@@ -17,20 +17,32 @@ import (
 
 // 不拨号的层级用例用 newObservedRound 显式声明“本轮发生了什么”。
 // 生产路径的观测只能由真实探测写入，测试不会伪造历史冒充新成功。
+// 每个观测都带网络：一轮里 TCP 与 UDP 的结局可以完全不同。
 type testObservation struct {
-	tag   string
-	state urlTestObservation
+	tag     string
+	network string
+	state   urlTestObservation
 }
 
-func observedOK(tag string) testObservation       { return testObservation{tag, urlTestSuccess} }
-func observedFailed(tag string) testObservation   { return testObservation{tag, urlTestFailure} }
-func observedSkipped(tag string) testObservation  { return testObservation{tag, urlTestSkipped} }
-func observedCanceled(tag string) testObservation { return testObservation{tag, urlTestCanceled} }
+func observedOK(tag string) testObservation      { return testObservation{tag, "tcp", urlTestSuccess} }
+func observedFailed(tag string) testObservation  { return testObservation{tag, "tcp", urlTestFailure} }
+func observedSkipped(tag string) testObservation { return testObservation{tag, "tcp", urlTestSkipped} }
+func observedCanceled(tag string) testObservation {
+	return testObservation{tag, "tcp", urlTestCanceled}
+}
+
+func observedOKUDP(tag string) testObservation { return testObservation{tag, "udp", urlTestSuccess} }
+func observedFailedUDP(tag string) testObservation {
+	return testObservation{tag, "udp", urlTestFailure}
+}
+func observedSkippedUDP(tag string) testObservation {
+	return testObservation{tag, "udp", urlTestSkipped}
+}
 
 func newObservedRound(entries ...testObservation) *urlTestRound {
 	round := newURLTestRound()
 	for _, entry := range entries {
-		round.record(entry.tag, entry.state)
+		round.record(entry.tag, entry.network, entry.state)
 		if entry.state == urlTestSuccess || entry.state == urlTestFailure {
 			round.addProbed(1)
 		}
@@ -41,21 +53,30 @@ func newObservedRound(entries ...testObservation) *urlTestRound {
 // 同一轮里嵌套组与直接成员重复上报同一叶子 tag 时，弱观测不得覆盖强观测。
 func TestRoundRecordKeepsStrongestObservation(t *testing.T) {
 	round := newURLTestRound()
-	round.record("x", urlTestSuccess)
-	round.record("x", urlTestCanceled)
-	round.record("x", urlTestSkipped)
+	round.record("x", "tcp", urlTestSuccess)
+	round.record("x", "tcp", urlTestCanceled)
+	round.record("x", "tcp", urlTestSkipped)
 	if got := round.snapshot()["x"]; got != urlTestSuccess {
 		t.Fatalf("late weak observations overwrote a success, got %v", got)
 	}
-	round.record("y", urlTestCanceled)
-	round.record("y", urlTestFailure)
+	round.record("y", "tcp", urlTestCanceled)
+	round.record("y", "tcp", urlTestFailure)
 	if got := round.snapshot()["y"]; got != urlTestFailure {
 		t.Fatalf("a new failure must replace a canceled observation, got %v", got)
 	}
-	round.record("z", urlTestSkipped)
-	round.record("z", urlTestCanceled)
+	round.record("z", "tcp", urlTestSkipped)
+	round.record("z", "tcp", urlTestCanceled)
 	if got := round.snapshot()["z"]; got != urlTestSkipped {
 		t.Fatalf("skipped and canceled are equally neutral, got %v", got)
+	}
+	// 同一 tag 的两个网络互不覆盖：TCP 失败不得冲掉 UDP 成功。
+	round.record("w", "tcp", urlTestFailure)
+	round.record("w", "udp", urlTestSuccess)
+	if got := round.snapshotNetwork("tcp")["w"]; got != urlTestFailure {
+		t.Fatalf("tcp observation got %v, want failure", got)
+	}
+	if got := round.snapshotNetwork("udp")["w"]; got != urlTestSuccess {
+		t.Fatalf("udp observation got %v, want success", got)
 	}
 }
 
@@ -97,12 +118,13 @@ func TestTierGateObservationInvariants(t *testing.T) {
 		t.Fatalf("a new high-tier failure must refresh lastFailure, got %v", last)
 	}
 
-	// 成员同时支持两个网络时，两侧门必须推进到完全一致的状态。
-	if !reflect.DeepEqual(grp.tierTCP.gate.consecutiveOK, grp.tierUDP.gate.consecutiveOK) ||
-		!reflect.DeepEqual(grp.tierTCP.gate.lastFailure, grp.tierUDP.gate.lastFailure) {
-		t.Fatalf("both-network members must advance both gates identically: TCP=%v/%v UDP=%v/%v",
-			grp.tierTCP.gate.consecutiveOK, grp.tierTCP.gate.lastFailure,
-			grp.tierUDP.gate.consecutiveOK, grp.tierUDP.gate.lastFailure)
+	// 成员同时支持两个网络时，TCP 探测只推进 TCP 门：UDP 没有自己的新观测，
+	// 两侧不再“完全一致”——那正是本版修掉的跨协议冒充。
+	if got := grp.tierUDP.gate.consecutiveOK[0]; got != 0 {
+		t.Fatalf("TCP-only observations must not advance the UDP gate, got %d", got)
+	}
+	if _, failed := grp.tierUDP.gate.lastFailure[0]; failed {
+		t.Fatal("TCP failures must not stamp the UDP gate")
 	}
 }
 
@@ -112,7 +134,8 @@ func TestMixedTierObservationsInOneRound(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
-	grp := startupGroupWithMembers(t, context.Background(), server.URL,
+	echo := newUDPTestEndpoint(t, udpEndpointEcho)
+	grp := startupGroupWithMembersAndProbe(t, context.Background(), server.URL, echo.probeConfig(time.Second),
 		&delayedDialOutbound{Adapter: outbound.NewAdapter("loopback", "a [T1]", []string{"tcp", "udp"}, nil), server: server},
 		&startupOutbound{Adapter: outbound.NewAdapter("loopback", "b [T2]", []string{"tcp", "udp"}, nil), dead: true},
 	)
@@ -124,8 +147,9 @@ func TestMixedTierObservationsInOneRound(t *testing.T) {
 	if observations["a [T1]"] != urlTestSuccess || observations["b [T2]"] != urlTestFailure {
 		t.Fatalf("expected high=success low=failure, got %v", observations)
 	}
-	if round.probed() != 2 {
-		t.Fatalf("expected two completed probes, got %d", round.probed())
+	if round.probed() != 4 {
+		// 两个成员都是双栈：每人一次 TCP 探测 + 一次 UDP 往返探测，共 4 个完结观测。
+		t.Fatalf("expected four completed observations (2 members × TCP/UDP), got %d", round.probed())
 	}
 	if grp.tierTCP.gate.consecutiveOK[0] != 1 || grp.tierTCP.gate.consecutiveOK[1] != 0 {
 		t.Fatalf("mixed round gate: got %d/%d", grp.tierTCP.gate.consecutiveOK[0], grp.tierTCP.gate.consecutiveOK[1])
@@ -207,7 +231,8 @@ func TestConcurrentChecksShareOneRound(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
-	grp := startupGroupWithMembers(t, context.Background(), server.URL,
+	echo := newUDPTestEndpoint(t, udpEndpointEcho)
+	grp := startupGroupWithMembersAndProbe(t, context.Background(), server.URL, echo.probeConfig(time.Second),
 		&delayedDialOutbound{Adapter: outbound.NewAdapter("loopback", "a [T1]", []string{"tcp", "udp"}, nil), server: server},
 		&delayedDialOutbound{Adapter: outbound.NewAdapter("loopback", "b [T2]", []string{"tcp", "udp"}, nil), server: server},
 	)
@@ -237,8 +262,9 @@ func TestConcurrentChecksShareOneRound(t *testing.T) {
 	close(release)
 	leader := <-leaderDone
 	wg.Wait()
-	if leader == nil || leader.probed() != 2 {
-		t.Fatalf("expected two completed probes in the shared round, got %v", leader)
+	if leader == nil || leader.probed() != 4 {
+		// 两个双栈成员 × (TCP 探测 + UDP 往返探测)：共享轮只收尾一次，计数不重复。
+		t.Fatalf("expected four completed observations in the shared round, got %v", leader)
 	}
 	for i, round := range joined {
 		if round != leader {

@@ -24,8 +24,9 @@ import (
 
 type startupOutbound struct {
 	outbound.Adapter
-	calls atomic.Int32
-	dead  bool
+	calls       atomic.Int32
+	listenCalls atomic.Int32
+	dead        bool
 }
 
 func (s *startupOutbound) DialContext(ctx context.Context, network string, dst M.Socksaddr) (net.Conn, error) {
@@ -36,6 +37,7 @@ func (s *startupOutbound) DialContext(ctx context.Context, network string, dst M
 	return (&net.Dialer{}).DialContext(ctx, network, dst.String())
 }
 func (s *startupOutbound) ListenPacket(ctx context.Context, dst M.Socksaddr) (net.PacketConn, error) {
+	s.listenCalls.Add(1)
 	return (&net.ListenConfig{}).ListenPacket(ctx, "udp", "127.0.0.1:0")
 }
 func startupGroup(t *testing.T, link string) (*URLTestGroup, *startupOutbound) {
@@ -47,6 +49,13 @@ func startupGroup(t *testing.T, link string) (*URLTestGroup, *startupOutbound) {
 
 func startupGroupWithMembers(t *testing.T, parent context.Context, link string, members ...adapter.Outbound) *URLTestGroup {
 	t.Helper()
+	return startupGroupWithMembersAndProbe(t, parent, link, nil, members...)
+}
+
+// startupGroupWithMembersAndProbe 额外挂上 UDP 往返探测配置：probe 为 nil 时
+// 与生产默认一致（不探测、不产生 UDP 流量，UDP 观测一律跳过）。
+func startupGroupWithMembersAndProbe(t *testing.T, parent context.Context, link string, probe *udpProbeConfig, members ...adapter.Outbound) *URLTestGroup {
+	t.Helper()
 	ctx := service.ContextWithDefaultRegistry(parent)
 	ctx = service.ContextWithPtr(ctx, history.NewHistoryStorage())
 	ctx = pause.WithDefaultManager(ctx)
@@ -55,6 +64,7 @@ func startupGroupWithMembers(t *testing.T, parent context.Context, link string, 
 	if err != nil {
 		t.Fatal(err)
 	}
+	group.udpProbe = probe
 	t.Cleanup(func() { _ = group.Close() })
 	return group
 }

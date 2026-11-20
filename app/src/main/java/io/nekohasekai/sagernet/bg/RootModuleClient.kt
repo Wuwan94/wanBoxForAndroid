@@ -133,7 +133,14 @@ object RootModuleClient {
         val health: String = "", val lastExit: String = "", val lastReason: String = "",
         val retryCount: Int = 0, val events: List<ModuleEvent> = emptyList(),
         val profileTags: Map<Long, String> = emptyMap(),
-        val lastExitAt: Long = 0L) {
+        val lastExitAt: Long = 0L,
+        // 模块回读的开机自启设置（boot.json 生效值）；老模块没有这个字段 → null，
+        // 此时只能按“命令成功即生效”处理（能力边界，不是默认猜测）。@author 雾晚
+        // autoStartError 非空表示模块侧配置损坏/不可读：这次回读没有可用值，
+        // 模块本次开机不会自启；不得按 false 或旧值落库。
+        val autoStart: Boolean? = null,
+        val autoStartSource: String = "",
+        val autoStartError: String = "") {
         /** 异常: module failed / needs cleanup, or connected but the data plane is degraded. */
         val abnormal get() = installData == null && (phase == "failed" || phase == "cleanup_required" ||
             (phase == "connected" && health == "degraded"))
@@ -204,7 +211,14 @@ object RootModuleClient {
             lastReason = state.safeString("lastReason"),
             retryCount = state["retryCount"]?.takeIf { it.isJsonPrimitive }?.asInt ?: 0,
             events = events, profileTags = profileTags,
-            lastExitAt = state["lastExitAt"]?.takeUnless { it.isJsonNull }?.asLong ?: 0L)
+            lastExitAt = state["lastExitAt"]?.takeUnless { it.isJsonNull }?.asLong ?: 0L,
+            // 只有真正的 JSON 布尔才算回读结果：其他类型（缺字段/字符串/对象）
+            // 一律视为“老模块不支持”，不得按 false 落库。
+            autoStart = state["autoStart"]?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean,
+            autoStartSource = state.safeString("autoStartSource"),
+            // 配置损坏/不可读：模块报的是稳定错误码，界面据此显示“待处理”，
+            // 而不是把开关画成开或关。
+            autoStartError = state.safeString("autoStartError"))
     }
     suspend fun call(command: String, input: File? = null): Status = withContext(Dispatchers.IO) {
         require(command in commands || command.matches(Regex("data selection-finish [a-f0-9]{32}"))

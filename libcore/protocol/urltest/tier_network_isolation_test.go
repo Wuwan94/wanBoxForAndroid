@@ -215,7 +215,7 @@ func TestTCPRecoveryGateDoesNotUseUDPObservations(t *testing.T) {
 	// T1 只在 UDP 侧恢复，连续 3 轮新成功：只能推进 UDP 的回切门。
 	storeTierHistory(t, grp, "a-udp [T1]", 100)
 	for i := 0; i < 3; i++ {
-		grp.performRoundEndCheck(newObservedRound(observedOK("a-udp [T1]"), observedOK("c [T2]")))
+		grp.performRoundEndCheck(newObservedRound(observedOKUDP("a-udp [T1]"), observedOK("c [T2]"), observedOKUDP("c [T2]")))
 	}
 	if got := grp.tierUDP.gate.consecutiveOK[0]; got != 3 {
 		t.Fatalf("expected UDP gate at 3 healthy rounds, got %d", got)
@@ -296,8 +296,8 @@ func TestTCPFailureDoesNotResetUDPGate(t *testing.T) {
 	// UDP 的 T1 连续健康 2 轮：UDP 门 consecutiveOK[0]=2，且从未失败。
 	storeTierHistory(t, grp, "a-udp [T1]", 100)
 	storeTierHistory(t, grp, "c [T2]", 90)
-	grp.performRoundEndCheck(newObservedRound(observedOK("a-udp [T1]"), observedOK("c [T2]")))
-	grp.performRoundEndCheck(newObservedRound(observedOK("a-udp [T1]"), observedOK("c [T2]")))
+	grp.performRoundEndCheck(newObservedRound(observedOKUDP("a-udp [T1]"), observedOKUDP("c [T2]")))
+	grp.performRoundEndCheck(newObservedRound(observedOKUDP("a-udp [T1]"), observedOKUDP("c [T2]")))
 	if got := grp.tierUDP.gate.consecutiveOK[0]; got != 2 {
 		t.Fatalf("expected UDP gate at 2 healthy rounds, got %d", got)
 	}
@@ -305,7 +305,7 @@ func TestTCPFailureDoesNotResetUDPGate(t *testing.T) {
 	// 这一轮 TCP 的 T1 成员新失败（UDP 的 T1 同时成功）：
 	// TCP 门清零并记自己的失败时间；UDP 门只能被自己的成功推进到 3。
 	grp.performRoundEndCheck(newObservedRound(
-		observedFailed("a-tcp [T1]"), observedOK("a-udp [T1]"), observedOK("c [T2]")))
+		observedFailed("a-tcp [T1]"), observedOKUDP("a-udp [T1]"), observedOKUDP("c [T2]")))
 	if got := grp.tierTCP.gate.consecutiveOK[0]; got != 0 {
 		t.Fatalf("expected TCP gate reset to 0 after its own failure, got %d", got)
 	}
@@ -338,7 +338,7 @@ func TestUDPFailureDoesNotResetTCPGate(t *testing.T) {
 	// 这一轮 UDP 的 T1 成员新失败（TCP 的 T1 同时成功）：
 	// UDP 门清零并记自己的失败时间；TCP 门只能被自己的成功推进到 3。
 	grp.performRoundEndCheck(newObservedRound(
-		observedOK("a-tcp [T1]"), observedFailed("a-udp [T1]"), observedOK("c [T2]")))
+		observedOK("a-tcp [T1]"), observedFailedUDP("a-udp [T1]"), observedOK("c [T2]"), observedOKUDP("c [T2]")))
 	if got := grp.tierUDP.gate.consecutiveOK[0]; got != 0 {
 		t.Fatalf("expected UDP gate reset to 0 after its own failure, got %d", got)
 	}

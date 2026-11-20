@@ -1454,4 +1454,14 @@
     <string name="group_editor_abandon_confirm">先将本机组配置恢复到编辑前。模块运行时，只有重建成功且实时状态确认后才清除恢复标记；失败会保留恢复和重试入口。模块已停止或暂停时保持原状，只完成本地恢复。仅在“恢复编辑前的组配置”无法完成时使用。</string>
     <string name="group_editor_abandon_done">已放弃未完成编辑，可重新连接。</string>
     <string name="group_editor_recovery_failed_choice">无法恢复编辑前的组配置（保存的基线可能已失效）。可以稍后重试，或放弃未完成编辑。</string>
+    <string name="autostart_sync_pending">正在同步到模块…</string>
+    <string name="autostart_sync_failed">开机自启设置未生效，已保持原设置。%1$s</string>
+    <string name="autostart_sync_mismatch">模块侧开机自启为「%1$s」，与本应用不一致；再切一次开关即可同步。</string>
+    <string name="autostart_state_on">开</string>
+    <string name="autostart_state_off">关</string>
+    <string name="autostart_module_not_applied">模块里仍是旧值</string>
+    <string name="autostart_module_unconfirmed">模块没有确认这次修改</string>
+    <string name="autostart_boot_config_broken">模块的开机自启配置损坏或读不出来，本次开机不会自启；再切一次开关即可重写配置。%1$s</string>
+    <string name="autostart_boot_config_invalid">模块的开机自启配置文件损坏或字段无效</string>
+    <string name="autostart_boot_config_unreadable">模块的开机自启配置文件读不出来（权限或 I/O 错误）</string>
 </resources>

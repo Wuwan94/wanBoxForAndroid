@@ -74,6 +74,23 @@ type State struct {
 	// (channel.go): the supervisor's loopback long-poll endpoint. It is read
 	// from channel.json at request time and never persisted into state.json.
 	Channel *ChannelEndpoint `json:"channel,omitempty"`
+	// AutoStart is the boot setting this module will actually honour on the next
+	// boot: boot.json when present and readable, otherwise the snapshot's own flag.
+	// The App MUST read it back after `autostart on/off` instead of treating the
+	// command's exit code as proof of effect. Only populated by Status(); older
+	// managers ignore it. @author 雾晚
+	//
+	// AutoStart 为 nil 表示“无法确定”：boot.json 损坏或读不出来，模块本次开机会
+	// 拒绝自启（Boot 返回 AutoStartError）。此时 MUST NOT 拿快照值冒充生效值——
+	// 那是“看起来开着、开机却不会启动”的假象。
+	AutoStart *bool `json:"autoStart,omitempty"`
+	// AutoStartSource 说明上面那个值的证据来源："boot"（boot.json 覆盖项）或
+	// "snapshot"（没有覆盖项，回落快照）。AutoStart 为 nil 时为空。
+	AutoStartSource string `json:"autoStartSource,omitempty"`
+	// AutoStartError 非空表示自启设置不可确定：boot_settings_invalid（格式损坏或
+	// 字段无效） / boot_settings_unreadable（权限或 I/O 错误） / current_invalid
+	// （当前配置读不出来）。App MUST 把它作为“待处理”提示给用户，而不是显示开关状态。
+	AutoStartError string `json:"autoStartError,omitempty"`
 	// @author 雾晚 (phase 2): data-plane health ("ok" / "degraded"), last core exit
 	// reason and its class. Optional fields: older managers ignore them.
 	Health     string `json:"health,omitempty"`
@@ -785,6 +802,18 @@ func (r *Runtime) DashboardTelemetry() *Telemetry {
 func (r *Runtime) Status() State {
 	s := State{SchemaVersion: Version, Phase: "stopped"}
 	_ = readJSON(r.path("state.json"), &s, 1<<20)
+	// 每次状态读取都重算实际生效的自启设置：state.json 里的旧值不得冒充当前值。
+	// 无法确定时（配置损坏/不可读）MUST 报未知 + 错误码，不能退回快照值假装生效。
+	autoStart, autoStartSource, autoStartErr := r.EffectiveAutoStart()
+	if autoStartErr != nil {
+		s.AutoStart = nil
+		s.AutoStartSource = ""
+		s.AutoStartError = autoStartErr.Error()
+	} else {
+		s.AutoStart = &autoStart
+		s.AutoStartSource = autoStartSource
+		s.AutoStartError = ""
+	}
 	rev, err := r.CurrentRevision()
 	if err != nil {
 		s.Error = "current_invalid"
@@ -1147,10 +1176,82 @@ func (r *Runtime) Rollback(ctx context.Context) error {
 }
 func (r *Runtime) SetAutoStart(enabled bool) error {
 	return r.withLock(func() error {
+		// 用户显式下发的值就是新的覆盖项：原子写入，进程中断不会留下半个文件。
+		// 若之前的 boot.json 已损坏，这一步同时就是修复路径（该文件只存这一个布尔，
+		// 没有可恢复信息会被丢弃）；日志里留一条事件，便于回看“配置被重写”。
+		if _, _, e := r.EffectiveAutoStart(); e != nil &&
+			(e.Error() == BootSettingsInvalid || e.Error() == BootSettingsUnreadable) {
+			r.recordEvent("boot_settings_rewritten")
+		}
 		return jsonWrite(r.path("boot.json"), struct {
 			AutoStart bool `json:"autoStart"`
 		}{enabled})
 	})
+}
+
+// 开机自启设置的证据来源与稳定错误码。@author 雾晚
+const (
+	// AutoStartSourceBoot：boot.json 覆盖项存在且可解析，模块按它自启。
+	AutoStartSourceBoot = "boot"
+	// AutoStartSourceSnapshot：没有覆盖项，模块按最近一次快照的 autoStart 自启。
+	AutoStartSourceSnapshot = "snapshot"
+
+	// BootSettingsInvalid：boot.json 格式损坏、字段无效或缺少字段。
+	BootSettingsInvalid = "boot_settings_invalid"
+	// BootSettingsUnreadable：boot.json 存在但读不出来（权限、I/O、是目录）。
+	BootSettingsUnreadable = "boot_settings_unreadable"
+)
+
+// bootSettingsLimit 是 boot.json 的读取上限：一个布尔文档不该超过 4 KiB。
+const bootSettingsLimit = 4096
+
+// EffectiveAutoStart 返回模块下次开机会实际采用的设置，以及它的证据来源。
+// 第二个返回值非空时设置无法确定（配置损坏/不可读/当前配置损坏），调用方 MUST
+// 如实报未知，不得退回快照值冒充生效值。
+func (r *Runtime) EffectiveAutoStart() (bool, string, error) {
+	_, snapshot, err := r.Current()
+	if err != nil {
+		return false, "", errors.New("current_invalid")
+	}
+	return r.bootSettingsFor(snapshot)
+}
+
+// bootSettingsFor 是 EffectiveAutoStart 的快照版本（Boot 已经读过快照，避免二次读取）。
+// 三种情况必须分开，不能一律当成开或关：
+//   - boot.json 不存在：没有覆盖项，回落到快照值（source=snapshot）；
+//   - 存在但格式损坏 / 缺字段 / 字段类型不对：boot_settings_invalid；
+//   - 存在但读不出来（权限、I/O、是个目录）：boot_settings_unreadable。
+func (r *Runtime) bootSettingsFor(snapshot Snapshot) (value bool, source string, err error) {
+	if snapshot.SchemaVersion == 0 {
+		// 还没有任何可用配置：没有可自启的东西，也不存在覆盖项。
+		return snapshot.AutoStart, AutoStartSourceSnapshot, nil
+	}
+	var document struct {
+		AutoStart *bool `json:"autoStart"`
+	}
+	readErr := readJSON(r.path("boot.json"), &document, bootSettingsLimit)
+	switch {
+	case readErr == nil && document.AutoStart != nil:
+		return *document.AutoStart, AutoStartSourceBoot, nil
+	case readErr == nil:
+		// 合法 JSON 却没有 autoStart 字段：字段无效，不能当成 false。
+		return false, "", errors.New(BootSettingsInvalid)
+	case os.IsNotExist(readErr):
+		return snapshot.AutoStart, AutoStartSourceSnapshot, nil
+	case isCorruptBootSettings(readErr):
+		return false, "", errors.New(BootSettingsInvalid)
+	default:
+		return false, "", errors.New(BootSettingsUnreadable)
+	}
+}
+
+// isCorruptBootSettings 区分“内容坏了”与“读不出来”：前者是格式/字段问题，
+// 后者是权限或 I/O 问题，两者的处理与提示不同。
+func isCorruptBootSettings(err error) bool {
+	var syntaxErr *json.SyntaxError
+	var typeErr *json.UnmarshalTypeError
+	return errors.As(err, &syntaxErr) || errors.As(err, &typeErr) ||
+		errors.Is(err, io.ErrUnexpectedEOF) || err.Error() == "input_too_large"
 }
 func (r *Runtime) Boot(ctx context.Context, bootReady func() bool) error {
 	timer := time.NewTimer(3 * time.Minute)
@@ -1180,13 +1281,13 @@ func (r *Runtime) Boot(ctx context.Context, bootReady func() bool) error {
 		if snapshot.SchemaVersion == 0 {
 			return nil
 		}
-		settings := struct {
-			AutoStart bool `json:"autoStart"`
-		}{snapshot.AutoStart}
-		if e = readJSON(r.path("boot.json"), &settings, 4096); e != nil && !os.IsNotExist(e) {
-			return errors.New("boot_settings_invalid")
+		autoStart, _, settingsErr := r.bootSettingsFor(snapshot)
+		if settingsErr != nil {
+			// 配置损坏/读不出来：fail-closed。不猜测、不自启、不覆盖用户文件；
+			// 错误码会回到 App，状态查询同时报未知，两边口径一致。
+			return settingsErr
 		}
-		if !settings.AutoStart {
+		if !autoStart {
 			return nil
 		}
 		return r.start(ctx)
