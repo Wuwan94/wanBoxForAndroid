@@ -600,6 +600,34 @@ MUST NOT 泄漏已建连句柄；全部候选失败 MUST 返回主选错误且�
 MUST 使用同一套计数口径，取消/超时/缓存命中都不得算作新成功；探测间隔
 仍 MUST 钳制 ≥10 秒，不因本修复新增更密的探测。
 
+**观测按网络分账（preview.1 复审 P1 修复）**：本轮观测 MUST 按（成员, 网络）
+分别记录，两层恢复门只读自己网络的那一份。TCP 探测（HTTP `ProbeOutbound`）
+只产生 TCP 证据；UDP 证据 MUST 只来自真实 UDP 操作（`ProbeOutboundUDP`：用数据面
+同一 `ListenPacket` 原语建立一次 UDP 关联后立即关闭）。TCP 成功、旧缓存、缓存跳过、
+轮次/调用方取消 MUST NOT 推进 UDP 连续健康计数或促成 UDP 提前回切；反之亦然。
+UDP 关联探测 MUST NOT 写 URLTest history（history 是 TCP 延迟口径，写入会把 UDP
+结果冒充成 TCP 延迟并让 UDP 借用 TCP 选路种子），也 MUST NOT 计入成员连续失败
+计数/清史（否则 UDP 故障会反向清掉 TCP 的选路历史）。UDP 证据的边界：关联成功
+证明成员接受 UDP 流（UDP ASSOCIATE 一类握手完成），不证明某个目的端会回包；
+发送合成 DNS 查询需额外目标配置和第三方流量，与“不引入网络泄漏”冲突，不采用。
+单协议成员、不同层成员、嵌套组与非分层组 MUST 各自按网络记账：嵌套组 summary
+MUST 按网络各汇总一份，单协议成员的观测 MUST NOT 被另一网络读到。
+
+**降级使旧资格失效（preview.1 复审 P2 修复）**：数据面真实拨号失败/单步超时促发的
+`promoteFailover` MUST 在同一把写锁内把受影响层与所有更高层（序号更小）的恢复资格
+作废：连续健康计数归零并盖上当前失败时间，随后回切 MUST 重新取得规定次数的新成功
+证据且满 60 秒无失败。`currentTier` MUST 只下移（取失败层与成功层的较大序号），
+MUST NOT 因一次成功抬层。作废 MUST 只作用于被拨网络，另一网络的计数、失败戳与
+层位 MUST 保持不变。每次作废 MUST 递增该网络的恢复门代次；轮次收尾时若代次与
+轮次开始不同（降级发生在轮次进行中），该轮的成功观测 MUST NOT 被计入回切资格
+（失败仍如实清零），防止并发迟到结果重新授予已失效资格。
+
+**组关闭生命周期（preview.1 复审 P2 修复）**：`DialContext`/`ListenPacket` 的整个
+容灾序列 MUST 绑定组生命周期：组 `Close`（或组上下文取消）即取消在途尝试，
+之后的备用循环 MUST NOT 再发起任何新拨号；已成功但组已关闭的迟到连接/`PacketConn`
+MUST 被关闭释放，MUST NOT 登记进已关闭组的连接表。未关闭时 MUST 保持既有向下容灾
+行为。
+
 - **GIVEN** 当前选中 T1 且 T1 探测历史仍新鲜，但 T1 实际拨号失败，T2 有健康成员
 - **WHEN** 一次 TCP 连接发起
 - **THEN** 同层候选优先、随后尝试 T2 并成功，`currentTier` 下移到 T2
@@ -613,8 +641,25 @@ MUST 使用同一套计数口径，取消/超时/缓存命中都不得算作新�
 - **GIVEN** 同层多候选、跨多个低层、全部候选失败或未分层组
 - **WHEN** 走故障转移路径
 - **THEN** 同层优先、低层按序、全失败返回主选错误、未分层组行为不变
+- **GIVEN** 双栈成员在 T1，TCP 连续三轮探测成功而 UDP 本轮失败/无有效观测
+- **WHEN** 每轮收尾
+- **THEN** TCP 门按 TCP 证据推进，UDP 门不涨（失败则清零并盖戳），UDP 留在低层
+- **GIVEN** UDP 在 T2 且连续三轮拿到自己的新成功、距上次失败已满 60 秒
+- **WHEN** 轮次收尾
+- **THEN** 仅 UDP 回切到 T1；TCP 只按自己的成功计数
+- **GIVEN** T1 旧资格已攒满，随后真实拨号失败降级到 T2
+- **WHEN** 降级后第一轮只有 T2 新观测
+- **THEN** 不得回切；T1 需重新取得 3 轮新成功且满 60 秒
+- **GIVEN** 一次探测轮开始时 T1 资格尚存，轮进行中发生数据面降级
+- **WHEN** 该轮以 T1 成功收尾
+- **THEN** 这条迟到成功不得重新授予 T1 回切资格
+- **GIVEN** 组在一个阻塞的主选拨号进行中被 `Close`
+- **WHEN** 关闭后
+- **THEN** 在途尝试被取消、返回错误，备用候选零次拨号；迟到连接被关闭释放
 
-> 验证：`libcore/protocol/urltest` 全套 Go 测试通过（含新增 RED→GREEN 复现）；本地 Windows 无 cgo/gcc，`-race` 未执行，由 Linux CI 覆盖；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
+> 验证：`go test ./protocol/urltest/... ./protocol/loadbalance/...` 全绿（含本轮新增
+> 的按网络记账、降级失效、组关闭三组回归）；`go vet` 干净；本地无 gcc，`-race`
+> 由 Linux CI 覆盖；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
 
 ### Requirement: 单步超时 3 秒与 UDP 故障转移（B4 已落地，B1 落地实现）
 

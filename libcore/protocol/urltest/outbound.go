@@ -350,7 +350,7 @@ func (s *URLTest) listenOne(ctx context.Context, bounded bool, detour adapter.Ou
 
 func (s *URLTest) DialContext(ctx context.Context, network string, destination M.Socksaddr) (net.Conn, error) {
 	if s.group == nil || s.closed.Load() {
-		return nil, E.New("URL test group not started or closed")
+		return nil, errURLTestGroupClosed
 	}
 	networkName := N.NetworkName(network)
 	switch networkName {
@@ -366,6 +366,10 @@ func (s *URLTest) DialContext(ctx context.Context, network string, destination M
 			return nil, err
 		}
 	}
+	// P2（本轮复审）：整个容灾序列绑定组生命周期——组关闭即取消在途尝试，
+	// 之后的备用拨号一个也不得发起，迟到连接必须关闭而不能交给已关闭的组。
+	ctx, release := s.group.bindGroupLifecycle(ctx)
+	defer release()
 	s.group.Touch()
 	detour := s.group.selectedFresh(networkName)
 	if detour == nil {
@@ -378,7 +382,7 @@ func (s *URLTest) DialContext(ctx context.Context, network string, destination M
 	alternates := s.group.failoverCandidates(detour, networkName)
 	conn, err := s.dialOne(ctx, len(alternates) > 0, detour, network, destination)
 	if err == nil {
-		return s.group.interruptGroup.NewConn(conn, interrupt.IsExternalConnectionFromContext(ctx), interrupt.IsResourceDownloadFromContext(ctx)), nil
+		return s.wrapConn(ctx, conn)
 	}
 	s.logger.ErrorContext(ctx, err)
 	if ctxErr := ctx.Err(); ctxErr != nil {
@@ -388,10 +392,16 @@ func (s *URLTest) DialContext(ctx context.Context, network string, destination M
 	// 容灾候选快速故障转移，防止主选节点临时抖动导致全量连接直接断连。
 	// 成功者立即成为当前选择，避免之后每条连接都先撞同一个坏主选。
 	for i, alt := range alternates {
+		if closedErr := s.group.closedError(); closedErr != nil {
+			return nil, closedErr
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
 		altConn, altErr := s.dialOne(ctx, i < len(alternates)-1, alt, network, destination)
 		if altErr == nil {
 			s.group.promoteFailover(alt, networkName)
-			return s.group.interruptGroup.NewConn(altConn, interrupt.IsExternalConnectionFromContext(ctx), interrupt.IsResourceDownloadFromContext(ctx)), nil
+			return s.wrapConn(ctx, altConn)
 		}
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return nil, ctxErr
@@ -402,7 +412,7 @@ func (s *URLTest) DialContext(ctx context.Context, network string, destination M
 
 func (s *URLTest) ListenPacket(ctx context.Context, destination M.Socksaddr) (net.PacketConn, error) {
 	if s.group == nil || s.closed.Load() {
-		return nil, E.New("URL test group not started or closed")
+		return nil, errURLTestGroupClosed
 	}
 	// B4/O1：与 DialContext 同理——已有新鲜选择时不等首轮整轮探针。
 	if s.group.selectedFresh(N.NetworkUDP) == nil {
@@ -410,6 +420,8 @@ func (s *URLTest) ListenPacket(ctx context.Context, destination M.Socksaddr) (ne
 			return nil, err
 		}
 	}
+	ctx, release := s.group.bindGroupLifecycle(ctx)
+	defer release()
 	s.group.Touch()
 	detour := s.group.selectedFresh(N.NetworkUDP)
 	if detour == nil {
@@ -422,7 +434,7 @@ func (s *URLTest) ListenPacket(ctx context.Context, destination M.Socksaddr) (ne
 	alternates := s.group.failoverCandidates(detour, N.NetworkUDP)
 	conn, err := s.listenOne(ctx, len(alternates) > 0, detour, destination)
 	if err == nil {
-		return s.group.interruptGroup.NewPacketConn(conn, interrupt.IsExternalConnectionFromContext(ctx), interrupt.IsResourceDownloadFromContext(ctx)), nil
+		return s.wrapPacketConn(ctx, conn)
 	}
 	s.logger.ErrorContext(ctx, err)
 	if ctxErr := ctx.Err(); ctxErr != nil {
@@ -431,16 +443,67 @@ func (s *URLTest) ListenPacket(ctx context.Context, destination M.Socksaddr) (ne
 
 	// UDP 候选快速容灾；成功者同样提升为当前选择。
 	for i, alt := range alternates {
+		if closedErr := s.group.closedError(); closedErr != nil {
+			return nil, closedErr
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
 		altConn, altErr := s.listenOne(ctx, i < len(alternates)-1, alt, destination)
 		if altErr == nil {
 			s.group.promoteFailover(alt, N.NetworkUDP)
-			return s.group.interruptGroup.NewPacketConn(altConn, interrupt.IsExternalConnectionFromContext(ctx), interrupt.IsResourceDownloadFromContext(ctx)), nil
+			return s.wrapPacketConn(ctx, altConn)
 		}
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return nil, ctxErr
 		}
 	}
 	return nil, err
+}
+
+// bindGroupLifecycle 把一次建连尝试绑到组生命周期上：组关闭即取消在途尝试，
+// 备用候选循环也因此立刻退出。调用方 MUST 在返回前 release。
+func (g *URLTestGroup) bindGroupLifecycle(ctx context.Context) (context.Context, context.CancelFunc) {
+	attemptCtx, cancel := context.WithCancel(ctx)
+	stop := context.AfterFunc(g.ctx, cancel)
+	return attemptCtx, func() {
+		stop()
+		cancel()
+	}
+}
+
+// closedError 报告组是否已关闭：关闭返回统一错误，未关闭返回 nil。
+func (g *URLTestGroup) closedError() error {
+	select {
+	case <-g.close:
+		return errURLTestGroupClosed
+	default:
+	}
+	if g.ctx.Err() != nil {
+		return errURLTestGroupClosed
+	}
+	return nil
+}
+
+// wrapConn 把建连结果交给组的连接登记表；若组在此期间已关闭，
+// 迟到的连接 MUST 被关闭释放，不得交给已关闭的组（否则就是连接泄漏）。
+func (s *URLTest) wrapConn(ctx context.Context, conn net.Conn) (net.Conn, error) {
+	wrapped := s.group.interruptGroup.NewConn(conn, interrupt.IsExternalConnectionFromContext(ctx), interrupt.IsResourceDownloadFromContext(ctx))
+	if err := s.group.closedError(); err != nil {
+		_ = wrapped.Close()
+		return nil, err
+	}
+	return wrapped, nil
+}
+
+// wrapPacketConn 是 wrapConn 的 UDP 对应物。
+func (s *URLTest) wrapPacketConn(ctx context.Context, conn net.PacketConn) (net.PacketConn, error) {
+	wrapped := s.group.interruptGroup.NewPacketConn(conn, interrupt.IsExternalConnectionFromContext(ctx), interrupt.IsResourceDownloadFromContext(ctx))
+	if err := s.group.closedError(); err != nil {
+		_ = wrapped.Close()
+		return nil, err
+	}
+	return wrapped, nil
 }
 
 // failoverCandidates 为实际建连失败后的向下容灾排序候选：
@@ -499,6 +562,9 @@ func (g *URLTestGroup) failoverCandidates(primary adapter.Outbound, network stri
 // P2-1：这里是数据面的一次性提升，不是层级裁决——currentTier 只由轮次收尾
 // 的层级门（3 轮健康 + 60 秒无失败）推进，故障转移不得直接改写，否则回切
 // 迟滞会被一次建连失败永久跳过。
+// P2（本轮复审）：提升同时作废受影响层及所有更高层的旧恢复资格——降级前
+// 累计的连续健康轮次早于这次真实拨号失败，不能拿来直接回切；只影响被拨的
+// 网络，另一网络的门口不得被动，且代次 +1 让降级前开始的轮次无法重发资格。
 func (g *URLTestGroup) promoteFailover(winner adapter.Outbound, network string) {
 	if winner == nil {
 		return
@@ -506,13 +572,20 @@ func (g *URLTestGroup) promoteFailover(winner adapter.Outbound, network string) 
 	g.updateAccess.Lock()
 	defer g.updateAccess.Unlock()
 	selected := false
+	failedTag := ""
 	switch network {
 	case N.NetworkTCP:
+		if g.selectedOutboundTCP != nil {
+			failedTag = g.selectedOutboundTCP.Tag()
+		}
 		if g.selectedOutboundTCP != winner {
 			g.selectedOutboundTCP = winner
 			selected = true
 		}
 	case N.NetworkUDP:
+		if g.selectedOutboundUDP != nil {
+			failedTag = g.selectedOutboundUDP.Tag()
+		}
 		if g.selectedOutboundUDP != winner {
 			g.selectedOutboundUDP = winner
 			selected = true
@@ -527,7 +600,17 @@ func (g *URLTestGroup) promoteFailover(winner adapter.Outbound, network string) 
 	// 回切门形同虚设。向上回切仍只由轮次收尾的新观测门裁决。
 	// 只下移本网络的生效层：另一网络可能仍在高层健康运行，不得连带下移。
 	if state := g.tierStateLocked(network); state != nil {
-		state.currentTier = g.tierOfTag(tag)
+		winnerTier := g.tierOfTag(tag)
+		now := time.Now()
+		// 失败的主选层：真实拨号失败就是该层在这一网络上的失败证据。
+		if failedTag != "" {
+			state.gate.invalidateTier(g.tierOfTag(failedTag), now)
+		}
+		if state.currentTier < 0 || winnerTier > state.currentTier {
+			state.currentTier = winnerTier
+		}
+		state.gate.invalidateAbove(state.currentTier, now)
+		state.gate.epoch++
 	}
 	if selected && g.interruptExternalConnections {
 		g.interruptGroup.Interrupt(true)
@@ -593,6 +676,33 @@ type URLTestGroup struct {
 type tierRecoveryGateState struct {
 	consecutiveOK map[int]int
 	lastFailure   map[int]time.Time
+	// epoch 在数据面降级（真实拨号失败/单步超时）使旧恢复资格作废时 +1。
+	// 轮次开始时快照代次，收尾时若代次已变，则该轮的成功观测不得重新
+	// 授予回切资格（防止降级前开始、降级后才回来的并发迟到结果）。
+	epoch uint64
+}
+
+// invalidateTier 作废某一层的恢复资格：连续健康轮次归零，并重新盖失败戳，
+// 使回切仍需重新满足「连续 3 轮新成功 + 60 秒无失败」。
+func (s *tierRecoveryGateState) invalidateTier(tier int, now time.Time) {
+	if s == nil {
+		return
+	}
+	s.consecutiveOK[tier] = 0
+	s.lastFailure[tier] = now
+}
+
+// invalidateAbove 作废所有高于指定层（序号更小）的层的恢复资格：数据面已降级到
+// tier，任何更高层的旧计数都早于这次降级，MUST NOT 再触发回切。
+func (s *tierRecoveryGateState) invalidateAbove(tier int, now time.Time) {
+	if s == nil {
+		return
+	}
+	for candidate := range s.consecutiveOK {
+		if candidate < tier {
+			s.invalidateTier(candidate, now)
+		}
+	}
 }
 
 // tierNetworkState 是单个网络（TCP 或 UDP）的层级状态：当前所在层级
@@ -992,18 +1102,21 @@ func (g *URLTestGroup) canSwitchBackTo(network string, tier int, now time.Time) 
 }
 
 // updateTierGateLocked 只按本轮的新观测推进层级恢复门（调用方须持有写锁），
-// TCP 与 UDP 各自推进自己网络的门：成员按其支持的网络分别归属，一个
-// 网络的观测不推进另一个网络的门。层内任一成员在该网络上本轮新成功
-// 即为该网络的一个健康轮；没有新成功但至少一个新失败时，该网络的
-// 连续健康计数清零并记录失败时间。全部跳过/取消/未观测的层保持原状态，
-// 既不累计也不清零；旧历史只用于选路，不再冒充本轮成功。
+// 每个网络只读自己的观测表：TCP 探测只推进 TCP 门，UDP 关联探测只推进
+// UDP 门，一个网络的观测（包括双栈成员的同轮结果）不推进另一个网络的门。
+// 层内任一成员在该网络上本轮新成功即为该网络的一个健康轮；没有新成功但
+// 至少一个新失败时，该网络的连续健康计数清零并记录失败时间。全部跳过/取消/
+// 未观测的层保持原状态，既不累计也不清零；旧历史只用于选路，不冒充本轮成功。
+// 若本轮开始后该网络的门被数据面降级作废（代次变化），本轮的成功观测
+// 不再计向回切资格（失败仍如实清零）：降级前就在跑的旧观测不能重发资格。
 func (g *URLTestGroup) updateTierGateLocked(now time.Time, round *urlTestRound) {
-	observations := round.snapshot()
 	for _, network := range []string{N.NetworkTCP, N.NetworkUDP} {
 		state := g.tierStateLocked(network)
 		if state == nil {
 			continue
 		}
+		observations := round.snapshotNetwork(network)
+		stale := round.gateChanged(network, state.gate.epoch)
 		for _, tier := range g.distinctTiers() {
 			tierObservation := urlTestUnobserved
 			for i, detour := range g.outbounds {
@@ -1021,6 +1134,9 @@ func (g *URLTestGroup) updateTierGateLocked(now time.Time, round *urlTestRound) 
 			}
 			switch tierObservation {
 			case urlTestSuccess:
+				if stale {
+					continue
+				}
 				state.gate.consecutiveOK[tier]++
 			case urlTestFailure:
 				state.gate.consecutiveOK[tier] = 0
@@ -1030,10 +1146,10 @@ func (g *URLTestGroup) updateTierGateLocked(now time.Time, round *urlTestRound) 
 	}
 }
 
-// memberObservation 读取直接成员在指定网络上的轮次结果。成员不支持该
-// 网络时无观测；嵌套 URLTest 在批量探测时会按直接成员 tag 汇总整棵
-// 子树；其他组则回退到其在该网络上实际选中的叶子 tag（RealTag 按网络
-// 取 key，TCP 的观测不会被 UDP 读到，反之亦然）。
+// memberObservation 读取直接成员在指定网络上的轮次结果（observations 已是
+// 该网络自己的观测表）。成员不支持该网络时无观测；嵌套 URLTest 在批量探测
+// 时按该网络汇总整棵子树；其他组则回退到其在该网络上实际选中的叶子 tag
+// （RealTag 按网络取 key，TCP 的观测不会被 UDP 读到，反之亦然）。
 func (g *URLTestGroup) memberObservation(detour adapter.Outbound, observations map[string]urlTestObservation, network string) urlTestObservation {
 	if !common.Contains(detour.Network(), network) {
 		return urlTestUnobserved
@@ -1151,6 +1267,10 @@ type urlTestFlight struct {
 	err    error
 }
 
+// errURLTestGroupClosed 是组生命周期结束后的统一错误：入口拒绝、在途尝试取消、
+// 迟到连接拒收都复用它，调用方看到的语义只有一种。
+var errURLTestGroupClosed = E.New("URL test group not started or closed")
+
 // urlTestObservation 是成员在本轮的唯一结局。跳过与取消都是未观测，
 // 不会被当成新成功或新失败；只有成功/失败计入 probed。
 type urlTestObservation uint8
@@ -1165,14 +1285,66 @@ const (
 
 // urlTestRound 是一次轮次私有的观测集合。批量 goroutine 通过互斥锁写入；
 // batch.Wait 返回后才做轮次收尾，因此迟到的底层 IO 结果不会跨轮追加。
+//
+// 观测按网络分开存：TCP 的 HTTP 探测只能证明 TCP，UDP 的证据只能来自真实
+// UDP 操作（ProbeOutboundUDP）。只按 tag 存会让双栈成员的 TCP 成功被 UDP
+// 恢复门读到，从而在没有 UDP 证据的情况下推进 UDP 健康轮次。
 type urlTestRound struct {
-	access       sync.Mutex
-	observations map[string]urlTestObservation
-	completed    int
+	access    sync.Mutex
+	tcp       map[string]urlTestObservation
+	udp       map[string]urlTestObservation
+	completed int
+	// 轮次开始时的恢复门代次：降级失效会让代次 +1，本轮收尾时据此拒绝
+	// 用降级前就在跑的旧观测重新授予回切资格。
+	epoch    map[string]uint64
+	epochSet map[string]bool
 }
 
 func newURLTestRound() *urlTestRound {
-	return &urlTestRound{observations: make(map[string]urlTestObservation)}
+	return &urlTestRound{
+		tcp:      make(map[string]urlTestObservation),
+		udp:      make(map[string]urlTestObservation),
+		epoch:    make(map[string]uint64),
+		epochSet: make(map[string]bool),
+	}
+}
+
+// observationsFor 返回指定网络的观测表（未知网络返回 nil，调用方按未观测处理）。
+func (r *urlTestRound) observationsFor(network string) map[string]urlTestObservation {
+	switch network {
+	case N.NetworkTCP:
+		return r.tcp
+	case N.NetworkUDP:
+		return r.udp
+	default:
+		return nil
+	}
+}
+
+// bindGateEpoch 记录本轮开始时两个网络的恢复门代次（调用方须持有读锁）。
+func (r *urlTestRound) bindGateEpoch(tcp, udp uint64) {
+	if r == nil {
+		return
+	}
+	r.access.Lock()
+	r.epoch[N.NetworkTCP] = tcp
+	r.epoch[N.NetworkUDP] = udp
+	r.epochSet[N.NetworkTCP] = true
+	r.epochSet[N.NetworkUDP] = true
+	r.access.Unlock()
+}
+
+// gateChanged 报告本轮开始后该网络的恢复门是否被降级失效过。
+func (r *urlTestRound) gateChanged(network string, current uint64) bool {
+	if r == nil {
+		return false
+	}
+	r.access.Lock()
+	defer r.access.Unlock()
+	if !r.epochSet[network] {
+		return false
+	}
+	return r.epoch[network] != current
 }
 
 // observationRank 给出观测强度：成功 > 失败 > 跳过/取消 > 未观测。
@@ -1191,15 +1363,29 @@ func observationRank(observation urlTestObservation) uint8 {
 	}
 }
 
-func (r *urlTestRound) record(tag string, observation urlTestObservation) {
+func (r *urlTestRound) record(tag string, network string, observation urlTestObservation) {
 	if r == nil || tag == "" {
 		return
 	}
 	r.access.Lock()
-	if observationRank(observation) > observationRank(r.observations[tag]) {
-		r.observations[tag] = observation
+	observations := r.observationsFor(network)
+	if observations != nil && observationRank(observation) > observationRank(observations[tag]) {
+		observations[tag] = observation
 	}
 	r.access.Unlock()
+}
+
+// recordForNetworks 把同一个结局记到成员支持的每个网络（缓存跳过/取消这类
+// 中性结局没有网络差异，但两层门都不得把它当成功）。
+func (r *urlTestRound) recordForNetworks(detour adapter.Outbound, observation urlTestObservation) {
+	if r == nil || detour == nil {
+		return
+	}
+	for _, network := range []string{N.NetworkTCP, N.NetworkUDP} {
+		if common.Contains(detour.Network(), network) {
+			r.record(detour.Tag(), network, observation)
+		}
+	}
 }
 
 func (r *urlTestRound) addProbed(count int) {
@@ -1220,13 +1406,20 @@ func (r *urlTestRound) probed() int {
 	return r.completed
 }
 
-func (r *urlTestRound) snapshot() map[string]urlTestObservation {
+// snapshotNetwork 返回指定网络上的本轮观测快照（未知网络返回空表）。
+func (r *urlTestRound) snapshotNetwork(network string) map[string]urlTestObservation {
 	if r == nil {
 		return nil
 	}
 	r.access.Lock()
 	defer r.access.Unlock()
-	return maps.Clone(r.observations)
+	return maps.Clone(r.observationsFor(network))
+}
+
+// snapshot 返回 TCP 视图：TCP 是唯一写 history 的探测口径，历史上按 tag
+// 索引的本轮快照就是这个口径。需要 UDP 证据的调用方 MUST 用 snapshotNetwork。
+func (r *urlTestRound) snapshot() map[string]urlTestObservation {
+	return r.snapshotNetwork(N.NetworkTCP)
 }
 
 type urlTestResult struct {
@@ -1268,6 +1461,12 @@ func URLTestOutboundsWithGroup(ctx context.Context, outboundManager adapter.Outb
 func urlTestOutboundsWithGroup(ctx context.Context, outboundManager adapter.OutboundManager, history *urltest.HistoryStorage, logger log.Logger, outbounds []adapter.Outbound, link string, interval time.Duration, force bool, owner *URLTestGroup) (map[string]uint16, *urlTestRound) {
 	b, _ := batch.New(ctx, batch.WithConcurrencyNum[any](6))
 	round := newURLTestRound()
+	if owner != nil {
+		// 本轮开始时的门代次：降级失效后，本轮旧观测不得重发回切资格。
+		owner.updateAccess.RLock()
+		round.bindGateEpoch(owner.tierTCP.gate.epoch, owner.tierUDP.gate.epoch)
+		owner.updateAccess.RUnlock()
+	}
 	testBatch := &urlTestBatch{
 		ctx:      ctx,
 		outbound: outboundManager,
@@ -1285,22 +1484,25 @@ func urlTestOutboundsWithGroup(ctx context.Context, outboundManager adapter.Outb
 	// 逆序汇总才能让内层组的 summary 先落盘、供外层取用。
 	for i := len(testBatch.groups) - 1; i >= 0; i-- {
 		outboundGroup := testBatch.groups[i]
-		observations := round.snapshot()
-		summary := urlTestUnobserved
-		for _, tag := range outboundGroup.All() {
-			switch observations[tag] {
-			case urlTestSuccess:
-				summary = urlTestSuccess
-			case urlTestFailure:
-				if summary != urlTestSuccess {
-					summary = urlTestFailure
+		// summary 按网络各算一份：TCP 探测的成败不能当成嵌套组的 UDP 可用性。
+		for _, network := range []string{N.NetworkTCP, N.NetworkUDP} {
+			observations := round.snapshotNetwork(network)
+			summary := urlTestUnobserved
+			for _, tag := range outboundGroup.All() {
+				switch observations[tag] {
+				case urlTestSuccess:
+					summary = urlTestSuccess
+				case urlTestFailure:
+					if summary != urlTestSuccess {
+						summary = urlTestFailure
+					}
+				}
+				if summary == urlTestSuccess {
+					break
 				}
 			}
-			if summary == urlTestSuccess {
-				break
-			}
+			round.record(outboundGroup.Tag(), network, summary)
 		}
-		round.record(outboundGroup.Tag(), summary)
 		groupHistory := history.LoadURLTestHistory(group.RealTag(outboundGroup, N.NetworkTCP))
 		if groupHistory != nil {
 			testBatch.result[outboundGroup.Tag()] = groupHistory.Delay
@@ -1322,8 +1524,11 @@ func (b *urlTestBatch) test(outbounds []adapter.Outbound, link string, interval 
 			b.batch.Go(tag, func() (any, error) {
 				nestedResult, nestedRound, _ := nested.group.urlTest(b.ctx, force)
 				if nestedRound != nil {
-					for memberTag, observation := range nestedRound.snapshot() {
-						b.round.record(memberTag, observation)
+					// 按网络分别上浮子树观测：TCP 观测不得被外层当成 UDP 证据。
+					for _, network := range []string{N.NetworkTCP, N.NetworkUDP} {
+						for memberTag, observation := range nestedRound.snapshotNetwork(network) {
+							b.round.record(memberTag, network, observation)
+						}
 					}
 					b.round.addProbed(nestedRound.probed())
 				}
@@ -1342,76 +1547,136 @@ func (b *urlTestBatch) test(outbounds []adapter.Outbound, link string, interval 
 		default:
 			history := b.history.LoadURLTestHistory(tag)
 			if !force && history != nil && time.Since(history.Time) < interval {
-				// 缓存新鲜而跳过：本轮没有新观测，不能算成功也不能算失败。
-				b.round.record(tag, urlTestSkipped)
+				// 缓存新鲜而跳过：本轮没有新观测，两个网络都不得算成功或失败。
+				b.round.recordForNetworks(detour, urlTestSkipped)
 				continue
 			}
 			b.checked[tag] = true
 			b.batch.Go(tag, func() (any, error) {
-				if b.ctx.Err() != nil {
-					b.round.record(tag, urlTestCanceled)
-					return nil, nil
-				}
-				testCtx, cancel := context.WithTimeout(b.ctx, 3*time.Second)
-				defer cancel()
-				testChan := make(chan urlTestResult, 1)
-				go func() {
-					delay, testErr := ProbeOutbound(testCtx, detour, link, 3*time.Second)
-					testChan <- urlTestResult{delay, testErr}
-				}()
-				var testResult urlTestResult
-				select {
-				case testResult = <-testChan:
-				case <-testCtx.Done():
-					testResult.err = testCtx.Err()
-				}
-				// Cancellation of the batch (startup budget, caller cancellation or
-				// group shutdown) is not evidence of member failure. Preserve both
-				// fresh and expired history instead of penalizing/deleting it.
-				// A member's own timeout still uses the normal failure policy.
-				if b.ctx.Err() != nil {
-					// 整轮预算/调用方取消：不是成员失败，也不写失败策略。
-					b.round.record(tag, urlTestCanceled)
-					return nil, nil
-				}
-				if testResult.err != nil {
-					b.logger.Debug("outbound ", tag, " unavailable: ", testResult.err)
-					b.round.record(tag, urlTestFailure)
-					b.round.addProbed(1)
-					if b.group != nil {
-						// 归属组：按连续失败策略处理（首次惩罚、连续两次清史）。
-						b.group.applyMemberFailure(tag)
-					} else {
-						// 无归属组：只做饱和惩罚，不做连续失败清史。
-						penalizeOrDeleteHistory(b.history, tag, interval)
-					}
-				} else {
-					b.logger.Debug("outbound ", tag, " available: ", testResult.delay, "ms")
-					b.round.record(tag, urlTestSuccess)
-					b.round.addProbed(1)
-					b.history.StoreURLTestHistory(tag, &adapter.URLTestHistory{
-						Time:  time.Now(),
-						Delay: testResult.delay,
-					})
-					if b.group != nil {
-						b.group.resetMemberFailure(tag)
-					}
-					b.access.Lock()
-					b.result[tag] = testResult.delay
-					b.access.Unlock()
-					// B4/O1 流式就绪（上游 8.20 recordProbeProgress 的 wanBox
-					// 适配）：单个成员成功即重算选择并通知，不等整批跑完；
-					// 只在组活跃（未 idle）时触发择优，idle 后的首次连接
-					// 仍按缓存延迟重新预选。倒计时仍按整轮结束重置——本处
-					// 不碰 ticker、不碰 lastActive、不改写 history.Time。
-					if b.group != nil && b.group.isActive() {
-						b.group.performUpdateCheck()
-					}
-				}
+				b.probeMember(detour, link, interval)
 				return nil, nil
 			})
 		}
 	}
+}
+
+// probeMember 跑一个成员本轮的观测：TCP 的 HTTP 探测（唯一写 history 的口径）
+// 加一次真实 UDP 关联探测（仅当成员支持 UDP）。两个网络各记各的观测：结果互不
+// 冒充，失败/跳过/取消也不跨网络。
+func (b *urlTestBatch) probeMember(detour adapter.Outbound, link string, interval time.Duration) {
+	b.probeMemberTCP(detour, link, interval)
+	b.probeMemberUDP(detour)
+}
+
+func (b *urlTestBatch) probeMemberTCP(detour adapter.Outbound, link string, interval time.Duration) {
+	tag := detour.Tag()
+	if b.ctx.Err() != nil {
+		b.round.record(tag, N.NetworkTCP, urlTestCanceled)
+		return
+	}
+	testCtx, cancel := context.WithTimeout(b.ctx, 3*time.Second)
+	defer cancel()
+	testChan := make(chan urlTestResult, 1)
+	go func() {
+		delay, testErr := ProbeOutbound(testCtx, detour, link, 3*time.Second)
+		testChan <- urlTestResult{delay, testErr}
+	}()
+	var testResult urlTestResult
+	select {
+	case testResult = <-testChan:
+	case <-testCtx.Done():
+		testResult.err = testCtx.Err()
+	}
+	// Cancellation of the batch (startup budget, caller cancellation or
+	// group shutdown) is not evidence of member failure. Preserve both
+	// fresh and expired history instead of penalizing/deleting it.
+	// A member's own timeout still uses the normal failure policy.
+	if b.ctx.Err() != nil {
+		// 整轮预算/调用方取消：不是成员失败，也不写失败策略。
+		b.round.record(tag, N.NetworkTCP, urlTestCanceled)
+		return
+	}
+	if testResult.err != nil {
+		b.logger.Debug("outbound ", tag, " unavailable: ", testResult.err)
+		b.round.record(tag, N.NetworkTCP, urlTestFailure)
+		b.round.addProbed(1)
+		if b.group != nil {
+			// 归属组：按连续失败策略处理（首次惩罚、连续两次清史）。
+			b.group.applyMemberFailure(tag)
+		} else {
+			// 无归属组：只做饱和惩罚，不做连续失败清史。
+			penalizeOrDeleteHistory(b.history, tag, interval)
+		}
+		return
+	}
+	b.logger.Debug("outbound ", tag, " available: ", testResult.delay, "ms")
+	b.round.record(tag, N.NetworkTCP, urlTestSuccess)
+	b.round.addProbed(1)
+	b.history.StoreURLTestHistory(tag, &adapter.URLTestHistory{
+		Time:  time.Now(),
+		Delay: testResult.delay,
+	})
+	if b.group != nil {
+		b.group.resetMemberFailure(tag)
+	}
+	b.access.Lock()
+	b.result[tag] = testResult.delay
+	b.access.Unlock()
+	// B4/O1 流式就绪（上游 8.20 recordProbeProgress 的 wanBox
+	// 适配）：单个成员成功即重算选择并通知，不等整批跑完；
+	// 只在组活跃（未 idle）时触发择优，idle 后的首次连接
+	// 仍按缓存延迟重新预选。倒计时仍按整轮结束重置——本处
+	// 不碰 ticker、不碰 lastActive、不改写 history.Time。
+	if b.group != nil && b.group.isActive() {
+		b.group.performUpdateCheck()
+	}
+}
+
+// probeMemberUDP 用数据面同一个原语向成员建立一次 UDP 关联，作为该成员
+// UDP 侧的唯一证据。
+//
+// 边界（写进 openspec/specs/libcore-integration）：关联成功证明成员接受
+// UDP 流（UDP ASSOCIATE 一类握手已经完成），不证明某个目的端会回包；往回包里
+// 塞合成 DNS 查询需要额外目标配置与第三方流量，与“不引入网络泄漏”相冲突。
+//
+// @author 雾晚: UDP 观测 MUST NOT 写 history：history 是 TCP 探测的延迟口径，
+// 写入会同时把 UDP 结果冒充成 TCP 延迟，并让 UDP 借用 TCP 的选路种子；也 MUST NOT
+// 计入 TCP 的连续失败计数——否则 UDP 故障会清掉 TCP 的选路历史，反向污染仍存在。
+func (b *urlTestBatch) probeMemberUDP(detour adapter.Outbound) {
+	if !common.Contains(detour.Network(), N.NetworkUDP) {
+		return
+	}
+	tag := detour.Tag()
+	if b.ctx.Err() != nil {
+		b.round.record(tag, N.NetworkUDP, urlTestCanceled)
+		return
+	}
+	probeCtx, cancel := context.WithTimeout(b.ctx, 3*time.Second)
+	defer cancel()
+	// 与 TCP 探测同一道保险：即使成员实现不守 ctx，轮次也不会被它挂住。
+	probeChan := make(chan error, 1)
+	go func() {
+		probeChan <- ProbeOutboundUDP(probeCtx, detour, 3*time.Second)
+	}()
+	var probeErr error
+	select {
+	case probeErr = <-probeChan:
+	case <-probeCtx.Done():
+		probeErr = probeCtx.Err()
+	}
+	if b.ctx.Err() != nil {
+		// 轮次预算/调用方取消：本轮 UDP 无结论，不冒充失败也不冒充成功。
+		b.round.record(tag, N.NetworkUDP, urlTestCanceled)
+		return
+	}
+	if probeErr != nil {
+		b.logger.Debug("outbound ", tag, " udp unavailable: ", probeErr)
+		b.round.record(tag, N.NetworkUDP, urlTestFailure)
+		b.round.addProbed(1)
+		return
+	}
+	b.round.record(tag, N.NetworkUDP, urlTestSuccess)
+	b.round.addProbed(1)
 }
 
 func (g *URLTestGroup) performUpdateCheck() {
