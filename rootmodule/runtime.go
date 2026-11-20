@@ -74,6 +74,12 @@ type State struct {
 	// (channel.go): the supervisor's loopback long-poll endpoint. It is read
 	// from channel.json at request time and never persisted into state.json.
 	Channel *ChannelEndpoint `json:"channel,omitempty"`
+	// AutoStart is the boot setting this module will actually honour on the next
+	// boot: boot.json when present, otherwise the snapshot's own flag. The App
+	// MUST read it back after `autostart on/off` instead of treating the command's
+	// exit code as proof of effect. Only populated by Status(); older managers
+	// ignore it. @author 雾晚
+	AutoStart *bool `json:"autoStart,omitempty"`
 	// @author 雾晚 (phase 2): data-plane health ("ok" / "degraded"), last core exit
 	// reason and its class. Optional fields: older managers ignore them.
 	Health     string `json:"health,omitempty"`
@@ -785,6 +791,9 @@ func (r *Runtime) DashboardTelemetry() *Telemetry {
 func (r *Runtime) Status() State {
 	s := State{SchemaVersion: Version, Phase: "stopped"}
 	_ = readJSON(r.path("state.json"), &s, 1<<20)
+	// 每次状态读取都重算实际生效的自启设置：state.json 里的旧值不得冒充当前值。
+	autoStart := r.EffectiveAutoStart()
+	s.AutoStart = &autoStart
 	rev, err := r.CurrentRevision()
 	if err != nil {
 		s.Error = "current_invalid"
@@ -1151,6 +1160,23 @@ func (r *Runtime) SetAutoStart(enabled bool) error {
 			AutoStart bool `json:"autoStart"`
 		}{enabled})
 	})
+}
+
+// EffectiveAutoStart 返回模块下次开机会实际采用的设置：boot.json 是覆盖项，
+// 缺失或损坏时回落到最近一次快照自带的 autoStart。用于让 App 在下发后
+// 回读确认，而不是把“命令退出成功”当成“设置已生效”。
+func (r *Runtime) EffectiveAutoStart() bool {
+	_, snapshot, err := r.Current()
+	if err != nil {
+		return false
+	}
+	settings := struct {
+		AutoStart bool `json:"autoStart"`
+	}{snapshot.AutoStart}
+	if e := readJSON(r.path("boot.json"), &settings, 4096); e != nil {
+		return snapshot.AutoStart
+	}
+	return settings.AutoStart
 }
 func (r *Runtime) Boot(ctx context.Context, bootReady func() bool) error {
 	timer := time.NewTimer(3 * time.Minute)

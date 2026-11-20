@@ -28,6 +28,9 @@ object RootModuleErrors {
         "module_protocol_mismatch" -> R.string.module_reason_protocol_mismatch
         "module_disabled_or_missing" -> R.string.module_reason_disabled
         "node_failover_no_candidate" -> R.string.module_failover_no_candidate
+        // 开机自启：下发后回读不一致 / 没有取得可用结论——都已回滚为原设置。
+        "module_autostart_not_applied" -> R.string.autostart_module_not_applied
+        "module_autostart_unconfirmed" -> R.string.autostart_module_unconfirmed
         else -> R.string.root_module_action_failed
     }
 

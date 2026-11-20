@@ -860,6 +860,46 @@ Discarding an unfinished edit MUST first restore journaled local values while re
 - **WHEN** the user discards the unfinished edit while the module is connected
 - **THEN** the locked rebuild MUST apply the configuration that same snapshot describes, the confirmed applied/current/running revisions MUST still gate journal deletion, and the next normal start or reload MUST ask for that warning again
 
+### Requirement: 开机自启开关与模块 boot 配置保持一致（v3.0.18-preview.1 复审修复）
+
+开机自启有两个持久点：模块 `boot.json`（`wanboxctl autostart on/off`，决定开机是否
+拉起核心）与 App 的 `DataStore.persistAcrossReboot`（`isAutoConnect`，决定
+`BootReceiver` 与界面显示）。设置页的切换 MUST 走「下发 → 回读确认 → 落库」：
+命令退出码 MUST NOT 单独作为生效证据，MUST 用模块状态回读（`state.autoStart`，
+`boot.json` 生效值，缺失/损坏时回落最近快照）核对；仅当回读值等于目标值（或
+模块为不支持回读的老版本）时才写 `DataStore` 并同步 `BootReceiver`。
+失败、超时与结果未知 MUST 重试一次；仍失败 MUST 保持原值（不落库）、把开关显示
+恢复到已确认值并给出中文错误提示，MUST NOT 留下“界面已开、模块未开”的假象。
+快速连续切换 MUST 由最后一次选择落地：更早的请求在发现选择已变后 MUST NOT 落库，
+MUST NOT 用迟到结果覆盖新选择。返回设置页或重新进入应用 MUST 回读模块并与
+`DataStore` 对比：不一致时 MUST 显示可见的“待同步”状态并允许再次切换同步；
+`boot.json` 缺失或损坏 MUST 回落快照值，不得因此让开机自启永久失效或报错阻断。
+模块未安装 / 未运行 / 运行中三种情况 MUST 都能下发并回读（`boot.json` 与快照
+不依赖核心进程）；未运行时 MUST NOT 因此擅自启动核心。
+
+- **GIVEN** 用户打开开机自启且模块写入成功
+- **WHEN** 下发完成
+- **THEN** 回读为开、`DataStore` 与 `BootReceiver` 同时为开
+- **GIVEN** root 被拒或命令超时
+- **WHEN** 重试后仍失败
+- **THEN** 开关回到原值、`DataStore` 不变，并显示中文错误
+- **GIVEN** 命令返回成功但模块 `boot.json` 仍是旧值
+- **WHEN** 回读核对
+- **THEN** 按未生效处理并回滚，不落库
+- **GIVEN** 用户快速连点开关两次（开→关）
+- **WHEN** 两个下发互相交错
+- **THEN** 只有最后一次选择被落库，先到的迟到结果不得覆盖
+- **GIVEN** 上次下发超时但模块其实写成功
+- **WHEN** 再次进入设置页
+- **THEN** 显示“待同步”并提示再切一次开关同步，而不是静默改写用户数据
+- **GIVEN** 模块未安装 / 已停止
+- **WHEN** 切换开关
+- **THEN** 命令给出稳定错误码并保持原值；模块已停止时不得被擅自启动
+
+> 验证：`AutoStartSyncTest`（JVM，9 条）与 `rootmodule` 的
+> `TestAutoStartReadBackReflectsBootSettings` 覆盖回读、失败、重试、快速切换与
+> 待同步；Android 编译与插桩由 PR 的 `Verify Android Build` 覆盖；真机未验证。
+
 ### Requirement: 测速刷新间隔未设置时默认 1000ms（B1 已落地）
 
 `speedInterval` 未读取到用户设置时 MUST 默认 1000ms，与设置页一致，MUST NOT 回退为 0ms

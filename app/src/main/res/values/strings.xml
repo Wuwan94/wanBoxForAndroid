@@ -1569,4 +1569,11 @@
     <string name="group_editor_abandon_confirm">Restores the local configuration from before the edit. If the module is running, its rebuild and fresh status must succeed before the recovery marker is cleared. Failures keep recovery available for retry. Stopped or suspended modules stay that way; only local recovery is completed. Use this only when recovering the previous configuration cannot finish.</string>
     <string name="group_editor_abandon_done">The unfinished edit was discarded. You can connect again.</string>
     <string name="group_editor_recovery_failed_choice">The previous group configuration could not be recovered (its saved baseline may be stale). Retry later or discard the unfinished edit.</string>
+    <string name="autostart_sync_pending">Syncing with the module…</string>
+    <string name="autostart_sync_failed">Boot-at-startup setting was not applied; the previous setting is kept. %1$s</string>
+    <string name="autostart_sync_mismatch">The module has boot-at-startup %1$s, which differs from this app. Toggle the switch again to sync it.</string>
+    <string name="autostart_state_on">on</string>
+    <string name="autostart_state_off">off</string>
+    <string name="autostart_module_not_applied">The module still reports the old value</string>
+    <string name="autostart_module_unconfirmed">The module did not confirm the change</string>
 </resources>

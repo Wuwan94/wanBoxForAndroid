@@ -162,6 +162,46 @@ func TestFileLimitAndMissingOrAppResource(t *testing.T) {
 		t.Fatal("confused HTTP URL path with filesystem path", e)
 	}
 }
+// 开机自启的回读契约：App 下发 autostart on/off 后 MUST 能从状态读回同一值，
+// 且不得因模块停止运行而拒绝写入（boot.json 与快照都不依赖核心进程）。
+func TestAutoStartReadBackReflectsBootSettings(t *testing.T) {
+	r, s := fixture(t)
+	if _, e := r.Apply(context.Background(), s); e != nil {
+		t.Fatal(e)
+	}
+	// 从未写过 boot.json：回落到快照自带的 autoStart=true。
+	if state := r.Status(); state.AutoStart == nil || !*state.AutoStart {
+		t.Fatalf("expected snapshot autoStart=true before any boot.json, got %v", state.AutoStart)
+	}
+	// 模块处于 stopped 也必须能下发并回读。
+	if e := r.SetAutoStart(false); e != nil {
+		t.Fatal(e)
+	}
+	if state := r.Status(); state.AutoStart == nil || *state.AutoStart {
+		t.Fatalf("expected read-back false after autostart off, got %v", state.AutoStart)
+	}
+	if e := r.SetAutoStart(true); e != nil {
+		t.Fatal(e)
+	}
+	if state := r.Status(); state.AutoStart == nil || !*state.AutoStart {
+		t.Fatalf("expected read-back true after autostart on, got %v", state.AutoStart)
+	}
+	// boot.json 丢失：回落到快照值，而不是报错或永远 false。
+	if e := os.Remove(r.path("boot.json")); e != nil {
+		t.Fatal(e)
+	}
+	if state := r.Status(); state.AutoStart == nil || !*state.AutoStart {
+		t.Fatalf("a missing boot.json must fall back to the snapshot flag, got %v", state.AutoStart)
+	}
+	// boot.json 损坏：同样回落，不让一个坏文件把开机自启永久锁死。
+	if e := os.WriteFile(r.path("boot.json"), []byte("{"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	if state := r.Status(); state.AutoStart == nil || !*state.AutoStart {
+		t.Fatalf("a corrupt boot.json must fall back to the snapshot flag, got %v", state.AutoStart)
+	}
+}
+
 func TestPersistedAutoStartOptOutAndNoConfigBoot(t *testing.T) {
 	r, s := fixture(t)
 	if e := r.Boot(context.Background(), func() bool { return true }); e != nil {
