@@ -15,7 +15,7 @@ v3.0.17 晋升内容：3.0.17 预览线（preview.1–.4）的全量变更 —�
 
 preview.1 内容：修复 preview.4 复审发现的 P1 回归——存在悬空出站引用时「放弃未完成编辑」在锁内重建时反复撞上出站告警，恢复标记永不释放；现由同一次构建快照算出的告警替代该次重建确认，正常启动/重连/重载仍要求确认，提交点（确认成功才清标记）未放宽。同批修复同一状态下的第二层缺陷：配置构建在 IO 线程创建 Toast 抛 `NullPointerException`，使包括用户确认后的重建整条路径失败，两处规则告警改为主线程分发。
 
-preview.3 内容（v3.0.18 线）：收口 preview.2 复审提出的四项缺陷（PR #83，合并提交 `8881dd1c59481b3d23ab3766fb21e3b651fa1d65`，25 个文件 +332/−78，`Verify Android Build` run `44879210932` 在 head `dbdbf0b` 全绿）——「设置 → 连接与核心 → UDP 回显端点」可填自管数字 IP 与端口、各优先级层子组独立验证；UDP-only 上层成员凭回显证据进候选、不再借用 TCP 记录；首次应用配置前回读开机自启设置；自启连点按最后一次选择落地。四件套见下文。
+preview.3 内容（v3.0.18 线）：收口 preview.2 复审提出的四项缺陷（PR #83，合并提交 `8881dd1c59481b3d23ab3766fb21e3b651fa1d65`，25 个文件 +332/−78，`Verify Android Build` run `44879210932` 在 head `dbdbf0b` 全绿）——「设置 → 连接与核心 → UDP 回显端点」可填自管数字 IP 与端口（默认留空即零流量，fail-closed）、各优先级层子组独立验证；UDP-only 上层成员凭回显证据进候选、不再借用 TCP 记录；首次应用配置前回读开机自启设置；自启连点按最后一次选择落地。四件套见下文。
 
 preview.2 内容（v3.0.18 线）：收口 preview.1 源码复审与代码复审的六项缺陷（PR #80，合并提交 `ad032285b3ff181677ed6c0ea9c88a7bb4e482a6`，22 个文件 +2887/−167，`Verify Android Build` run `44717598549` 全绿）——URLTest 观测按（成员, 网络）分账、UDP 探测只认真实往返回显、降级即作废旧回切资格、组关闭停拨备用、开机自启「下发 → 回读 → 落库」闭环、`boot.json` 不可用时状态与 `Boot()` 同口径。四件套见下文。
 
@@ -103,7 +103,7 @@ APK 与普通 Root 模块合计 `24524494` 字节（23.39 MiB），`tools/size_b
 
 APK 与普通 Root 模块合计 `24520694` 字节（23.38 MiB），`tools/size_budget.py --enforce-limit` 上限 `27262976` 字节（26 MiB），余量 `2742282` 字节（2.62 MiB）→ PASS；带管理器合一包 `23794995` 字节（22.69 MiB）。两个 ZIP 通过 `zipfile.testzip()` 无损坏；`module.prop` 为 `version=3.0.18-preview.2`、`versionCode=2037`、`author=雾晚`。CI 断言 APK 包名 `com.lit008834.pixel.wanboxforandroid`、`versionName=3.0.18-preview.2`、`versionCode=10187`、`lib/` 条目 0 个（瘦管理器）；`META-INF/version-control-info.textproto` 的 `revision` 为 `e7f1f9366316974d8318e8708dcaaa669bc896a0`，与 tag 对象、`targetCommitish`、发布 job 的 `APPROVED_SHA` 四处同源。证书 SHA-256 `80ecee1c42d861d59cdc460447335fc4bfdf80103d6225a17c1bdf83a33521f6`，与 v3.0.14 / v3.0.17 同一张（本机无 `apksigner`，签名由 CI G7 断言，未独立复验）。合一包与普通包唯一差异是多了 `manager.apk` 与 `package-manifest.json` 的 `withManager` 标志，`manager.apk` 与外部 APK 逐字节相同。发布后 11:52:04Z `prune_prereleases.py` 删除 `v3.0.18-preview.1` 的 Release/tag；正式版 `v3.0.17` / `v3.0.14` / `v3.0.11` 保留。CI 自标 `runtime_regression: not_verified`，本版未执行 Magisk / KernelSU / APatch 真机矩阵。
 
-已知边界：UDP 探测用的是本机可控回显端点，不是真实代理服务端往返；应用侧暂无 `udp_probe` 配置入口，默认下 UDP 探测一律 `skipped`、不产生流量；真机上 `boot.json` 的权限与开机行为未验证。本版自身的 Release/tag 已在 `v3.0.18-preview.3` 发布后（2026-11-21T08:13:09Z）由 `prune_prereleases.py` 清理，资产链接现返回 404，下表仅作历史记录。
+已知边界：UDP 探测用的是本机可控回显端点，不是真实代理服务端往返；该版 UDP 探测默认 `skipped`、不产生流量，自管端点的入口在 preview.3 才落地（『设置 → 连接与核心 → UDP 回显端点』，默认留空即零流量，fail-closed）；真机上 `boot.json` 的权限与开机行为未验证。本版自身的 Release/tag 已在 `v3.0.18-preview.3` 发布后（2026-11-21T08:13:09Z）由 `prune_prereleases.py` 清理，资产链接现返回 404，下表仅作历史记录。
 
 ## 历史归档：v3.0.18-preview.1 已发布资产快照（Release/tag 已在 v3.0.18-preview.2 发布后清理）
 

@@ -8,7 +8,7 @@
 
 ## 本版修复
 
-- 在「设置 → 连接与核心 → UDP 回显端点」填写自行控制的数字 IP 与端口、重新应用配置后，各优先级层的子组会独立执行 UDP 回显验证。默认留空，不会向任何默认第三方端点发包；不支持 UDP 回显的服务不能作为端点。
+- 在「设置 → 连接与核心 → UDP 回显端点」填写自行控制的数字 IP 与端口、重新应用配置后，各优先级层的子组会独立执行 UDP 回显验证。默认留空即零流量（fail-closed），不会向任何默认第三方端点发包；不支持 UDP 回显的服务不能作为端点。
 - 仅支持 UDP 的上层成员可凭有效 UDP 回显进入候选，不再依赖 TCP 延迟记录。回切仍要求连续三轮有效的新观测和至少 60 秒无失败；TCP 和 UDP 的记录互不替代。
 - 首次应用配置前，模块状态也会回读已经保存的开机自启设置。没有有效配置时不会启动核心；损坏配置仍按不可用处理。
 - 开机自启等待确认期间，连续点击按最后一次选择处理，旧回调不会覆盖新选择。
@@ -65,7 +65,7 @@ URLTest 稳定性约束（检测间隔 ≥ 10 秒、空闲超时 ≥ 30 分钟�
 - **问题**：`ProbeOutboundUDP` 原来只 `ListenPacket` 再 `Close` 就算成功。VMess/VLESS/Trojan/XUDP 都是 early packet conn，会话在首次写入才建立——建得起来既不证明服务端接受会话，也不证明数据报能往返，UDP 恢复门可能凭伪证据提前回切。
 - **改法**：发一条探测数据报，**只有收到目标原样回显才 `verified`**；首次写入失败/关联失败/回包不符为 `rejected`（清零并盖失败戳）；无有效响应（静默丢弃、超时、空包）为 `unverified`（中性，既不涨也不清零）；未配置端点或成员不支持 UDP 为 `skipped`（零流量）；取消为 `canceled`。单一成员只发一条、只读一次、不重试，超时缺省 3 秒且不超过整轮 5 秒预算，取消即关闭连接叫醒阻塞读。
 - **探测目标**：只来自用户配置 `URLTestOptions.udp_probe`（`server` 必须 `IP:port`、`payload` ≤ 512 B、`timeout` ≤ 5 秒），不默认任何第三方探测服务、不加合成 DNS 查询。
-- **已知限制**：应用侧暂时没有配置 `udp_probe` 的入口，默认下 UDP 探测一律 `skipped`、不产生流量，UDP 回切只等真往返证据；低层不再健康时既有兜底仍会把上层选回，因此不会永久锁死。需要可配置端点的话，等于另开一项设置项。
+- **已知限制（preview.2 当时）**：该版 UDP 探测一律 `skipped`、不产生流量，UDP 回切只等真往返证据；低层不再健康时既有兜底仍会把上层选回，因此不会永久锁死。自管端点的入口在 preview.3 才落地：『设置 → 连接与核心 → UDP 回显端点』，默认留空即零流量（fail-closed）。
 
 ##### 3. 降级后旧回切资格立刻作废
 
@@ -113,7 +113,7 @@ APK 与普通 Root 模块合计 `24,520,694` 字节（23.38 MiB），上限 `27,
 - **PR 门禁**：PR #80 的 `Verify Android Build` run `44717598549`（head `58ed0c7`）全绿——`Build LibCore` 内 `go test -race`、`go vet`、Python 工具 125 项、`rootmodule` 28 项与文档门禁通过，`Build Android Debug APK` 的 JVM 单测与插桩通过。升版 PR #81 的 run `44723295827` 首跑红在 plugins.gradle.org 解析 `kotlin-gradle-plugin:2.0.21` 瞬时不可用（失败在发布断言之前，未创建 tag/Release），`gh run rerun --failed` 后全绿。
 - **发布门禁**：`Preview Build` run `44728368529` 四个 job 全绿，发布 job 断言 `APPROVED_SHA=e7f1f936` 并回读 tag；`prune_prereleases.py --keep-tag v3.0.18-preview.2` 在 11:52:04Z 删除了 preview.1 的 Release/tag。
 - **四件套复核**：本地 `sha256sum -c SHA256SUMS` 三件 OK，两个 ZIP `zipfile -t` 无损坏；合一包内 `manager.apk` 与外部 APK 逐字节相同；`version-control-info.textproto` 的 `revision` 与 tag 对象、`targetCommitish`、`APPROVED_SHA` 四处同为 `e7f1f9366316974d8318e8708dcaaa669bc896a0`。
-- **未验证边界**：未执行 Magisk / KernelSU / APatch 真机矩阵（CI 自标 `runtime_regression: not_verified`）；UDP 探测用的是本机可控回显端点，**不是真实代理服务端往返**，真实 VMess/VLESS/Trojan 的 UDP 往返未做端到端验证；应用侧没有 `udp_probe` 配置入口；真机上 `boot.json` 的权限与开机行为未验证。任何自动化结果都不代替真机验证，本版不晋升正式版。
+- **未验证边界**：未执行 Magisk / KernelSU / APatch 真机矩阵（CI 自标 `runtime_regression: not_verified`）；UDP 探测用的是本机可控回显端点，**不是真实代理服务端往返**，真实 VMess/VLESS/Trojan 的 UDP 往返未做端到端验证；该版 UDP 探测默认 `skipped`、不产生流量，自管端点的入口在 preview.3 才落地（『设置 → 连接与核心 → UDP 回显端点』，默认留空即零流量，fail-closed）；真机上 `boot.json` 的权限与开机行为未验证。任何自动化结果都不代替真机验证，本版不晋升正式版。
 
 ---
 
