@@ -1099,7 +1099,7 @@ fun buildConfig(
                     // 新增更密的探测）；回切不断现有连接（interruptExist=false）。
                     val iv = balancerBean.interval.toLong().coerceAtLeast(10L)
                     val toleranceMs = balancerBean.calculateToleranceMs().coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
-                    val udpProbeServer = if (!forTest && !forExport) DataStore.udpProbeServer else null
+                    val udpProbeServer = effectiveUdpProbeServer(forTest, forExport, DataStore.udpProbeServer)
                     val tierRules = decodeBalancerTierRules(balancerBean.tierRules)
                     val tiers = assignBalancerTiers(
                         sortedMemberEntities.map { BalancerMemberRef(it.id, it.displayName()) },

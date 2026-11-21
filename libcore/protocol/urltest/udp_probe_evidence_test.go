@@ -529,3 +529,48 @@ func TestUDPOnlyTierSwitchesBackWithoutTCPHistory(t *testing.T) {
 		t.Fatal("UDP evidence contaminated TCP history")
 	}
 }
+
+// 门代次在本轮内被降级失效改过：降级前观测到的成功不得刷新证据（不给新代次
+// 授予回切资格），但失败观测的删除必须落地——本轮探测已明确失败的成员不能
+// 靠旧证据继续被当成 UDP 可用，直到 3 倍间隔过期才被动清掉。
+func TestUDPSelectionEvidenceEpochChangeDropsFailuresButGrantsNoSuccess(t *testing.T) {
+	echo := newUDPTestEndpoint(t, udpEndpointEcho)
+	failed := &startupOutbound{Adapter: outbound.NewAdapter("loopback", "failed [T1]", []string{"tcp", "udp"}, nil)}
+	passed := &startupOutbound{Adapter: outbound.NewAdapter("loopback", "passed [T1]", []string{"tcp", "udp"}, nil)}
+	grp := startupGroupWithMembersAndProbe(t, context.Background(), "http://example.invalid/204", echo.probeConfig(time.Second), failed, passed)
+	stale := time.Now().Add(-time.Minute)
+	grp.udpVerified = map[string]time.Time{failed.Tag(): stale, passed.Tag(): stale}
+
+	round := newURLTestRound()
+	round.bindGateEpoch(grp.tierTCP.gate.epoch, grp.tierUDP.gate.epoch)
+	grp.tierUDP.gate.epoch++ // 本轮内发生降级失效，门代次 +1
+	round.record(failed.Tag(), N.NetworkUDP, urlTestFailure)
+	round.record(passed.Tag(), N.NetworkUDP, urlTestSuccess)
+
+	grp.updateAccess.Lock()
+	grp.updateUDPSelectionEvidenceLocked(time.Now(), round)
+	grp.updateAccess.Unlock()
+
+	if _, ok := grp.udpVerified[failed.Tag()]; ok {
+		t.Fatal("a member whose probe failed this round must lose its UDP evidence even when the gate epoch changed mid-round")
+	}
+	if got := grp.udpVerified[passed.Tag()]; !got.Equal(stale) {
+		t.Fatalf("a success observed before a mid-round downgrade must not refresh evidence, got %v want %v", got, stale)
+	}
+
+	// 对照：门代次未变的轮次，成功照常刷新、失败照常删除。
+	round2 := newURLTestRound()
+	round2.bindGateEpoch(grp.tierTCP.gate.epoch, grp.tierUDP.gate.epoch)
+	round2.record(failed.Tag(), N.NetworkUDP, urlTestSuccess)
+	round2.record(passed.Tag(), N.NetworkUDP, urlTestFailure)
+	now := time.Now()
+	grp.updateAccess.Lock()
+	grp.updateUDPSelectionEvidenceLocked(now, round2)
+	grp.updateAccess.Unlock()
+	if got := grp.udpVerified[failed.Tag()]; !got.Equal(now) {
+		t.Fatalf("a success in an unchanged-epoch round must refresh evidence, got %v want %v", got, now)
+	}
+	if _, ok := grp.udpVerified[passed.Tag()]; ok {
+		t.Fatal("a failure in an unchanged-epoch round must delete the evidence")
+	}
+}

@@ -1826,17 +1826,24 @@ func (g *URLTestGroup) performRoundEndCheck(round *urlTestRound) {
 }
 
 func (g *URLTestGroup) updateUDPSelectionEvidenceLocked(now time.Time, round *urlTestRound) {
-	if round == nil || round.gateChanged(N.NetworkUDP, g.tierUDP.gate.epoch) {
+	if round == nil {
 		return
 	}
 	if g.udpVerified == nil {
 		g.udpVerified = make(map[string]time.Time)
 	}
+	// 门代次在本轮内被降级失效改过：降级前观测到的成功不得刷新证据（不给
+	// 新代次授予回切资格）；但失败删除是纯保守动作、不授予任何资格，仍须
+	// 落地——否则本轮探测已明确失败的成员会靠旧证据继续被当成 UDP 可用，
+	// 直到 3 倍间隔过期才被动清掉。
+	stale := round.gateChanged(N.NetworkUDP, g.tierUDP.gate.epoch)
 	observations := round.snapshotNetwork(N.NetworkUDP)
 	for _, member := range g.outbounds {
 		switch g.memberObservation(member, observations, N.NetworkUDP) {
 		case urlTestSuccess:
-			g.udpVerified[member.Tag()] = now
+			if !stale {
+				g.udpVerified[member.Tag()] = now
+			}
 		case urlTestFailure:
 			delete(g.udpVerified, member.Tag())
 		}

@@ -3,6 +3,14 @@ package io.nekohasekai.sagernet.fmt
 
 import com.google.common.net.InetAddresses
 
+/**
+ * 自管 UDP 回显端点只属于正在运行的正式配置：导出配置和一次性测速配置
+ * 都不得携带它（否则导出文件会把探测目标泄漏给接收方，一次性测速也会
+ * 凭空多出探测流量）。这是 buildConfig 里唯一的判定点，单列出来便于回归。
+ */
+internal fun effectiveUdpProbeServer(forTest: Boolean, forExport: Boolean, configured: String): String? =
+    if (!forTest && !forExport) configured else null
+
 /** Numeric IP and port only: no DNS lookup, scoped address or implicit probe service. */
 internal fun normalizeUdpProbeServer(input: String): String? {
     val endpoint = input.trim()
