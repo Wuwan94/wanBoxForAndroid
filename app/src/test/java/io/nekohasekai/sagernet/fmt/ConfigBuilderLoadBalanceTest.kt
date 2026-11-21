@@ -9,6 +9,20 @@ import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class ConfigBuilderLoadBalanceTest {
+    @Test fun udpEchoOptionsAreOptInAndSerializedOnEachConfiguredOutbound() {
+        val server = "[2001:db8::1]:7000"
+        val inner = buildUrlTestOutbound(listOf("leaf"), customTag = "fixture [T1]", udpProbeServer = server)
+        val outer = buildUrlTestOutbound(listOf(inner.tag), customTag = "fixture", udpProbeServer = server)
+        val gson = com.google.gson.Gson()
+        for (outbound in listOf(inner, outer)) {
+            assertEquals(server, gson.toJsonTree(outbound).asJsonObject.getAsJsonObject("udp_probe").get("server").asString)
+        }
+        for (value in listOf(null, "", "example.invalid:7000", "[2001:db8::1]:65536", "2001:db8::1:7000", "[127.0.0.1]:7000")) {
+            assertEquals(null, buildUrlTestOutbound(listOf("leaf"), udpProbeServer = value).udp_probe)
+        }
+        assertEquals("192.0.2.1:7000", normalizeUdpProbeServer(" 192.0.2.1:7000 "))
+    }
+
     @Test fun newUrlTestDefaultsKeepSavedOverridesAndNeverInterruptConnections() {
         val defaults = buildUrlTestOutbound(listOf("fixture-node"))
         assertEquals("http://connectivitycheck.gstatic.com/generate_204", defaults.url)

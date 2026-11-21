@@ -411,6 +411,13 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
         dnsHosts.setOnBindEditTextListener(EditTextPreferenceModifiers.Hosts)
         dnsHosts.summaryProvider = ListSummaryProvider(maxLines = 1)
 
+        findPreference<EditTextPreference>(Key.UDP_PROBE_SERVER)?.setOnPreferenceChangeListener { _, value ->
+            val endpoint = (value as String).trim()
+            if (endpoint.isNotEmpty() && io.nekohasekai.sagernet.fmt.normalizeUdpProbeServer(endpoint) == null) {
+                Toast.makeText(requireContext(), R.string.udp_probe_server_invalid, Toast.LENGTH_SHORT).show()
+                false
+            } else true
+        }
         speedTestMode.setOnPreferenceChangeListener { _, newValue ->
             SpeedTestSettings.isValidMode(newValue.toString())
         }
@@ -824,14 +831,17 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             } finally {
                 isPersistent = originalPersistent
             }
+            val taps = io.nekohasekai.sagernet.bg.AutoStartTapState()
             setOnPreferenceChangeListener { pref, newValue ->
-                val enabled = newValue as Boolean
+                val enabled = taps.next(newValue as Boolean)
+                val sequence = taps.generation
                 val switch = pref as SwitchPreference
                 switch.summary = getString(R.string.autostart_sync_pending)
                 val activity = requireActivity()
                 io.nekohasekai.sagernet.bg.AutoStartSettings.request(enabled) { outcome ->
                     runOnMainDispatcher {
                         if (activity.isFinishing || activity.isDestroyed) return@runOnMainDispatcher
+                        if (!taps.finish(sequence)) return@runOnMainDispatcher
                         when (outcome) {
                             is io.nekohasekai.sagernet.bg.AutoStartSync.Outcome.Confirmed -> {
                                 val persistent = switch.isPersistent
@@ -870,6 +880,7 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             // 返回页面时核对模块与 App：不一致就显示可见的“待同步”状态，
             // 用户再切一次开关即可重新下发（不静默改写用户数据）。
             val preference = this
+            val checkGeneration = taps.generation
             lifecycleScope.launch {
                 val result = try {
                     io.nekohasekai.sagernet.bg.AutoStartSettings.check()
@@ -878,7 +889,7 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
                 } catch (_: Exception) {
                     null
                 }
-                if (result != null && isAdded) {
+                if (result != null && isAdded && checkGeneration == taps.generation) {
                     when (result) {
                         is io.nekohasekai.sagernet.bg.AutoStartSync.Check.Mismatch -> {
                             val moduleText = getString(if (result.moduleValue) R.string.autostart_state_on else R.string.autostart_state_off)
@@ -1086,7 +1097,7 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
                 "hapticFeedback",
             ),
             // 设置首页「连接与核心」：首屏项，其余下沉到「高级设置」
-            "root" to listOf("connectionTestURL", "ipv6Mode", "isAutoConnect"),
+            "root" to listOf("connectionTestURL", "udpProbeServer", "ipv6Mode", "isAutoConnect"),
         )
 
         /** 「高级设置」分组（标题 to 键）。仅重新分组，键与默认值均不变。 */

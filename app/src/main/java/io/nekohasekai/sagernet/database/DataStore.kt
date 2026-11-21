@@ -233,6 +233,7 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var strictRoute by configurationStore.boolean(Key.STRICT_ROUTE) { true }
     // false = extreme low memory GC mode (default); true = high performance, allow high RAM
     var performancePriorityMode by configurationStore.boolean(Key.PERFORMANCE_PRIORITY_MODE) { false }
+    var udpProbeServer by configurationStore.string(Key.UDP_PROBE_SERVER) { "" }
     private var rawConnectionTestURL by configurationStore.string(Key.CONNECTION_TEST_URL) {
         SagerNet.application.getString(R.string.default_connection_test_url)
     }

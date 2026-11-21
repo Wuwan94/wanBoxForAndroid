@@ -1464,4 +1464,7 @@
     <string name="autostart_boot_config_broken">模块的开机自启配置损坏或读不出来，本次开机不会自启；再切一次开关即可重写配置。%1$s</string>
     <string name="autostart_boot_config_invalid">模块的开机自启配置文件损坏或字段无效</string>
     <string name="autostart_boot_config_unreadable">模块的开机自启配置文件读不出来（权限或 I/O 错误）</string>
+    <string name="udp_probe_server_title">UDP 回显端点</string>
+    <string name="udp_probe_server_summary">用于按优先级分层的策略组。请填写你控制的 UDP 回显端点（IPv4:端口或 [IPv6]:端口），留空则关闭 UDP 探测，重新应用配置后生效。</string>
+    <string name="udp_probe_server_invalid">请输入数字 IP 的 UDP 回显端点（IPv4:端口或 [IPv6]:端口）。</string>
 </resources>

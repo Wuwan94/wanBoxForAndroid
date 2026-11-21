@@ -7,9 +7,9 @@
 | 已发布正式版 | [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17)，非 prerelease（Latest）；由 3.0.17 预览线晋升，升版 PR #75 合并提交 `d4e7c5d049d877660108ea11f7212a9f04824cd6`，`release.yml` 两阶段发布（候选 run `44474557410` → 正式 run `44477065390`，2026-11-19T07:24:49Z 上架） | APK / Root 模块 `10175 / 2035`（源码正式线 `VERSION_NAME=3.0.17`、`VERSION_CODE=2035`）；四件套字节与 SHA-256 见下文 |
 | 已发布预览版 | [v3.0.18-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.2)，prerelease，轻量 tag/commit `e7f1f9366316974d8318e8708dcaaa669bc896a0`（升版 PR #81 合并提交）；`Preview Build` run `44728368529`（四作业全绿）于 2026-11-20T11:51:54Z 发布，11:52:04Z prune 删除 `v3.0.18-preview.1` | APK `versionCode=10187` / Root 模块码 `2037`（`PRE_VERSION_NAME=3.0.18-preview.2`、`PRE_VERSION_CODE=2037`）；四件套字节与 SHA-256 见下文 |
 | 上一正式版 | [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14)，非 prerelease，保留；tag `fa9a9194ff89834e574640a0ec8e0d5d973cc024` | APK / Root 模块 `10130 / 2026`（历史资产核验记录，归档语境） |
-| 源码预览线 | `3.0.18-preview.2`（与已发布预览同值；`nb4a.properties` 未再次升版，下一预览升版前保持该值，升版时须同时把 `PREVIEW_NOTES.md` 当前区段改回候选） | `PRE_VERSION_NAME=3.0.18-preview.2`、`PRE_VERSION_CODE=2037`；共享向量计算 APK `versionCode=10187`、Root 模块码 `2037` |
+| 源码预览线 | `3.0.18-preview.3`（未发布候选） | `PRE_VERSION_NAME=3.0.18-preview.3`、`PRE_VERSION_CODE=2038`；APK `versionCode=10193`、Root 模块码 `2038` |
 
-源码元数据正式线为 `VERSION_NAME=3.0.17`、`VERSION_CODE=2035`；预览线 `3.0.18-preview.2 / 2037` 已于 2026-11-20T11:51:54Z 作为稳定性预览发布，tag 与发布二进制同为 `e7f1f936`，派生 APK `10187`、模块 `2037`（上一预览 preview.1 为 `10181 / 2036`）。本次发布触发 `prune_prereleases.py`，`v3.0.18-preview.1` 的 Release/tag 已删除（现返回 404）；正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 未受影响。`SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变。
+源码元数据正式线为 `VERSION_NAME=3.0.17`、`VERSION_CODE=2035`；最近已发布预览 `3.0.18-preview.2 / 2037` 于 2026-11-20T11:51:54Z 作为稳定性预览发布，tag 与发布二进制同为 `e7f1f936`，派生 APK `10187`、模块 `2037`（上一预览 preview.1 为 `10181 / 2036`）。本次发布触发 `prune_prereleases.py`，`v3.0.18-preview.1` 的 Release/tag 已删除（现返回 404）；正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 未受影响。`SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变。
 
 v3.0.17 晋升内容：3.0.17 预览线（preview.1–.4）的全量变更 —— OwnBox 移植 B1–B4/B7a–c（含 O9a 落地 IP 缓存按实际在跑节点失效）、NetProxy 线 B5/B6/N6/B8、preview.3 的 URLTest 预算到期回切与诊断包 Android 12+ 读取、preview.4 的层级回切门与过期候选兜底，以及 PR #74 的分层向下容灾与回切门新观测计数；逐版记录见 [CHANGELOG.md](../CHANGELOG.md)。
 

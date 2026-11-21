@@ -1205,8 +1205,8 @@ const (
 // bootSettingsLimit 是 boot.json 的读取上限：一个布尔文档不该超过 4 KiB。
 const bootSettingsLimit = 4096
 
-// EffectiveAutoStart 返回模块下次开机会实际采用的设置，以及它的证据来源。
-// 第二个返回值非空时设置无法确定（配置损坏/不可读/当前配置损坏），调用方 MUST
+// EffectiveAutoStart 返回持久化的开机自启设置及来源（没有 generation 时不会启动核心）。
+// 错误非空时设置无法确定（配置损坏/不可读/当前配置损坏），调用方 MUST
 // 如实报未知，不得退回快照值冒充生效值。
 func (r *Runtime) EffectiveAutoStart() (bool, string, error) {
 	_, snapshot, err := r.Current()
@@ -1222,10 +1222,6 @@ func (r *Runtime) EffectiveAutoStart() (bool, string, error) {
 //   - 存在但格式损坏 / 缺字段 / 字段类型不对：boot_settings_invalid；
 //   - 存在但读不出来（权限、I/O、是个目录）：boot_settings_unreadable。
 func (r *Runtime) bootSettingsFor(snapshot Snapshot) (value bool, source string, err error) {
-	if snapshot.SchemaVersion == 0 {
-		// 还没有任何可用配置：没有可自启的东西，也不存在覆盖项。
-		return snapshot.AutoStart, AutoStartSourceSnapshot, nil
-	}
 	var document struct {
 		AutoStart *bool `json:"autoStart"`
 	}

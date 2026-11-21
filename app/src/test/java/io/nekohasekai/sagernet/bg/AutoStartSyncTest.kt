@@ -68,6 +68,30 @@ class AutoStartSyncTest {
     }
 
     @Test
+    fun `fast taps invert pending intent and stale completion does not clear it`() {
+        val taps = AutoStartTapState()
+        assertEquals(true, taps.next(true))
+        val first = taps.generation
+        assertEquals(false, taps.next(true))
+        assertEquals(false, taps.finish(first))
+        assertEquals(true, taps.next(true))
+        assertTrue(taps.finish(taps.generation))
+        assertEquals(false, taps.next(false))
+    }
+
+    @Test
+    fun `registering before dispatch preserves tap order when IO starts in reverse`() = runTest {
+        val host = Host()
+        val sync = AutoStartSync(host)
+        val first = sync.register(true)
+        val last = sync.register(false)
+        assertEquals(AutoStartSync.Outcome.Confirmed(false), sync.apply(last))
+        assertEquals(AutoStartSync.Outcome.Superseded, sync.apply(first))
+        assertEquals(listOf(false), host.writes)
+        assertEquals(false, host.confirmedValue)
+    }
+
+    @Test
     fun `module confirmation is required before persisting`() = runTest {
         val host = Host()
         val sync = AutoStartSync(host)

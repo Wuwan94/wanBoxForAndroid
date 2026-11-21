@@ -1579,4 +1579,7 @@
     <string name="autostart_boot_config_broken">The module\'s boot setting is unreadable or corrupt, so it will not start at boot. Toggle this switch once to rewrite it. %1$s</string>
     <string name="autostart_boot_config_invalid">The module\'s boot setting file is corrupt or has an invalid field</string>
     <string name="autostart_boot_config_unreadable">The module\'s boot setting file cannot be read (permissions or I/O error)</string>
+    <string name="udp_probe_server_title">UDP echo endpoint</string>
+    <string name="udp_probe_server_summary">Optional for priority-ordered groups. Use a UDP echo endpoint you control (IPv4:port or [IPv6]:port). Leave blank to disable UDP probing. Changes take effect when you reapply the configuration.</string>
+    <string name="udp_probe_server_invalid">Enter a numeric IPv4:port or [IPv6]:port UDP echo endpoint.</string>
 </resources>

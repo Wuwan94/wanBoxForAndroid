@@ -30,3 +30,20 @@ func TestRedCorruptBootSettingsAreNeverReportedAsEnabled(t *testing.T) {
 		t.Fatalf("Boot must keep refusing with boot_settings_invalid, got %v", e)
 	}
 }
+
+func TestAutoStartOverrideBeforeFirstApply(t *testing.T) {
+	r, _ := fixture(t)
+	r.Validate = func(context.Context, string, string) error { t.Fatal("no generation must not start"); return nil }
+	for _, enabled := range []bool{true, false} {
+		if e := r.SetAutoStart(enabled); e != nil {
+			t.Fatal(e)
+		}
+		s := r.Status()
+		if s.AutoStart == nil || *s.AutoStart != enabled || s.AutoStartSource != AutoStartSourceBoot {
+			t.Fatalf("pending first configuration lost explicit value %t: %+v", enabled, s)
+		}
+		if e := r.Boot(context.Background(), func() bool { return true }); e != nil {
+			t.Fatal(e)
+		}
+	}
+}
