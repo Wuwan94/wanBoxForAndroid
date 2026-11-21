@@ -17,15 +17,16 @@ ROOT = Path(__file__).resolve().parents[2]
 STABLE_TAG = "v3.0.17"
 STABLE_CODE = "2035"
 STABLE_APK_CODE = "10175"
-# v3.0.18-preview.2 已作为稳定性预览发布：Preview Build run 44728368529（2026-11-20T11:51:54Z 上架），
-# 发布触发 prune，上一预览 v3.0.18-preview.1 的 Release/tag 已删除。
-PUBLISHED_PREVIEW = "v3.0.18-preview.2"
-PUBLISHED_PREVIEW_COMMIT = "e7f1f9366316974d8318e8708dcaaa669bc896a0"
-# 源码预览线已升版，发布前仍保留上一已发布版本的精确证据。
+# v3.0.18-preview.3 已作为稳定性预览发布：Preview Build run 44882104257（2026-11-21T08:13:01Z 上架），
+# 发布触发 prune，上一预览 v3.0.18-preview.2 的 Release/tag 已在 08:13:09Z 删除。
+PUBLISHED_PREVIEW = "v3.0.18-preview.3"
+PUBLISHED_PREVIEW_COMMIT = "8881dd1c59481b3d23ab3766fb21e3b651fa1d65"
+# 发布后源码预览线与已发布预览相同：nb4a.properties 在下一预览升版前仍指向刚发布的
+# preview.3，此时发行说明的当前区段必须按「已发布」写，不能留「未发布候选」。
 SOURCE_PREVIEW = "v3.0.18-preview.3"
 SOURCE_PREVIEW_CODE = "2038"
 # 上一预览的 Release/tag 已在本次发布时清理，只保留历史说明与资产快照。
-ARCHIVED_PREVIEW = "v3.0.18-preview.1"
+ARCHIVED_PREVIEW = "v3.0.18-preview.2"
 HISTORY_MARKER = "历史归档"
 
 FILES = {

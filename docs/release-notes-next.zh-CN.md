@@ -1,6 +1,10 @@
-# v3.0.18-preview.3 发行说明（候选）
+# v3.0.18-preview.3 发行说明
 
-**状态：未发布的稳定性预览版候选。**
+**状态：已发布的稳定性预览版。**
+
+本版收口 `v3.0.18-preview.2` 复审提出的四项缺陷（PR #83，合并提交 `8881dd1c59481b3d23ab3766fb21e3b651fa1d65`，25 个文件 +332/−78，`Verify Android Build` run `44879210932` 在 head `dbdbf0b` 全绿）。正式线 `3.0.17 / 2035`（APK `10175`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 均未变；预览元数据为 `3.0.18-preview.3 / 2038`，派生 APK `versionCode=10193`、Root 模块码 `2038`（preview.2 为 `10187 / 2037`）。
+
+[v3.0.18-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.3) 以 `main` 的 `8881dd1c59481b3d23ab3766fb21e3b651fa1d65`（PR #83 合并提交，轻量 tag）发布：`Preview Build` run `44882104257` 四作业全绿、2026-11-21T08:13:01Z 上架（发布 job 断言 `APPROVED_SHA=8881dd1c` 并回读 tag）；四件套 APK `6374839` / 普通模块 `18149655` / 合一包 `23797772` / `SHA256SUMS` `333` 字节，APK+模块 `24524494` 字节（23.39 MiB）余量 `2738482` → PASS。发布后 08:13:09Z 由 `prune_prereleases.py` 清理 `v3.0.18-preview.2`，正式版 `v3.0.17` / `v3.0.14` / `v3.0.11` 保留。
 
 ## 本版修复
 
@@ -15,6 +19,10 @@
 
 回归覆盖本地 UDP 回显和自启配置/请求顺序；本次未执行真实代理服务端 UDP 往返或 Root 真机重启验证。
 
+发布后本地重下四件套复核：`sha256sum -c SHA256SUMS` 三件 OK，两个 ZIP `zipfile.testzip()` 无损坏；APK 解析为 `versionCode=10193` / `versionName=3.0.18-preview.3`、`lib/` 条目 0 个；模块 `module.prop` 为 `3.0.18-preview.3 / 2038`；合一包内 `manager.apk` 与外部 APK 逐字节相同；`version-control-info.textproto` 的 `revision`、tag、`targetCommitish` 与 `APPROVED_SHA` 四处同为 `8881dd1c59481b3d23ab3766fb21e3b651fa1d65`。签名证书仍为 `80ecee1c…21f6`（与 v3.0.14 / v3.0.17 同一张，可同包名覆盖安装）。四件套 SHA-256 见[版本对照](current-version.zh-CN.md)。
+
+`main` 在本版发布后另合入 PR #84（合并提交 `00cfeedddc07249cccd8a8344eb1bf7df97d75dc`，`Verify Android Build` run `44898283085` 全绿）：门代次轮内变化时仍删除已明确失败成员的 UDP 证据，并为「导出/一次性测速排除 UDP 探测端点」补 JVM 回归。**两项修复不在本版二进制中**，随下一预览发布；`nb4a.properties` 仍是 `3.0.18-preview.3 / 2038`。
+
 ## 历史归档
 
 ### v3.0.18-preview.2 已发布说明
@@ -23,7 +31,7 @@
 
 本版收口 `v3.0.18-preview.1` 源码复审与代码复审提出的六项缺陷（PR #80，合并提交 `ad032285b3ff181677ed6c0ea9c88a7bb4e482a6`，22 个文件 +2887/−167，`Verify Android Build` run `44717598549` 在 head `58ed0c7` 全绿）。正式线 `3.0.17 / 2035` 与 sing-box pin `v1.15.0-alpha.13-reF1nd` 未变；预览元数据为 `3.0.18-preview.2 / 2037`，派生 APK `versionCode=10187`、Root 模块码 `2037`（preview.1 为 `10181 / 2036`）。
 
-[v3.0.18-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.2) 以 `main` 的 `e7f1f9366316974d8318e8708dcaaa669bc896a0`（升版 PR #81 合并提交，轻量 tag）发布：`Preview Build` run `44728368529` 四个作业全绿、2026-11-20T11:51:54Z 上架（发布 job 断言 `APPROVED_SHA=e7f1f936` 并回读 tag）；四件套 APK `6371663` / 普通模块 `18149031` / 合一包 `23794995` / `SHA256SUMS` `333` 字节，APK+模块 `24520694` 字节（23.38 MiB）余量 `2742282` → PASS，`sha256sum -c` 三件 OK。发布后 11:52:04Z 由 `prune_prereleases.py` 清理 `v3.0.18-preview.1`，正式版 `v3.0.17` / `v3.0.14` / `v3.0.11` 保留。
+[v3.0.18-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.2) 以 `main` 的 `e7f1f9366316974d8318e8708dcaaa669bc896a0`（升版 PR #81 合并提交，轻量 tag）发布：`Preview Build` run `44728368529` 四个作业全绿、2026-11-20T11:51:54Z 上架（发布 job 断言 `APPROVED_SHA=e7f1f936` 并回读 tag）；四件套 APK `6371663` / 普通模块 `18149031` / 合一包 `23794995` / `SHA256SUMS` `333` 字节，APK+模块 `24520694` 字节（23.38 MiB）余量 `2742282` → PASS，`sha256sum -c` 三件 OK。发布后 11:52:04Z 由 `prune_prereleases.py` 清理 `v3.0.18-preview.1`，正式版 `v3.0.17` / `v3.0.14` / `v3.0.11` 保留。本版自身的 Release/tag 已在 `v3.0.18-preview.3` 发布后（2026-11-21T08:13:09Z）按单预览策略清理（现为 404）。
 
 #### 与上一版对比
 

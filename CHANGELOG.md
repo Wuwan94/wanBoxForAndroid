@@ -4,6 +4,13 @@
 
 ## wanBox 3.0.x 发布记录
 
+### v3.0.18-preview.3（已发布预览）
+
+- [GitHub Release v3.0.18-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.3) 由 `Preview Build` run `44882104257` 在 main commit/tag `8881dd1c59481b3d23ab3766fb21e3b651fa1d65`（轻量 tag，PR #83 合并提交，2026-11-21T07:50:34Z）于 2026-11-21T08:13:01Z 发布；tag 对象、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `8881dd1c`，四个作业全绿。PR #83 的 `Verify Android Build` run `44879210932`（head `dbdbf0b`）全绿。
+- 内容：收口 v3.0.18-preview.2 复审的四项缺陷（PR #83，25 个文件 +332/−78）——「设置 → 连接与核心 → UDP 回显端点」可填自管数字 IP 与端口，各优先级层子组独立做 UDP 回显验证（默认留空、不向任何默认第三方端点发包、不支持 UDP 回显的服务不能作端点）；仅支持 UDP 的上层成员凭有效回显进入候选，不再借用 TCP 延迟记录（回切仍要连续三轮新观测 + 60 秒无失败，TCP/UDP 记录互不替代）；首次应用配置前也回读已保存的开机自启设置（无有效配置不启动核心、损坏配置照旧不可用）；自启等待确认期间连点按最后一次选择落地、旧回调不覆盖新选择。
+- 元数据为模块 `2038` / APK `10193`（preview.2 为 `2037` / `10187`）；正式线 `3.0.17 / 2035` 与 `SINGBOX_VERSION` 不变。四件套经 API digest 与公开 `SHA256SUMS` 回读一致（本地 `sha256sum -c` 三件 OK）：APK `6374839` 字节 / `e7832733…893507`、普通 Root ZIP `18149655` 字节 / `1fbfc62a…bdc280`、合一 ZIP `23797772` 字节 / `2fe93950…88c80d`、`SHA256SUMS` `333` 字节 / `2a6b50f3…296343`；APK + 普通 Root ZIP 为 `24524494` 字节（23.39 MiB），`size_budget --enforce-limit` PASS。发布后 `prune_prereleases.py` 在 08:13:09Z 删除了 `v3.0.18-preview.2` 的 Release/tag，正式版 `v3.0.17` / `v3.0.14` / `v3.0.11` 保留。
+- 边界：UDP 探测为本机可控回显端点，非真实代理服务端往返；Root 真机矩阵未执行（CI 自标 `runtime_regression: not_verified`）。发布后 main 另合入 PR #84（合并提交 `00cfeed`，head `c6c6f038`）两项复审修复（门代次轮内变化时仍删除失败成员的 UDP 证据、导出/一次性测速排除探测端点补 JVM 回归），**不在本版二进制中**，随下一预览发布。
+
 ### v3.0.18-preview.2（已发布预览）
 
 - [GitHub Release v3.0.18-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.2) 由 `Preview Build` run `44728368529` 在 main commit/tag `e7f1f9366316974d8318e8708dcaaa669bc896a0`（轻量 tag，升版 PR #81 合并提交，2026-11-20T11:31:39Z）于 2026-11-20T11:51:54Z 发布；tag 对象、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `e7f1f936`，四个作业全绿。升版 PR #81 的 `Verify Android Build` run `44723295827` 首跑红在 plugins.gradle.org 解析 `kotlin-gradle-plugin:2.0.21` 瞬时不可用（未创建 tag/Release），`gh run rerun --failed` 后全绿。

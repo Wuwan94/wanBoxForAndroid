@@ -1,6 +1,10 @@
-# v3.0.18-preview.3 发行说明（候选）
+# v3.0.18-preview.3 发行说明
 
-**状态：未发布的稳定性预览版候选。**
+**状态：已发布的稳定性预览版。**
+
+本版收口 `v3.0.18-preview.2` 复审提出的四项缺陷（PR #83，合并提交 `8881dd1c59481b3d23ab3766fb21e3b651fa1d65`，2026-11-21T07:50:34Z，25 个文件 +332/−78，`Verify Android Build` run `44879210932` 在 head `dbdbf0b` 全绿）。正式线 `3.0.17 / 2035`（APK `10175`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 均未变；预览元数据升为 `3.0.18-preview.3 / 2038`，派生 APK `versionCode=10193`、Root 模块码 `2038`，均高于已发布 preview.2 的 `10187 / 2037`，已装 preview.2 的用户可同时收到 APK 与模块更新。
+
+本版基于 `main` 的 `8881dd1c59481b3d23ab3766fb21e3b651fa1d65`（PR #83 合并提交，轻量 tag），`Preview Build` run `44882104257` 的四个作业（`Native Build (LibCore)`、`Build OSS APK`、`Candidate cold-start measurement (emulator only)`、`Publish Preview Release`）全部成功，于 2026-11-21T08:13:01Z 上架（prerelease，发布 job 断言 `APPROVED_SHA=8881dd1c` 并回读 tag）。发布后 `prune_prereleases.py` 在 08:13:09Z 删除了 `v3.0.18-preview.2` 的 Release/tag（现为 404），正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 保留。同一 run 的构建作业还顺手清掉两个远古残留（`v3.0.10-preview.1` 与孤立 tag `v3.0.10-preview.24`），与本次预览无关。
 
 ## 本版修复
 
@@ -15,6 +19,19 @@
 
 回归覆盖本地 UDP 回显和自启配置/请求顺序；本次未执行真实代理服务端 UDP 往返或 Root 真机重启验证。
 
+| 文件 | 字节 | SHA-256 |
+|---|---:|---|
+| `wanBoxForAndroid-3.0.18-preview.3-arm64-v8a-release.apk` | 6,374,839 | `e78327338864e49a4048e9a58a64e78a002db322cef9be67e3383a86af893507` |
+| `wanbox-root-module-arm64-v8a.zip` | 18,149,655 | `1fbfc62ab3751644fafc5f57cd511c3413b8f6b40e3ee621d755ae0fc1bdc280` |
+| `wanbox-root-module-with-manager-arm64-v8a.zip` | 23,797,772 | `2fe93950bfd952f1f70ee5102129a36815ce141d1e8a477dea0ff0e7c888c80d` |
+| `SHA256SUMS` | 333 | `2a6b50f34602ab0ac418cec445280dfded44bc09263ee7dd1df9656e74296343` |
+
+APK 与普通 Root 模块合计 `24,524,494` 字节（23.39 MiB），上限 `27,262,976` 字节（26 MiB），余量 `2,738,482` 字节（2.61 MiB）→ `size_budget --enforce-limit` PASS；带管理器合一包 22.70 MiB。发布后本地重下四件套复核：`sha256sum -c SHA256SUMS` 三件 OK，两个 ZIP `zipfile.testzip()` 无损坏；APK 解析为 `versionCode=10193` / `versionName=3.0.18-preview.3`、`lib/` 条目 0 个；模块 `module.prop` 为 `3.0.18-preview.3 / 2038`；合一包内 `manager.apk` 与外部 APK 逐字节相同；`version-control-info.textproto` 的 `revision`、tag、`targetCommitish` 与发布 job 的 `APPROVED_SHA` 四处同为 `8881dd1c59481b3d23ab3766fb21e3b651fa1d65`。证书 SHA-256 `80ecee1c42d861d59cdc460447335fc4bfdf80103d6225a17c1bdf83a33521f6`（与 v3.0.14 / v3.0.17 同一张，可同包名覆盖安装；签名由 CI G7 断言，本机无 `apksigner` 未独立复验）。
+
+## 发布后状态
+
+`main` 在本版发布后另合入 PR #84（合并提交 `00cfeedddc07249cccd8a8344eb1bf7df97d75dc`，head `c6c6f038`，`Verify Android Build` run `44898283085` 全绿，2026-11-21T12:16:42Z）：门代次在轮内变化时仍删除已明确失败成员的 UDP 证据（失败删除不再被代次变化整段跳过），并把「导出/一次性测速排除 UDP 探测端点」的判定抽成可测函数、补四种组合的 JVM 回归。**这两项不在本版二进制中**，随下一预览发布；`nb4a.properties` 仍是 `3.0.18-preview.3 / 2038`，下一预览升版前源码线不前进。
+
 ## 历史归档
 
 ### v3.0.18-preview.2 已发布说明
@@ -23,7 +40,7 @@
 
 本版收口 `v3.0.18-preview.1` 源码复审与代码复审提出的六项缺陷（PR #80，合并提交 `ad032285b3ff181677ed6c0ea9c88a7bb4e482a6`，2026-11-20T10:53:47Z，22 个文件 +2887/−167）：URLTest 观测按（成员, 网络）分账、UDP 探测只认真实往返回显、降级即作废旧回切资格、组关闭停拨备用、开机自启「下发 → 回读 → 落库」闭环、`boot.json` 不可用时状态与 `Boot()` 同口径。正式线 `3.0.17 / 2035`（APK `10175`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 均未变；预览元数据升为 `3.0.18-preview.2 / 2037`，派生 APK `versionCode=10187`、Root 模块码 `2037`，均高于已发布 preview.1 的 `10181 / 2036`，已装 preview.1 的用户可同时收到 APK 与模块更新。
 
-本版基于 `main` 的 `e7f1f9366316974d8318e8708dcaaa669bc896a0`（升版 PR #81 合并提交，轻量 tag），`Preview Build` run `44728368529` 的四个作业（`Native Build (LibCore)`、`Build OSS APK`、`Candidate cold-start measurement (emulator only)`、`Publish Preview Release`）全部成功，于 2026-11-20T11:51:54Z 上架（prerelease，发布 job 断言 `APPROVED_SHA=e7f1f936` 并回读 tag）。发布后 `prune_prereleases.py` 在 11:52:04Z 删除了 `v3.0.18-preview.1` 的 Release/tag（现为 404），正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 保留。
+本版基于 `main` 的 `e7f1f9366316974d8318e8708dcaaa669bc896a0`（升版 PR #81 合并提交，轻量 tag），`Preview Build` run `44728368529` 的四个作业（`Native Build (LibCore)`、`Build OSS APK`、`Candidate cold-start measurement (emulator only)`、`Publish Preview Release`）全部成功，于 2026-11-20T11:51:54Z 上架（prerelease，发布 job 断言 `APPROVED_SHA=e7f1f936` 并回读 tag）。发布后 `prune_prereleases.py` 在 11:52:04Z 删除了 `v3.0.18-preview.1` 的 Release/tag（现为 404），正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 保留。本版自身的 Release/tag 已在 `v3.0.18-preview.3` 发布后（2026-11-21T08:13:09Z）按单预览策略清理（现为 404）。
 
 #### ✦ 与上一版对比
 
