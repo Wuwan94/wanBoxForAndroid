@@ -9,7 +9,7 @@
 - 内核 `reF1nd/sing-box v1.15.0-alpha.13-reF1nd`。内核和 targetSdk 阶段只评估，升级须另获确认。
 - 模块拥有代理生命周期；管理器为瘦 APK，不引入多内核、不恢复 VPN、不重做 UI。
 - 不删除或改名设置键、不改默认值；TLS 默认验证证书；日志不得含备份内容、节点凭据、订阅原文。
-- 本版元数据：正式线 `3.0.17 / 2035`（APK `10175`、模块 `2035`）；预览线 `PRE_VERSION_NAME=3.0.18-preview.1`、`PRE_VERSION_CODE=2036` 已于 2026-11-19T11:55:25Z 作为稳定性预览发布，现已前移到 `3.0.18-preview.2 / 2037`（未发布候选，见下方「预览线候选」）；`SINGBOX_VERSION` 不变。
+- 本版元数据：正式线 `3.0.17 / 2035`（APK `10175`、模块 `2035`）；预览线 `PRE_VERSION_NAME=3.0.18-preview.3`、`PRE_VERSION_CODE=2038` 已于 2026-11-21T08:13:01Z 作为稳定性预览发布（preview.1 → preview.2 → preview.3 依次推进，见下方「预览线现状」）；`SINGBOX_VERSION` 不变。
 - 正式发布时保留的预览 `v3.0.17-preview.4`（`10174 / 2034`，源码 `906a6ea3`）当时仍在 Releases 中（正式发布不执行 `prune_prereleases.py`）；它已在 `v3.0.18-preview.1` 发布后按单预览策略清理，现为 404。
 
 ## 版本规则（`nb4a.properties`）
@@ -69,7 +69,19 @@ S6 收尾 PR：把候选/正式 run ID、实测字节与 SHA-256 回填到本清
 - 阶段二（正式，run `44477065390`）：首次在 `Build OSS APK` 的「Run unit and Android tests」红于 plugins.gradle.org 解析 `org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.21` / `kotlin-gradle-plugins-bom` 瞬时不可用，失败在发布断言之前，未创建任何 Release/tag；`gh run rerun --failed` 后四作业全绿，2026-11-19T07:24:49Z 发布。
 - 发布后回读：`prerelease=false`、资产 4 个、名称/大小/digest 与 `SHA256SUMS` 一致；APK `6363231` B / `5e21c0bf…b76dba`、Root ZIP `18133473` B / `8e4d9d16…493ef4`、合一 ZIP `23776260` B / `2a7ea8b1…b50b29`、`SHA256SUMS` `315` B / `c513a2c5…066d1ca`；APK + 模块 `24496704` B（23.36 MiB）< `27262976` B。本地 `sha256sum -c` 三件 OK；APK manifest `versionCode=10175` / `versionName=3.0.17`，无 `lib/`；模块 `3.0.17 / 2035`；四处同源均为 `d4e7c5d0`；`v3.0.14`、`v3.0.11` 与 `v3.0.17-preview.4` 保留。
 
-## 预览线现状（v3.0.18-preview.2，2026-11-20）
+## 预览线现状（v3.0.18-preview.3，2026-11-21）
+
+正式版 `v3.0.17` 仍是唯一正式版本；预览线 `3.0.18-preview.3` 已按预览门禁（`preview.yml`，不走 `release.yml` 两阶段、不执行深度真机矩阵）发布。
+
+- 内容：PR #83 收口 preview.2 复审四项——自管 UDP 回显端点（『设置 → 连接与核心 → UDP 回显端点』，默认留空即零流量，各层子组独立验证）、UDP-only 上层成员凭回显证据进候选、首次应用配置前回读自启设置、自启连点按最后一次选择落地。
+- 元数据：`PRE_VERSION_NAME=3.0.18-preview.3`、`PRE_VERSION_CODE=2038`，派生 APK `10193` / 模块 `2038`，严格高于 preview.2 的 `10187 / 2037`。正式线 `3.0.17 / 2035` 与 `SINGBOX_VERSION` 不变。
+- 溯源：轻量 tag / `targetCommitish` / APK `version-control-info.textproto` / `APPROVED_SHA` 四者同为 `8881dd1c59481b3d23ab3766fb21e3b651fa1d65`（PR #83 合并提交）；PR 门禁 `Verify Android Build` run `44879210932`（head `dbdbf0b`）全绿；`Preview Build` run `44882104257` 四作业全绿，2026-11-21T08:13:01Z 上架。
+- 资产：APK `6374839` B / `e7832733…893507`，Root ZIP `18149655` B / `1fbfc62a…bdc280`，合一 ZIP `23797772` B / `2fe93950…88c80d`，`SHA256SUMS` `333` B / `2a6b50f3…296343`；APK + 模块 `24524494` B（23.39 MiB）低于 26 MiB 门禁。发布后本地重下四件套复核：`sha256sum -c` 三件 OK，两个 ZIP 完整，APK `10193` / `3.0.18-preview.3`、无 `lib/`，模块 `2038`。
+- 清理：发布 run 在 08:13:09Z 删除了 `v3.0.18-preview.2` 的 Release/tag；正式版 `v3.0.17` / `v3.0.14` / `v3.0.11` 未动。
+- 发布后进制：`main` 另合入 PR #84（合并提交 `00cfeed`，`Verify Android Build` run `44898283085` 全绿）的两项复审修复，**不在本版二进制中**，随下一预览发布。
+- 未验证边界：Root 真机矩阵同前未执行；UDP 探测为本机可控回显端点，非真实代理服务端往返；真机 `boot.json` 权限与开机行为未验。
+
+## 预览线现状（v3.0.18-preview.2，2026-11-20，Release/tag 已在 preview.3 发布后清理）
 
 正式版 `v3.0.17` 仍是唯一正式版本；预览线 `3.0.18-preview.2` 已按预览门禁（`preview.yml`，不走 `release.yml` 两阶段、不执行深度真机矩阵）发布。
 
@@ -77,8 +89,8 @@ S6 收尾 PR：把候选/正式 run ID、实测字节与 SHA-256 回填到本清
 - 元数据：`PRE_VERSION_NAME=3.0.18-preview.2`、`PRE_VERSION_CODE=2037`，派生 APK `10187` / 模块 `2037`，严格高于 preview.1 的 `10181 / 2036`。正式线 `3.0.17 / 2035` 与 `SINGBOX_VERSION` 不变。
 - 溯源：轻量 tag / `targetCommitish` / APK `version-control-info.textproto` / `APPROVED_SHA` 四者同为 `e7f1f9366316974d8318e8708dcaaa669bc896a0`（升版 PR #81 合并提交）；`Preview Build` run `44728368529` 四作业全绿，2026-11-20T11:51:54Z 上架。升版 PR 的 `Verify Android Build` run `44723295827` 首跑红在 plugins.gradle.org 瞬时不可用，重跑后全绿。
 - 资产：APK `6371663` B / `2ecd6d93…b8666b`，Root ZIP `18149031` B / `b191ff89…07be3b`，合一 ZIP `23794995` B / `96055b46…072295`，`SHA256SUMS` `333` B / `b199faa8…10d5be`；APK + 模块 `24520694` B（23.38 MiB）低于 26 MiB 门禁。
-- 清理：发布 run 在 11:52:04Z 删除了 `v3.0.18-preview.1` 的 Release/tag；正式版 `v3.0.17` / `v3.0.14` / `v3.0.11` 未动。
-- 未验证边界：Root 真机矩阵同前未执行；UDP 探测为本机可控回显端点，非真实代理服务端往返；应用侧无 `udp_probe` 配置入口；真机 `boot.json` 权限与开机行为未验。
+- 清理：发布 run 在 11:52:04Z 删除了 `v3.0.18-preview.1` 的 Release/tag；正式版 `v3.0.17` / `v3.0.14` / `v3.0.11` 未动。本版自身的 Release/tag 已在 preview.3 发布后（2026-11-21T08:13:09Z）清理。
+- 未验证边界：Root 真机矩阵同前未执行；UDP 探测为本机可控回显端点，非真实代理服务端往返；该版 UDP 探测默认 `skipped`、不产生流量，自管端点的入口在 preview.3 才落地（『设置 → 连接与核心 → UDP 回显端点』，默认留空即零流量）；真机 `boot.json` 权限与开机行为未验。
 
 ## 预览线现状（v3.0.18-preview.1，2026-11-19，Release/tag 已在 preview.2 发布后清理）
 
