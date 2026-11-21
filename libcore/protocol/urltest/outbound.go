@@ -582,7 +582,6 @@ func (g *URLTestGroup) failoverCandidates(primary adapter.Outbound, network stri
 	}
 	g.updateAccess.RLock()
 	effectiveTier, hasEffectiveTier := g.effectiveTierLocked(network)
-	g.updateAccess.RUnlock()
 	candidates := make([]candidate, 0, len(g.outbounds))
 	for order, alt := range g.outbounds {
 		if alt == primary || !common.Contains(alt.Network(), network) {
@@ -592,13 +591,14 @@ func (g *URLTestGroup) failoverCandidates(primary adapter.Outbound, network stri
 		if hasEffectiveTier && tier < effectiveTier {
 			continue
 		}
-		history := g.freshHistory(group.RealTag(alt, network))
+		history := g.selectionHistoryLocked(alt, network)
 		delay := uint16(65535)
 		if history != nil {
 			delay = history.Delay
 		}
 		candidates = append(candidates, candidate{outbound: alt, tier: tier, delay: delay, fresh: history != nil, order: order})
 	}
+	g.updateAccess.RUnlock()
 	sort.SliceStable(candidates, func(i, j int) bool {
 		if hasEffectiveTier && candidates[i].tier != candidates[j].tier {
 			return candidates[i].tier < candidates[j].tier
@@ -666,6 +666,9 @@ func (g *URLTestGroup) promoteFailover(winner adapter.Outbound, network string) 
 		// 失败的主选层：真实拨号失败就是该层在这一网络上的失败证据。
 		if failedTag != "" {
 			state.gate.invalidateTier(g.tierOfTag(failedTag), now)
+			if network == N.NetworkUDP {
+				delete(g.udpVerified, failedTag)
+			}
 		}
 		if state.currentTier < 0 || winnerTier > state.currentTier {
 			state.currentTier = winnerTier
@@ -735,6 +738,8 @@ type URLTestGroup struct {
 	// probeMemberUDP 才会发出探测数据报；未启用时 UDP 观测一律记为跳过，
 	// 绝不凭“关联建立成功”冒充 UDP 健康。
 	udpProbe *udpProbeConfig
+	// UDP 往返证据按本组直接成员记录，由 updateAccess 保护；不写 TCP 延迟历史。
+	udpVerified map[string]time.Time
 }
 
 // tierRecoveryGateState 是层级恢复门的状态：每层连续健康轮次数与上次失败时间。
@@ -971,6 +976,20 @@ func (g *URLTestGroup) freshHistory(tag string) *adapter.URLTestHistory {
 	return history
 }
 
+// selectionHistoryLocked uses the existing TCP timing heuristic only for legacy
+// groups without an echo endpoint. Configured groups rank UDP solely on fresh
+// echo evidence; equal synthetic ranks preserve selection stickiness and order.
+func (g *URLTestGroup) selectionHistoryLocked(detour adapter.Outbound, network string) *adapter.URLTestHistory {
+	if network == N.NetworkUDP && g.udpProbe != nil {
+		verified, ok := g.udpVerified[detour.Tag()]
+		if !ok || time.Since(verified) >= 3*g.interval {
+			return nil
+		}
+		return &adapter.URLTestHistory{Time: verified, Delay: 1}
+	}
+	return g.freshHistory(group.RealTag(detour, network))
+}
+
 // isActive 报告组是否处于活跃态（未 idle）：以 lastActive 是否落在
 // idleTimeout 窗口内判定。lastActive 是 TypedValue（原子读写），零值
 // （PostStart 前）视为不活跃；ctx 已取消也视为不活跃。流式就绪只在
@@ -999,7 +1018,7 @@ func (g *URLTestGroup) selectedFresh(network string) adapter.Outbound {
 	if stored == nil {
 		return nil
 	}
-	if g.freshHistory(group.RealTag(stored, network)) == nil {
+	if g.selectionHistoryLocked(stored, network) == nil {
 		return nil
 	}
 	return stored
@@ -1017,6 +1036,11 @@ func (g *URLTestGroup) selectLocked(network string) (adapter.Outbound, bool) {
 	// 逻辑与改动前一致；全层无新鲜历史时回落列表首位（既有行为）。
 	effectiveTier, hasHealthy := g.effectiveTierLocked(network)
 	if !hasHealthy {
+		// No validated UDP member: keep the data-plane failover winner, if any.
+		// This is a fallback, not a healthy selection or permission to switch back.
+		if network == N.NetworkUDP && g.udpProbe != nil && g.selectedOutboundUDP != nil {
+			return g.selectedOutboundUDP, false
+		}
 		for _, detour := range g.outbounds {
 			if !common.Contains(detour.Network(), network) {
 				continue
@@ -1032,14 +1056,14 @@ func (g *URLTestGroup) selectLocked(network string) (adapter.Outbound, bool) {
 	switch network {
 	case N.NetworkTCP:
 		if g.selectedOutboundTCP != nil && g.tierOfTag(g.selectedOutboundTCP.Tag()) == effectiveTier {
-			if history := g.freshHistory(group.RealTag(g.selectedOutboundTCP, N.NetworkTCP)); history != nil {
+			if history := g.selectionHistoryLocked(g.selectedOutboundTCP, N.NetworkTCP); history != nil {
 				minOutbound = g.selectedOutboundTCP
 				minDelay = history.Delay
 			}
 		}
 	case N.NetworkUDP:
 		if g.selectedOutboundUDP != nil && g.tierOfTag(g.selectedOutboundUDP.Tag()) == effectiveTier {
-			if history := g.freshHistory(group.RealTag(g.selectedOutboundUDP, N.NetworkUDP)); history != nil {
+			if history := g.selectionHistoryLocked(g.selectedOutboundUDP, N.NetworkUDP); history != nil {
 				minOutbound = g.selectedOutboundUDP
 				minDelay = history.Delay
 			}
@@ -1052,7 +1076,7 @@ func (g *URLTestGroup) selectLocked(network string) (adapter.Outbound, bool) {
 		if !common.Contains(detour.Network(), network) {
 			continue
 		}
-		history := g.freshHistory(group.RealTag(detour, network))
+		history := g.selectionHistoryLocked(detour, network)
 		if history == nil {
 			continue
 		}
@@ -1119,7 +1143,7 @@ func (g *URLTestGroup) tierHealthyLocked(tier int, network string) bool {
 		if !common.Contains(detour.Network(), network) {
 			continue
 		}
-		if g.freshHistory(group.RealTag(detour, network)) != nil {
+		if g.selectionHistoryLocked(detour, network) != nil {
 			return true
 		}
 	}
@@ -1615,26 +1639,24 @@ func (b *urlTestBatch) test(outbounds []adapter.Outbound, link string, interval 
 			})), link, interval, force)
 		default:
 			history := b.history.LoadURLTestHistory(tag)
-			if !force && history != nil && time.Since(history.Time) < interval {
-				// 缓存新鲜而跳过：本轮没有新观测，两个网络都不得算成功或失败。
+			skipTCP := !force && history != nil && time.Since(history.Time) < interval
+			if skipTCP && (b.group == nil || b.group.udpProbe == nil || !common.Contains(detour.Network(), N.NetworkUDP)) {
 				b.round.recordForNetworks(detour, urlTestSkipped)
 				continue
 			}
 			b.checked[tag] = true
 			b.batch.Go(tag, func() (any, error) {
-				b.probeMember(detour, link, interval)
+				if skipTCP || !common.Contains(detour.Network(), N.NetworkTCP) {
+					b.round.record(tag, N.NetworkTCP, urlTestSkipped)
+				} else {
+					b.probeMemberTCP(detour, link, interval)
+				}
+				// TCP cache freshness cannot suppress an independently scheduled UDP probe.
+				b.probeMemberUDP(detour)
 				return nil, nil
 			})
 		}
 	}
-}
-
-// probeMember 跑一个成员本轮的观测：TCP 的 HTTP 探测（唯一写 history 的口径）
-// 加一次真实 UDP 往返探测（仅在成员支持 UDP 且用户配置了可验证端点时）。两个
-// 网络各记各的观测：结果互不冒充，失败/跳过/取消/未知也不跨网络。
-func (b *urlTestBatch) probeMember(detour adapter.Outbound, link string, interval time.Duration) {
-	b.probeMemberTCP(detour, link, interval)
-	b.probeMemberUDP(detour)
 }
 
 func (b *urlTestBatch) probeMemberTCP(detour adapter.Outbound, link string, interval time.Duration) {
@@ -1792,8 +1814,33 @@ func (g *URLTestGroup) performUpdateCheck() {
 func (g *URLTestGroup) performRoundEndCheck(round *urlTestRound) {
 	g.updateAccess.Lock()
 	defer g.updateAccess.Unlock()
-	g.updateTierGateLocked(time.Now(), round)
+	if g.ctx.Err() != nil {
+		return
+	}
+	now := time.Now()
+	if g.udpProbe != nil {
+		g.updateUDPSelectionEvidenceLocked(now, round)
+	}
+	g.updateTierGateLocked(now, round)
 	g.performUpdateCheckLocked()
+}
+
+func (g *URLTestGroup) updateUDPSelectionEvidenceLocked(now time.Time, round *urlTestRound) {
+	if round == nil || round.gateChanged(N.NetworkUDP, g.tierUDP.gate.epoch) {
+		return
+	}
+	if g.udpVerified == nil {
+		g.udpVerified = make(map[string]time.Time)
+	}
+	observations := round.snapshotNetwork(N.NetworkUDP)
+	for _, member := range g.outbounds {
+		switch g.memberObservation(member, observations, N.NetworkUDP) {
+		case urlTestSuccess:
+			g.udpVerified[member.Tag()] = now
+		case urlTestFailure:
+			delete(g.udpVerified, member.Tag())
+		}
+	}
 }
 
 func (g *URLTestGroup) performUpdateCheckLocked() {

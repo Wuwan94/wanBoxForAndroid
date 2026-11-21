@@ -871,7 +871,8 @@ Discarding an unfinished edit MUST first restore journaled local values while re
 失败、超时与结果未知 MUST 重试一次；仍失败 MUST 保持原值（不落库）、把开关显示
 恢复到已确认值并给出中文错误提示，MUST NOT 留下“界面已开、模块未开”的假象。
 快速连续切换 MUST 由最后一次选择落地：更早的请求在发现选择已变后 MUST NOT 落库，
-MUST NOT 用迟到结果覆盖新选择。返回设置页或重新进入应用 MUST 回读模块并与
+MUST NOT 用迟到结果覆盖新选择。未回读确认时连续点击 MUST 反转最近一次用户意图，
+而不是从旧的界面值重复提交；点击序号 MUST 在派发异步 I/O 前登记。返回设置页或重新进入应用 MUST 回读模块并与
 `DataStore` 对比：不一致时 MUST 显示可见的“待同步”状态并允许再次切换同步。
 模块未安装 / 未运行 / 运行中三种情况 MUST 都能下发并回读（`boot.json` 与快照
 不依赖核心进程）；未运行时 MUST NOT 因此擅自启动核心。
@@ -885,7 +886,8 @@ MUST NOT 用迟到结果覆盖新选择。返回设置页或重新进入应用 M
   拒绝自启并返回同一错误码，MUST NOT 改写或删除损坏文件；
 - **存在但读不出来（权限、I/O、同名目录）**：MUST 报 `boot_settings_unreadable`，
   语义同上；
-- **生效值可读**：MUST 给出 `autoStart` 与 `autoStartSource=boot`。
+- **生效值可读**：MUST 给出 `autoStart` 与 `autoStartSource=boot`。即使尚未有第一份有效配置快照，
+  也 MUST 回读已落盘的覆盖项；未有配置快照仍然 MUST NOT 自启核心。
 
 App 收到 `autoStartError` 时 MUST 按“待处理”提示（配置损坏、本次开机不会自启、
 再切一次开关即重写配置），MUST NOT 把它当成待同步、也 MUST NOT 把开关状态当成已生效；

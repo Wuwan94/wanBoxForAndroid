@@ -1,4 +1,23 @@
-# v3.0.18-preview.2 发行说明
+# v3.0.18-preview.3 发行说明（候选）
+
+**状态：未发布的稳定性预览版候选。**
+
+## 本版修复
+
+- 在「设置 → 连接与核心 → UDP 回显端点」填写自行控制的数字 IP 与端口、重新应用配置后，各优先级层的子组会独立执行 UDP 回显验证。默认留空，不会向任何默认第三方端点发包；不支持 UDP 回显的服务不能作为端点。
+- 仅支持 UDP 的上层成员可凭有效 UDP 回显进入候选，不再依赖 TCP 延迟记录。回切仍要求连续三轮有效的新观测和至少 60 秒无失败；TCP 和 UDP 的记录互不替代。
+- 首次应用配置前，模块状态也会回读已经保存的开机自启设置。没有有效配置时不会启动核心；损坏配置仍按不可用处理。
+- 开机自启等待确认期间，连续点击按最后一次选择处理，旧回调不会覆盖新选择。
+
+## 安装与验证边界
+
+适用于 arm64-v8a；APK 版本码为 `10193`，Root 模块版本码为 `2038`，均高于 preview.2（`10187 / 2037`）。正式版 `v3.0.17` 和锁定的 sing-box 版本不变。APK、普通 Root 模块、独立 Root 模块及 `SHA256SUMS` 随预览发布；按需选择模块，不要同时安装两种模块。
+
+回归覆盖本地 UDP 回显和自启配置/请求顺序；本次未执行真实代理服务端 UDP 往返或 Root 真机重启验证。
+
+## 历史归档
+
+### v3.0.18-preview.2 已发布说明
 
 **状态：已发布的稳定性预览版。**
 
@@ -6,7 +25,7 @@
 
 本版基于 `main` 的 `e7f1f9366316974d8318e8708dcaaa669bc896a0`（升版 PR #81 合并提交，轻量 tag），`Preview Build` run `44728368529` 的四个作业（`Native Build (LibCore)`、`Build OSS APK`、`Candidate cold-start measurement (emulator only)`、`Publish Preview Release`）全部成功，于 2026-11-20T11:51:54Z 上架（prerelease，发布 job 断言 `APPROVED_SHA=e7f1f936` 并回读 tag）。发布后 `prune_prereleases.py` 在 11:52:04Z 删除了 `v3.0.18-preview.1` 的 Release/tag（现为 404），正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 保留。
 
-## ✦ 与上一版对比
+#### ✦ 与上一版对比
 
 | 项目 | v3.0.18-preview.1 | v3.0.18-preview.2 |
 |---|---|---|
@@ -16,46 +35,46 @@
 
 URLTest 稳定性约束（检测间隔 ≥ 10 秒、空闲超时 ≥ 30 分钟、切换时不中断现有连接）、`default` 保真、层级回切门（连续 3 轮健康 + 60 秒无失败）本版均未放宽；失败方向仍是 fail-closed——证据不足时停留在当前层级，不回切。
 
-## ✦ 本版更新
+#### ✦ 本版更新
 
-### 1. urltest：观测按（成员, 网络）分账
+##### 1. urltest：观测按（成员, 网络）分账
 
 - **问题**：preview.1 只把 `currentTier` / `tierGate` 拆开，**一轮探测的观测仍按 tag 记一份**，由双栈成员的两个网络共用。于是 TCP 侧的成功会成为 UDP 侧的回切证据，反过来 TCP 的失败也会清掉 UDP 的连续健康计数——两边的门都读到了不属于自己的证据。
 - **改法**：`urlTestRound` 的观测改为 `tcp` / `udp` 两张表，两层恢复门只读自己那份；缓存跳过的轮次对两个网络各记「跳过」，轮次预算到期或调用方取消记「取消」，都不计入健康轮次；嵌套 URLTest 的聚合 summary 按网络各算一份；单协议成员只对它支持的网络产生观测。
 - **说服力**：旧实现下「双栈成员 TCP 成功 → UDP 门被推到 3」与「TCP 连续失败清掉 UDP 历史」两条黑盒用例在 preview.1 代码上红，本版绿。
 
-### 2. UDP 探测只认真实往返回显
+##### 2. UDP 探测只认真实往返回显
 
 - **问题**：`ProbeOutboundUDP` 原来只 `ListenPacket` 再 `Close` 就算成功。VMess/VLESS/Trojan/XUDP 都是 early packet conn，会话在首次写入才建立——建得起来既不证明服务端接受会话，也不证明数据报能往返，UDP 恢复门可能凭伪证据提前回切。
 - **改法**：发一条探测数据报，**只有收到目标原样回显才 `verified`**；首次写入失败/关联失败/回包不符为 `rejected`（清零并盖失败戳）；无有效响应（静默丢弃、超时、空包）为 `unverified`（中性，既不涨也不清零）；未配置端点或成员不支持 UDP 为 `skipped`（零流量）；取消为 `canceled`。单一成员只发一条、只读一次、不重试，超时缺省 3 秒且不超过整轮 5 秒预算，取消即关闭连接叫醒阻塞读。
 - **探测目标**：只来自用户配置 `URLTestOptions.udp_probe`（`server` 必须 `IP:port`、`payload` ≤ 512 B、`timeout` ≤ 5 秒），不默认任何第三方探测服务、不加合成 DNS 查询。
 - **已知限制**：应用侧暂时没有配置 `udp_probe` 的入口，默认下 UDP 探测一律 `skipped`、不产生流量，UDP 回切只等真往返证据；低层不再健康时既有兜底仍会把上层选回，因此不会永久锁死。需要可配置端点的话，等于另开一项设置项。
 
-### 3. 降级后旧回切资格立刻作废
+##### 3. 降级后旧回切资格立刻作废
 
 - **问题**：一次故障转移把生效层降下去之后，更高层此前攒下的连续健康计数仍在，下一轮就能凭旧资格直接切回刚失败的层——回切门的迟滞被绕过。
 - **改法**：`promoteFailover` 在同一把写锁内清空失败层并重盖失败戳、所有更高层的连续健康计数作废、`currentTier` 只下移，且只作用于被拨的那个网络；每次作废递增门代次（`epoch`），轮次开始时快照代次、收尾时若代次已变，该轮的成功观测不再授予回切资格（失败仍如实清零）。
 
-### 4. 组关闭后不再拨备用节点
+##### 4. 组关闭后不再拨备用节点
 
 - **问题**：用户关掉代理组之后，容灾序列仍会继续发起备用拨号，并把迟到的连接交给一个已经关闭的组。
 - **改法**：`DialContext` / `ListenPacket` 的整个容灾序列绑定组生命周期（`bindGroupLifecycle`），组一 `Close` 就取消在途尝试（含 3 秒单步超时窗口），备用循环不再发起任何新拨号；迟到的连接与 `PacketConn` 统一经 `wrapConn` / `wrapPacketConn`，组已关闭则关闭释放并返回统一错误。
 
-### 5. 开机自启「下发 → 回读 → 落库」闭环
+##### 5. 开机自启「下发 → 回读 → 落库」闭环
 
 - **问题**：开关只即时下发、不等确认就落库，失败看起来和成功一样；`BootReceiver` 与模块 `boot.json` 各自为政，回设置页看到的也不一定是模块真正生效的值。
 - **改法**：模块 `State` 新增只读 `autoStart`（`boot.json` 生效值），停止态也能下发与回读；App 新增 `AutoStartSync`（纯 Kotlin，可注入 Host）与 `AutoStartSettings` 装配——下发后必须回读确认才写 DataStore 与 `BOOT_COMPLETED` 接收器；失败、超时、结果未知重试一次，仍失败保持原值、回滚开关显示并给中文提示；快速连续切换由最后一次选择落地，旧请求的迟到结果只能 `Superseded`；返回设置页回读比对，不一致显示「待同步」。开关不再让 Preference 框架直接落库，模块未运行时不会被擅自启动。
 
-### 6. `boot.json` 不可用时状态与 `Boot()` 同口径
+##### 6. `boot.json` 不可用时状态与 `Boot()` 同口径
 
 - **问题**：`boot.json` 损坏时状态页显示「已开启」，`Boot()` 却拒绝启动——两边读法不一致，用户看到的是一个不存在的「已生效」。
 - **改法**：新增 `bootSettingsFor`，`Status()` 与 `Boot()` 共用一种读法——文件不存在回落最近快照（`autoStartSource=snapshot`）；格式损坏、空文件、缺字段、字段类型无效为 `boot_settings_invalid`；权限或 I/O 错误为 `boot_settings_unreadable`。后几种 `autoStart` 为 `null` 并附 `autoStartError`，不再拿快照冒充生效值，`Boot()` 用同一错误码拒绝启动且不改写、不删除坏文件。`SetAutoStart` 仍是原子写，并成为唯一修复路径（重写前若读到不可用状态记 `boot_settings_rewritten`）。App 侧把回读改为三态（Value / Unavailable / Unsupported），配置损坏按失败处理不落库，设置页区分「待同步」与「待处理」。
 
-### 7. 版本与文档口径
+##### 7. 版本与文档口径
 
 `nb4a.properties` 预览线为 `3.0.18-preview.2` / `2037`；正式线 `3.0.17 / 2035` 与 sing-box pin 未变。当前版本文档一致性检查已回到「已发布 preview.2 即源码预览」的单态口径。
 
-## ✦ 资产与安装
+#### ✦ 资产与安装
 
 | 文件 | 字节 | SHA-256 |
 |---|---:|---|
@@ -71,7 +90,7 @@ APK 与普通 Root 模块合计 `24,520,694` 字节（23.38 MiB），上限 `27,
 - **回退**：换回正式版 [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17) 的 APK 与配套模块（模块码 `2035`）成套重装。
 - **升级**：APK 由 `10181` 升到 `10187`、模块由 `2036` 升到 `2037`，严格递增且同签名，可直接覆盖安装。
 
-## 🛡️ 验证与边界
+#### 🛡️ 验证与边界
 
 - **RED → GREEN**：四条黑盒用例在 preview.1 的线上代码上先红——「UDP 门被 TCP 成功推到 3」「一次关联（无任何回包）被记成 UDP 成功」「降级后立刻回切 T1」「关闭组仍拨备用并交出连接」——修复后全绿，并作为回归用例留在仓库（`udp_probe_evidence_test.go` 12 条、`review_20261120_test.go`、`rootmodule` 的 boot 契约 4 条与 `red_review_boot_test.go`，`AutoStartSyncTest` 增至 12 条）。
 - **PR 门禁**：PR #80 的 `Verify Android Build` run `44717598549`（head `58ed0c7`）全绿——`Build LibCore` 内 `go test -race`、`go vet`、Python 工具 125 项、`rootmodule` 28 项与文档门禁通过，`Build Android Debug APK` 的 JVM 单测与插桩通过。升版 PR #81 的 run `44723295827` 首跑红在 plugins.gradle.org 解析 `kotlin-gradle-plugin:2.0.21` 瞬时不可用（失败在发布断言之前，未创建 tag/Release），`gh run rerun --failed` 后全绿。
@@ -80,8 +99,6 @@ APK 与普通 Root 模块合计 `24,520,694` 字节（23.38 MiB），上限 `27,
 - **未验证边界**：未执行 Magisk / KernelSU / APatch 真机矩阵（CI 自标 `runtime_regression: not_verified`）；UDP 探测用的是本机可控回显端点，**不是真实代理服务端往返**，真实 VMess/VLESS/Trojan 的 UDP 往返未做端到端验证；应用侧没有 `udp_probe` 配置入口；真机上 `boot.json` 的权限与开机行为未验证。任何自动化结果都不代替真机验证，本版不晋升正式版。
 
 ---
-
-## 历史归档
 
 ### v3.0.18-preview.1 已发布说明
 

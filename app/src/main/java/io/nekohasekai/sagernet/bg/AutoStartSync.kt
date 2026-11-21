@@ -6,7 +6,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.atomic.AtomicLong
-import java.util.concurrent.atomic.AtomicReference
 
 /**
  * 开机自启开关的一致性协调器。
@@ -74,12 +73,20 @@ class AutoStartSync(
 
     private val mutex = Mutex()
     private val sequence = AtomicLong()
-    private val desired = AtomicReference<Boolean?>(null)
+    private val registration = Any()
+
+    internal data class Ticket(val id: Long, val enabled: Boolean)
+
+    // Register at the caller, before IO dispatch can reorder two taps.
+    internal fun register(enabled: Boolean): Ticket = synchronized(registration) {
+        Ticket(sequence.incrementAndGet(), enabled)
+    }
 
     /** 应用一次切换；结果由调用方在主线程消费。 */
-    suspend fun request(enabled: Boolean): Outcome {
-        val myId = sequence.incrementAndGet()
-        desired.set(enabled)
+    suspend fun request(enabled: Boolean): Outcome = apply(register(enabled))
+
+    internal suspend fun apply(ticket: Ticket): Outcome {
+        val (myId, target) = ticket
         return mutex.withLock {
             // 排队期间已有更新的选择：本次不落地，交给最新请求。
             if (sequence.get() != myId) return@withLock Outcome.Superseded
@@ -88,7 +95,6 @@ class AutoStartSync(
             var remaining = attempts.coerceAtLeast(1)
             while (remaining > 0) {
                 remaining--
-                val target = desired.get() ?: enabled
                 try {
                     host.writeModule(target)
                     when (val actual = host.readModule()) {
@@ -113,15 +119,16 @@ class AutoStartSync(
                 }
                 if (sequence.get() != myId) return@withLock Outcome.Superseded
             }
-            if (sequence.get() != myId) return@withLock Outcome.Superseded
-            if (confirmedValue != null) {
-                host.persist(confirmedValue)
-                Outcome.Confirmed(confirmedValue)
-            } else {
-                // 失败 / 超时 / 结果未知：保留已确认值，界面回滚；
-                // 下一次连接或下一次切换会按 DataStore 的值重新下发。
-                host.persist(host.confirmed())
-                Outcome.Failed(lastCode ?: CODE_UNCONFIRMED)
+            synchronized(registration) {
+                if (sequence.get() != myId) return@synchronized Outcome.Superseded
+                if (confirmedValue != null) {
+                    host.persist(confirmedValue)
+                    Outcome.Confirmed(confirmedValue)
+                } else {
+                    // Preserve the last confirmed App setting on failure/unknown.
+                    host.persist(host.confirmed())
+                    Outcome.Failed(lastCode ?: CODE_UNCONFIRMED)
+                }
             }
         }
     }

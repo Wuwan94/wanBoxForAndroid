@@ -632,6 +632,12 @@ UDP 证据。VMess/VLESS/Trojan/XUDP 这类 early packet conn 在首次写入时
 未配置时 UDP 观测一律 skipped。探测 MUST 有界：单一成员只发一条数据报、只读一次、
 不重试，超时缺省 3 秒且不超过整轮 5 秒预算；取消时 MUST 关闭连接叫醒阻塞的读，
 连接与 goroutine MUST 随调用结束释放。
+Android 按优先级分组的运行配置 MUST 将用户显式填写的数字 IP:端口传给每个生成的
+`urltest`（含外层、各层子组与单层退化），MUST NOT 注入导出配置或单次测试配置。
+配置端点后，UDP 候选与层健康 MUST 依据独立、未过期的 UDP 回显观测判断，
+MUST NOT 要求 UDP-only 成员存在 TCP 延迟历史，也 MUST NOT 因 TCP 缓存新鲜而跳过
+独立的 UDP 往返检查。回显结果不得写入 TCP 历史。两种协议的回切门仍各自独立。
+
 **已知限制（不得声称已验证恢复）**：在没有可验证端点的部署里，UDP 不会凭伪证据
 回切；此时 UDP 的向上回归只来自既有兜底（当前低层不再健康时上层重新被选中）。
 

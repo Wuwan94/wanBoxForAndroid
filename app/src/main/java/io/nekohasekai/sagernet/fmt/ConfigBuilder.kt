@@ -181,7 +181,8 @@ internal fun buildUrlTestOutbound(
     toleranceMs: Int? = null,
     idleTimeoutStr: String? = null,
     interruptExist: Boolean? = null,
-    customTag: String? = null
+    customTag: String? = null,
+    udpProbeServer: String? = null
 ) =
     Outbound_URLTestOptions().apply {
         type = "urltest"
@@ -195,6 +196,9 @@ internal fun buildUrlTestOutbound(
         interval = "${parameters.intervalSeconds}s"
         tolerance = parameters.toleranceMs
         idle_timeout = parameters.idleTimeout
+        udp_probe = udpProbeServer?.let(::normalizeUdpProbeServer)?.let { endpoint ->
+            moe.matsuri.nb4a.SingBoxOptions.URLTestUDPProbeOptions().apply { server = endpoint }
+        }
         interrupt_exist_connections = parameters.interruptExisting
     }
 
@@ -1095,6 +1099,7 @@ fun buildConfig(
                     // 新增更密的探测）；回切不断现有连接（interruptExist=false）。
                     val iv = balancerBean.interval.toLong().coerceAtLeast(10L)
                     val toleranceMs = balancerBean.calculateToleranceMs().coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
+                    val udpProbeServer = if (!forTest && !forExport) DataStore.udpProbeServer else null
                     val tierRules = decodeBalancerTierRules(balancerBean.tierRules)
                     val tiers = assignBalancerTiers(
                         sortedMemberEntities.map { BalancerMemberRef(it.id, it.displayName()) },
@@ -1115,7 +1120,8 @@ fun buildConfig(
                             toleranceMs = toleranceMs,
                             idleTimeoutStr = "${iv}s",
                             interruptExist = false,
-                            customTag = balancerTag
+                            customTag = balancerTag,
+                            udpProbeServer = udpProbeServer
                         )
                     } else {
                         val tierTags = ArrayList<String>()
@@ -1132,7 +1138,8 @@ fun buildConfig(
                                     toleranceMs = toleranceMs,
                                     idleTimeoutStr = "${iv}s",
                                     interruptExist = false,
-                                    customTag = tierTag
+                                    customTag = tierTag,
+                                    udpProbeServer = udpProbeServer
                                 )
                             )
                         }
@@ -1143,7 +1150,8 @@ fun buildConfig(
                             toleranceMs = toleranceMs,
                             idleTimeoutStr = "${iv}s",
                             interruptExist = false,
-                            customTag = balancerTag
+                            customTag = balancerTag,
+                            udpProbeServer = udpProbeServer
                         )
                     }
                 } else if (balancerBean.strategy == "leastPing") {

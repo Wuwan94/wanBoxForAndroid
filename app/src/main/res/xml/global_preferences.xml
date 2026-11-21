@@ -160,6 +160,11 @@
             app:title="@string/connection_test_url"
             app:useSimpleSummaryProvider="true" />
 
+        <EditTextPreference
+            app:key="udpProbeServer"
+            app:title="@string/udp_probe_server_title"
+            app:summary="@string/udp_probe_server_summary" />
+
         <moe.matsuri.nb4a.ui.SimpleMenuPreference
             app:defaultValue="@string/default_speed_test_mode"
             app:entries="@array/speed_test_modes"

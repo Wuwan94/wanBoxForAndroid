@@ -4622,6 +4622,12 @@ public class SingBoxOptions {
 
         public Boolean interrupt_exist_connections;
 
+        public URLTestUDPProbeOptions udp_probe;
+
+    }
+
+    public static class URLTestUDPProbeOptions {
+        public String server;
     }
 
     public static class Rule_DefaultOptions extends Rule {

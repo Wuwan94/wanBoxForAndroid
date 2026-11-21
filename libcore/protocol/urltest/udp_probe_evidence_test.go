@@ -501,3 +501,31 @@ func (c *lazySessionConn) LocalAddr() net.Addr                { return &net.UDPA
 func (c *lazySessionConn) SetDeadline(t time.Time) error      { return nil }
 func (c *lazySessionConn) SetReadDeadline(t time.Time) error  { return nil }
 func (c *lazySessionConn) SetWriteDeadline(t time.Time) error { return nil }
+
+func TestUDPOnlyTierSwitchesBackWithoutTCPHistory(t *testing.T) {
+	echo := newUDPTestEndpoint(t, udpEndpointEcho)
+	upper := &startupOutbound{Adapter: outbound.NewAdapter("loopback", "upper [T1]", []string{N.NetworkUDP}, nil)}
+	lower := &startupOutbound{Adapter: outbound.NewAdapter("loopback", "lower [T2]", []string{N.NetworkUDP}, nil)}
+	grp := startupGroupWithMembersAndProbe(t, context.Background(), "http://example.invalid/204", echo.probeConfig(time.Second), upper, lower)
+	storeTierHistory(t, grp, lower.Tag(), 90)
+	grp.selectedOutboundUDP = lower
+	grp.tierUDP.currentTier = 1
+	grp.tierUDP.gate.lastFailure[0] = time.Now().Add(-61 * time.Second)
+	for i := 1; i <= tierSwitchBackMinChecks; i++ {
+		if _, round, err := grp.urlTest(context.Background(), true); err != nil {
+			t.Fatal(err)
+		} else if round.snapshotNetwork(N.NetworkUDP)[upper.Tag()] != urlTestSuccess {
+			t.Fatal("missing real echo")
+		}
+		want := lower
+		if i == tierSwitchBackMinChecks {
+			want = upper
+		}
+		if got, _ := grp.Select(N.NetworkUDP); got != want {
+			t.Fatalf("round %d: got %v; want %s", i, got, want.Tag())
+		}
+	}
+	if grp.freshHistory(upper.Tag()) != nil {
+		t.Fatal("UDP evidence contaminated TCP history")
+	}
+}

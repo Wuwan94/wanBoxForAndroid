@@ -41,8 +41,9 @@ object AutoStartSettings {
     })
 
     fun request(enabled: Boolean, onResult: (AutoStartSync.Outcome) -> Unit) {
+        val ticket = sync.register(enabled)
         scope.launch {
-            onResult(sync.request(enabled))
+            onResult(sync.apply(ticket))
         }
     }
 

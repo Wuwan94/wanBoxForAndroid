@@ -55,6 +55,7 @@ object Key {
     const val DNS_HOSTS = "dnsHosts"
     const val STRICT_ROUTE = "strictRoute"
     const val CONNECTION_TEST_URL = "connectionTestURL"
+    const val UDP_PROBE_SERVER = "udpProbeServer"
     const val CONNECTION_TEST_CONCURRENT = "connectionTestConcurrent"
     const val CONNECTION_TEST_TIMEOUT = "connectionTestTimeout"
     const val SPEED_TEST_MODE = "speedTestMode"
