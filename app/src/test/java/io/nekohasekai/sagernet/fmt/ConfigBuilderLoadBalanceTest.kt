@@ -23,6 +23,14 @@ class ConfigBuilderLoadBalanceTest {
         assertEquals("192.0.2.1:7000", normalizeUdpProbeServer(" 192.0.2.1:7000 "))
     }
 
+    @Test fun udpProbeServerOnlyAppliesToLiveConfigs() {
+        val server = "192.0.2.1:7000"
+        assertEquals(server, effectiveUdpProbeServer(forTest = false, forExport = false, configured = server))
+        assertEquals(null, effectiveUdpProbeServer(forTest = true, forExport = false, configured = server))
+        assertEquals(null, effectiveUdpProbeServer(forTest = false, forExport = true, configured = server))
+        assertEquals(null, effectiveUdpProbeServer(forTest = true, forExport = true, configured = server))
+    }
+
     @Test fun newUrlTestDefaultsKeepSavedOverridesAndNeverInterruptConnections() {
         val defaults = buildUrlTestOutbound(listOf("fixture-node"))
         assertEquals("http://connectivitycheck.gstatic.com/generate_204", defaults.url)
