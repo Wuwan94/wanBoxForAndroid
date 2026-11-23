@@ -877,12 +877,27 @@ MUST NOT 用迟到结果覆盖新选择。未回读确认时连续点击 MUST �
 模块未安装 / 未运行 / 运行中三种情况 MUST 都能下发并回读（`boot.json` 与快照
 不依赖核心进程）；未运行时 MUST NOT 因此擅自启动核心。
 
-**异步同步的界面生命周期边界（v3.0.18-preview.3 复审 P2 修复）**：离开设置页 MUST NOT
+**异步同步的界面生命周期边界（v3.0.18-preview.3 复审发现，随下一版预览发布）**：离开设置页 MUST NOT
 取消已提交的应用级同步。最新请求的进行中状态与最终结果 MUST 可被新视图重新观察，
 不依赖发起请求的视图；被取代的结果 MUST NOT 清除新的 pending 状态或覆盖其结果。
-只有生命周期为 STARTED、已挂载且宿主未 finishing/destroyed 的当前视图可以更新 UI。
-重新进入时若仍在同步 MUST 显示待同步；同步完成后 MUST 刷新已确认值并重新回读模块，
-保留可见的错误、不一致或配置不可用提示；旧回读 MUST NOT 覆盖更新的请求。
+只有生命周期为 STARTED、已挂载且宿主未 finishing/destroyed、且该状态仍是最新发布
+的那一条时，当前视图才可更新 UI（判定 MUST 由可单测的纯函数实现，不许再藏进
+`collectLatest` 的局部函数）。重新进入时若仍在同步 MUST 显示待同步；同步完成后
+MUST 刷新已确认值并重新回读模块，保留可见的错误、不一致或配置不可用提示；
+旧回读 MUST NOT 覆盖更新的请求。
+
+**结果的消费与失败反馈（同一轮复审 P2，随下一版预览发布）**：最终结果 MUST 在被
+当前视图呈现一次之后被消费回 `Idle`，MUST NOT 在以后再进设置页时充当现状（旧实现
+让失败摘要永不过期：切开关失败→离开→第二天进入仍显示“同步失败”）。失败 MUST 在
+宿主视图可用时以 Toast 提示一次，MUST NOT 只留摘要（用户点完常立刻离开这一页）；
+重新进入看到的摘要 MUST 来自当场回读，而不是上一次失败。
+
+**落库收尾的锁与异常边界（同一轮复审 P2，随下一版预览发布）**：登记锁 MUST 只保护
+`sequence` 与内存态；`host.confirmed()` 的 Room 读、`persist()` 的 Room 写与
+`setComponentEnabledSetting` 的 IPC MUST NOT 在锁内执行，`StateFlow` 的发布 MUST NOT
+在锁内发出（收集器可能是 `Main.immediate`，内联跑 UI 不能占着这把锁）。落库抛异常
+时 MUST 收口成一条可见失败：界面 MUST NOT 永久停在 Pending，异常 MUST NOT 冒到
+应用级作用域把进程带走（作用域另有 `CoroutineExceptionHandler` 兜底）。
 
 **boot 配置不可用的状态契约（PR #80 复审 P2 修复）**：`boot.json` 的三种情况 MUST
 分开处理，MUST NOT 一律报开、报关或报错：
@@ -937,13 +952,24 @@ App 收到 `autoStartError` 时 MUST 按“待处理”提示（配置损坏、�
 - **GIVEN** 视图被销毁或 Activity 重建
 - **WHEN** 旧请求的结果迟到
 - **THEN** 不更新旧 Preference、不显示旧宿主 Toast；重新进入时按实际回读展示
+- **GIVEN** 一次同步失败的结果已经被当前设置页呈现
+- **WHEN** 用户退出后（哪怕隔天）再次进入设置页
+- **THEN** 不再显示那一次失败摘要，显示的是当场回读的结果；失败在发生时已用 Toast 提示过
+- **GIVEN** 用户点开关时 IO 线程正在落库（Room 写 + 接收器 IPC）
+- **WHEN** 点击返回
+- **THEN** 点击不被写库阻塞（锁只保护序号与内存态），开关立刻进入待同步
+- **GIVEN** 落库本身抛异常（磁盘满、Room 损坏）
+- **WHEN** 一次下发收尾
+- **THEN** 发布可见失败并保持原值，界面不停在“正在同步”，进程不崩
 
-> 验证：`AutoStartSyncTest`（JVM，12 条）与 `rootmodule` 的
+> 验证：`AutoStartSyncTest`（JVM，20 条）与 `rootmodule` 的
 > `TestAutoStartReadBackReflectsBootSettings`、`TestCorruptBootSettingsReportedAsUnknownAndNeverBooted`、
 > `TestBootSettingsDistinguishMissingInvalidAndUnreadable`、`TestBootSettingsWriteFailureAndRepair`
-> 覆盖回读、失败、重试、快速切换、待同步与损坏配置；v3.0.18-preview.3 复审新增
-> `AutoStartSyncUiGateTest`（JVM）覆盖 Fragment 分离、视图/Activity 销毁、乱序结果与
-> 可用界面的边界判定。Android 编译与插桩由 PR 的 `Verify Android Build` 覆盖；真机未验证。
+> 覆盖回读、失败、重试、快速切换、待同步、损坏配置，以及本轮复审补的“结果消费后回 Idle”、
+> “落库异常收口成可见失败”与“点击不被落库占锁拖住”；`AutoStartSyncUiGateTest`（JVM，8 条）
+> 覆盖 UI 门的每条判据（Fragment 分离、视图销毁、Activity finishing/销毁、视图低于 STARTED、
+> 结果过期）与全部满足时的放行。UI 门与消费语义均为 v3.0.18-preview.3 复审发现、
+> 随下一版预览发布。Android 编译与插桩由 PR 的 `Verify Android Build` 覆盖；真机未验证。
 
 ### Requirement: 测速刷新间隔未设置时默认 1000ms（B1 已落地）
 

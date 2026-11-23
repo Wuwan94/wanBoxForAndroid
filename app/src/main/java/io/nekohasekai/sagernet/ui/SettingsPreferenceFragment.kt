@@ -14,6 +14,7 @@ import androidx.preference.*
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.nekohasekai.sagernet.bg.AutoStartSettings
 import io.nekohasekai.sagernet.bg.AutoStartSync
+import io.nekohasekai.sagernet.bg.AutoStartUiGate
 import io.nekohasekai.sagernet.bg.ModuleDiagnostics
 import io.nekohasekai.sagernet.bg.RootModuleErrors
 import io.nekohasekai.sagernet.bg.NotificationGate
@@ -820,9 +821,15 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
             owner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 AutoStartSettings.state.collectLatest { state ->
                     fun currentHost(): android.app.Activity? = activity?.takeIf {
-                        isAdded && view != null && !it.isFinishing && !it.isDestroyed &&
-                            owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) &&
-                            AutoStartSettings.state.value == state
+                        AutoStartUiGate.accepts(
+                            attached = isAdded,
+                            hasView = view != null,
+                            activityFinishing = it.isFinishing,
+                            activityDestroyed = it.isDestroyed,
+                            viewStarted = owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED),
+                            emitted = state,
+                            current = AutoStartSettings.state.value,
+                        )
                     }
                     val host = currentHost() ?: return@collectLatest
                     preference.isChecked = DataStore.persistAcrossReboot
@@ -830,14 +837,25 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
                         preference.summary = host.getString(R.string.autostart_sync_pending)
                         return@collectLatest
                     }
-                    val failure = (state as? AutoStartSync.State.Finished)?.outcome as? AutoStartSync.Outcome.Failed
-                    preference.summary = failure?.let {
-                        host.getString(R.string.autostart_sync_failed, RootModuleErrors.message(host, it.code))
-                    } ?: autoStartDefaultSummary
+                    val finished = state as? AutoStartSync.State.Finished
+                    if (finished != null) {
+                        val failure = finished.outcome as? AutoStartSync.Outcome.Failed
+                        if (failure != null) {
+                            // 失败必须当场看得见：用户点完开关常常立刻离开这一页，
+                            // 只留摘要等于没有反馈。宿主已过 UI 门，页面不在前台就不会弹。
+                            Toast.makeText(host, host.getString(R.string.autostart_sync_failed,
+                                RootModuleErrors.message(host, failure.code)), Toast.LENGTH_LONG).show()
+                        }
+                        // 结果只呈现一次：清回 Idle，“当前真相”由下面这轮回读决定。
+                        // 否则下次进入设置页会把上一次的失败摘要当成现状。
+                        AutoStartSettings.consume(finished.id)
+                        return@collectLatest
+                    }
                     // 页面返回和下发完成后都刷新；新请求取消旧检查，不让迟到回读覆盖摘要。
                     val result = AutoStartSettings.check()
                     val current = currentHost() ?: return@collectLatest
                     preference.isChecked = DataStore.persistAcrossReboot
+                    preference.summary = autoStartDefaultSummary
                     when (result) {
                         is AutoStartSync.Check.Mismatch -> {
                             val label = if (result.moduleValue) R.string.autostart_state_on else R.string.autostart_state_off
