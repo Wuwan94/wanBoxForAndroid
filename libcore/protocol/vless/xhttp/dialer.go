@@ -122,8 +122,8 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
 	if rErr != nil {
 		return nil, nil, nil, rErr
 	}
-	c.options.ApplySessionAndSeq(req, sessionId, -1)
 	req.Header = c.options.GetRequestHeader(req.URL.String())
+	c.options.ApplySessionAndSeq(req, sessionId, -1)
 	if req.Header.Get("X-Accel-Buffering") == "" {
 		req.Header.Set("X-Accel-Buffering", "no")
 	}
@@ -246,12 +246,11 @@ func (c *DefaultDialerClient) PostPacket(ctx context.Context, url string, sessio
 		}
 		req.ContentLength = 0
 	}
+	req.Header = c.options.GetRequestHeader(req.URL.String())
 	c.options.ApplySessionAndSeq(req, sessionId, seq)
 	if !inBody {
 		c.options.ApplyUplinkPayload(req, payloadBytes)
 	}
-
-	req.Header = c.options.GetRequestHeader(req.URL.String())
 	if req.Header.Get("X-Accel-Buffering") == "" {
 		req.Header.Set("X-Accel-Buffering", "no")
 	}
