@@ -101,8 +101,9 @@ func (o UDPProbeOutcome) String() string {
 }
 
 // ProbeOutboundUDP 用数据面原语（ListenPacket）向成员建立一次 UDP 关联，
-// 发出一条探测数据报，并要求目标原样回显：只有收到同一份数据报才算
-// UDPProbeVerified。
+// 发出一条探测数据报，并要求目标原样回显：只有来源匹配当前 IP:port 目标、
+// 且回包与请求逐字节相同才算 UDPProbeVerified。无法提供可核对来源的成员
+// 得到未知（不是成功）；明确来自其他地址/端口的回包是失败。
 //
 // @author 雾晚: 证据边界（写进 openspec/specs/libcore-integration）——
 //   - 只创建/关闭 PacketConn 不产生任何证据：VMess/VLESS/Trojan/XUDP 这类
@@ -144,7 +145,7 @@ func ProbeOutboundUDP(ctx context.Context, detour adapter.Outbound, target M.Soc
 		return udpProbeErrorOutcome(ctx, err)
 	}
 	reply := make([]byte, len(payload)+64)
-	n, _, err := conn.ReadFrom(reply)
+	n, from, err := conn.ReadFrom(reply)
 	if err != nil {
 		if ctx.Err() != nil {
 			return UDPProbeCanceled
@@ -160,10 +161,35 @@ func ProbeOutboundUDP(ctx context.Context, detour adapter.Outbound, target M.Soc
 	if n <= 0 {
 		return UDPProbeUnverified
 	}
+	// 回包内容相同还不够：例如直连 UDP 可能收到同一局域网上另一端的同内容数据报。
+	// 来源能解析成 IP:port 时必须与配置目标一致，否则一律不是本轮探测的成功。
+	source, sourceKnown := udpProbeSourceFromAddr(from)
+	if !sourceKnown {
+		// 成员没给出可核对的来源（nil、只有 IP 没有端口、域名等）：结果未知，
+		// 不能当成功，也不拿它当失败去清零健康计数。
+		return UDPProbeUnverified
+	}
+	if source.Addr.Unmap() != target.Addr.Unmap() || source.Port != target.Port {
+		return UDPProbeRejected
+	}
 	if n != len(payload) || !bytes.Equal(reply[:n], payload) {
 		return UDPProbeRejected
 	}
 	return UDPProbeVerified
+}
+
+// udpProbeSourceFromAddr 把 ReadFrom 的来源归一到 IP:port。sing-box 的直连、UoT、
+// early packet conn 等实现会把目标地址作为来源返回；无法给出 IP:port 的实现
+// 不具备来源校验能力，调用方必须把结果当未知而不是成功。
+func udpProbeSourceFromAddr(from net.Addr) (M.Socksaddr, bool) {
+	if from == nil {
+		return M.Socksaddr{}, false
+	}
+	source := M.SocksaddrFromNet(from)
+	if !source.IsIP() || source.Port == 0 {
+		return M.Socksaddr{}, false
+	}
+	return source, true
 }
 
 // udpProbeErrorOutcome 把一次 UDP 操作错误归类：父上下文取消是 Canceled，

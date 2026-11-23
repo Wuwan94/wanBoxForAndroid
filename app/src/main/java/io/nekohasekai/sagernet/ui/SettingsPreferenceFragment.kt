@@ -832,16 +832,19 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
                 isPersistent = originalPersistent
             }
             val taps = io.nekohasekai.sagernet.bg.AutoStartTapState()
+            val uiGate = AutoStartSyncUiGate {
+                isAdded && view != null && activity?.isFinishing != true && activity?.isDestroyed != true
+            }
             setOnPreferenceChangeListener { pref, newValue ->
                 val enabled = taps.next(newValue as Boolean)
                 val sequence = taps.generation
                 val switch = pref as SwitchPreference
                 switch.summary = getString(R.string.autostart_sync_pending)
-                val activity = requireActivity()
                 io.nekohasekai.sagernet.bg.AutoStartSettings.request(enabled) { outcome ->
                     runOnMainDispatcher {
-                        if (activity.isFinishing || activity.isDestroyed) return@runOnMainDispatcher
-                        if (!taps.finish(sequence)) return@runOnMainDispatcher
+                        if (!uiGate.finishResult(sequence, taps)) return@runOnMainDispatcher
+                        // 用当前宿主而不是点击时捕获的 Activity：Fragment 可能已重建并换宿主。
+                        val hostActivity = activity ?: return@runOnMainDispatcher
                         when (outcome) {
                             is io.nekohasekai.sagernet.bg.AutoStartSync.Outcome.Confirmed -> {
                                 val persistent = switch.isPersistent
@@ -863,9 +866,9 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
                                     switch.isPersistent = persistent
                                 }
                                 switch.summary = defaultSummary
-                                android.widget.Toast.makeText(activity,
+                                android.widget.Toast.makeText(hostActivity,
                                     getString(R.string.autostart_sync_failed,
-                                        io.nekohasekai.sagernet.bg.RootModuleErrors.message(activity, outcome.code)),
+                                        io.nekohasekai.sagernet.bg.RootModuleErrors.message(hostActivity, outcome.code)),
                                     android.widget.Toast.LENGTH_LONG).show()
                             }
                             io.nekohasekai.sagernet.bg.AutoStartSync.Outcome.Superseded -> {
@@ -889,7 +892,7 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat(), OnPreferenceDataS
                 } catch (_: Exception) {
                     null
                 }
-                if (result != null && isAdded && checkGeneration == taps.generation) {
+                if (result != null && checkGeneration == taps.generation && uiGate.canTouchUi()) {
                     when (result) {
                         is io.nekohasekai.sagernet.bg.AutoStartSync.Check.Mismatch -> {
                             val moduleText = getString(if (result.moduleValue) R.string.autostart_state_on else R.string.autostart_state_off)
