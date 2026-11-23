@@ -5,15 +5,15 @@
 | 对象 | 版本与状态 | 版本码及来源 |
 |---|---|---|
 | 已发布正式版 | [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17)，非 prerelease（Latest）；由 3.0.17 预览线晋升，升版 PR #75 合并提交 `d4e7c5d049d877660108ea11f7212a9f04824cd6`，`release.yml` 两阶段发布（候选 run `44474557410` → 正式 run `44477065390`，2026-11-19T07:24:49Z 上架） | APK / Root 模块 `10175 / 2035`（源码正式线 `VERSION_NAME=3.0.17`、`VERSION_CODE=2035`）；四件套字节与 SHA-256 见下文 |
-| 已发布预览版 | [v3.0.18-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.3)，prerelease，轻量 tag/commit `8881dd1c59481b3d23ab3766fb21e3b651fa1d65`（PR #83 合并提交，2026-11-21T07:50:34Z）；`Preview Build` run `44882104257`（四作业全绿）于 2026-11-21T08:13:01Z 发布，08:13:09Z prune 删除 `v3.0.18-preview.2` | APK `versionCode=10193` / Root 模块码 `2038`（`PRE_VERSION_NAME=3.0.18-preview.3`、`PRE_VERSION_CODE=2038`）；四件套字节与 SHA-256 见下文 |
+| 已发布预览版 | [v3.0.18-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.4)，prerelease，轻量 tag/commit `a8cec2fa6676ec0c9a5fb3b7186a9c84e3e44893`（升版 PR #88 合并提交，2026-11-23T12:35:23Z）；`Preview Build` run `45175762344`（四作业全绿）于 2026-11-23T12:55:32Z 发布，12:55:40Z prune 删除 `v3.0.18-preview.3` | APK `versionCode=10199` / Root 模块码 `2039`（`PRE_VERSION_NAME=3.0.18-preview.4`、`PRE_VERSION_CODE=2039`）；四件套字节与 SHA-256 见下文 |
 | 上一正式版 | [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14)，非 prerelease，保留；tag `fa9a9194ff89834e574640a0ec8e0d5d973cc024` | APK / Root 模块 `10130 / 2026`（历史资产核验记录，归档语境） |
-| 源码预览线 | `3.0.18-preview.4`（升版后的**未发布候选**，尚无 tag/Release；与上一行已发布预览已分离） | `PRE_VERSION_NAME=3.0.18-preview.4`、`PRE_VERSION_CODE=2039`；共享向量计算 APK `versionCode=10199`、Root 模块码 `2039`，均高于已发布 preview.3 的 `10193` / `2038` |
+| 源码预览线 | `3.0.18-preview.4`（与已发布预览同值；`nb4a.properties` 未再次升版，下一预览升版前保持该值，升版时需同时把 `PREVIEW_NOTES.md` 当前区段改回候选） | `PRE_VERSION_NAME=3.0.18-preview.4`、`PRE_VERSION_CODE=2039`；共享向量计算 APK `versionCode=10199`、Root 模块码 `2039` |
 
-源码元数据正式线为 `VERSION_NAME=3.0.17`、`VERSION_CODE=2035`；预览线 `3.0.18-preview.3 / 2038` 已于 2026-11-21T08:13:01Z 作为稳定性预览发布，tag 与发布二进制同为 `8881dd1c`，派生 APK `10193`、模块 `2038`（上一预览 preview.2 为 `10187 / 2037`）。本次发布触发 `prune_prereleases.py`，`v3.0.18-preview.2` 的 Release/tag 已在 08:13:09Z 删除（现返回 404）；正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 未受影响。`SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变。
+源码元数据正式线为 `VERSION_NAME=3.0.17`、`VERSION_CODE=2035`；预览线 `3.0.18-preview.4 / 2039` 已于 2026-11-23T12:55:32Z 作为稳定性预览发布，tag 与发布二进制同为 `a8cec2fa`，派生 APK `10199`、模块 `2039`（上一预览 preview.3 为 `10193 / 2038`）。本次发布触发 `prune_prereleases.py`，`v3.0.18-preview.3` 的 Release/tag 已在 12:55:40Z 删除（现返回 404）；正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 未受影响。`SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变。
 
-预览线已由已发布的 `3.0.18-preview.3 / 2038`（2026-11-21T08:13:01Z，tag 与发布二进制同为 `8881dd1c`）前移到 `3.0.18-preview.4 / 2039`，状态为**未发布候选**，派生 APK `10199`、模块 `2039`；候选发布后由文档同步 PR 翻转本表并回填 run 号与四件套数据。preview.3 之后 `main` 依次合入三批复审修复：PR #84（合并提交 `00cfeedddc07249cccd8a8344eb1bf7df97d75dc`，head `c6c6f038`，`Verify Android Build` run `44898283085` 全绿，2026-11-21T12:16:42Z）、PR #86（合并提交 `2add76212e54c54b6d4dda02b1077ab373352e24`，head `d6426d10`，run `45152559766` 全绿，2026-11-23T10:33:34Z）、PR #87（合并提交 `f0f80b92d597a334440c25171648b19b76573b59`，head `0c1cbba`，run `45165265102` 全绿，2026-11-23T11:57:32Z），三者均不在已发布 preview.3 的二进制中，随 preview.4 发布。
+预览线由已发布的 `3.0.18-preview.3 / 2038`（2026-11-21T08:13:01Z）前移到 `3.0.18-preview.4 / 2039` 并已完成两阶段之外的预览发布（轻量 tag，发布 job 断言 `APPROVED_SHA=a8cec2fa` 并回读 tag），派生 APK `10199`、模块 `2039`。本版收口 preview.3 之后 `main` 依次合入的三批复审修复：PR #84（合并提交 `00cfeedddc07249cccd8a8344eb1bf7df97d75dc`，head `c6c6f038`，`Verify Android Build` run `44898283085` 全绿，2026-11-21T12:16:42Z）、PR #86（合并提交 `2add76212e54c54b6d4dda02b1077ab373352e24`，head `d6426d10`，run `45152559766` 全绿，2026-11-23T10:33:34Z）、PR #87（合并提交 `f0f80b92d597a334440c25171648b19b76573b59`，head `0c1cbba`，run `45165265102` 全绿，2026-11-23T11:57:32Z），升版 PR #88 的 run `45170090295`（head `a14713f`）全绿。
 
-候选内容（v3.0.18-preview.4）：UDP 回显探测的回包按来源校验（来源不可核对记 `unverified`，来源不一致或内容不符记 `rejected`），截止判定抽成 `udpProbeContextOutcome`——父上下文取消优先 `canceled`、单探针超时 `unverified`，并在关联/发送/读取后各复核一次（PR #86）；门代次轮内变化时仍删除已 `rejected` 成员的 UDP 证据，「导出/一次性测速排除探测端点」判定抽成可测函数并补四种组合 JVM 回归（PR #84）；开机自启结果改为 `MutableStateFlow` 发布 `Idle`/`Pending`/`Finished`、`AutoStartUiGate.accepts(...)` 纯函数门补 8 条用例、`consume(id)` 呈现一次即清、失败在页面有效时 Toast 一次，锁只保护 `sequence` 与内存态（Room 读写与 IPC 移到锁外）、`settle()` 落库异常兜底与 `CoroutineExceptionHandler`（PR #86 + #87）；`udpProbeContextOutcome` 未停止返回值改零值 `UDPProbeUnobserved`，补三条 UDP 迟到合法回包行为级用例与 spec 来源效力边界（PR #87）。候选尚未发布，四件套字节与 SHA-256 待发布后回填。
+本版内容（v3.0.18-preview.4）：UDP 回显探测的回包按来源校验（来源不可核对记 `unverified`，来源不一致或内容不符记 `rejected`），截止判定抽成 `udpProbeContextOutcome`——父上下文取消优先 `canceled`、单探针超时 `unverified`，并在关联/发送/读取后各复核一次（PR #86）；门代次轮内变化时仍删除已 `rejected` 成员的 UDP 证据，「导出/一次性测速排除探测端点」判定抽成可测函数并补四种组合 JVM 回归（PR #84）；开机自启结果改为 `MutableStateFlow` 发布 `Idle`/`Pending`/`Finished`、`AutoStartUiGate.accepts(...)` 纯函数门补 8 条用例、`consume(id)` 呈现一次即清、失败在页面有效时 Toast 一次，锁只保护 `sequence` 与内存态（Room 读写与 IPC 移到锁外）、`settle()` 落库异常兜底与 `CoroutineExceptionHandler`（PR #86 + #87）；`udpProbeContextOutcome` 未停止返回值改零值 `UDPProbeUnobserved`，补三条 UDP 迟到合法回包行为级用例与 spec 来源效力边界（PR #87）。四件套见下文。
 
 v3.0.17 晋升内容：3.0.17 预览线（preview.1–.4）的全量变更 —— OwnBox 移植 B1–B4/B7a–c（含 O9a 落地 IP 缓存按实际在跑节点失效）、NetProxy 线 B5/B6/N6/B8、preview.3 的 URLTest 预算到期回切与诊断包 Android 12+ 读取、preview.4 的层级回切门与过期候选兜底，以及 PR #74 的分层向下容灾与回切门新观测计数；逐版记录见 [CHANGELOG.md](../CHANGELOG.md)。
 
@@ -77,7 +77,22 @@ APK 与普通 Root 模块合计 `24496704` 字节（23.36 MiB），上限 `27262
 
 APK 与普通 Root 模块合计 `23937506` 字节（22.83 MiB）；带管理器模块包为 22.17 MiB，均低于 26 MiB。候选构建的跨版本身份检查已核对包名与正式证书（SHA-256 `80ecee1c42d861d59cdc460447335fc4bfdf80103d6225a17c1bdf83a33521f6`），且 APK `versionCode 10130` 高于 v3.0.11 基线 `10065`。本次发布未执行任何清理：`v3.0.11` 正式版与 `v3.0.14-preview.1` 预览版均保留。
 
-## v3.0.18-preview.3 已发布预览四件套（文件名与发布回读数据）
+## v3.0.18-preview.4 已发布预览四件套（文件名与发布回读数据）
+
+来源：[GitHub Release v3.0.18-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.4)，轻量 tag/commit `a8cec2fa6676ec0c9a5fb3b7186a9c84e3e44893`（`git/ref/tags` 的 object.type 为 commit），`Preview Build` run `45175762344` 的四个作业全部成功，于 2026-11-23T12:55:32Z 发布（prerelease，`targetCommitish=a8cec2fa`）。字节数与 SHA-256 取自 GitHub Release API 的 asset digest；发布后重新下载四件套，本地 `sha256sum -c SHA256SUMS` 三件均 OK。
+
+| 文件 | 字节数 | SHA-256 |
+|---|---:|---|
+| `wanBoxForAndroid-3.0.18-preview.4-arm64-v8a-release.apk` | 6381547 | `2856c050fd6bcc9d3f48f242797d7f4c1b7f6d202a4e973ea88a91a2441424d5` |
+| `wanbox-root-module-arm64-v8a.zip` | 18151369 | `d5a549c3d38e8082cca843d4f3274453d717998b66d0875424c9ba05f1f4705b` |
+| `wanbox-root-module-with-manager-arm64-v8a.zip` | 23807498 | `5bc8c2fbcb40151c28d10286fc0611d668d6cbc3bd82f77e65a91a8b9db39239` |
+| `SHA256SUMS` | 333 | `cd10c43433502610b80e524024e1bf54d31ffd20d9c02f226f8deaf7ee4f0115` |
+
+APK 与普通 Root 模块合计 `24532916` 字节（23.40 MiB），`tools/size_budget.py --enforce-limit` 上限 `27262976` 字节（26 MiB），余量 `2730060` 字节（2.60 MiB）→ PASS；带管理器合一包 `23807498` 字节（22.70 MiB）。三个 ZIP/APK 通过 `zipfile.testzip()` 无损坏；`module.prop` 为 `version=3.0.18-preview.4`、`versionCode=2039`、`author=雾晚`。本地解析 APK（二进制 `AndroidManifest.xml`）：包名 `com.lit008834.pixel.wanboxforandroid`、`versionName=3.0.18-preview.4`、`versionCode=10199`、`minSdk=31`、`targetSdk=35`、`lib/` 条目 0 个（瘦管理器）；`META-INF/version-control-info.textproto` 的 `revision` 为 `a8cec2fa6676ec0c9a5fb3b7186a9c84e3e44893`，与 tag 对象、`targetCommitish`、发布 job 的 `APPROVED_SHA` 四处同源。合一包与普通包唯一差异是多了 `manager.apk` 与 `package-manifest.json` 的 `withManager` 标志，`manager.apk` 与外部 APK 逐字节相同。证书 SHA-256 `80ecee1c42d861d59cdc460447335fc4bfdf80103d6225a17c1bdf83a33521f6`，与 v3.0.14 / v3.0.17 同一张（本机无 `apksigner`，签名由 CI 断言，未独立复验）。发布后 12:55:40Z `prune_prereleases.py` 删除 `v3.0.18-preview.3` 的 Release/tag；正式版 `v3.0.17` / `v3.0.14` / `v3.0.11` 保留。CI 自标 `runtime_regression: not_verified`，本版未执行 Magisk / KernelSU / APatch 真机矩阵。
+
+已知边界：UDP 探测用的是本机可控回显端点，不是真实代理服务端往返；真机上 `boot.json` 的权限与开机行为未验证。
+
+## 历史归档：v3.0.18-preview.3 已发布资产快照（Release/tag 已在 v3.0.18-preview.4 发布后清理）
 
 来源：[GitHub Release v3.0.18-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.3)，轻量 tag/commit `8881dd1c59481b3d23ab3766fb21e3b651fa1d65`（`git/ref/tags` 的 object.type 为 commit），`Preview Build` run `44882104257` 的四个作业全部成功，于 2026-11-21T08:13:01Z 发布（prerelease，`targetCommitish=8881dd1c`）。字节数与 SHA-256 取自 GitHub Release API 的 asset digest；发布后重新下载四件套，本地 `sha256sum -c SHA256SUMS` 三件均 OK。
 

@@ -1,12 +1,12 @@
-# v3.0.18-preview.4 发行说明（候选）
+# v3.0.18-preview.4 发行说明
 
-**状态：未发布的稳定性预览版候选。**
+**状态：已发布的稳定性预览版。**
 
-本版收口 `v3.0.18-preview.3` 发布后合入的三批复审修复：PR #84（合并提交 `00cfeedddc07249cccd8a8344eb1bf7df97d75dc`，5 个文件 +71/−3）、PR #86（合并提交 `2add76212e54c54b6d4dda02b1077ab373352e24`，12 个文件 +535/−147）、PR #87（合并提交 `f0f80b92d597a334440c25171648b19b76573b59`，11 个文件 +534/−45）。正式线 `3.0.17 / 2035`（APK `10175`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 均未变；预览元数据为 `3.0.18-preview.4 / 2039`，派生 APK `versionCode=10199`、Root 模块码 `2039`（已发布 preview.3 为 `10193 / 2038`）。本条目在候选阶段写定；发布后由文档同步 PR 回填 run 号、四件套实测字节与 SHA-256，并把状态翻为「已发布」。
+本版收口 `v3.0.18-preview.3` 发布后合入的三批复审修复：PR #84（合并提交 `00cfeedddc07249cccd8a8344eb1bf7df97d75dc`，5 个文件 +71/−3）、PR #86（合并提交 `2add76212e54c54b6d4dda02b1077ab373352e24`，12 个文件 +535/−147）、PR #87（合并提交 `f0f80b92d597a334440c25171648b19b76573b59`，11 个文件 +534/−45）。正式线 `3.0.17 / 2035`（APK `10175`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 均未变；预览元数据为 `3.0.18-preview.4 / 2039`，派生 APK `versionCode=10199`、Root 模块码 `2039`（已发布 preview.3 为 `10193 / 2038`）。本版以 `main` 的 `a8cec2fa6676ec0c9a5fb3b7186a9c84e3e44893`（升版 PR #88 合并提交，轻量 tag）发布：`Preview Build` run `45175762344` 四作业全绿、2026-11-23T12:55:32Z 上架（发布 job 断言 `APPROVED_SHA=a8cec2fa` 并回读 tag），12:55:40Z 由 `prune_prereleases.py` 清理 `v3.0.18-preview.3`，正式版 `v3.0.17` / `v3.0.14` / `v3.0.11` 保留。四件套 APK `6381547` / 普通模块 `18151369` / 合一包 `23807498` / `SHA256SUMS` `333` 字节，APK+模块 `24532916` 字节（23.40 MiB）余量 `2730060` → PASS。
 
 ## ✦ 与上一版对比
 
-| 项目 | v3.0.18-preview.3 | v3.0.18-preview.4（候选） |
+| 项目 | v3.0.18-preview.3 | v3.0.18-preview.4 |
 |---|---|---|
 | 内容 | UDP 回显端点设置入口；UDP-only 上层成员凭回显进候选；首次应用配置前回读自启设置 | UDP 回包按来源校验、截止判定先认取消；门代次变化仍删失败证据；自启结果可重放且只消费一次、锁外做 Room/IPC；UDP 迟到回包用例 |
 | APK `versionCode` | 10193 | 10199 |
@@ -27,7 +27,7 @@ URLTest 间隔 ≥10 秒、空闲 ≥30 分钟、切换不中断现有连接与�
 
 同一 Release 的瘦管理器 APK 与 Root 模块必须成套安装；回退用正式版 [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17) 的 APK 与配套模块（模块码 `2035`）。升级方向：APK `10193 → 10199`、模块 `2038 → 2039`，严格递增且同签名，可直接覆盖安装。
 
-PR 门禁：PR #84 run `44898283085`（head `c6c6f038`）、PR #86 run `45152559766`（head `d6426d10`）、PR #87 run `45165265102`（head `0c1cbba`）全部全绿；PR #87 首跑 `45162179175` 红在阻塞写库用例返回非 Unit 的 `InvalidTestClassError`，已用 `runBlocking<Unit>` 修掉。新增回归：`udp_probe_source_test.go` 5 条、`udp_probe_deadline_test.go` 1 条、`udp_probe_late_reply_test.go` 3 条、`udp_probe_evidence_test.go` 14 条；`AutoStartSyncTest` 20 条、`AutoStartSyncUiGateTest` 8 条。
+PR 门禁：PR #84 run `44898283085`（head `c6c6f038`）、PR #86 run `45152559766`（head `d6426d10`）、PR #87 run `45165265102`（head `0c1cbba`）、升版 PR #88 run `45170090295`（head `a14713f`）全部全绿；PR #87 首跑 `45162179175` 红在阻塞写库用例返回非 Unit 的 `InvalidTestClassError`，已用 `runBlocking<Unit>` 修掉。发布门禁：`Preview Build` run `45175762344` 四作业全绿，发布 job 断言 `APPROVED_SHA=a8cec2fa` 并回读 tag；发布后本地重下四件套 `sha256sum -c` 三件 OK、三个 ZIP/APK `testzip` 无损坏，`version-control-info.textproto` 的 `revision` 与 tag 对象、`targetCommitish`、`APPROVED_SHA` 四处同为 `a8cec2fa6676ec0c9a5fb3b7186a9c84e3e44893`；签名证书仍为 `80ecee1c…21f6`。新增回归：`udp_probe_source_test.go` 5 条、`udp_probe_deadline_test.go` 1 条、`udp_probe_late_reply_test.go` 3 条、`udp_probe_evidence_test.go` 14 条；`AutoStartSyncTest` 20 条、`AutoStartSyncUiGateTest` 8 条。
 
 未执行 Root 真机矩阵（CI 自标 `runtime_regression: not_verified`）；UDP 探测为本机可控回显端点，非真实代理服务端往返；真机 `boot.json` 权限与开机行为未验证。自动化结果不等同于真机验证，本版不晋升正式版。
 
@@ -35,7 +35,7 @@ PR 门禁：PR #84 run `44898283085`（head `c6c6f038`）、PR #86 run `45152559
 
 ### v3.0.18-preview.3 已发布说明
 
-[v3.0.18-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.3) 已作为稳定性预览版发布：main `8881dd1c59481b3d23ab3766fb21e3b651fa1d65`（PR #83 合并提交，轻量 tag），`Preview Build` run `44882104257` 四作业全绿、2026-11-21T08:13:01Z 上架，08:13:09Z 清理 `v3.0.18-preview.2`；预览元数据 `2038`，APK `10193` / 模块 `2038`。内容为「设置 → 连接与核心 → UDP 回显端点」自管端点落地、各层子组独立 UDP 回显验证、UDP-only 上层成员凭回显进候选、首次应用配置前回读自启设置、自启连点按最后一次选择落地。四件套：APK `6374839` / 模块 `18149655` / 合一包 `23797772` / `SHA256SUMS` `333` 字节，APK+模块 `24524494` 字节（23.39 MiB）→ PASS。其 Release/tag 将在 preview.4 发布时按单预览策略清理。
+[v3.0.18-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.3) 已作为稳定性预览版发布：main `8881dd1c59481b3d23ab3766fb21e3b651fa1d65`（PR #83 合并提交，轻量 tag），`Preview Build` run `44882104257` 四作业全绿、2026-11-21T08:13:01Z 上架，08:13:09Z 清理 `v3.0.18-preview.2`；预览元数据 `2038`，APK `10193` / 模块 `2038`。内容为「设置 → 连接与核心 → UDP 回显端点」自管端点落地、各层子组独立 UDP 回显验证、UDP-only 上层成员凭回显进候选、首次应用配置前回读自启设置、自启连点按最后一次选择落地。四件套：APK `6374839` / 模块 `18149655` / 合一包 `23797772` / `SHA256SUMS` `333` 字节，APK+模块 `24524494` 字节（23.39 MiB）→ PASS。其 Release/tag 已在 preview.4 发布后（2026-11-23T12:55:40Z）按单预览策略清理。
 
 ### v3.0.18-preview.2 已发布说明
 
