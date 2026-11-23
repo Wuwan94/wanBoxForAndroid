@@ -1,12 +1,12 @@
-# v3.0.18-preview.4 发行说明（候选）
+# v3.0.18-preview.4 发行说明
 
-**状态：未发布的稳定性预览版候选。**
+**状态：已发布的稳定性预览版。**
 
-本版收口 `v3.0.18-preview.3` 发布后合入 `main` 的三批复审修复：UDP 回显探测改为按来源校验回包并在截止判定上区分「取消」与「超时」（PR #86，合并提交 `2add76212e54c54b6d4dda02b1077ab373352e24`，12 个文件 +535/−147）、门代次在轮内变化时仍删除已明确失败成员的 UDP 证据并给「导出/一次性测速排除探测端点」补回归（PR #84，合并提交 `00cfeedddc07249cccd8a8344eb1bf7df97d75dc`，5 个文件 +71/−3）、开机自启结果改为可重放且只呈现一次、锁粒度收窄与异常兜底、UDP 迟到合法回包补行为级用例（PR #87，合并提交 `f0f80b92d597a334440c25171648b19b76573b59`，11 个文件 +534/−45）。正式线 `3.0.17 / 2035`（APK `10175`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 均未变；预览元数据升为 `3.0.18-preview.4 / 2039`，派生 APK `versionCode=10199`、Root 模块码 `2039`，均高于已发布 preview.3 的 `10193 / 2038`，已装 preview.3 的用户可同时收到 APK 与模块更新。本条目在候选阶段写定；发布后由文档同步 PR 回填 run 号、四件套实测字节与 SHA-256，并把状态翻为「已发布」。
+本版收口 `v3.0.18-preview.3` 发布后合入 `main` 的三批复审修复：UDP 回显探测改为按来源校验回包并在截止判定上区分「取消」与「超时」（PR #86，合并提交 `2add76212e54c54b6d4dda02b1077ab373352e24`，12 个文件 +535/−147）、门代次在轮内变化时仍删除已明确失败成员的 UDP 证据并给「导出/一次性测速排除探测端点」补回归（PR #84，合并提交 `00cfeedddc07249cccd8a8344eb1bf7df97d75dc`，5 个文件 +71/−3）、开机自启结果改为可重放且只呈现一次、锁粒度收窄与异常兜底、UDP 迟到合法回包补行为级用例（PR #87，合并提交 `f0f80b92d597a334440c25171648b19b76573b59`，11 个文件 +534/−45）。正式线 `3.0.17 / 2035`（APK `10175`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 均未变；预览元数据升为 `3.0.18-preview.4 / 2039`，派生 APK `versionCode=10199`、Root 模块码 `2039`，均高于已发布 preview.3 的 `10193 / 2038`，已装 preview.3 的用户可同时收到 APK 与模块更新。本版基于 `main` 的 `a8cec2fa6676ec0c9a5fb3b7186a9c84e3e44893`（升版 PR #88 合并提交，轻量 tag），`Preview Build` run `45175762344` 的四个作业（`Native Build (LibCore)`、`Build OSS APK`、`Candidate cold-start measurement (emulator only)`、`Publish Preview Release`）全部成功，于 2026-11-23T12:55:32Z 上架（prerelease，发布 job 断言 `APPROVED_SHA=a8cec2fa` 并回读 tag）。发布后 `prune_prereleases.py` 在 12:55:40Z 删除了 `v3.0.18-preview.3` 的 Release/tag（现为 404），正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 保留。
 
 ## ✦ 与上一版对比
 
-| 项目 | v3.0.18-preview.3 | v3.0.18-preview.4（候选） |
+| 项目 | v3.0.18-preview.3 | v3.0.18-preview.4 |
 |---|---|---|
 | 内容 | UDP 回显端点设置入口；UDP-only 上层成员凭回显进候选；首次应用配置前回读自启设置 | UDP 回包按来源校验、截止判定先认取消；门代次变化仍删失败证据；自启结果可重放且只消费一次、锁外做 Room/IPC；UDP 迟到回包用例 |
 | APK `versionCode` | 10193 | 10199 |
@@ -53,19 +53,28 @@ URLTest 稳定性约束（检测间隔 ≥ 10 秒、空闲超时 ≥ 30 分钟�
 
 ### 7. 版本与文档口径
 
-`nb4a.properties` 预览线升为 `3.0.18-preview.4` / `2039`；正式线 `3.0.17 / 2035` 与 sing-box pin 未变。当前版本文档一致性检查改为「已发布 preview.3 + 未发布 preview.4 候选」的双态口径。
+`nb4a.properties` 预览线为 `3.0.18-preview.4` / `2039`；正式线 `3.0.17 / 2035` 与 sing-box pin 未变。当前版本文档一致性检查已回到「已发布 preview.4 即源码预览」的单态口径。
 
 ## ✦ 资产与安装
 
+| 文件 | 字节 | SHA-256 |
+|---|---:|---|
+| `wanBoxForAndroid-3.0.18-preview.4-arm64-v8a-release.apk` | 6,381,547 | `2856c050fd6bcc9d3f48f242797d7f4c1b7f6d202a4e973ea88a91a2441424d5` |
+| `wanbox-root-module-arm64-v8a.zip` | 18,151,369 | `d5a549c3d38e8082cca843d4f3274453d717998b66d0875424c9ba05f1f4705b` |
+| `wanbox-root-module-with-manager-arm64-v8a.zip` | 23,807,498 | `5bc8c2fbcb40151c28d10286fc0611d668d6cbc3bd82f77e65a91a8b9db39239` |
+| `SHA256SUMS` | 333 | `cd10c43433502610b80e524024e1bf54d31ffd20d9c02f226f8deaf7ee4f0115` |
+
+APK 与普通 Root 模块合计 `24,532,916` 字节（23.40 MiB），上限 `27,262,976` 字节（26 MiB），余量 `2,730,060` 字节（2.60 MiB）→ `size_budget --enforce-limit` PASS；带管理器合一包 22.70 MiB。发布后本地重下四件套复核：`sha256sum -c SHA256SUMS` 三件 OK，三个 ZIP/APK `testzip()` 无损坏；APK 解析为 `versionCode=10199` / `versionName=3.0.18-preview.4`、包名 `com.lit008834.pixel.wanboxforandroid`、`lib/` 条目 0 个（瘦管理器）；模块 `module.prop` 为 `3.0.18-preview.4 / 2039`；合一包内 `manager.apk` 与外部 APK 逐字节相同；`version-control-info.textproto` 的 `revision`、tag 对象、`targetCommitish` 与发布 job 的 `APPROVED_SHA` 四处同为 `a8cec2fa6676ec0c9a5fb3b7186a9c84e3e44893`。证书 SHA-256 `80ecee1c…21f6`（与 v3.0.14 / v3.0.17 同一张，可同包名覆盖安装；签名由 CI 断言，本机无 `apksigner` 未独立复验）。
+
 - **运行要求**：Android 12+（API 31+）、arm64-v8a、Magisk / KernelSU / APatch 等 Root 环境。
-- **候选阶段**：本候选由 `chore/release-v3.0.18-preview.4` 升版后的 `Preview Build` 产出，四件套实测字节与 SHA-256 在发布后由文档同步 PR 回填本节。
 - **成套同版**：管理器 APK 与 Root 模块必须来自同一 Release；严禁跨 Release 混用。
 - **回退**：换回正式版 [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17) 的 APK 与配套模块（模块码 `2035`）成套重装。
 - **升级**：APK 由 `10193` 升到 `10199`、模块由 `2038` 升到 `2039`，严格递增且同签名，可直接覆盖安装。
 
 ## 🛡️ 验证与边界
 
-- **PR 门禁**：PR #84 的 `Verify Android Build` run `44898283085`（head `c6c6f038`）全绿；PR #86 的 run `45152559766`（head `d6426d10`）全绿；PR #87 的 run `45165265102`（head `0c1cbba`）全绿（其首跑 `45162179175` 红在阻塞写库用例的 `runBlocking { }` 让测试方法返回了非 Unit，已用 `runBlocking<Unit>` 修掉）。三者均含 `go test -race`、`go vet`、Python 工具 125 项、`rootmodule` 测试与文档门禁、JVM 单测与插桩。
+- **PR 门禁**：PR #84 的 `Verify Android Build` run `44898283085`（head `c6c6f038`）全绿；PR #86 的 run `45152559766`（head `d6426d10`）全绿；PR #87 的 run `45165265102`（head `0c1cbba`）全绿（其首跑 `45162179175` 红在阻塞写库用例的 `runBlocking { }` 让测试方法返回了非 Unit，已用 `runBlocking<Unit>` 修掉）；升版 PR #88 的 run `45170090295`（head `a14713f`）全绿。四者均含 `go test -race`、`go vet`、Python 工具 125 项、`rootmodule` 测试与文档门禁、JVM 单测与插桩。
+- **发布门禁**：`Preview Build` run `45175762344` 四作业全绿，发布 job 断言 `APPROVED_SHA=a8cec2fa` 并回读 tag；`prune_prereleases.py --keep-tag v3.0.18-preview.4` 在 12:55:40Z 删除了 preview.3 的 Release/tag。
 - **新增回归**：`udp_probe_source_test.go` 5 条、`udp_probe_deadline_test.go` 1 条、`udp_probe_late_reply_test.go` 3 条、`udp_probe_evidence_test.go` 增至 14 条；`AutoStartSyncTest` 增至 20 条、`AutoStartSyncUiGateTest` 8 条。
 - **未验证边界**：未执行 Magisk / KernelSU / APatch 真机矩阵（CI 自标 `runtime_regression: not_verified`）；UDP 探测用的是本机可控回显端点，**不是真实代理服务端往返**，真实 VMess/VLESS/Trojan 的 UDP 往返未做端到端验证；真机上 `boot.json` 的权限与开机行为未验证。任何自动化结果都不代替真机验证，本版不晋升正式版。
 
@@ -77,7 +86,7 @@ URLTest 稳定性约束（检测间隔 ≥ 10 秒、空闲超时 ≥ 30 分钟�
 
 **状态：已发布的稳定性预览版。**
 
-本版收口 `v3.0.18-preview.2` 复审提出的四项缺陷（PR #83，合并提交 `8881dd1c59481b3d23ab3766fb21e3b651fa1d65`，25 个文件 +332/−78，`Verify Android Build` run `44879210932` 在 head `dbdbf0b` 全绿）。预览元数据 `3.0.18-preview.3 / 2038`，派生 APK `versionCode=10193`、Root 模块码 `2038`。`Preview Build` run `44882104257` 四作业全绿，2026-11-21T08:13:01Z 上架（prerelease，发布 job 断言 `APPROVED_SHA=8881dd1c` 并回读 tag）；08:13:09Z 由 `prune_prereleases.py` 清理 `v3.0.18-preview.2`，正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 保留。内容：「设置 → 连接与核心 → UDP 回显端点」可填自管数字 IP 与端口（默认留空即零流量，fail-closed），各优先级层子组独立执行 UDP 回显验证；仅支持 UDP 的上层成员凭有效回显进入候选，不再依赖 TCP 延迟记录（回切仍要连续三轮新观测 + 60 秒无失败）；首次应用配置前也回读已保存的开机自启设置；自启等待确认期间连点按最后一次选择落地。四件套：APK `6374839` B / `e7832733…893507`、普通 Root ZIP `18149655` B / `1fbfc62a…bdc280`、合一 ZIP `23797772` B / `2fe93950…88c80d`、`SHA256SUMS` `333` B，APK + 普通模块 `24524494` 字节（23.39 MiB）→ `size_budget --enforce-limit` PASS。本版自身的 Release/tag 将在 `v3.0.18-preview.4` 发布时按单预览策略清理。
+本版收口 `v3.0.18-preview.2` 复审提出的四项缺陷（PR #83，合并提交 `8881dd1c59481b3d23ab3766fb21e3b651fa1d65`，25 个文件 +332/−78，`Verify Android Build` run `44879210932` 在 head `dbdbf0b` 全绿）。预览元数据 `3.0.18-preview.3 / 2038`，派生 APK `versionCode=10193`、Root 模块码 `2038`。`Preview Build` run `44882104257` 四作业全绿，2026-11-21T08:13:01Z 上架（prerelease，发布 job 断言 `APPROVED_SHA=8881dd1c` 并回读 tag）；08:13:09Z 由 `prune_prereleases.py` 清理 `v3.0.18-preview.2`，正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 保留。内容：「设置 → 连接与核心 → UDP 回显端点」可填自管数字 IP 与端口（默认留空即零流量，fail-closed），各优先级层子组独立执行 UDP 回显验证；仅支持 UDP 的上层成员凭有效回显进入候选，不再依赖 TCP 延迟记录（回切仍要连续三轮新观测 + 60 秒无失败）；首次应用配置前也回读已保存的开机自启设置；自启等待确认期间连点按最后一次选择落地。四件套：APK `6374839` B / `e7832733…893507`、普通 Root ZIP `18149655` B / `1fbfc62a…bdc280`、合一 ZIP `23797772` B / `2fe93950…88c80d`、`SHA256SUMS` `333` B，APK + 普通模块 `24524494` 字节（23.39 MiB）→ `size_budget --enforce-limit` PASS。本版自身的 Release/tag 已在 `v3.0.18-preview.4` 发布后（2026-11-23T12:55:40Z）按单预览策略清理（现为 404）。
 
 ### v3.0.18-preview.2 已发布说明
 
