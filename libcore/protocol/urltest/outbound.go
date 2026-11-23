@@ -1766,10 +1766,9 @@ func (b *urlTestBatch) probeMemberUDP(detour adapter.Outbound) {
 		// 探测没在期限内给出结论：本成员的 UDP 本轮无结论，不当成功也不当失败。
 		outcome = UDPProbeUnverified
 	}
-	if b.ctx.Err() != nil {
-		// 轮次预算/调用方取消：本轮 UDP 无结论，不冒充失败也不冒充成功。
-		b.round.record(tag, N.NetworkUDP, urlTestCanceled)
-		return
+	// select does not prioritize deadlines when both cases are ready.
+	if terminal, stopped := udpProbeContextOutcome(b.ctx, probeCtx); stopped {
+		outcome = terminal
 	}
 	switch outcome {
 	case UDPProbeVerified:

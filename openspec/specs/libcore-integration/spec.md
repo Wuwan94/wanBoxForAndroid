@@ -632,6 +632,14 @@ UDP 证据。VMess/VLESS/Trojan/XUDP 这类 early packet conn 在首次写入时
 未配置时 UDP 观测一律 skipped。探测 MUST 有界：单一成员只发一条数据报、只读一次、
 不重试，超时缺省 3 秒且不超过整轮 5 秒预算；取消时 MUST 关闭连接叫醒阻塞的读，
 连接与 goroutine MUST 随调用结束释放。
+
+**回包来源校验（v3.0.18-preview.3 复审 P2 修复）**：`ReadFrom` 返回的来源 MUST
+参与判定。来源能解析成 IP:port 时 MUST 与配置目标的 IP（IPv4/IPv6 按地址类型比较，
+不做字符串相等）和端口一致；来源明确不同则 MUST 记 `rejected`（新失败，清零并盖戳），
+即使回包内容与请求完全相同。来源无法解析成 IP:port（nil、域名、无端口）时 MUST 记
+`unverified`（未知），MUST NOT 当成功，也 MUST NOT 当失败去清零计数。内容不符 MUST
+继续记 `rejected`。请求载荷保持配置字节不变以兼容既有回显端点；由于载荷可预测，
+本契约能证明同一目标的往返但不能抵抗同源重放，不声称经过身份认证。
 Android 按优先级分组的运行配置 MUST 将用户显式填写的数字 IP:端口传给每个生成的
 `urltest`（含外层、各层子组与单层退化），MUST NOT 注入导出配置或单次测试配置。
 配置端点后，UDP 候选与层健康 MUST 依据独立、未过期的 UDP 回显观测判断，
@@ -681,6 +689,15 @@ MUST 被关闭释放，MUST NOT 登记进已关闭组的连接表。未关闭时
 - **GIVEN** 探测数据报被目标原样回显三次
 - **WHEN** 轮次收尾
 - **THEN** UDP 该层连续健康计数 +1/轮，满 3 轮且满 60 秒后才允许回切
+- **GIVEN** 回包内容与请求相同但来源 IP 或端口不是当前探测目标
+- **WHEN** 本轮 UDP 收尾
+- **THEN** 记新失败、连续健康计数清零、盖失败戳，且不得授予高层回切资格
+- **GIVEN** 回包内容相同但成员给出的来源无法解析成 IP:port
+- **WHEN** 本轮 UDP 收尾
+- **THEN** 记未知，UDP 计数与失败戳不变，不得当成功
+- **GIVEN** 单成员 UDP 探测的结果在其截止时刻或之后被消费
+- **WHEN** 本轮 UDP 收尾
+- **THEN** 不得把它记为成功（记未知，计数与失败戳不变）；轮次预算先到或调用方取消时记取消
 - **GIVEN** 组用 `Close` 打断一条在途 UDP 探测
 - **WHEN** 关闭后
 - **THEN** 该轮不得记成功，探测连接被关闭释放，UDP 计数不变
@@ -699,7 +716,12 @@ MUST 被关闭释放，MUST NOT 登记进已关闭组的连接表。未关闭时
 > `TestUDPProbeVerifiedOnlyOnEchoedDatagram`、`TestUDPProbeWithoutValidReplyIsUnverified`、
 > `TestUDPProbeFirstWriteFailureIsRejected`、`TestUDPProbeParentCancellationReleasesConnection`、
 > `TestUDPAssociationAloneDoesNotAdvanceGate`、`TestUDPGateAdvancesOnlyOnVerifiedRoundTrips`、
-> `TestUDPProbeUnconfiguredSkipsWithoutTraffic`、`TestGroupCloseCancelsUDPProbe`）；
+> `TestUDPProbeUnconfiguredSkipsWithoutTraffic`、`TestGroupCloseCancelsUDPProbe`，以及
+> v3.0.18-preview.3 复审新增的来源校验组 `TestUDPProbeRejectsSamePayloadFromWrongSource`、
+> `TestUDPProbeUnverifiedWhenSourceCannotBeMatched`、
+> `TestUDPProbeStillVerifiesMatchingSourceAndContent`、
+> `TestWrongSourceProbeNeverAdvancesUDPGate`、
+> `TestUDPProbeSourceMatchingHandlesAddressFamilies`）；
 > `go vet` 干净；本地无 gcc，`-race` 由 Linux CI 覆盖；UDP 探测的是本机可控回显端点，不是真实
 > 代理服务端；Magisk / KernelSU / APatch 真机矩阵未执行，待真机验证。
 

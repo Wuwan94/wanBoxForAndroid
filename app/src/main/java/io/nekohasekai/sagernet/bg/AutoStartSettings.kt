@@ -40,11 +40,11 @@ object AutoStartSettings {
         }
     })
 
-    fun request(enabled: Boolean, onResult: (AutoStartSync.Outcome) -> Unit) {
-        val ticket = sync.register(enabled)
-        scope.launch {
-            onResult(sync.apply(ticket))
-        }
+    internal val state get() = sync.state
+
+    internal fun toggle() {
+        val ticket = sync.toggle()
+        scope.launch { sync.apply(ticket) }
     }
 
     suspend fun check(): AutoStartSync.Check? = sync.check()

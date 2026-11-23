@@ -3,9 +3,10 @@
 package io.nekohasekai.sagernet.bg
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.util.concurrent.atomic.AtomicLong
 
 /**
  * 开机自启开关的一致性协调器。
@@ -72,15 +73,38 @@ class AutoStartSync(
     }
 
     private val mutex = Mutex()
-    private val sequence = AtomicLong()
     private val registration = Any()
+    private var sequence = 0L
+
+    // Replayed to the current settings view; contains no reference to a view or callback.
+    internal sealed interface State {
+        data object Idle : State
+        data class Pending(val id: Long, val enabled: Boolean) : State
+        data class Finished(val id: Long, val outcome: Outcome) : State
+    }
+
+    private val mutableState = MutableStateFlow<State>(State.Idle)
+    internal val state = mutableState.asStateFlow()
 
     internal data class Ticket(val id: Long, val enabled: Boolean)
 
     // Register at the caller, before IO dispatch can reorder two taps.
     internal fun register(enabled: Boolean): Ticket = synchronized(registration) {
-        Ticket(sequence.incrementAndGet(), enabled)
+        registerLocked(enabled)
     }
+
+    internal fun toggle(): Ticket = synchronized(registration) {
+        val pending = mutableState.value as? State.Pending
+        registerLocked(!(pending?.enabled ?: host.confirmed()))
+    }
+
+    private fun registerLocked(enabled: Boolean): Ticket {
+        val ticket = Ticket(++sequence, enabled)
+        mutableState.value = State.Pending(ticket.id, ticket.enabled)
+        return ticket
+    }
+
+    private fun isLatest(id: Long): Boolean = synchronized(registration) { sequence == id }
 
     /** 应用一次切换；结果由调用方在主线程消费。 */
     suspend fun request(enabled: Boolean): Outcome = apply(register(enabled))
@@ -89,7 +113,7 @@ class AutoStartSync(
         val (myId, target) = ticket
         return mutex.withLock {
             // 排队期间已有更新的选择：本次不落地，交给最新请求。
-            if (sequence.get() != myId) return@withLock Outcome.Superseded
+            if (!isLatest(myId)) return@withLock Outcome.Superseded
             var lastCode: String? = null
             var confirmedValue: Boolean? = null
             var remaining = attempts.coerceAtLeast(1)
@@ -117,11 +141,11 @@ class AutoStartSync(
                 } catch (e: Exception) {
                     lastCode = RootModuleClient.safeError(e)
                 }
-                if (sequence.get() != myId) return@withLock Outcome.Superseded
+                if (!isLatest(myId)) return@withLock Outcome.Superseded
             }
             synchronized(registration) {
-                if (sequence.get() != myId) return@synchronized Outcome.Superseded
-                if (confirmedValue != null) {
+                if (sequence != myId) return@synchronized Outcome.Superseded
+                val outcome = if (confirmedValue != null) {
                     host.persist(confirmedValue)
                     Outcome.Confirmed(confirmedValue)
                 } else {
@@ -129,6 +153,8 @@ class AutoStartSync(
                     host.persist(host.confirmed())
                     Outcome.Failed(lastCode ?: CODE_UNCONFIRMED)
                 }
+                mutableState.value = State.Finished(myId, outcome)
+                outcome
             }
         }
     }

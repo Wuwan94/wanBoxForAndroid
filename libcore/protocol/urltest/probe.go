@@ -101,8 +101,9 @@ func (o UDPProbeOutcome) String() string {
 }
 
 // ProbeOutboundUDP 用数据面原语（ListenPacket）向成员建立一次 UDP 关联，
-// 发出一条探测数据报，并要求目标原样回显：只有收到同一份数据报才算
-// UDPProbeVerified。
+// 发出一条探测数据报，并要求目标原样回显：只有来源匹配当前 IP:port 目标、
+// 且回包与请求逐字节相同才算 UDPProbeVerified。无法提供可核对来源的成员
+// 得到未知（不是成功）；明确来自其他地址/端口的回包是失败。
 //
 // @author 雾晚: 证据边界（写进 openspec/specs/libcore-integration）——
 //   - 只创建/关闭 PacketConn 不产生任何证据：VMess/VLESS/Trojan/XUDP 这类
@@ -122,11 +123,14 @@ func ProbeOutboundUDP(ctx context.Context, detour adapter.Outbound, target M.Soc
 	}
 	probeCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	if probeCtx.Err() != nil {
-		return UDPProbeCanceled
+	if outcome, stopped := udpProbeContextOutcome(ctx, probeCtx); stopped {
+		return outcome
 	}
 	conn, err := detour.ListenPacket(probeCtx, target)
 	if err != nil {
+		if outcome, stopped := udpProbeContextOutcome(ctx, probeCtx); stopped {
+			return outcome
+		}
 		// 关联失败：成员明确不给 UDP（或成员本身不可达），是失败证据。
 		return udpProbeErrorOutcome(ctx, err)
 	}
@@ -139,19 +143,23 @@ func ProbeOutboundUDP(ctx context.Context, detour adapter.Outbound, target M.Soc
 	if deadline, ok := probeCtx.Deadline(); ok {
 		_ = conn.SetDeadline(deadline)
 	}
+	if outcome, stopped := udpProbeContextOutcome(ctx, probeCtx); stopped {
+		return outcome
+	}
 	if _, err = conn.WriteTo(payload, target.UDPAddr()); err != nil {
+		if outcome, stopped := udpProbeContextOutcome(ctx, probeCtx); stopped {
+			return outcome
+		}
 		// 首次发送失败：会话没有建立起来（early packet conn 的握手就在这一步）。
 		return udpProbeErrorOutcome(ctx, err)
 	}
 	reply := make([]byte, len(payload)+64)
-	n, _, err := conn.ReadFrom(reply)
+	n, from, err := conn.ReadFrom(reply)
+	if outcome, stopped := udpProbeContextOutcome(ctx, probeCtx); stopped {
+		return outcome
+	}
 	if err != nil {
-		if ctx.Err() != nil {
-			return UDPProbeCanceled
-		}
-		// probeCtx 到期时，取消回调会同时关闭连接：这条“连接已关闭”的错误
-		// 同样是“没拿到回包”，不是成员失败。
-		if probeCtx.Err() != nil || isUDPProbeSilence(err) {
+		if isUDPProbeSilence(err) {
 			// 数据报发出去了，但没有有效响应：未知，不当成功也不当失败。
 			return UDPProbeUnverified
 		}
@@ -160,10 +168,59 @@ func ProbeOutboundUDP(ctx context.Context, detour adapter.Outbound, target M.Soc
 	if n <= 0 {
 		return UDPProbeUnverified
 	}
+	// 回包内容相同还不够：例如直连 UDP 可能收到同一局域网上另一端的同内容数据报。
+	// 来源能解析成 IP:port 时必须与配置目标一致，否则一律不是本轮探测的成功。
+	source, sourceKnown := udpProbeSourceFromAddr(from)
+	if !sourceKnown {
+		// 成员没给出可核对的来源（nil、只有 IP 没有端口、域名等）：结果未知，
+		// 不能当成功，也不拿它当失败去清零健康计数。
+		return UDPProbeUnverified
+	}
+	if source.Addr.Unmap() != target.Addr.Unmap() || source.Port != target.Port {
+		return UDPProbeRejected
+	}
 	if n != len(payload) || !bytes.Equal(reply[:n], payload) {
 		return UDPProbeRejected
 	}
+	if outcome, stopped := udpProbeContextOutcome(ctx, probeCtx); stopped {
+		return outcome
+	}
 	return UDPProbeVerified
+}
+
+// Check the deadline itself as well as Err: a timer may not have run yet.
+// A round/caller cancellation takes precedence over an individual probe timeout.
+func udpProbeContextOutcome(parent, probe context.Context) (UDPProbeOutcome, bool) {
+	now := time.Now()
+	if udpProbeContextStopped(parent, now) {
+		return UDPProbeCanceled, true
+	}
+	if udpProbeContextStopped(probe, now) {
+		return UDPProbeUnverified, true
+	}
+	return UDPProbeSkipped, false
+}
+
+func udpProbeContextStopped(ctx context.Context, now time.Time) bool {
+	if ctx.Err() != nil {
+		return true
+	}
+	deadline, ok := ctx.Deadline()
+	return ok && !now.Before(deadline)
+}
+
+// udpProbeSourceFromAddr 把 ReadFrom 的来源归一到 IP:port。sing-box 的直连、UoT、
+// early packet conn 等实现会把目标地址作为来源返回；无法给出 IP:port 的实现
+// 不具备来源校验能力，调用方必须把结果当未知而不是成功。
+func udpProbeSourceFromAddr(from net.Addr) (M.Socksaddr, bool) {
+	if from == nil {
+		return M.Socksaddr{}, false
+	}
+	source := M.SocksaddrFromNet(from)
+	if !source.IsIP() || source.Port == 0 {
+		return M.Socksaddr{}, false
+	}
+	return source, true
 }
 
 // udpProbeErrorOutcome 把一次 UDP 操作错误归类：父上下文取消是 Canceled，

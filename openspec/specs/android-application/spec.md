@@ -877,6 +877,13 @@ MUST NOT 用迟到结果覆盖新选择。未回读确认时连续点击 MUST �
 模块未安装 / 未运行 / 运行中三种情况 MUST 都能下发并回读（`boot.json` 与快照
 不依赖核心进程）；未运行时 MUST NOT 因此擅自启动核心。
 
+**异步同步的界面生命周期边界（v3.0.18-preview.3 复审 P2 修复）**：离开设置页 MUST NOT
+取消已提交的应用级同步。最新请求的进行中状态与最终结果 MUST 可被新视图重新观察，
+不依赖发起请求的视图；被取代的结果 MUST NOT 清除新的 pending 状态或覆盖其结果。
+只有生命周期为 STARTED、已挂载且宿主未 finishing/destroyed 的当前视图可以更新 UI。
+重新进入时若仍在同步 MUST 显示待同步；同步完成后 MUST 刷新已确认值并重新回读模块，
+保留可见的错误、不一致或配置不可用提示；旧回读 MUST NOT 覆盖更新的请求。
+
 **boot 配置不可用的状态契约（PR #80 复审 P2 修复）**：`boot.json` 的三种情况 MUST
 分开处理，MUST NOT 一律报开、报关或报错：
 
@@ -924,12 +931,19 @@ App 收到 `autoStartError` 时 MUST 按“待处理”提示（配置损坏、�
 - **GIVEN** 下发写入失败（例如覆盖项路径不可写）
 - **WHEN** 回读状态
 - **THEN** 保持未知 + 错误码，MUST NOT 显示未经确认的生效状态
+- **GIVEN** 发起同步后离开设置页，Fragment 已分离但 Activity 仍存活
+- **WHEN** 失败回调返回
+- **THEN** 不崩溃、不触碰旧界面/旧资源，且后台下发不被取消
+- **GIVEN** 视图被销毁或 Activity 重建
+- **WHEN** 旧请求的结果迟到
+- **THEN** 不更新旧 Preference、不显示旧宿主 Toast；重新进入时按实际回读展示
 
 > 验证：`AutoStartSyncTest`（JVM，12 条）与 `rootmodule` 的
 > `TestAutoStartReadBackReflectsBootSettings`、`TestCorruptBootSettingsReportedAsUnknownAndNeverBooted`、
 > `TestBootSettingsDistinguishMissingInvalidAndUnreadable`、`TestBootSettingsWriteFailureAndRepair`
-> 覆盖回读、失败、重试、快速切换、待同步与损坏配置；Android 编译与插桩由 PR 的
-> `Verify Android Build` 覆盖；真机未验证。
+> 覆盖回读、失败、重试、快速切换、待同步与损坏配置；v3.0.18-preview.3 复审新增
+> `AutoStartSyncUiGateTest`（JVM）覆盖 Fragment 分离、视图/Activity 销毁、乱序结果与
+> 可用界面的边界判定。Android 编译与插桩由 PR 的 `Verify Android Build` 覆盖；真机未验证。
 
 ### Requirement: 测速刷新间隔未设置时默认 1000ms（B1 已落地）
 

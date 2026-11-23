@@ -316,7 +316,7 @@ func TestUDPProbeUnconfiguredSkipsWithoutTraffic(t *testing.T) {
 // 组关闭会取消在途 UDP 探测并释放连接：关闭后不再有任何结论被记成成功。
 func TestGroupCloseCancelsUDPProbe(t *testing.T) {
 	silent := newUDPTestEndpoint(t, udpEndpointSilent)
-	member := &lazySessionOutbound{Adapter: outbound.NewAdapter("loopback", "a", []string{"tcp", "udp"}, nil)}
+	member := &lazySessionOutbound{Adapter: outbound.NewAdapter("loopback", "a", []string{"tcp", "udp"}, nil), closeSignal: make(chan struct{})}
 	grp := startupGroupWithMembersAndProbe(t, context.Background(), "http://example.invalid/204", silent.probeConfig(5*time.Second), member)
 	result := make(chan *urlTestRound, 1)
 	go func() {
@@ -343,7 +343,10 @@ func TestGroupCloseCancelsUDPProbe(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("group close did not finish the probe round")
 	}
-	if !member.connClosed.Load() {
+	// The round can return before the context cancellation callback executes.
+	select {
+	case <-member.closeSignal:
+	case <-time.After(2 * time.Second):
 		t.Fatal("the packet connection must be released after group close")
 	}
 	if got := grp.tierUDP.gate.consecutiveOK[0]; got != 0 {
@@ -457,6 +460,7 @@ type lazySessionOutbound struct {
 	listenCalls    atomic.Int32
 	readStarted    atomic.Bool
 	connClosed     atomic.Bool
+	closeSignal    chan struct{}
 }
 
 func (l *lazySessionOutbound) DialContext(ctx context.Context, network string, dst M.Socksaddr) (net.Conn, error) {
@@ -493,7 +497,12 @@ func (c *lazySessionConn) ReadFrom(p []byte) (int, net.Addr, error) {
 }
 
 func (c *lazySessionConn) Close() error {
-	c.once.Do(func() { c.owner.connClosed.Store(true) })
+	c.once.Do(func() {
+		c.owner.connClosed.Store(true)
+		if c.owner.closeSignal != nil {
+			close(c.owner.closeSignal)
+		}
+	})
 	return nil
 }
 
