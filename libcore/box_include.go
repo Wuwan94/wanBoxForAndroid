@@ -76,6 +76,8 @@ func nekoboxAndroidInboundRegistry() *inbound.Registry {
 	socks.RegisterInbound(registry)
 	http.RegisterInbound(registry)
 	mixed.RegisterInbound(registry)
+	// 覆盖 sing-box 的 vless inbound：复用通用传输，并支持 XHTTP 服务端入站。
+	customVless.RegisterInbound(registry)
 
 	return registry
 }
