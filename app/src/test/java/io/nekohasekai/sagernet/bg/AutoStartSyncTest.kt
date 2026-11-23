@@ -349,7 +349,7 @@ class AutoStartSyncTest {
      * 登记锁——否则主线程点一下要等 IO 线程把库写完（点击 → 掉帧）。
      */
     @Test
-    fun `a tap never waits for the store write an in-flight apply is doing`() = runBlocking {
+    fun `a tap never waits for the store write an in-flight apply is doing`() = runBlocking<Unit> {
         val host = Host()
         val writeEntered = CountDownLatch(1)
         val releaseWrite = CountDownLatch(1)
