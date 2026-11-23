@@ -123,11 +123,14 @@ func ProbeOutboundUDP(ctx context.Context, detour adapter.Outbound, target M.Soc
 	}
 	probeCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	if probeCtx.Err() != nil {
-		return UDPProbeCanceled
+	if outcome, stopped := udpProbeContextOutcome(ctx, probeCtx); stopped {
+		return outcome
 	}
 	conn, err := detour.ListenPacket(probeCtx, target)
 	if err != nil {
+		if outcome, stopped := udpProbeContextOutcome(ctx, probeCtx); stopped {
+			return outcome
+		}
 		// 关联失败：成员明确不给 UDP（或成员本身不可达），是失败证据。
 		return udpProbeErrorOutcome(ctx, err)
 	}
@@ -140,19 +143,23 @@ func ProbeOutboundUDP(ctx context.Context, detour adapter.Outbound, target M.Soc
 	if deadline, ok := probeCtx.Deadline(); ok {
 		_ = conn.SetDeadline(deadline)
 	}
+	if outcome, stopped := udpProbeContextOutcome(ctx, probeCtx); stopped {
+		return outcome
+	}
 	if _, err = conn.WriteTo(payload, target.UDPAddr()); err != nil {
+		if outcome, stopped := udpProbeContextOutcome(ctx, probeCtx); stopped {
+			return outcome
+		}
 		// 首次发送失败：会话没有建立起来（early packet conn 的握手就在这一步）。
 		return udpProbeErrorOutcome(ctx, err)
 	}
 	reply := make([]byte, len(payload)+64)
 	n, from, err := conn.ReadFrom(reply)
+	if outcome, stopped := udpProbeContextOutcome(ctx, probeCtx); stopped {
+		return outcome
+	}
 	if err != nil {
-		if ctx.Err() != nil {
-			return UDPProbeCanceled
-		}
-		// probeCtx 到期时，取消回调会同时关闭连接：这条“连接已关闭”的错误
-		// 同样是“没拿到回包”，不是成员失败。
-		if probeCtx.Err() != nil || isUDPProbeSilence(err) {
+		if isUDPProbeSilence(err) {
 			// 数据报发出去了，但没有有效响应：未知，不当成功也不当失败。
 			return UDPProbeUnverified
 		}
@@ -175,7 +182,31 @@ func ProbeOutboundUDP(ctx context.Context, detour adapter.Outbound, target M.Soc
 	if n != len(payload) || !bytes.Equal(reply[:n], payload) {
 		return UDPProbeRejected
 	}
+	if outcome, stopped := udpProbeContextOutcome(ctx, probeCtx); stopped {
+		return outcome
+	}
 	return UDPProbeVerified
+}
+
+// Check the deadline itself as well as Err: a timer may not have run yet.
+// A round/caller cancellation takes precedence over an individual probe timeout.
+func udpProbeContextOutcome(parent, probe context.Context) (UDPProbeOutcome, bool) {
+	now := time.Now()
+	if udpProbeContextStopped(parent, now) {
+		return UDPProbeCanceled, true
+	}
+	if udpProbeContextStopped(probe, now) {
+		return UDPProbeUnverified, true
+	}
+	return UDPProbeSkipped, false
+}
+
+func udpProbeContextStopped(ctx context.Context, now time.Time) bool {
+	if ctx.Err() != nil {
+		return true
+	}
+	deadline, ok := ctx.Deadline()
+	return ok && !now.Before(deadline)
 }
 
 // udpProbeSourceFromAddr 把 ReadFrom 的来源归一到 IP:port。sing-box 的直连、UoT、

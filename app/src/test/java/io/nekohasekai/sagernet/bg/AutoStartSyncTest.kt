@@ -6,6 +6,10 @@ import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -68,15 +72,61 @@ class AutoStartSyncTest {
     }
 
     @Test
-    fun `fast taps invert pending intent and stale completion does not clear it`() {
-        val taps = AutoStartTapState()
-        assertEquals(true, taps.next(true))
-        val first = taps.generation
-        assertEquals(false, taps.next(true))
-        assertEquals(false, taps.finish(first))
-        assertEquals(true, taps.next(true))
-        assertTrue(taps.finish(taps.generation))
-        assertEquals(false, taps.next(false))
+    fun `a replacement settings observer sees pending and the confirmed value after detached completion`() = runTest {
+        val host = Host()
+        val writeArrived = CompletableDeferred<Unit>()
+        val finishWrite = CompletableDeferred<Unit>()
+        host.beforeWrite = {
+            writeArrived.complete(Unit)
+            finishWrite.await()
+        }
+        val sync = AutoStartSync(host)
+        val oldStates = mutableListOf<AutoStartSync.State>()
+        val oldObserver = launch(start = CoroutineStart.UNDISPATCHED) { sync.state.toList(oldStates) }
+        val ticket = sync.toggle()
+        val operation = async { sync.apply(ticket) }
+        writeArrived.await()
+        oldObserver.cancelAndJoin()
+        val newObserver = async(start = CoroutineStart.UNDISPATCHED) { sync.state.take(2).toList() }
+        assertEquals(AutoStartSync.State.Pending(ticket.id, true), sync.state.value)
+        assertEquals(false, host.confirmedValue)
+
+        finishWrite.complete(Unit)
+        val settled = AutoStartSync.State.Finished(ticket.id, AutoStartSync.Outcome.Confirmed(true))
+        assertEquals(AutoStartSync.Outcome.Confirmed(true), operation.await())
+        assertEquals(listOf(AutoStartSync.State.Pending(ticket.id, true), settled), newObserver.await())
+        assertEquals(settled, sync.state.value)
+        assertEquals(false, oldStates.any { it is AutoStartSync.State.Finished })
+        assertEquals(true, host.confirmedValue)
+        assertNull(sync.check())
+    }
+
+    @Test
+    fun `while unobserved a failed request retains its result and clears the pending toggle`() = runTest {
+        val host = Host().apply { failWrites = 2 }
+        val sync = AutoStartSync(host)
+        val ticket = sync.toggle()
+        val result = sync.apply(ticket)
+        assertTrue(result is AutoStartSync.Outcome.Failed)
+        assertEquals(AutoStartSync.State.Finished(ticket.id, result), sync.state.value)
+        assertEquals(false, host.confirmedValue)
+        assertEquals(true, sync.toggle().enabled)
+    }
+
+    @Test
+    fun `a return and rapid second tap invert shared pending intent without publishing the old result`() = runTest {
+        val host = Host()
+        val sync = AutoStartSync(host)
+        val first = sync.toggle()
+        val last = sync.toggle()
+        assertEquals(true, first.enabled)
+        assertEquals(false, last.enabled)
+        assertEquals(AutoStartSync.Outcome.Superseded, sync.apply(first))
+        assertEquals(AutoStartSync.State.Pending(last.id, false), sync.state.value)
+        val outcome = sync.apply(last)
+        assertEquals(AutoStartSync.Outcome.Confirmed(false), outcome)
+        assertEquals(AutoStartSync.State.Finished(last.id, outcome), sync.state.value)
+        assertEquals(listOf(false), host.writes)
     }
 
     @Test
