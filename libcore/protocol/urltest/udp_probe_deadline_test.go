@@ -27,7 +27,9 @@ func TestUDPProbeDeadlineClassification(t *testing.T) {
 		stopped       bool
 		outcome       UDPProbeOutcome
 	}{
-		{"in budget", parent, future, false, UDPProbeSkipped},
+		// 没停下时结论 MUST 是零值 UDPProbeUnobserved（不可上报），
+		// MUST NOT 借用 Skipped 之类的业务结论当哨兵。
+		{"in budget", parent, future, false, UDPProbeUnobserved},
 		{"probe budget elapsed", parent, past, true, UDPProbeUnverified},
 		{"round budget elapsed", past, past, true, UDPProbeCanceled},
 		{"parent canceled", canceled, past, true, UDPProbeCanceled},

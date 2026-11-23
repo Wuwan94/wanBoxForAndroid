@@ -4,6 +4,7 @@ package io.nekohasekai.sagernet.bg
 
 import io.nekohasekai.sagernet.BootReceiver
 import io.nekohasekai.sagernet.database.DataStore
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -16,7 +17,13 @@ import kotlinx.coroutines.launch
  * 只有「模块回读确认」之后才写 DataStore 与 BOOT_COMPLETED 接收器。
  */
 object AutoStartSettings {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // 兜底：可预料的失败已经在 AutoStartSync 里收口成可见结果；这里只拦住预料之外的
+    // 异常，别让它冒到默认处理器把进程带走（安卓上未捕获异常 = 崩溃）。
+    private val scope = CoroutineScope(
+        SupervisorJob() + Dispatchers.IO + CoroutineExceptionHandler { _, error ->
+            android.util.Log.e("AutoStartSettings", "autostart sync failed", error)
+        },
+    )
 
     private val sync = AutoStartSync(object : AutoStartSync.Host {
         override suspend fun writeModule(enabled: Boolean) {
@@ -46,6 +53,9 @@ object AutoStartSettings {
         val ticket = sync.toggle()
         scope.launch { sync.apply(ticket) }
     }
+
+    /** 当前视图已经呈现过这条结果：清回 Idle，避免旧失败长期冒充现状。 */
+    internal fun consume(id: Long) = sync.consume(id)
 
     suspend fun check(): AutoStartSync.Check? = sync.check()
 

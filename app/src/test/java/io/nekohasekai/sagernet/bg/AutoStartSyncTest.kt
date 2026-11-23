@@ -3,15 +3,21 @@
 package io.nekohasekai.sagernet.bg
 
 import java.io.IOException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -42,6 +48,12 @@ class AutoStartSyncTest {
         var bootConfigError: String? = null
         var beforeWrite: (suspend () -> Unit)? = null
 
+        /** 落库失败的注入点（磁盘满、Room 损坏）。 */
+        var persistError: Exception? = null
+
+        /** 落库前的挂钩：用来把“写库”卡住，验证点击不会被它拖住。 */
+        var beforePersist: (() -> Unit)? = null
+
         override suspend fun writeModule(enabled: Boolean) {
             beforeWrite?.invoke()
             if (failWrites > 0) {
@@ -67,6 +79,8 @@ class AutoStartSyncTest {
         override fun confirmed(): Boolean = confirmedValue
 
         override fun persist(enabled: Boolean) {
+            beforePersist?.invoke()
+            persistError?.let { throw it }
             confirmedValue = enabled
         }
     }
@@ -282,5 +296,78 @@ class AutoStartSyncTest {
         assertEquals(true, host.moduleValue)
         // 下一次打开设置页会显示“待同步”，而不是假装已经关掉。
         assertEquals(AutoStartSync.Check.Mismatch(true), sync.check())
+    }
+
+    /**
+     * 复审 P2：落库（磁盘满、Room 损坏）抛异常时不能把界面永久停在 Pending，也不能
+     * 让异常冒到应用级作用域把进程带走——必须收口成一条可见的失败。
+     */
+    @Test
+    fun `a failed store write reports a visible failure instead of a permanent pending`() = runTest {
+        val host = Host().apply { persistError = IOException("disk_full") }
+        val sync = AutoStartSync(host)
+        val ticket = sync.toggle()
+        val outcome = sync.apply(ticket)
+        assertEquals(AutoStartSync.Outcome.Failed("disk_full"), outcome)
+        assertEquals(AutoStartSync.State.Finished(ticket.id, outcome), sync.state.value)
+        assertEquals(false, host.confirmedValue)
+    }
+
+    /**
+     * 复审 P2：结果被视图呈现过后必须回到 Idle，否则下次进入设置页会把上一次的失败
+     * 摘要当成现状（第二天也一样）。
+     */
+    @Test
+    fun `a displayed result is consumed and does not outlive its view`() = runTest {
+        val host = Host().apply { failWrites = 2 }
+        val sync = AutoStartSync(host)
+        val ticket = sync.toggle()
+        sync.apply(ticket)
+        assertTrue(sync.state.value is AutoStartSync.State.Finished)
+        sync.consume(ticket.id)
+        assertEquals(AutoStartSync.State.Idle, sync.state.value)
+    }
+
+    /** 只消费自己那条：旧视图的清屏动作不得干掉已经接管的新结果。 */
+    @Test
+    fun `consuming a stale result leaves the current one in place`() = runTest {
+        val host = Host()
+        val sync = AutoStartSync(host)
+        val first = sync.toggle()
+        assertEquals(AutoStartSync.Outcome.Confirmed(true), sync.apply(first))
+        val second = sync.toggle()
+        assertEquals(AutoStartSync.Outcome.Confirmed(false), sync.apply(second))
+        sync.consume(first.id)
+        assertEquals(
+            AutoStartSync.State.Finished(second.id, AutoStartSync.Outcome.Confirmed(false)),
+            sync.state.value,
+        )
+    }
+
+    /**
+     * 复审 P2：落库会做 Room 写与 `setComponentEnabledSetting` 的 IPC，MUST NOT 占着
+     * 登记锁——否则主线程点一下要等 IO 线程把库写完（点击 → 掉帧）。
+     */
+    @Test
+    fun `a tap never waits for the store write an in-flight apply is doing`() = runBlocking<Unit> {
+        val host = Host()
+        val writeEntered = CountDownLatch(1)
+        val releaseWrite = CountDownLatch(1)
+        host.beforePersist = {
+            writeEntered.countDown()
+            releaseWrite.await(5, TimeUnit.SECONDS)
+        }
+        val sync = AutoStartSync(host)
+        val ticket = sync.toggle()
+        val applied = async(Dispatchers.Default) { sync.apply(ticket) }
+        assertTrue("apply never reached the store write", writeEntered.await(5, TimeUnit.SECONDS))
+        val tap = async(Dispatchers.Default) { sync.toggle() }
+        val tapped = try {
+            withTimeoutOrNull(2_000L) { tap.await() }
+        } finally {
+            releaseWrite.countDown()
+        }
+        assertNotNull("a tap must not queue behind the store write", tapped)
+        applied.await()
     }
 }

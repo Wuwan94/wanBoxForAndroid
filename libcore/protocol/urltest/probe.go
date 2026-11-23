@@ -190,7 +190,13 @@ func ProbeOutboundUDP(ctx context.Context, detour adapter.Outbound, target M.Soc
 
 // Check the deadline itself as well as Err: a timer may not have run yet.
 // A round/caller cancellation takes precedence over an individual probe timeout.
-func udpProbeContextOutcome(parent, probe context.Context) (UDPProbeOutcome, bool) {
+//
+// 第二个返回值是「上下文已经停下」这个判断本身：只有它为 true 时，第一个返回值
+// 才是一条可以上报的结论。没停下时结论恒为 UDPProbeUnobserved（枚举零值，语义就是
+// “没有观测到结论”），调用方 MUST 先看 bool 再用 outcome——曾经用 UDPProbeSkipped
+// 当“没停”的哨兵，和“未配置端点/成员不支持 UDP”撞了名，属于会误导下一个用它的
+// 人的接口气味。
+func udpProbeContextOutcome(parent, probe context.Context) (outcome UDPProbeOutcome, stopped bool) {
 	now := time.Now()
 	if udpProbeContextStopped(parent, now) {
 		return UDPProbeCanceled, true
@@ -198,7 +204,7 @@ func udpProbeContextOutcome(parent, probe context.Context) (UDPProbeOutcome, boo
 	if udpProbeContextStopped(probe, now) {
 		return UDPProbeUnverified, true
 	}
-	return UDPProbeSkipped, false
+	return UDPProbeUnobserved, false
 }
 
 func udpProbeContextStopped(ctx context.Context, now time.Time) bool {
