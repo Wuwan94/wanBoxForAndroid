@@ -4,6 +4,13 @@
 
 ## wanBox 3.0.x 发布记录
 
+### v3.0.18-preview.4（预览候选，未发布）
+
+- 候选未发布：收口 v3.0.18-preview.3 发布后合入 main 的三批复审修复——PR #84（合并提交 `00cfeedddc07249cccd8a8344eb1bf7df97d75dc`，5 个文件 +71/−3，`Verify Android Build` run `44898283085` 在 head `c6c6f038` 全绿）、PR #86（合并提交 `2add76212e54c54b6d4dda02b1077ab373352e24`，12 个文件 +535/−147，run `45152559766` 在 head `d6426d10` 全绿）、PR #87（合并提交 `f0f80b92d597a334440c25171648b19b76573b59`，11 个文件 +534/−45，run `45165265102` 在 head `0c1cbba` 全绿；首跑 `45162179175` 红在测试方法返回非 Unit，已用 `runBlocking<Unit>` 修掉）。
+- 内容：UDP 回显探测的回包按来源校验（来源不可核对记 `unverified`，来源不一致或内容不符记 `rejected`），截止判定抽成 `udpProbeContextOutcome`——父上下文取消优先 `canceled`、单探针超时 `unverified`，并在关联、发送、读取后各复核一次；门代次轮内变化时仍删除已 `rejected` 成员的 UDP 证据（代次快照只拦成功观测授予资格）；「导出/一次性测速排除 UDP 探测端点」判定抽成可测函数并补四种组合 JVM 回归；开机自启结果改为 `MutableStateFlow` 发布 `Idle`/`Pending`/`Finished`（不持有 View 或回调），`AutoStartUiGate.accepts(...)` 纯函数门补 8 条用例、`consume(id)` 呈现一次即清、失败在页面有效时 Toast 一次；锁只保护 `sequence` 与内存态，Room 读写与 `setComponentEnabledSetting` 的 IPC 移到锁外，`settle()` 落库异常兜底并补 `CoroutineExceptionHandler`；`udpProbeContextOutcome` 未停止返回值由 `UDPProbeSkipped` 改零值 `UDPProbeUnobserved`，补三条 UDP 迟到合法回包行为级用例与 spec 的来源效力边界。
+- 元数据升为模块 `2039` / APK `10199`（已发布 preview.3 为 `2038` / `10193`）；正式线 `3.0.17 / 2035` 与 `SINGBOX_VERSION` 不变。候选阶段记录，发布后由文档同步 PR 翻转状态并回填 run 号与四件套资产数据。
+- 边界：UDP 探测为本机可控回显端点，非真实代理服务端往返；Root 真机矩阵未执行（CI 自标 `runtime_regression: not_verified`）。
+
 ### v3.0.18-preview.3（已发布预览）
 
 - [GitHub Release v3.0.18-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.3) 由 `Preview Build` run `44882104257` 在 main commit/tag `8881dd1c59481b3d23ab3766fb21e3b651fa1d65`（轻量 tag，PR #83 合并提交，2026-11-21T07:50:34Z）于 2026-11-21T08:13:01Z 发布；tag 对象、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `8881dd1c`，四个作业全绿。PR #83 的 `Verify Android Build` run `44879210932`（head `dbdbf0b`）全绿。

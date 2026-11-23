@@ -1,15 +1,19 @@
 # 发布、源码与版本对照
 
-核对日期：2026-11-21。发布状态以 GitHub Release、tag 与实际下载资产为准；源码元数据本身不构成已发布资产的核验。
+核对日期：2026-11-23。发布状态以 GitHub Release、tag 与实际下载资产为准；源码元数据本身不构成已发布资产的核验。
 
 | 对象 | 版本与状态 | 版本码及来源 |
 |---|---|---|
 | 已发布正式版 | [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17)，非 prerelease（Latest）；由 3.0.17 预览线晋升，升版 PR #75 合并提交 `d4e7c5d049d877660108ea11f7212a9f04824cd6`，`release.yml` 两阶段发布（候选 run `44474557410` → 正式 run `44477065390`，2026-11-19T07:24:49Z 上架） | APK / Root 模块 `10175 / 2035`（源码正式线 `VERSION_NAME=3.0.17`、`VERSION_CODE=2035`）；四件套字节与 SHA-256 见下文 |
 | 已发布预览版 | [v3.0.18-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.3)，prerelease，轻量 tag/commit `8881dd1c59481b3d23ab3766fb21e3b651fa1d65`（PR #83 合并提交，2026-11-21T07:50:34Z）；`Preview Build` run `44882104257`（四作业全绿）于 2026-11-21T08:13:01Z 发布，08:13:09Z prune 删除 `v3.0.18-preview.2` | APK `versionCode=10193` / Root 模块码 `2038`（`PRE_VERSION_NAME=3.0.18-preview.3`、`PRE_VERSION_CODE=2038`）；四件套字节与 SHA-256 见下文 |
 | 上一正式版 | [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14)，非 prerelease，保留；tag `fa9a9194ff89834e574640a0ec8e0d5d973cc024` | APK / Root 模块 `10130 / 2026`（历史资产核验记录，归档语境） |
-| 源码预览线 | `3.0.18-preview.3`（与已发布预览同值；`nb4a.properties` 未再次升版，下一预览升版前保持该值，升版时需同时把 `PREVIEW_NOTES.md` 当前区段改回候选） | `PRE_VERSION_NAME=3.0.18-preview.3`、`PRE_VERSION_CODE=2038`；共享向量计算 APK `versionCode=10193`、Root 模块码 `2038`；`main` 另含 PR #84（`00cfeed`）的发布后修复，未进入本版二进制 |
+| 源码预览线 | `3.0.18-preview.4`（升版后的**未发布候选**，尚无 tag/Release；与上一行已发布预览已分离） | `PRE_VERSION_NAME=3.0.18-preview.4`、`PRE_VERSION_CODE=2039`；共享向量计算 APK `versionCode=10199`、Root 模块码 `2039`，均高于已发布 preview.3 的 `10193` / `2038` |
 
-源码元数据正式线为 `VERSION_NAME=3.0.17`、`VERSION_CODE=2035`；预览线 `3.0.18-preview.3 / 2038` 已于 2026-11-21T08:13:01Z 作为稳定性预览发布，tag 与发布二进制同为 `8881dd1c`，派生 APK `10193`、模块 `2038`（上一预览 preview.2 为 `10187 / 2037`）。本次发布触发 `prune_prereleases.py`，`v3.0.18-preview.2` 的 Release/tag 已在 08:13:09Z 删除（现返回 404）；正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 未受影响。`SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变。发布后 `main` 另合入 PR #84 的两项复审修复（合并提交 `00cfeedddc07249cccd8a8344eb1bf7df97d75dc`，head `c6c6f038`，`Verify Android Build` run `44898283085` 全绿，2026-11-21T12:16:42Z），这两项修复不在已发布二进制中，随下一预览发布。
+源码元数据正式线为 `VERSION_NAME=3.0.17`、`VERSION_CODE=2035`；预览线 `3.0.18-preview.3 / 2038` 已于 2026-11-21T08:13:01Z 作为稳定性预览发布，tag 与发布二进制同为 `8881dd1c`，派生 APK `10193`、模块 `2038`（上一预览 preview.2 为 `10187 / 2037`）。本次发布触发 `prune_prereleases.py`，`v3.0.18-preview.2` 的 Release/tag 已在 08:13:09Z 删除（现返回 404）；正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 未受影响。`SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变。
+
+预览线已由已发布的 `3.0.18-preview.3 / 2038`（2026-11-21T08:13:01Z，tag 与发布二进制同为 `8881dd1c`）前移到 `3.0.18-preview.4 / 2039`，状态为**未发布候选**，派生 APK `10199`、模块 `2039`；候选发布后由文档同步 PR 翻转本表并回填 run 号与四件套数据。preview.3 之后 `main` 依次合入三批复审修复：PR #84（合并提交 `00cfeedddc07249cccd8a8344eb1bf7df97d75dc`，head `c6c6f038`，`Verify Android Build` run `44898283085` 全绿，2026-11-21T12:16:42Z）、PR #86（合并提交 `2add76212e54c54b6d4dda02b1077ab373352e24`，head `d6426d10`，run `45152559766` 全绿，2026-11-23T10:33:34Z）、PR #87（合并提交 `f0f80b92d597a334440c25171648b19b76573b59`，head `0c1cbba`，run `45165265102` 全绿，2026-11-23T11:57:32Z），三者均不在已发布 preview.3 的二进制中，随 preview.4 发布。
+
+候选内容（v3.0.18-preview.4）：UDP 回显探测的回包按来源校验（来源不可核对记 `unverified`，来源不一致或内容不符记 `rejected`），截止判定抽成 `udpProbeContextOutcome`——父上下文取消优先 `canceled`、单探针超时 `unverified`，并在关联/发送/读取后各复核一次（PR #86）；门代次轮内变化时仍删除已 `rejected` 成员的 UDP 证据，「导出/一次性测速排除探测端点」判定抽成可测函数并补四种组合 JVM 回归（PR #84）；开机自启结果改为 `MutableStateFlow` 发布 `Idle`/`Pending`/`Finished`、`AutoStartUiGate.accepts(...)` 纯函数门补 8 条用例、`consume(id)` 呈现一次即清、失败在页面有效时 Toast 一次，锁只保护 `sequence` 与内存态（Room 读写与 IPC 移到锁外）、`settle()` 落库异常兜底与 `CoroutineExceptionHandler`（PR #86 + #87）；`udpProbeContextOutcome` 未停止返回值改零值 `UDPProbeUnobserved`，补三条 UDP 迟到合法回包行为级用例与 spec 来源效力边界（PR #87）。候选尚未发布，四件套字节与 SHA-256 待发布后回填。
 
 v3.0.17 晋升内容：3.0.17 预览线（preview.1–.4）的全量变更 —— OwnBox 移植 B1–B4/B7a–c（含 O9a 落地 IP 缓存按实际在跑节点失效）、NetProxy 线 B5/B6/N6/B8、preview.3 的 URLTest 预算到期回切与诊断包 Android 12+ 读取、preview.4 的层级回切门与过期候选兜底，以及 PR #74 的分层向下容灾与回切门新观测计数；逐版记录见 [CHANGELOG.md](../CHANGELOG.md)。
 
