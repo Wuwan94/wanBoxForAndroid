@@ -1,127 +1,91 @@
-# v3.0.18-preview.3 发行说明
+# v3.0.18-preview.4 发行说明（候选）
 
-**状态：已发布的稳定性预览版。**
+**状态：未发布的稳定性预览版候选。**
 
-本版收口 `v3.0.18-preview.2` 复审提出的四项缺陷（PR #83，合并提交 `8881dd1c59481b3d23ab3766fb21e3b651fa1d65`，2026-11-21T07:50:34Z，25 个文件 +332/−78，`Verify Android Build` run `44879210932` 在 head `dbdbf0b` 全绿）。正式线 `3.0.17 / 2035`（APK `10175`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 均未变；预览元数据升为 `3.0.18-preview.3 / 2038`，派生 APK `versionCode=10193`、Root 模块码 `2038`，均高于已发布 preview.2 的 `10187 / 2037`，已装 preview.2 的用户可同时收到 APK 与模块更新。
+本版收口 `v3.0.18-preview.3` 发布后合入 `main` 的三批复审修复：UDP 回显探测改为按来源校验回包并在截止判定上区分「取消」与「超时」（PR #86，合并提交 `2add76212e54c54b6d4dda02b1077ab373352e24`，12 个文件 +535/−147）、门代次在轮内变化时仍删除已明确失败成员的 UDP 证据并给「导出/一次性测速排除探测端点」补回归（PR #84，合并提交 `00cfeedddc07249cccd8a8344eb1bf7df97d75dc`，5 个文件 +71/−3）、开机自启结果改为可重放且只呈现一次、锁粒度收窄与异常兜底、UDP 迟到合法回包补行为级用例（PR #87，合并提交 `f0f80b92d597a334440c25171648b19b76573b59`，11 个文件 +534/−45）。正式线 `3.0.17 / 2035`（APK `10175`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 均未变；预览元数据升为 `3.0.18-preview.4 / 2039`，派生 APK `versionCode=10199`、Root 模块码 `2039`，均高于已发布 preview.3 的 `10193 / 2038`，已装 preview.3 的用户可同时收到 APK 与模块更新。本条目在候选阶段写定；发布后由文档同步 PR 回填 run 号、四件套实测字节与 SHA-256，并把状态翻为「已发布」。
 
-本版基于 `main` 的 `8881dd1c59481b3d23ab3766fb21e3b651fa1d65`（PR #83 合并提交，轻量 tag），`Preview Build` run `44882104257` 的四个作业（`Native Build (LibCore)`、`Build OSS APK`、`Candidate cold-start measurement (emulator only)`、`Publish Preview Release`）全部成功，于 2026-11-21T08:13:01Z 上架（prerelease，发布 job 断言 `APPROVED_SHA=8881dd1c` 并回读 tag）。发布后 `prune_prereleases.py` 在 08:13:09Z 删除了 `v3.0.18-preview.2` 的 Release/tag（现为 404），正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 保留。同一 run 的构建作业还顺手清掉两个远古残留（`v3.0.10-preview.1` 与孤立 tag `v3.0.10-preview.24`），与本次预览无关。
+## ✦ 与上一版对比
 
-## 本版修复
-
-- 在「设置 → 连接与核心 → UDP 回显端点」填写自行控制的数字 IP 与端口、重新应用配置后，各优先级层的子组会独立执行 UDP 回显验证。默认留空即零流量（fail-closed），不会向任何默认第三方端点发包；不支持 UDP 回显的服务不能作为端点。
-- 仅支持 UDP 的上层成员可凭有效 UDP 回显进入候选，不再依赖 TCP 延迟记录。回切仍要求连续三轮有效的新观测和至少 60 秒无失败；TCP 和 UDP 的记录互不替代。
-- 首次应用配置前，模块状态也会回读已经保存的开机自启设置。没有有效配置时不会启动核心；损坏配置仍按不可用处理。
-- 开机自启等待确认期间，连续点击按最后一次选择处理，旧回调不会覆盖新选择。
-
-## 安装与验证边界
-
-适用于 arm64-v8a；APK 版本码为 `10193`，Root 模块版本码为 `2038`，均高于 preview.2（`10187 / 2037`）。正式版 `v3.0.17` 和锁定的 sing-box 版本不变。APK、普通 Root 模块、独立 Root 模块及 `SHA256SUMS` 随预览发布；按需选择模块，不要同时安装两种模块。
-
-回归覆盖本地 UDP 回显和自启配置/请求顺序；本次未执行真实代理服务端 UDP 往返或 Root 真机重启验证。
-
-| 文件 | 字节 | SHA-256 |
-|---|---:|---|
-| `wanBoxForAndroid-3.0.18-preview.3-arm64-v8a-release.apk` | 6,374,839 | `e78327338864e49a4048e9a58a64e78a002db322cef9be67e3383a86af893507` |
-| `wanbox-root-module-arm64-v8a.zip` | 18,149,655 | `1fbfc62ab3751644fafc5f57cd511c3413b8f6b40e3ee621d755ae0fc1bdc280` |
-| `wanbox-root-module-with-manager-arm64-v8a.zip` | 23,797,772 | `2fe93950bfd952f1f70ee5102129a36815ce141d1e8a477dea0ff0e7c888c80d` |
-| `SHA256SUMS` | 333 | `2a6b50f34602ab0ac418cec445280dfded44bc09263ee7dd1df9656e74296343` |
-
-APK 与普通 Root 模块合计 `24,524,494` 字节（23.39 MiB），上限 `27,262,976` 字节（26 MiB），余量 `2,738,482` 字节（2.61 MiB）→ `size_budget --enforce-limit` PASS；带管理器合一包 22.70 MiB。发布后本地重下四件套复核：`sha256sum -c SHA256SUMS` 三件 OK，两个 ZIP `zipfile.testzip()` 无损坏；APK 解析为 `versionCode=10193` / `versionName=3.0.18-preview.3`、`lib/` 条目 0 个；模块 `module.prop` 为 `3.0.18-preview.3 / 2038`；合一包内 `manager.apk` 与外部 APK 逐字节相同；`version-control-info.textproto` 的 `revision`、tag、`targetCommitish` 与发布 job 的 `APPROVED_SHA` 四处同为 `8881dd1c59481b3d23ab3766fb21e3b651fa1d65`。证书 SHA-256 `80ecee1c42d861d59cdc460447335fc4bfdf80103d6225a17c1bdf83a33521f6`（与 v3.0.14 / v3.0.17 同一张，可同包名覆盖安装；签名由 CI G7 断言，本机无 `apksigner` 未独立复验）。
-
-## 发布后状态
-
-`main` 在本版发布后另合入 PR #84（合并提交 `00cfeedddc07249cccd8a8344eb1bf7df97d75dc`，head `c6c6f038`，`Verify Android Build` run `44898283085` 全绿，2026-11-21T12:16:42Z）：门代次在轮内变化时仍删除已明确失败成员的 UDP 证据（失败删除不再被代次变化整段跳过），并把「导出/一次性测速排除 UDP 探测端点」的判定抽成可测函数、补四种组合的 JVM 回归。**这两项不在本版二进制中**，随下一预览发布；`nb4a.properties` 仍是 `3.0.18-preview.3 / 2038`，下一预览升版前源码线不前进。
-
-## 历史归档
-
-### v3.0.18-preview.2 已发布说明
-
-**状态：已发布的稳定性预览版。**
-
-本版收口 `v3.0.18-preview.1` 源码复审与代码复审提出的六项缺陷（PR #80，合并提交 `ad032285b3ff181677ed6c0ea9c88a7bb4e482a6`，2026-11-20T10:53:47Z，22 个文件 +2887/−167）：URLTest 观测按（成员, 网络）分账、UDP 探测只认真实往返回显、降级即作废旧回切资格、组关闭停拨备用、开机自启「下发 → 回读 → 落库」闭环、`boot.json` 不可用时状态与 `Boot()` 同口径。正式线 `3.0.17 / 2035`（APK `10175`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 均未变；预览元数据升为 `3.0.18-preview.2 / 2037`，派生 APK `versionCode=10187`、Root 模块码 `2037`，均高于已发布 preview.1 的 `10181 / 2036`，已装 preview.1 的用户可同时收到 APK 与模块更新。
-
-本版基于 `main` 的 `e7f1f9366316974d8318e8708dcaaa669bc896a0`（升版 PR #81 合并提交，轻量 tag），`Preview Build` run `44728368529` 的四个作业（`Native Build (LibCore)`、`Build OSS APK`、`Candidate cold-start measurement (emulator only)`、`Publish Preview Release`）全部成功，于 2026-11-20T11:51:54Z 上架（prerelease，发布 job 断言 `APPROVED_SHA=e7f1f936` 并回读 tag）。发布后 `prune_prereleases.py` 在 11:52:04Z 删除了 `v3.0.18-preview.1` 的 Release/tag（现为 404），正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 保留。本版自身的 Release/tag 已在 `v3.0.18-preview.3` 发布后（2026-11-21T08:13:09Z）按单预览策略清理（现为 404）。
-
-#### ✦ 与上一版对比
-
-| 项目 | v3.0.18-preview.1 | v3.0.18-preview.2 |
+| 项目 | v3.0.18-preview.3 | v3.0.18-preview.4（候选） |
 |---|---|---|
-| 内容 | 层级状态按 TCP/UDP 拆分；App UI 对齐模块功能（自启/重启核心/配置回滚/模块版本） | 观测按（成员, 网络）分账、UDP 只认真实回显、降级作废旧回切资格、组关闭停拨备用；开机自启下发→回读→落库闭环、`boot.json` 三态 |
-| APK `versionCode` | 10181 | 10187 |
-| Root 模块码 | 2036 | 2037 |
+| 内容 | UDP 回显端点设置入口；UDP-only 上层成员凭回显进候选；首次应用配置前回读自启设置 | UDP 回包按来源校验、截止判定先认取消；门代次变化仍删失败证据；自启结果可重放且只消费一次、锁外做 Room/IPC；UDP 迟到回包用例 |
+| APK `versionCode` | 10193 | 10199 |
+| Root 模块码 | 2038 | 2039 |
 
 URLTest 稳定性约束（检测间隔 ≥ 10 秒、空闲超时 ≥ 30 分钟、切换时不中断现有连接）、`default` 保真、层级回切门（连续 3 轮健康 + 60 秒无失败）本版均未放宽；失败方向仍是 fail-closed——证据不足时停留在当前层级，不回切。
 
-#### ✦ 本版更新
+## ✦ 本版更新
 
-##### 1. urltest：观测按（成员, 网络）分账
+### 1. UDP 回显探测：回包要按来源校验，超时不再冒充成功（PR #86）
 
-- **问题**：preview.1 只把 `currentTier` / `tierGate` 拆开，**一轮探测的观测仍按 tag 记一份**，由双栈成员的两个网络共用。于是 TCP 侧的成功会成为 UDP 侧的回切证据，反过来 TCP 的失败也会清掉 UDP 的连续健康计数——两边的门都读到了不属于自己的证据。
-- **改法**：`urlTestRound` 的观测改为 `tcp` / `udp` 两张表，两层恢复门只读自己那份；缓存跳过的轮次对两个网络各记「跳过」，轮次预算到期或调用方取消记「取消」，都不计入健康轮次；嵌套 URLTest 的聚合 summary 按网络各算一份；单协议成员只对它支持的网络产生观测。
-- **说服力**：旧实现下「双栈成员 TCP 成功 → UDP 门被推到 3」与「TCP 连续失败清掉 UDP 历史」两条黑盒用例在 preview.1 代码上红，本版绿。
+- **问题**：preview.3 的判定只比对回包内容与探测报文是否逐字节相同。直连 UDP 下同一局域网的另一个端点、或任何能把同内容数据报送到本机 socket 的路径，都能伪造「目标回显」；反过来，回包与探针 deadline 同时就绪时 `select` 不保证先看 deadline，迟到的回包会被记成成功。另外 `err != nil` 时只看 `ctx` 与「静默」分类，`probeCtx` 已到期但取消回调尚未关闭连接的窗口会把结果归错类。
+- **改法**：`ReadFrom` 的来源必须能解析成 `IP:port` 且与配置目标一致，否则：来源不可核对（`nil`、只有 IP 没有端口、域名）记 `unverified`（中性），来源不一致或内容不符记 `rejected`（清零并盖失败戳）。截止判定抽成 `udpProbeContextOutcome`——父上下文取消优先记 `canceled`，单探针超时记 `unverified`，并在 `ListenPacket`、`WriteTo`、`ReadFrom` 之后各复核一次，覆盖「timer 还没触发」的窗口；`udpProbeContextStopped` 同时看 `Err()` 与 `Deadline()`。
+- **证据**：新增 `udp_probe_source_test.go` 5 条（同内容错误来源被拒、来源不可核对为未知、来源与内容都匹配仍成功、错误来源永不推进 UDP 回切门、v4/v6 地址族比对）与 `udp_probe_deadline_test.go` 的 `TestUDPProbeDeadlineClassification`；`udp_probe_evidence_test.go` 增至 14 条。
 
-##### 2. UDP 探测只认真实往返回显
+### 2. 门代次轮内变化时仍删除已失败成员的 UDP 证据（PR #84）
 
-- **问题**：`ProbeOutboundUDP` 原来只 `ListenPacket` 再 `Close` 就算成功。VMess/VLESS/Trojan/XUDP 都是 early packet conn，会话在首次写入才建立——建得起来既不证明服务端接受会话，也不证明数据报能往返，UDP 恢复门可能凭伪证据提前回切。
-- **改法**：发一条探测数据报，**只有收到目标原样回显才 `verified`**；首次写入失败/关联失败/回包不符为 `rejected`（清零并盖失败戳）；无有效响应（静默丢弃、超时、空包）为 `unverified`（中性，既不涨也不清零）；未配置端点或成员不支持 UDP 为 `skipped`（零流量）；取消为 `canceled`。单一成员只发一条、只读一次、不重试，超时缺省 3 秒且不超过整轮 5 秒预算，取消即关闭连接叫醒阻塞读。
-- **探测目标**：只来自用户配置 `URLTestOptions.udp_probe`（`server` 必须 `IP:port`、`payload` ≤ 512 B、`timeout` ≤ 5 秒），不默认任何第三方探测服务、不加合成 DNS 查询。
-- **已知限制（preview.2 当时）**：该版 UDP 探测一律 `skipped`、不产生流量，UDP 回切只等真往返证据；低层不再健康时既有兜底仍会把上层选回，因此不会永久锁死。自管端点的入口在 preview.3 才落地：『设置 → 连接与核心 → UDP 回显端点』，默认留空即零流量（fail-closed）。
+- **问题**：preview.3 的「失败删除」整段被门代次快照判断包住。同一轮里若先有成员失败、随后降级使门代次递增（`epoch` 变化），这段删除被整段跳过——失败成员的旧证据留在新代次里，下一次回切仍可能拿它当依据。
+- **改法**：代次快照只拦住「成功观测授予回切资格」，不拦失败删除；已明确失败（`rejected`）的成员在本轮收尾一律清掉其 UDP 证据，代次是否变化不影响。
+- **证据**：`udp_probe_evidence_test.go` 新增用例覆盖「轮内降级后再败一次」的路径。
 
-##### 3. 降级后旧回切资格立刻作废
+### 3. 「导出/一次性测速排除 UDP 探测端点」可测化（PR #84）
 
-- **问题**：一次故障转移把生效层降下去之后，更高层此前攒下的连续健康计数仍在，下一轮就能凭旧资格直接切回刚失败的层——回切门的迟滞被绕过。
-- **改法**：`promoteFailover` 在同一把写锁内清空失败层并重盖失败戳、所有更高层的连续健康计数作废、`currentTier` 只下移，且只作用于被拨的那个网络；每次作废递增门代次（`epoch`），轮次开始时快照代次、收尾时若代次已变，该轮的成功观测不再授予回切资格（失败仍如实清零）。
+- **改法**：`ConfigBuilder` 里对 UDP 探测端点（`url-test` 组外的探测目标）的排除判定抽成 `UrlTestUdpProbe` 里的纯函数，导出配置与一次性测速共用同一份规则，不再各自内联。
+- **证据**：`ConfigBuilderLoadBalanceTest` 补四种组合的 JVM 回归（有无探测配置 × 是否导出/测速），避免「测速把探测端点当成节点」与「导出配置把端点写进节点列表」两处回退。
 
-##### 4. 组关闭后不再拨备用节点
+### 4. 开机自启结果可重放，页面只呈现一次（PR #86 + PR #87）
 
-- **问题**：用户关掉代理组之后，容灾序列仍会继续发起备用拨号，并把迟到的连接交给一个已经关闭的组。
-- **改法**：`DialContext` / `ListenPacket` 的整个容灾序列绑定组生命周期（`bindGroupLifecycle`），组一 `Close` 就取消在途尝试（含 3 秒单步超时窗口），备用循环不再发起任何新拨号；迟到的连接与 `PacketConn` 统一经 `wrapConn` / `wrapPacketConn`，组已关闭则关闭释放并返回统一错误。
+- **问题**：preview.3 的自启同步把结果直接回调给发起点击的那个页面实例。用户点完立刻离开或转屏重建，结果没有接收者；反过来「切开关失败后离开，第二天再进来仍显示上次的失败摘要」，因为失败状态没有一个「呈现过就清掉」的出口。
+- **改法**：`AutoStartSync` 用 `MutableStateFlow` 发布 `Idle` / `Pending` / `Finished`，状态里不持有任何 View 或回调引用；设置页以 `repeatOnLifecycle(STARTED)` 收集，重开页面能看到在途状态与最近结果。PR #87 再把「能不能呈现」抽成纯函数 `AutoStartUiGate.accepts(...)`（已挂载、视图存在、宿主未 finishing、未 destroyed、视图 ≥ STARTED、状态仍是最新发布），Fragment 只做取参转调；`consume(id)` 让结果呈现一次后回到 `Idle`，且只消费匹配 id 的结果；失败在页面有效时用 Toast 提示一次，摘要随后回到当场回读的真相（不一致、配置损坏仍照常显示）。
+- **证据**：`AutoStartSyncUiGateTest` 新增 8 条 JVM 用例（分离、视图销毁、Activity finishing、Activity 销毁、视图低于 STARTED、结果过期各一条，另有放行与 pending 重放两条，防止把门写成恒 `false` 也能过关）；`AutoStartSyncTest` 由 12 条增至 20 条。
 
-##### 5. 开机自启「下发 → 回读 → 落库」闭环
+### 5. 自启落库锁粒度收窄与异常兜底（PR #87）
 
-- **问题**：开关只即时下发、不等确认就落库，失败看起来和成功一样；`BootReceiver` 与模块 `boot.json` 各自为政，回设置页看到的也不一定是模块真正生效的值。
-- **改法**：模块 `State` 新增只读 `autoStart`（`boot.json` 生效值），停止态也能下发与回读；App 新增 `AutoStartSync`（纯 Kotlin，可注入 Host）与 `AutoStartSettings` 装配——下发后必须回读确认才写 DataStore 与 `BOOT_COMPLETED` 接收器；失败、超时、结果未知重试一次，仍失败保持原值、回滚开关显示并给中文提示；快速连续切换由最后一次选择落地，旧请求的迟到结果只能 `Superseded`；返回设置页回读比对，不一致显示「待同步」。开关不再让 Preference 框架直接落库，模块未运行时不会被擅自启动。
+- **问题**：登记锁原来包住 `host.confirmed()` 的 Room 读、`persist()` 的 Room 写和 `setComponentEnabledSetting` 的 IPC。Room 写事务被卡住时，用户下一次点开关只能排在写事务后面；落库抛异常还会让界面永久停在 Pending。
+- **改法**：锁只保护 `sequence` 与内存态，Room 读写与 IPC 全部移到锁外，`StateFlow` 改用原子更新发布；`settle()` 把落库与结果发布纳入 `try/catch`，落库异常时发布可见失败并保持原值；应用级作用域补 `CoroutineExceptionHandler` 兜底。
+- **证据**：新增 4 条单测，其中「把写库卡住、另起线程点开关」在旧实现下必红（点击排在写事务后面）。
 
-##### 6. `boot.json` 不可用时状态与 `Boot()` 同口径
+### 6. UDP 迟到合法回包与哨兵语义（PR #87）
 
-- **问题**：`boot.json` 损坏时状态页显示「已开启」，`Boot()` 却拒绝启动——两边读法不一致，用户看到的是一个不存在的「已生效」。
-- **改法**：新增 `bootSettingsFor`，`Status()` 与 `Boot()` 共用一种读法——文件不存在回落最近快照（`autoStartSource=snapshot`）；格式损坏、空文件、缺字段、字段类型无效为 `boot_settings_invalid`；权限或 I/O 错误为 `boot_settings_unreadable`。后几种 `autoStart` 为 `null` 并附 `autoStartError`，不再拿快照冒充生效值，`Boot()` 用同一错误码拒绝启动且不改写、不删除坏文件。`SetAutoStart` 仍是原子写，并成为唯一修复路径（重写前若读到不可用状态记 `boot_settings_rewritten`）。App 侧把回读改为三态（Value / Unavailable / Unsupported），配置损坏按失败处理不落库，设置页区分「待同步」与「待处理」。
+- **问题**：上下文结束时「未停止」的返回值借用 `UDPProbeSkipped`，与「未配置端点 / 成员不支持 UDP」撞名，调用方容易把「本轮没结论」读成「本成员不参与」；另外「上下文结束后才到的合法回包」只有一个静态断言，没有行为级用例。
+- **改法**：`udpProbeContextOutcome` 的「未停止」返回值改为零值 `UDPProbeUnobserved`，调用方仍须先看 `stopped`；新增 `udp_probe_late_reply_test.go` 三条行为级用例（fixture 让 `ReadFrom` 阻塞到上下文结束，再交出逐字节相同、来源合法的回包）：`TestUDPProbeLateValidReplyIsNotVerified`、`TestUDPProbeReplyAfterCallerCancellationIsCanceled`、`TestUDPLateValidReplyNeverAdvancesTheGate`。
+- **口径**：`openspec/specs/libcore-integration/spec.md` 给来源校验写明效力边界——early conn / mux / UoT / XUDP / packetaddr 返回的是配置目标或服务端看到的源，只能证明内容回显，不得被引用为身份认证证据。
 
-##### 7. 版本与文档口径
+### 7. 版本与文档口径
 
-`nb4a.properties` 预览线为 `3.0.18-preview.2` / `2037`；正式线 `3.0.17 / 2035` 与 sing-box pin 未变。当前版本文档一致性检查已回到「已发布 preview.2 即源码预览」的单态口径。
+`nb4a.properties` 预览线升为 `3.0.18-preview.4` / `2039`；正式线 `3.0.17 / 2035` 与 sing-box pin 未变。当前版本文档一致性检查改为「已发布 preview.3 + 未发布 preview.4 候选」的双态口径。
 
-#### ✦ 资产与安装
-
-| 文件 | 字节 | SHA-256 |
-|---|---:|---|
-| `wanBoxForAndroid-3.0.18-preview.2-arm64-v8a-release.apk` | 6,371,663 | `2ecd6d9301b5e8240bd442a018bb4d64ae052fa4ac4ee1549e7af29217b8666b` |
-| `wanbox-root-module-arm64-v8a.zip` | 18,149,031 | `b191ff8923f8ad8101337993e63fcd122e5ef002faa7e67d5a70096cfc07be3b` |
-| `wanbox-root-module-with-manager-arm64-v8a.zip` | 23,794,995 | `96055b461db23ec094c20ec54b5861b4b694e2ede1a95b503612664da3072295` |
-| `SHA256SUMS` | 333 | `b199faa8bde14695dbe3a741a6c1aab773db759b278ea41d7d214c532110d5be` |
-
-APK 与普通 Root 模块合计 `24,520,694` 字节（23.38 MiB），上限 `27,262,976` 字节（26 MiB），余量 `2,742,282` 字节（2.62 MiB）→ `size_budget --enforce-limit` PASS；带管理器合一包 22.69 MiB。瘦管理器无 `lib/` 条目，`versionName=3.0.18-preview.2` / `versionCode=10187`；模块 `version=3.0.18-preview.2` / `versionCode=2037`；证书 SHA-256 `80ecee1c42d861d59cdc460447335fc4bfdf80103d6225a17c1bdf83a33521f6`（与 v3.0.14 / v3.0.17 同一张，可同包名覆盖安装）。
+## ✦ 资产与安装
 
 - **运行要求**：Android 12+（API 31+）、arm64-v8a、Magisk / KernelSU / APatch 等 Root 环境。
+- **候选阶段**：本候选由 `chore/release-v3.0.18-preview.4` 升版后的 `Preview Build` 产出，四件套实测字节与 SHA-256 在发布后由文档同步 PR 回填本节。
 - **成套同版**：管理器 APK 与 Root 模块必须来自同一 Release；严禁跨 Release 混用。
 - **回退**：换回正式版 [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17) 的 APK 与配套模块（模块码 `2035`）成套重装。
-- **升级**：APK 由 `10181` 升到 `10187`、模块由 `2036` 升到 `2037`，严格递增且同签名，可直接覆盖安装。
+- **升级**：APK 由 `10193` 升到 `10199`、模块由 `2038` 升到 `2039`，严格递增且同签名，可直接覆盖安装。
 
-#### 🛡️ 验证与边界
+## 🛡️ 验证与边界
 
-- **RED → GREEN**：四条黑盒用例在 preview.1 的线上代码上先红——「UDP 门被 TCP 成功推到 3」「一次关联（无任何回包）被记成 UDP 成功」「降级后立刻回切 T1」「关闭组仍拨备用并交出连接」——修复后全绿，并作为回归用例留在仓库（`udp_probe_evidence_test.go` 12 条、`review_20261120_test.go`、`rootmodule` 的 boot 契约 4 条与 `red_review_boot_test.go`，`AutoStartSyncTest` 增至 12 条）。
-- **PR 门禁**：PR #80 的 `Verify Android Build` run `44717598549`（head `58ed0c7`）全绿——`Build LibCore` 内 `go test -race`、`go vet`、Python 工具 125 项、`rootmodule` 28 项与文档门禁通过，`Build Android Debug APK` 的 JVM 单测与插桩通过。升版 PR #81 的 run `44723295827` 首跑红在 plugins.gradle.org 解析 `kotlin-gradle-plugin:2.0.21` 瞬时不可用（失败在发布断言之前，未创建 tag/Release），`gh run rerun --failed` 后全绿。
-- **发布门禁**：`Preview Build` run `44728368529` 四个 job 全绿，发布 job 断言 `APPROVED_SHA=e7f1f936` 并回读 tag；`prune_prereleases.py --keep-tag v3.0.18-preview.2` 在 11:52:04Z 删除了 preview.1 的 Release/tag。
-- **四件套复核**：本地 `sha256sum -c SHA256SUMS` 三件 OK，两个 ZIP `zipfile -t` 无损坏；合一包内 `manager.apk` 与外部 APK 逐字节相同；`version-control-info.textproto` 的 `revision` 与 tag 对象、`targetCommitish`、`APPROVED_SHA` 四处同为 `e7f1f9366316974d8318e8708dcaaa669bc896a0`。
-- **未验证边界**：未执行 Magisk / KernelSU / APatch 真机矩阵（CI 自标 `runtime_regression: not_verified`）；UDP 探测用的是本机可控回显端点，**不是真实代理服务端往返**，真实 VMess/VLESS/Trojan 的 UDP 往返未做端到端验证；该版 UDP 探测默认 `skipped`、不产生流量，自管端点的入口在 preview.3 才落地（『设置 → 连接与核心 → UDP 回显端点』，默认留空即零流量，fail-closed）；真机上 `boot.json` 的权限与开机行为未验证。任何自动化结果都不代替真机验证，本版不晋升正式版。
+- **PR 门禁**：PR #84 的 `Verify Android Build` run `44898283085`（head `c6c6f038`）全绿；PR #86 的 run `45152559766`（head `d6426d10`）全绿；PR #87 的 run `45165265102`（head `0c1cbba`）全绿（其首跑 `45162179175` 红在阻塞写库用例的 `runBlocking { }` 让测试方法返回了非 Unit，已用 `runBlocking<Unit>` 修掉）。三者均含 `go test -race`、`go vet`、Python 工具 125 项、`rootmodule` 测试与文档门禁、JVM 单测与插桩。
+- **新增回归**：`udp_probe_source_test.go` 5 条、`udp_probe_deadline_test.go` 1 条、`udp_probe_late_reply_test.go` 3 条、`udp_probe_evidence_test.go` 增至 14 条；`AutoStartSyncTest` 增至 20 条、`AutoStartSyncUiGateTest` 8 条。
+- **未验证边界**：未执行 Magisk / KernelSU / APatch 真机矩阵（CI 自标 `runtime_regression: not_verified`）；UDP 探测用的是本机可控回显端点，**不是真实代理服务端往返**，真实 VMess/VLESS/Trojan 的 UDP 往返未做端到端验证；真机上 `boot.json` 的权限与开机行为未验证。任何自动化结果都不代替真机验证，本版不晋升正式版。
 
 ---
 
+## 历史归档
+
+### v3.0.18-preview.3 已发布说明
+
+**状态：已发布的稳定性预览版。**
+
+本版收口 `v3.0.18-preview.2` 复审提出的四项缺陷（PR #83，合并提交 `8881dd1c59481b3d23ab3766fb21e3b651fa1d65`，25 个文件 +332/−78，`Verify Android Build` run `44879210932` 在 head `dbdbf0b` 全绿）。预览元数据 `3.0.18-preview.3 / 2038`，派生 APK `versionCode=10193`、Root 模块码 `2038`。`Preview Build` run `44882104257` 四作业全绿，2026-11-21T08:13:01Z 上架（prerelease，发布 job 断言 `APPROVED_SHA=8881dd1c` 并回读 tag）；08:13:09Z 由 `prune_prereleases.py` 清理 `v3.0.18-preview.2`，正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 保留。内容：「设置 → 连接与核心 → UDP 回显端点」可填自管数字 IP 与端口（默认留空即零流量，fail-closed），各优先级层子组独立执行 UDP 回显验证；仅支持 UDP 的上层成员凭有效回显进入候选，不再依赖 TCP 延迟记录（回切仍要连续三轮新观测 + 60 秒无失败）；首次应用配置前也回读已保存的开机自启设置；自启等待确认期间连点按最后一次选择落地。四件套：APK `6374839` B / `e7832733…893507`、普通 Root ZIP `18149655` B / `1fbfc62a…bdc280`、合一 ZIP `23797772` B / `2fe93950…88c80d`、`SHA256SUMS` `333` B，APK + 普通模块 `24524494` 字节（23.39 MiB）→ `size_budget --enforce-limit` PASS。本版自身的 Release/tag 将在 `v3.0.18-preview.4` 发布时按单预览策略清理。
+
+### v3.0.18-preview.2 已发布说明
+
+[v3.0.18-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.2) 以 main `e7f1f9366316974d8318e8708dcaaa669bc896a0`（升版 PR #81 合并提交，轻量 tag）发布，`Preview Build` run `44728368529` 四作业全绿、2026-11-20T11:51:54Z 上架；预览元数据 `2037`，APK `10187` / 模块 `2037`。内容为收口 preview.1 六项缺陷（PR #80）：URLTest 观测按（成员, 网络）分账、UDP 探测只认真实往返回显、降级即作废旧回切资格、组关闭停拨备用、开机自启「下发 → 回读 → 落库」闭环、`boot.json` 不可用时状态与 `Boot()` 同口径。已知边界：该版 UDP 探测默认零流量，自管端点入口到 preview.3 才落地。其 Release/tag 已在 preview.3 发布后（2026-11-21T08:13:09Z）清理。
+
 ### v3.0.18-preview.1 已发布说明
 
-**状态：已作为稳定性预览版发布（2026-11-19T11:55:25Z）。**
-
-[v3.0.18-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.1) 以 main 的 `0a30baaf939a97b1941210609ce377e00d386157`（轻量 tag）发布，`Preview Build` run `44516333684` 四个作业全绿（发布 job 断言 `APPROVED_SHA=0a30baaf`）；预览元数据 `2036`，APK `10181` / 模块 `2036`。内容为 PR #77（`currentTier` / `tierGate` 按 TCP/UDP 拆分，消除跨协议污染）与 PR #78（App UI 对齐模块功能：开机自启开关、重启核心、回滚配置、顶栏模块版本）。已知边界：一次探测的观测仍按 tag 共享、嵌套组聚合 summary 与网络无关，两个新 UI 入口无自动化覆盖。`0a30baa` 是 `preview.yml` 的热修直推提交，没有单独的 `Verify Android Build` 记录，其代码树与已全绿的 `4a8ab9b` 相同。本版 Release 已于 11:52:04Z 在 `v3.0.18-preview.2` 发布时由 `prune_prereleases.py` 清理（现为 404）。
+[v3.0.18-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.1) 以 main 的 `0a30baaf939a97b1941210609ce377e00d386157`（轻量 tag）发布，`Preview Build` run `44516333684` 四个作业全绿（发布 job 断言 `APPROVED_SHA=0a30baaf`）；预览元数据 `2036`，APK `10181` / 模块 `2036`。内容为 PR #77（`currentTier` / `tierGate` 按 TCP/UDP 拆分，消除跨协议污染）与 PR #78（App UI 对齐模块功能：开机自启开关、重启核心、回滚配置、顶栏模块版本）。已知边界：一次探测的观测仍按 tag 共享、嵌套组聚合 summary 与网络无关，两个新 UI 入口无自动化覆盖。`0a30baa` 是 `preview.yml` 的热修直推提交，没有单独的 `Verify Android Build` 记录，其代码树与已全绿的 `4a8ab9b` 相同。本版 Release 在 `v3.0.18-preview.2` 发布时由 `prune_prereleases.py` 清理。
 
 ### v3.0.17-preview.4 已发布说明
 

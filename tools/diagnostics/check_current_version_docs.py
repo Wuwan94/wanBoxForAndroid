@@ -21,12 +21,13 @@ STABLE_APK_CODE = "10175"
 # 发布触发 prune，上一预览 v3.0.18-preview.2 的 Release/tag 已在 08:13:09Z 删除。
 PUBLISHED_PREVIEW = "v3.0.18-preview.3"
 PUBLISHED_PREVIEW_COMMIT = "8881dd1c59481b3d23ab3766fb21e3b651fa1d65"
-# 发布后源码预览线与已发布预览相同：nb4a.properties 在下一预览升版前仍指向刚发布的
-# preview.3，此时发行说明的当前区段必须按「已发布」写，不能留「未发布候选」。
-SOURCE_PREVIEW = "v3.0.18-preview.3"
-SOURCE_PREVIEW_CODE = "2038"
-# 上一预览的 Release/tag 已在本次发布时清理，只保留历史说明与资产快照。
-ARCHIVED_PREVIEW = "v3.0.18-preview.2"
+# 候选升版：PRE_VERSION_NAME 已前移到 v3.0.18-preview.4（PRE_VERSION_CODE=2039），
+# 源码预览线与已发布预览分离，发行说明的当前区段必须明确写成「未发布候选」，
+# 发布后再由同步 PR 翻回「已发布」并回填 tag 提交与 run 号。
+SOURCE_PREVIEW = "v3.0.18-preview.4"
+SOURCE_PREVIEW_CODE = "2039"
+# 上一预览（刚发布的 preview.3）在本次发布时由 prune 清理，说明移入历史归档。
+ARCHIVED_PREVIEW = "v3.0.18-preview.3"
 HISTORY_MARKER = "历史归档"
 
 FILES = {
