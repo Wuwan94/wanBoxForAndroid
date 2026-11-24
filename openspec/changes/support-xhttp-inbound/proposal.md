@@ -1,0 +1,55 @@
+## Why
+
+`support-xhttp-transport` 只覆盖了 VLESS XHTTP **客户端出站**，并在 design.md 里把「XHTTP 服务端 Inbound 驱动」明确列为 Non-Goal（当时移动端只需要 Client Outbound）。PR #90（VLESS XHTTP 服务端入站，+1820/−4）把这一块补上了：wanBox 现在可以作为 XHTTP 服务端接受 VLESS 入站连接。但代码先行、规范没跟上——仓库里没有任何一份 OpenSpec 变更或主规范条目描述服务端入站能力。按仓库治理规范，代码与规范必须同步，这份变更就是补上缺的那一块。
+
+## What Changes
+
+- **服务端入站驱动接入 (libcore)**:
+  - 在 `libcore/protocol/vless/` 新增自定义 VLESS 入站（`inbound.go`），在 `libcore/box_include.go` 的 `nekoboxAndroidInboundRegistry` 中注册，覆盖官方默认 VLESS 入站注册。
+  - 在 `libcore/protocol/vless/xhttp/` 新增 XHTTP 服务端传输实现（`server.go`），按 Xray 公开的 XHTTP 线格式处理握手与上下行。
+  - 配置 `type: vless` + `transport: xhttp` 时走新代码；其他传输类型原样委托回官方实现，非 XHTTP 流量不受影响。
+  - 完整支持 `auto`、`packet-up`、`stream-up`、`stream-one` 四种模式，支持 TLS + HTTP/2（含 h2c）与 HTTP/1.1；不宣称支持 HTTP/3，TLS 协商出 `h3` 时明确拒绝。
+  - 服务端资源上限全部有数：会话数 1024、全局缓冲 64 MiB、每会话缓冲 16 MiB、缓冲帖子 256、单帖上限 16 MiB、并发上传 4、未连接会话 30 秒超时、填充上限 4096 字节、会话 ID 上限 128 字符。
+  - 校验收口：header/cookie 放置位置校验、路径匹配、会话 ID 与 Host 校验、CORS 预检处理。
+- **既有客户端包两处小修（同 PR，属本仓库自有代码，非内核）**:
+  - `xhttp/dialer.go`：原来先写 session 头再整体替换 Header，session 头会被冲掉，改为正确的写入顺序。
+  - `xhttp/writer.go`：写后计数被消费后变小的问题修正。
+- **规范与文档更新**:
+  - 在 `openspec/specs/libcore-integration/spec.md` 中确立 VLESS-XHTTP 扩展入站的接入约束。
+  - 新建 `openspec/specs/xhttp-transport/spec.md` 主规范，把 `support-xhttp-transport` 的客户端出站 delta 与本变更的服务端入站需求一并合入。
+  - `support-xhttp-transport` 的 Non-Goal「XHTTP 服务端 Inbound 驱动」由本变更关闭。
+
+## Capabilities
+
+### New Capabilities
+- `xhttp-transport`（扩展）：定义 XHTTP (SplitHTTP) 服务端入站协议规范，涵盖四种模式、TLS/h2 装配、资源上限、请求校验与会话管理。
+
+### Modified Capabilities
+- `libcore-integration`：明确自定义协议扩展覆盖 VLESS-XHTTP 入站，通过 out-of-tree 方式注册，保持官方 sing-box 源码树零侵入；`SINGBOX_VERSION` 与版本号文件不受影响。
+
+## Impact
+
+- **代码影响（PR #90 已合入，7 文件 +1820/−4）**:
+  - `libcore/box_include.go`：注册自定义 VLESS 入站。
+  - `libcore/protocol/vless/inbound.go`（新增）：扩展版 VLESS 入站实现。
+  - `libcore/protocol/vless/xhttp/server.go`、`server_test.go`（新增）：XHTTP 服务端传输实现与测试。
+  - `libcore/protocol/vless/xhttp/dialer.go`、`writer.go`（小修）：既有客户端包 bug 修复。
+  - `libcore/vless_xhttp_inbound_test.go`（新增）：入站往返测试。
+- **构建与依赖**:
+  - `nb4a.properties` 中 `SINGBOX_VERSION` 官方内核基线保持不变；不改 sing-box 上游源码、不碰版本号文件。
+  - 不引入外部二进制文件，不增加多进程复杂度。
+
+## Verification （2026-11-24 复审实测）
+
+- 用户提供的 CI run（actions/runs/45251550225）为 success。
+- 本地复跑：xhttp 包 -race 测试、四种模式 + TLS/h2 + header/cookie 放置 + 普通 VLESS/WS 回归往返测试全部通过。
+- Python 工具 125 项：本地一度有 1 项失败（`test_release_tag_check`），定位为 VM 的 /tmp（512 MB）写满导致临时目录不可用，清理后 125 项全过，与本 PR 无关。
+- 本地全量 Go 测试未跑完：VM 的 /tmp（512 MB）被写满，环境限制；CI 侧全绿。
+
+## Known Limitations （复审结论，非拦路项）
+
+- 往返测试是 wanBox 客户端 ↔ wanBox 服务端自对自，尚未与真正的 Xray 端到端对打过（线格式照 Xray 公开格式写，但出站与入站均未做过跨实现实测）。
+- 尚未上真机跑过，Go 层通了不等于手机上全链路通。
+- `inbound.go` 里 KTLS 判断条件是从上游抄来的死条件（此路径恒不成立，无害）。
+- packet 乱序缓冲满时静默丢包，极端情况下会让该会话卡住等超时——记一笔，不拦。
+- 以上四点列为后续验证/跟进任务（见 tasks.md 第 3 节），不阻塞本变更归档。
