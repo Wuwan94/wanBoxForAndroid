@@ -15,7 +15,6 @@ import (
 	"github.com/sagernet/sing-box/log"
 	"github.com/sagernet/sing-box/option"
 	singboxVLESS "github.com/sagernet/sing-box/protocol/vless"
-	"github.com/sagernet/sing-box/transport/v2ray"
 	"github.com/sagernet/sing-vmess/packetaddr"
 	"github.com/sagernet/sing-vmess/vless"
 	"github.com/sagernet/sing/common"
@@ -58,7 +57,7 @@ type Inbound struct {
 }
 
 func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options VLESSInboundOptions) (adapter.Inbound, error) {
-	if options.Transport == nil || options.Transport.Type != xhttp.V2RayTransportTypeXHTTP {
+	if options.Transport == nil || normalizeTransportType(options.Transport.Type) != xhttp.V2RayTransportTypeXHTTP {
 		standardOptions := option.VLESSInboundOptions{
 			ListenOptions:              options.ListenOptions,
 			Users:                      options.Users,
@@ -66,7 +65,9 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 			Multiplex:                  options.Multiplex,
 		}
 		if options.Transport != nil {
-			standardOptions.Transport = &options.Transport.V2RayTransportOptions
+			transport := options.Transport.V2RayTransportOptions
+			transport.Type = normalizeTransportType(transport.Type)
+			standardOptions.Transport = &transport
 		}
 		return singboxVLESS.NewInbound(ctx, router, logger, tag, standardOptions)
 	}
@@ -96,9 +97,6 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 			Context: ctx,
 			Logger:  logger,
 			Options: common.PtrValueOrDefault(options.TLS),
-			KTLSCompatible: (options.Transport == nil || options.Transport.Type == "") &&
-				!common.PtrValueOrDefault(options.Multiplex).Enabled &&
-				common.All(options.Users, func(user option.VLESSUser) bool { return user.Flow == "" }),
 		})
 		if err != nil {
 			return nil, err
@@ -107,16 +105,11 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 			h.references = []string{options.TLS.Reality.Handshake.Detour}
 		}
 	}
-	if options.Transport != nil {
-		if options.Transport.Type == xhttp.V2RayTransportTypeXHTTP {
-			h.transport, err = xhttp.NewServer(ctx, logger, options.Transport.XHTTPOptions, h.tlsConfig, (*inboundTransportHandler)(h))
-		} else {
-			h.transport, err = v2ray.NewServerTransport(ctx, logger, options.Transport.V2RayTransportOptions, h.tlsConfig, (*inboundTransportHandler)(h))
-		}
-		if err != nil {
-			return nil, E.Cause(err, "create server transport: ", options.Transport.Type)
-		}
+	h.transport, err = xhttp.NewServer(ctx, logger, options.Transport.XHTTPOptions, h.tlsConfig, (*inboundTransportHandler)(h))
+	if err != nil {
+		return nil, E.Cause(err, "create server transport: ", xhttp.V2RayTransportTypeXHTTP)
 	}
+
 	h.listener = listener.New(listener.Options{
 		Context:           ctx,
 		Logger:            logger,

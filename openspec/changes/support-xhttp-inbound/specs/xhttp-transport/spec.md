@@ -6,7 +6,7 @@
 
 ### Requirement: XHTTP 服务端入站模式与协议装配
 
-XHTTP 服务端传输驱动 MUST 支持 `auto`、`packet-up`、`stream-up` 和 `stream-one` 四种工作模式，并遵循与 Xray 公开的 XHTTP 线格式一致的请求装配规则。在 `stream-up` 与 `stream-one` 模式下，驱动 MUST 支持 HTTP/2 分块流式传输；在 `packet-up` 模式下，驱动 MUST 将上行数据作为离散 HTTP 请求接收。当模式设置为 `auto` 时，驱动 MUST 具备自动检测与模式探测能力。服务端 MUST 支持 TLS + HTTP/2（含 h2c）与 HTTP/1.1；TLS 协商出 `h3` 时 MUST 明确拒绝，不得静默降级。
+XHTTP 服务端传输驱动 MUST 支持 `auto`、`packet-up`、`stream-up` 和 `stream-one` 四种工作模式，并遵循与 Xray 公开的 XHTTP 线格式一致的请求装配规则。在 `stream-up` 与 `stream-one` 模式下，驱动 MUST 支持 HTTP/2 分块流式传输；在 `packet-up` 模式下，驱动 MUST 将上行数据作为离散 HTTP 请求接收。当模式设置为 `auto` 时，服务端 MUST 按请求形态自动区分。`stream-up` MUST 串行接续同一会话的上传，单条正常结束不得关闭整个上行；暂不支持非零 `sc_stream_up_server_secs`，构造期 MUST 明确拒绝。服务端 MUST 支持 TLS + HTTP/2（含 h2c）与 HTTP/1.1；TLS ALPN 配置含 `h3` 时 MUST 在构造期拒绝启动，不得静默降级。
 
 #### Scenario: 建立 stream-up 入站流
 - **GIVEN** VLESS 入站的 XHTTP 模式配置为 `stream-up`
@@ -21,14 +21,14 @@ XHTTP 服务端传输驱动 MUST 支持 `auto`、`packet-up`、`stream-up` 和 `
 - **AND** 下行通道独立返回
 
 #### Scenario: 拒绝 HTTP/3 协商
-- **GIVEN** TLS 握手协商出的应用层协议为 `h3`
+- **GIVEN** 服务端配置的 TLS ALPN 列表含 `h3`
 - **WHEN** 服务端创建 XHTTP 传输实例
 - **THEN** 构造直接失败并返回明确错误
 - **AND** 不以 HTTP/1.1 或 HTTP/2 静默接管
 
 ### Requirement: 服务端资源上限
 
-XHTTP 服务端 MUST 显式限制资源占用：会话数上限 1024、全局缓冲上限 64 MiB、每会话缓冲上限 16 MiB、缓冲帖子上限 256、单帖上限 16 MiB、并发上传上限 4、未连接会话 30 秒超时、填充上限 4096 字节、会话 ID 上限 128 字符。超限的配置 MUST 在服务端构造时直接拒绝启动，不得静默放行。
+XHTTP 服务端 MUST 显式限制资源占用：会话上限为全局 1024、每来源 IP 32；上传并发上限为全局 64、每来源 IP 8、每会话 2；单帖上限 2 MiB，读入预算 24 MiB，队列预算为全局 32 MiB、每会话 4 MiB；缓冲帖子上限 256，未连接会话 30 秒超时、填充上限 4096 字节、会话 ID 上限 128 字符。超限的配置 MUST 在服务端构造时直接拒绝启动，不得静默放行。上传读取 MUST 有滚动空闲截止时间；会话按直连来源 IP 绑定，同一会话只允许一个下行读取端。VLESS 认证失败或会话异常关闭时 MUST 及时回收资源；乱序缓冲溢出 MUST 终止会话，不得静默丢包。
 
 #### Scenario: 超限配置拒绝启动
 - **GIVEN** 入站配置的填充或单帖上限超出服务端允许范围

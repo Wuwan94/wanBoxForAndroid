@@ -1,0 +1,12 @@
+{
+  "inbounds+": [
+    {
+      "type": "vless",
+      "tag": "vless-xhttp-example",
+      "listen": "127.0.0.1",
+      "listen_port": 18080,
+      "users": [{ "name": "example-only", "uuid": "c989b226-46cb-4665-a0d4-b89a6378dc99" }],
+      "transport": { "type": "xhttp", "mode": "auto", "path": "/xhttp" }
+    }
+  ]
+}

@@ -9,7 +9,7 @@
 ## Goals / Non-Goals
 
 **Goals:**
-- 在 `libcore/protocol/vless` 中实现扩展的 VLESS 入站，并在 `nekoboxAndroidInboundRegistry` 中注册，覆盖官方默认 VLESS 入站。
+- 在 `libcore/protocol/vless` 中实现扩展的 VLESS 入站，并在 `nekoboxAndroidInboundRegistry` 中新增注册，非 XHTTP 传输委托官方 `singboxVLESS.NewInbound`。
 - 在 `libcore/protocol/vless/xhttp` 中实现 XHTTP 服务端传输（`server.go`），完整支持 `auto`、`packet-up`、`stream-up`、`stream-one` 模式，支持 TLS + HTTP/2（含 h2c）与 HTTP/1.1。
 - 配置 `type: vless` + `transport: xhttp` 时走新代码，其他传输类型原样委托官方实现。
 - 服务端资源上限全部显式化（会话数、缓冲、并发上传、超时），不是裸奔的监听器。
@@ -24,7 +24,7 @@
 
 ## Decisions
 
-### 1. 采用 Out-of-tree 扩展注册覆盖官方 VLESS 入站
+### 1. 采用 Out-of-tree 扩展注册新增 VLESS 入站
 - **选择**: 在 `libcore/protocol/vless` 中定义自定义 VLESS 入站构造器，并于 `libcore/box_include.go` 的 `nekoboxAndroidInboundRegistry` 中重新注册 `C.TypeVLESS`。
 - **原因**:
   - 与出站侧同一手法（方案 1A）：sing-box 留了正规的扩展口，入站/出站都是往注册表里注册；libcore 组装内核时用的是自己的注册表，按同一类型名注册即顶替默认实现。
@@ -40,7 +40,7 @@
   - *另起独立服务端包*: 模式与校验逻辑重复实现，后续改一处漏一处。
 
 ### 3. 资源上限写死在服务端构造时校验
-- **选择**: 会话数 1024、全局缓冲 64 MiB、每会话 16 MiB、缓冲帖子 256、单帖 16 MiB、并发上传 4、未连接会话 30 秒超时、填充上限 4096、会话 ID 上限 128，全部在 `NewServer` 构造与配置校验时收口；超限配置直接拒绝启动，不静默放行。
+- **选择**: 会话全局 1024 / 每来源 IP 32，并发上传全局 64 / 每来源 IP 8 / 每会话 2，单帖 2 MiB、读入预算 24 MiB、队列全局 32 MiB / 每会话 4 MiB、缓冲帖子 256、未连接会话 30 秒超时、填充上限 4096、会话 ID 上限 128，全部在 `NewServer` 构造与配置校验时收口；超限配置直接拒绝启动，不静默放行。
 - **原因**: 入站是对外暴露面，移动端跑服务端更怕无上限的连接/缓冲把内存吃光；显式上限让复审有数可查。
 - **已知取舍**: packet 乱序缓冲满时静默丢包，极端情况下会话卡住等超时——复审已记录为非拦路项，后续可改为显式错误或主动关闭会话。
 

@@ -5,11 +5,11 @@
 ## What Changes
 
 - **服务端入站驱动接入 (libcore)**:
-  - 在 `libcore/protocol/vless/` 新增自定义 VLESS 入站（`inbound.go`），在 `libcore/box_include.go` 的 `nekoboxAndroidInboundRegistry` 中注册，覆盖官方默认 VLESS 入站注册。
+  - 在 `libcore/protocol/vless/` 新增自定义 VLESS 入站（`inbound.go`），在 `libcore/box_include.go` 的 `nekoboxAndroidInboundRegistry` 中新增注册，非 XHTTP 传输委托官方 `singboxVLESS.NewInbound`。
   - 在 `libcore/protocol/vless/xhttp/` 新增 XHTTP 服务端传输实现（`server.go`），按 Xray 公开的 XHTTP 线格式处理握手与上下行。
   - 配置 `type: vless` + `transport: xhttp` 时走新代码；其他传输类型原样委托回官方实现，非 XHTTP 流量不受影响。
-  - 完整支持 `auto`、`packet-up`、`stream-up`、`stream-one` 四种模式，支持 TLS + HTTP/2（含 h2c）与 HTTP/1.1；不宣称支持 HTTP/3，TLS 协商出 `h3` 时明确拒绝。
-  - 服务端资源上限全部有数：会话数 1024、全局缓冲 64 MiB、每会话缓冲 16 MiB、缓冲帖子 256、单帖上限 16 MiB、并发上传 4、未连接会话 30 秒超时、填充上限 4096 字节、会话 ID 上限 128 字符。
+  - 完整支持 `auto`、`packet-up`、`stream-up`、`stream-one` 四种模式，支持 TLS + HTTP/2（含 h2c）与 HTTP/1.1；不宣称支持 HTTP/3，TLS ALPN 配置含 `h3` 时在构造期拒绝启动。
+  - 服务端资源上限全部有数：会话全局 1024 / 每来源 IP 32，并发上传全局 64 / 每来源 IP 8 / 每会话 2，单帖 2 MiB、读入预算 24 MiB、队列全局 32 MiB / 每会话 4 MiB、缓冲帖子 256、未连接会话 30 秒超时、填充上限 4096 字节、会话 ID 上限 128 字符。
   - 校验收口：header/cookie 放置位置校验、路径匹配、会话 ID 与 Host 校验、CORS 预检处理。
 - **既有客户端包两处小修（同 PR，属本仓库自有代码，非内核）**:
   - `xhttp/dialer.go`：原来先写 session 头再整体替换 Header，session 头会被冲掉，改为正确的写入顺序。

@@ -159,7 +159,7 @@ flowchart TB
 <summary><strong>尝鲜预览 · v3.0.19-preview.1</strong>（与正式版并行发布，各自成套使用）</summary>
 <br />
 
-本版新增 VLESS XHTTP 服务端入站（PR #90）：libcore 在入站注册表覆盖 VLESS 入站，传输为 XHTTP 时走自有服务端传输（`auto` / `packet-up` / `stream-up` / `stream-one` 四种模式、HTTP/1.1 与 HTTP/2/h2c、TLS、会话与缓冲资源上限、CORS 预检），非 XHTTP 入站仍委托固定内核实现，普通 VLESS 不倒退；经现有节点自定义 JSON 配置路径启用，不新增向导。顺带修复 XHTTP 客户端请求头顺序与上传字节计数两处既有问题。tag 与发布二进制同为 `94a9c9b`（升版 PR #91 合入后发布）。上一预览 `v3.0.18-preview.4` 已按单预览策略清理，链接不再可用。
+本版新增 VLESS XHTTP 服务端入站（PR #90）：libcore 新增 VLESS 入站注册，传输为 XHTTP 时走自有服务端传输（`auto` / `packet-up` / `stream-up` / `stream-one` 四种模式、HTTP/1.1 与 HTTP/2/h2c、TLS、会话与缓冲资源上限、CORS 预检），非 XHTTP 入站仍委托固定内核实现，普通 VLESS 不倒退；经现有节点自定义 JSON 配置路径启用，不新增向导。 [配置示例](docs/config/xhttp-inbound.json)使用 `inbounds+`，保留 App 默认 `tun` / `mixed` 入站。顺带修复 XHTTP 客户端请求头顺序与上传字节计数两处既有问题。tag 与发布二进制同为 `94a9c9b`（升版 PR #91 合入后发布）。上一预览 `v3.0.18-preview.4` 已按单预览策略清理，链接不再可用。
 
 | 资产 | 文件名 | 体积 |
 |:--|:--|--:|
@@ -169,7 +169,7 @@ flowchart TB
 
 - 下载：[v3.0.19-preview.1 Release](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.19-preview.1)
 - 直链（合一包）：[wanbox-root-module-with-manager-arm64-v8a.zip](https://github.com/Wuwan94/wanBoxForAndroid/releases/download/v3.0.19-preview.1/wanbox-root-module-with-manager-arm64-v8a.zip)
-- 直链（管理器 APK）：[wanBoxForAndroid-3.0.18-preview.4-arm64-v8a-release.apk](https://github.com/Wuwan94/wanBoxForAndroid/releases/download/v3.0.19-preview.1/wanBoxForAndroid-3.0.19-preview.1-arm64-v8a-release.apk)
+- 直链（管理器 APK）：[wanBoxForAndroid-3.0.19-preview.1-arm64-v8a-release.apk](https://github.com/Wuwan94/wanBoxForAndroid/releases/download/v3.0.19-preview.1/wanBoxForAndroid-3.0.19-preview.1-arm64-v8a-release.apk)
 - 直链（Root 模块）：[wanbox-root-module-arm64-v8a.zip](https://github.com/Wuwan94/wanBoxForAndroid/releases/download/v3.0.19-preview.1/wanbox-root-module-arm64-v8a.zip)
 - 校验：同一 Release 页的 `SHA256SUMS`（APK 与两个模块包逐行对得上，安装前先 `sha256sum --check`）。
 - 回退：换回正式版 [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17) 的 APK 与配套模块（模块码 `2035`）成套重装，不要跨 Release 混用。
