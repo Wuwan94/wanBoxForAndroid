@@ -19,7 +19,7 @@ URLTest 稳定性约束（检测间隔 ≥ 10 秒、空闲超时 ≥ 30 分钟�
 ### 1. VLESS XHTTP 服务端入站（PR #90）
 
 - **背景**：官方 sing-box 不支持 `xhttp` 传输；本项目此前已在 libcore 扩展层补齐 XHTTP **出站**（客户端），本版补齐**入站**（服务端），使 wanBox 可以作为 XHTTP 服务端接受连接。
-- **改法**：libcore 在入站注册表覆盖 VLESS 入站——传输不是 XHTTP 时原样委托官方 sing-box 实现，普通 VLESS（含 ws 等传输）行为不倒退；XHTTP 时走自有服务端传输：支持 `auto`、`packet-up`、`stream-up`、`stream-one` 四种模式，HTTP/1.1、HTTP/2 与 h2c、TLS，session/seq 与上行数据的 path/query/header/cookie 放置兼容，X-Padding 校验与 CORS 预检。服务端带资源上限（会话数、单会话与全局缓冲字节、并发上行数、未连接会话超时），异常请求按状态码拒绝，不裸奔监听。
+- **改法**：libcore 新增 VLESS 入站注册——传输不是 XHTTP 时原样委托官方 sing-box 实现，普通 VLESS（含 ws 等传输）行为不倒退；XHTTP 时走自有服务端传输：支持 `auto`、`packet-up`、`stream-up`、`stream-one` 四种模式，HTTP/1.1、HTTP/2 与 h2c、TLS，session/seq 与上行数据的 path/query/header/cookie 放置兼容，X-Padding 校验与 CORS 预检。服务端带资源上限（会话数、单会话与全局缓冲字节、并发上行数、未连接会话超时），异常请求按状态码拒绝，不裸奔监听。
 - **接入方式**：经现有节点自定义 JSON 配置路径启用（`transport.type = "xhttp"`），不新增服务器配置向导，App 界面与数据模型未改。官方 sing-box 内核源码与 `SINGBOX_VERSION` 未改，扩展只在 libcore 层。
 - **证据**：新增 `libcore/vless_xhttp_inbound_test.go` 端到端往返（四种模式、TLS+HTTP/2、header/cookie 放置、GET 上行）与普通 VLESS / WebSocket 入站回归；`libcore/protocol/vless/xhttp/server_test.go` 覆盖会话 ID 与请求头校验、placement 校验、客户端/服务端填充互通、缓冲上限与关闭释放。PR 的 `Verify Android Build` run `45251550225` 全绿。
 

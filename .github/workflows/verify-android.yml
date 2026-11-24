@@ -59,8 +59,9 @@ jobs:
       - name: Test bounded URL probes and configuration templates
         run: |
           (cd libcore && go test -tags=with_clash_api,with_gvisor,with_quic,with_wireguard,with_utls .)
-          (cd libcore && go test ./internal/... ./protocol/urltest ./protocol/loadbalance)
-          (cd libcore && go test -race ./protocol/urltest ./protocol/loadbalance)
+          (cd libcore && go test -race -tags=with_clash_api,with_gvisor,with_quic,with_wireguard,with_utls .)
+          (cd libcore && go test ./internal/... ./protocol/urltest ./protocol/loadbalance ./protocol/vless/xhttp)
+          (cd libcore && go test -race ./protocol/urltest ./protocol/loadbalance ./protocol/vless/xhttp)
           # @author 雾晚: real SCM_RIGHTS ownership, panic, truncation and repeated requests.
           (cd libcore && go test -race protect.go protect_test.go)
           # @author 雾晚: exercise the Android/Linux append writer under concurrent rotation.
@@ -71,6 +72,11 @@ jobs:
           python3 tools/check_current_version_docs.py
           go -C ../sing-box-netproxy run ./cmd/sing-box check -c "$GITHUB_WORKSPACE/docs/config/local-proxy.json"
           go -C ../sing-box-netproxy run ./cmd/sing-box check -c "$GITHUB_WORKSPACE/docs/config/tun-fakeip.json"
+          # Upstream checks standard VLESS fields; root tests above check the full wanBox XHTTP transport.
+          xhttp_example=$(mktemp)
+          trap 'rm -f "$xhttp_example"' EXIT
+          python3 tools/check_xhttp_inbound_example.py > "$xhttp_example"
+          go -C ../sing-box-netproxy run ./cmd/sing-box check -c "$xhttp_example"
       - name: Test and package independent Root module
         run: |
           go -C rootmodule test -race ./...

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"strings"
 
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/adapter/outbound"
@@ -32,22 +33,55 @@ type V2RayTransportOptions struct {
 	XHTTPOptions xhttp.V2RayXHTTPOptions `json:"-"`
 }
 
-func (o *V2RayTransportOptions) UnmarshalJSON(bytes []byte) error {
+func normalizeTransportType(transportType string) string {
+	return strings.ToLower(strings.TrimSpace(transportType))
+}
+
+func (o *V2RayTransportOptions) UnmarshalJSON(data []byte) error {
 	var raw struct {
 		Type string `json:"type"`
 	}
-	if err := json.Unmarshal(bytes, &raw); err != nil {
+	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
-	o.Type = raw.Type
-	if raw.Type == xhttp.V2RayTransportTypeXHTTP {
-		return json.Unmarshal(bytes, &o.XHTTPOptions)
+	normalized := normalizeTransportType(raw.Type)
+	parsed := V2RayTransportOptions{Type: normalized}
+	if normalized == xhttp.V2RayTransportTypeXHTTP {
+		if err := json.Unmarshal(data, &parsed.XHTTPOptions); err != nil {
+			return err
+		}
+	} else {
+		if normalized != raw.Type {
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(data, &fields); err != nil {
+				return err
+			}
+			normalizedJSON, err := json.Marshal(normalized)
+			if err != nil {
+				return err
+			}
+			// JSON can spell Type with different case; eliminate competing keys on normalization.
+			for key := range fields {
+				if strings.EqualFold(key, "type") {
+					delete(fields, key)
+				}
+			}
+			fields["type"] = normalizedJSON
+			data, err = json.Marshal(fields)
+			if err != nil {
+				return err
+			}
+		}
+		if err := json.Unmarshal(data, &parsed.V2RayTransportOptions); err != nil {
+			return err
+		}
 	}
-	return json.Unmarshal(bytes, &o.V2RayTransportOptions)
+	*o = parsed
+	return nil
 }
 
 func (o V2RayTransportOptions) MarshalJSON() ([]byte, error) {
-	if o.Type == xhttp.V2RayTransportTypeXHTTP {
+	if normalizeTransportType(o.Type) == xhttp.V2RayTransportTypeXHTTP {
 		data, err := json.Marshal(o.XHTTPOptions)
 		if err != nil {
 			return nil, err
@@ -65,13 +99,13 @@ func (o V2RayTransportOptions) MarshalJSON() ([]byte, error) {
 type VLESSOutboundOptions struct {
 	option.DialerOptions
 	option.ServerOptions
-	UUID           string                     `json:"uuid"`
-	Flow           string                     `json:"flow,omitempty"`
-	Network        option.NetworkList         `json:"network,omitempty"`
-	TLS            *option.OutboundTLSOptions `json:"tls,omitempty"`
+	UUID           string                           `json:"uuid"`
+	Flow           string                           `json:"flow,omitempty"`
+	Network        option.NetworkList               `json:"network,omitempty"`
+	TLS            *option.OutboundTLSOptions       `json:"tls,omitempty"`
 	Multiplex      *option.OutboundMultiplexOptions `json:"multiplex,omitempty"`
-	Transport      *V2RayTransportOptions     `json:"transport,omitempty"`
-	PacketEncoding *string                    `json:"packet_encoding,omitempty"`
+	Transport      *V2RayTransportOptions           `json:"transport,omitempty"`
+	PacketEncoding *string                          `json:"packet_encoding,omitempty"`
 }
 
 func RegisterOutbound(registry *outbound.Registry) {
@@ -121,7 +155,7 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 		outbound.tlsDialer = tls.NewDialer(outboundDialer, outbound.tlsConfig)
 	}
 	if options.Transport != nil {
-		if options.Transport.Type == xhttp.V2RayTransportTypeXHTTP {
+		if normalizeTransportType(options.Transport.Type) == xhttp.V2RayTransportTypeXHTTP {
 			outbound.transport, err = xhttp.NewClient(ctx, outbound.dialer, outbound.serverAddr, options.Transport.XHTTPOptions, outbound.tlsConfig)
 			if err != nil {
 				return nil, E.Cause(err, "create client transport: xhttp")

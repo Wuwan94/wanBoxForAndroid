@@ -11,7 +11,9 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,7 +29,6 @@ import (
 	M "github.com/sagernet/sing/common/metadata"
 	N "github.com/sagernet/sing/common/network"
 	aTLS "github.com/sagernet/sing/common/tls"
-	sHTTP "github.com/sagernet/sing/protocol/http"
 	"golang.org/x/net/http/httpguts"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
@@ -37,10 +38,11 @@ import (
 const (
 	maxXHTTPSessions                = 1024
 	maxXHTTPBufferedPosts           = 256
-	maxXHTTPBufferedBytesPerSession = 16 << 20
-	maxXHTTPBufferedBytes           = 64 << 20
-	maxXHTTPPostBytes               = 16 << 20
-	maxXHTTPConcurrentUploads       = 4
+	maxXHTTPBufferedBytesPerSession = 4 << 20
+	maxXHTTPBufferedBytes           = 32 << 20
+	maxXHTTPPostBytes               = 2 << 20
+	defaultXHTTPUploadReadTimeout   = 30 * time.Second
+	xhttpIdleTimeout                = 90 * time.Second
 	maxXHTTPPaddingBytes            = 4096
 	maxXHTTPSessionIDLength         = 128
 )
@@ -50,19 +52,21 @@ const (
 // by Xray-compatible implementations. The server supports TCP-based HTTP/1.1,
 // HTTP/2, and h2c; HTTP/3 is not advertised by this transport.
 type Server struct {
-	ctx            context.Context
-	logger         logger.ContextLogger
-	tlsConfig      tls.ServerConfig
-	handler        adapter.V2RayServerTransportHandler
-	options        V2RayXHTTPOptions
-	basePath       string
-	httpServer     *http.Server
-	sessionsMu     sync.Mutex
-	sessions       map[string]*serverSession
-	bufferedBytes  atomic.Int64
-	uploadSlots    chan struct{}
-	closed         bool
-	sessionTimeout time.Duration
+	ctx               context.Context
+	logger            logger.ContextLogger
+	tlsConfig         tls.ServerConfig
+	handler           adapter.V2RayServerTransportHandler
+	options           V2RayXHTTPOptions
+	basePath          string
+	httpServer        *http.Server
+	sessionsMu        sync.Mutex
+	sessions          map[string]*serverSession
+	bufferedBytes     atomic.Int64
+	sessionsPerIP     map[netip.Addr]int
+	uploadLimits      uploadAdmission
+	uploadReadTimeout time.Duration
+	closed            bool
+	sessionTimeout    time.Duration
 }
 
 var _ adapter.V2RayServerTransport = (*Server)(nil)
@@ -88,13 +92,22 @@ func NewServer(ctx context.Context, logger logger.ContextLogger, options V2RayXH
 		return nil, E.New("invalid xhttp sc_max_each_post_bytes")
 	}
 	if options.ScMaxBufferedPosts < 0 || options.ScMaxBufferedPosts > maxXHTTPBufferedPosts {
-		return nil, E.New("xhttp sc_max_buffered_posts must be between 1 and ", maxXHTTPBufferedPosts)
+		return nil, E.New("xhttp sc_max_buffered_posts must be between 0 (default) and ", maxXHTTPBufferedPosts)
 	}
-	if options.GetNormalizedScMaxBufferedPosts() < 1 {
-		return nil, E.New("invalid xhttp sc_max_buffered_posts")
+	if interval := options.ScMinPostsIntervalMs; interval.From < 0 || interval.To < interval.From || interval.To >= int32(defaultXHTTPUploadReadTimeout/time.Millisecond) {
+		return nil, E.New("invalid xhttp sc_min_posts_interval_ms (must be ordered and less than the upload timeout)")
 	}
-	if options.GetNormalizedUplinkHTTPMethod() == http.MethodGet && mode != "packet-up" && mode != "auto" {
-		return nil, E.New("xhttp uplink_http_method GET requires packet-up mode")
+	if interval := options.ScStreamUpServerSecs; interval.From != 0 || interval.To != 0 {
+		return nil, E.New("xhttp sc_stream_up_server_secs is not supported on the server")
+	}
+	switch options.GetNormalizedUplinkHTTPMethod() {
+	case http.MethodGet:
+		if mode != "packet-up" && mode != "auto" {
+			return nil, E.New("xhttp uplink_http_method GET requires packet-up mode")
+		}
+	case http.MethodPost, http.MethodPut:
+	default:
+		return nil, E.New("unsupported xhttp uplink_http_method")
 	}
 	if tlsConfig != nil {
 		for _, protocol := range tlsConfig.NextProtos() {
@@ -105,18 +118,21 @@ func NewServer(ctx context.Context, logger logger.ContextLogger, options V2RayXH
 	}
 
 	server := &Server{
-		ctx:            ctx,
-		logger:         logger,
-		tlsConfig:      tlsConfig,
-		handler:        handler,
-		options:        options,
-		basePath:       options.GetNormalizedPath(),
-		sessions:       make(map[string]*serverSession),
-		uploadSlots:    make(chan struct{}, maxXHTTPConcurrentUploads),
-		sessionTimeout: 30 * time.Second,
+		ctx:               ctx,
+		logger:            logger,
+		tlsConfig:         tlsConfig,
+		handler:           handler,
+		options:           options,
+		basePath:          options.GetNormalizedPath(),
+		sessions:          make(map[string]*serverSession),
+		sessionsPerIP:     make(map[netip.Addr]int),
+		uploadLimits:      newUploadAdmission(),
+		uploadReadTimeout: defaultXHTTPUploadReadTimeout,
+		sessionTimeout:    30 * time.Second,
 	}
 	server.httpServer = &http.Server{
-		Handler:           h2c.NewHandler(server, &http2.Server{}),
+		Handler:           bodylessH2CUpgrade(h2c.NewHandler(server, &http2.Server{IdleTimeout: xhttpIdleTimeout})),
+		IdleTimeout:       xhttpIdleTimeout,
 		ReadHeaderTimeout: C.TCPTimeout,
 		MaxHeaderBytes:    8192,
 		BaseContext:       func(net.Listener) context.Context { return ctx },
@@ -167,6 +183,7 @@ func (s *Server) Close() error {
 		delete(s.sessions, id)
 		sessions = append(sessions, session)
 	}
+	clear(s.sessionsPerIP)
 	s.sessionsMu.Unlock()
 	for _, session := range sessions {
 		session.close()
@@ -186,6 +203,10 @@ func (s *Server) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	s.writeCORS(writer, request)
 	s.applyResponsePadding(writer)
 	if request.Method == http.MethodOptions {
+		if !isPreflight(request) {
+			s.invalid(writer, request, http.StatusMethodNotAllowed, "unsupported xhttp method")
+			return
+		}
 		writer.WriteHeader(http.StatusOK)
 		return
 	}
@@ -203,99 +224,153 @@ func (s *Server) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		s.invalid(writer, request, http.StatusBadRequest, "invalid xhttp session id")
 		return
 	}
+	uplink := request.Method != http.MethodGet || sequence != "" || s.options.Mode == "stream-one"
+	if uplink && request.Method != s.options.GetNormalizedUplinkHTTPMethod() {
+		s.invalid(writer, request, http.StatusMethodNotAllowed, "unsupported xhttp uplink method")
+		return
+	}
+	source, err := directSourceIP(request.RemoteAddr)
+	if err != nil {
+		s.invalid(writer, request, http.StatusBadRequest, "invalid xhttp peer address")
+		return
+	}
 	if s.options.Mode == "stream-one" {
-		if request.Method == http.MethodGet || request.Body == nil {
+		if request.Body == nil || request.Body == http.NoBody {
 			s.invalid(writer, request, http.StatusBadRequest, "stream-one requires an upload body")
 			return
 		}
-		s.serveConnection(writer, request, request.Body, nil)
-		return
-	}
-
-	if request.Method != http.MethodGet || sequence != "" {
-		if sessionID == "" {
-			s.invalid(writer, request, http.StatusBadRequest, "missing xhttp session id")
-			return
-		}
-		if sequence == "" {
-			if s.options.Mode == "packet-up" {
-				s.invalid(writer, request, http.StatusBadRequest, "packet-up requires a sequence")
-				return
-			}
-			session, ok := s.session(sessionID)
-			if !ok {
-				s.invalid(writer, request, http.StatusTooManyRequests, "xhttp session limit reached")
-				return
-			}
-			uploadDone, started := session.startStream(request.Body)
-			if !started {
-				s.invalid(writer, request, http.StatusConflict, "duplicate xhttp stream upload")
-				return
-			}
-			_ = http.NewResponseController(writer).EnableFullDuplex()
-			writer.Header().Set("X-Accel-Buffering", "no")
-			writer.Header().Set("Cache-Control", "no-store")
-			writer.WriteHeader(http.StatusOK)
-			if flusher, ok := writer.(http.Flusher); ok {
-				flusher.Flush()
-			}
-			select {
-			case <-request.Context().Done():
-			case <-uploadDone:
-			}
-			return
-		}
-		if s.options.Mode == "stream-up" {
-			s.invalid(writer, request, http.StatusBadRequest, "stream-up does not use packet sequence numbers")
-			return
-		}
-		sequenceNumber, err := strconv.ParseUint(sequence, 10, 64)
-		if err != nil {
-			s.invalid(writer, request, http.StatusBadRequest, "invalid xhttp sequence")
-			return
-		}
-		select {
-		case s.uploadSlots <- struct{}{}:
-			defer func() { <-s.uploadSlots }()
-		default:
+		if release := s.uploadLimits.acquire(source, "", 0); release != nil {
+			defer release()
+		} else {
 			s.invalid(writer, request, http.StatusTooManyRequests, "xhttp upload limit reached")
 			return
 		}
-		maxBytes := s.maxPacketUploadBytes()
-		payload, err := readPacketPayload(request, s.options, maxBytes)
-		if err != nil || len(payload) > maxBytes {
-			s.invalid(writer, request, http.StatusBadRequest, "invalid xhttp upload")
-			return
+		controller := http.NewResponseController(writer)
+		body := &deadlineBody{Reader: request.Body, controller: controller, timeout: s.uploadReadTimeout}
+		s.serveConnection(writer, request, body, nil)
+		if body.eof.Load() {
+			clearUploadDeadline(writer)
+		} else {
+			_ = controller.SetReadDeadline(time.Now())
 		}
-		session, ok := s.session(sessionID)
-		if !ok {
-			s.invalid(writer, request, http.StatusTooManyRequests, "xhttp session limit reached")
-			return
-		}
-		if !session.push(serverPacket{sequence: sequenceNumber, payload: payload}) {
-			s.invalid(writer, request, http.StatusConflict, "closed or overloaded xhttp session")
-			return
-		}
-		writer.Header().Set("Cache-Control", "no-store")
-		writer.WriteHeader(http.StatusOK)
-		return
-	}
-
-	if request.Method != http.MethodGet {
-		s.invalid(writer, request, http.StatusMethodNotAllowed, "unsupported xhttp method")
 		return
 	}
 	if sessionID == "" {
 		s.invalid(writer, request, http.StatusBadRequest, "missing xhttp session id")
 		return
 	}
-	session, ok := s.session(sessionID)
-	if !ok {
-		s.invalid(writer, request, http.StatusTooManyRequests, "xhttp session limit reached")
+	if !uplink {
+		if expectsUploadBody(request) {
+			s.invalid(writer, request, http.StatusBadRequest, "xhttp downlink must not contain an upload body")
+			return
+		}
+		session, err := s.session(sessionID, source, true)
+		if err != nil {
+			s.sessionError(writer, request, err)
+			return
+		}
+		s.serveConnection(writer, request, session.reader, session)
 		return
 	}
-	session.markConnected()
-	s.serveConnection(writer, request, session.reader, session)
+	if sequence == "" && (s.options.Mode == "packet-up" || request.Method == http.MethodGet) {
+		s.invalid(writer, request, http.StatusBadRequest, "packet-up requires a sequence")
+		return
+	}
+	if sequence != "" && s.options.Mode == "stream-up" {
+		s.invalid(writer, request, http.StatusBadRequest, "stream-up does not use packet sequence numbers")
+		return
+	}
+	var sequenceNumber uint64
+	var reserve int64
+	if sequence != "" {
+		sequenceNumber, err = strconv.ParseUint(sequence, 10, 64)
+		if err != nil {
+			s.invalid(writer, request, http.StatusBadRequest, "invalid xhttp sequence")
+			return
+		}
+		reserve = 3*int64(s.maxPacketUploadBytes()) + (32 << 10)
+	}
+	release := s.uploadLimits.acquire(source, sessionID, reserve)
+	if release == nil {
+		s.invalid(writer, request, http.StatusTooManyRequests, "xhttp upload limit reached")
+		return
+	}
+	defer release()
+	session, err := s.session(sessionID, source, false)
+	if err != nil {
+		s.sessionError(writer, request, err)
+		return
+	}
+	if !session.claimUploadMode(sequence != "") {
+		s.invalid(writer, request, http.StatusConflict, "xhttp session upload mode changed")
+		return
+	}
+	if sequence == "" {
+		s.serveStreamUpload(writer, request, session)
+		return
+	}
+	if placement := s.options.GetNormalizedUplinkDataPlacement(); placement == PlacementHeader || placement == PlacementCookie {
+		if expectsUploadBody(request) {
+			s.invalid(writer, request, http.StatusBadRequest, "xhttp upload body conflicts with configured data placement")
+			return
+		}
+	}
+	var payload []byte
+	if request.Body != nil && request.Body != http.NoBody {
+		// net/http can drain unread HTTP/1 request bodies before sending a rejection.
+		// Enable full duplex so faulty uploads do not delay the error response.
+		_ = http.NewResponseController(writer).EnableFullDuplex()
+	}
+	payload, err = readPacketPayload(request, s.options, s.maxPacketUploadBytes(), writer, s.uploadReadTimeout)
+	if err != nil {
+		if request.ProtoMajor == 1 {
+			writer.Header().Set("Connection", "close")
+		}
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			s.invalid(writer, request, http.StatusRequestTimeout, "xhttp upload timed out")
+		} else {
+			s.invalid(writer, request, http.StatusBadRequest, "invalid xhttp upload")
+		}
+		return
+	}
+	clearUploadDeadline(writer)
+	if len(payload) != cap(payload) {
+		payload = append(make([]byte, 0, len(payload)), payload...)
+	}
+	if !session.push(serverPacket{sequence: sequenceNumber, payload: payload}) {
+		s.closeSession(session.id, session)
+		s.invalid(writer, request, http.StatusConflict, "closed or overloaded xhttp session")
+		return
+	}
+	writer.Header().Set("Cache-Control", "no-store")
+	writer.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) serveStreamUpload(w http.ResponseWriter, r *http.Request, session *serverSession) {
+	if r.Body == nil {
+		r.Body = http.NoBody
+	}
+	if !session.waitStream(r.Context()) {
+		s.invalid(w, r, http.StatusConflict, "xhttp session closed")
+		return
+	}
+	defer session.finishStream()
+	controller := http.NewResponseController(w)
+	_ = controller.EnableFullDuplex()
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.Header().Set("Cache-Control", "no-store")
+	// The stream client may wait for HTTP response headers before writing tunnel bytes.
+	w.WriteHeader(http.StatusOK)
+	if err := controller.Flush(); err != nil {
+		s.closeSession(session.id, session)
+		return
+	}
+	if _, err := io.Copy(session.writer, &deadlineBody{Reader: r.Body, controller: controller, timeout: s.uploadReadTimeout}); err != nil {
+		_ = controller.SetReadDeadline(time.Now())
+		s.closeSession(session.id, session)
+	} else {
+		clearUploadDeadline(w)
+	}
 }
 
 func (s *Server) serveConnection(writer http.ResponseWriter, request *http.Request, reader io.Reader, session *serverSession) {
@@ -323,59 +398,104 @@ func (s *Server) serveConnection(writer http.ResponseWriter, request *http.Reque
 	defer response.Close()
 	if session != nil {
 		defer s.closeSession(session.id, session)
+		stop := context.AfterFunc(request.Context(), func() { s.closeSession(session.id, session) })
+		defer stop()
 	}
 	done := make(chan struct{})
 	var closeOnce sync.Once
-	onClose := func(error) { closeOnce.Do(func() { close(done) }) }
-	s.handler.NewConnectionEx(request.Context(), response, sHTTP.SourceAddress(request), M.Socksaddr{}, onClose)
+	onClose := func(error) {
+		closeOnce.Do(func() {
+			if session != nil {
+				s.closeSession(session.id, session)
+			}
+			close(done)
+		})
+	}
+	s.handler.NewConnectionEx(request.Context(), response, M.ParseSocksaddr(request.RemoteAddr).Unwrap(), M.Socksaddr{}, onClose)
 	select {
 	case <-done:
 	case <-request.Context().Done():
+	case <-sessionDone(session):
 	}
 }
 
-func (s *Server) session(id string) (*serverSession, bool) {
-	if !validSessionID(id) {
-		return nil, false
-	}
+func (s *Server) session(id string, source netip.Addr, downlink bool) (*serverSession, error) {
 	s.sessionsMu.Lock()
+	defer s.sessionsMu.Unlock()
 	if s.closed {
-		s.sessionsMu.Unlock()
-		return nil, false
+		return nil, errSessionClosed
 	}
-	if existing, ok := s.sessions[id]; ok {
-		s.sessionsMu.Unlock()
-		return existing, true
-	}
-	if len(s.sessions) >= maxXHTTPSessions {
-		s.sessionsMu.Unlock()
-		return nil, false
-	}
-	session := newServerSession(id, s.options.GetNormalizedScMaxBufferedPosts(), &s.bufferedBytes)
-	s.sessions[id] = session
-	s.sessionsMu.Unlock()
-	go func() {
-		timer := time.NewTimer(s.sessionTimeout)
-		defer timer.Stop()
-		select {
-		case <-timer.C:
-			s.closeSession(id, session)
-		case <-session.connected:
-		case <-s.ctx.Done():
-			s.closeSession(id, session)
+	session := s.sessions[id]
+	if session != nil {
+		if session.source != source {
+			return nil, errSessionSource
 		}
-	}()
-	return session, true
+		if downlink && session.hasDownlink {
+			return nil, errDownlinkActive
+		}
+	} else {
+		if len(s.sessions) >= maxXHTTPSessions || s.sessionsPerIP[source] >= maxXHTTPSessionsPerIP {
+			return nil, errSessionLimit
+		}
+		session = newServerSession(id, s.options.GetNormalizedScMaxBufferedPosts(), &s.bufferedBytes)
+		session.source = source
+		session.closeOnPacketError = func() { s.closeSession(id, session) }
+		s.sessions[id] = session
+		s.sessionsPerIP[source]++
+		go s.expirePendingSession(session)
+	}
+	if downlink {
+		session.hasDownlink = true
+		session.markConnected()
+	}
+	return session, nil
+}
+
+func (s *Server) expirePendingSession(session *serverSession) {
+	timer := time.NewTimer(s.sessionTimeout)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		s.sessionsMu.Lock()
+		if !session.hasDownlink {
+			s.dropSessionLocked(session.id, session)
+		}
+		s.sessionsMu.Unlock()
+	case <-session.connected:
+	case <-s.ctx.Done():
+		s.closeSession(session.id, session)
+	}
 }
 
 func (s *Server) closeSession(id string, session *serverSession) {
-	session.markConnected()
 	s.sessionsMu.Lock()
-	if s.sessions[id] == session {
-		session.close()
-		delete(s.sessions, id)
+	defer s.sessionsMu.Unlock()
+	s.dropSessionLocked(id, session)
+}
+
+func (s *Server) dropSessionLocked(id string, session *serverSession) {
+	if s.sessions[id] != session {
+		return
 	}
-	s.sessionsMu.Unlock()
+	session.close()
+	delete(s.sessions, id)
+	s.sessionsPerIP[session.source]--
+	if s.sessionsPerIP[session.source] == 0 {
+		delete(s.sessionsPerIP, session.source)
+	}
+}
+
+func (s *Server) sessionError(w http.ResponseWriter, r *http.Request, err error) {
+	switch err {
+	case errSessionClosed:
+		s.invalid(w, r, http.StatusGone, err.Error())
+	case errSessionSource:
+		s.invalid(w, r, http.StatusForbidden, err.Error())
+	case errDownlinkActive:
+		s.invalid(w, r, http.StatusConflict, err.Error())
+	default:
+		s.invalid(w, r, http.StatusTooManyRequests, err.Error())
+	}
 }
 
 func (s *Server) writeCORS(writer http.ResponseWriter, request *http.Request) {
@@ -386,7 +506,8 @@ func (s *Server) writeCORS(writer http.ResponseWriter, request *http.Request) {
 	responseHeaders := writer.Header()
 	responseHeaders.Set("Access-Control-Allow-Origin", origin)
 	vary := []string{"Origin"}
-	if request.Method == http.MethodOptions {
+	if isPreflight(request) {
+		vary = append(vary, "Access-Control-Request-Method")
 		methods := []string{http.MethodGet, s.options.GetNormalizedUplinkHTTPMethod()}
 		if methods[0] == methods[1] {
 			methods = methods[:1]
@@ -521,8 +642,14 @@ func (s *Server) maxPacketUploadBytes() int {
 }
 
 func (s *Server) invalid(writer http.ResponseWriter, request *http.Request, status int, message string) {
-	writer.WriteHeader(status)
-	s.logger.DebugContext(request.Context(), E.New("process xhttp request from ", request.RemoteAddr, ": ", message))
+	if request.ProtoMajor == 1 && request.Body != nil && request.Body != http.NoBody {
+		controller := http.NewResponseController(writer)
+		_ = controller.EnableFullDuplex()
+		_ = controller.SetReadDeadline(time.Now().Add(s.uploadReadTimeout))
+		writer.Header().Set("Connection", "close")
+	}
+	http.Error(writer, message, status)
+	s.logger.InfoContext(request.Context(), E.New("process xhttp request from ", request.RemoteAddr, ": ", message))
 }
 
 func pathMatches(requestPath, basePath string) bool {
@@ -744,7 +871,13 @@ type serverSession struct {
 	connected          chan struct{}
 	closeOnce          sync.Once
 	connectOnce        sync.Once
-	streamOnce         sync.Once
+	streamMu           sync.Mutex
+	streamBusy         bool
+	uploadMode         string
+	streamQueue        []chan struct{}
+	source             netip.Addr
+	hasDownlink        bool // protected by Server.sessionsMu
+	closeOnPacketError func()
 	pushMu             sync.Mutex
 	bufferedBytes      atomic.Int64
 	totalBufferedBytes *atomic.Int64
@@ -796,15 +929,20 @@ func (s *serverSession) copyPackets() {
 				continue
 			}
 			if item.sequence != next {
-				if len(pending) >= s.maxBuffered {
+				if _, exists := pending[item.sequence]; exists {
 					s.releasePacket(item)
 					continue
 				}
-				if _, exists := pending[item.sequence]; exists {
+				if len(pending) >= s.maxBuffered {
 					s.releasePacket(item)
-				} else {
-					pending[item.sequence] = item
+					if s.closeOnPacketError != nil {
+						s.closeOnPacketError()
+					} else {
+						s.close()
+					}
+					return
 				}
+				pending[item.sequence] = item
 				continue
 			}
 			if !writePacket(item) {
@@ -836,7 +974,7 @@ func (s *serverSession) push(packet serverPacket) bool {
 		return false
 	default:
 	}
-	size := int64(len(packet.payload))
+	size := int64(cap(packet.payload))
 	if size > maxXHTTPBufferedBytesPerSession {
 		return false
 	}
@@ -861,27 +999,11 @@ func (s *serverSession) push(packet serverPacket) bool {
 }
 
 func (s *serverSession) releasePacket(packet serverPacket) {
-	size := int64(len(packet.payload))
+	size := int64(cap(packet.payload))
 	if size > 0 {
 		s.bufferedBytes.Add(-size)
 		s.totalBufferedBytes.Add(-size)
 	}
-}
-
-func (s *serverSession) startStream(reader io.ReadCloser) (<-chan struct{}, bool) {
-	started := false
-	var uploadDone chan struct{}
-	s.streamOnce.Do(func() {
-		started = true
-		uploadDone = make(chan struct{})
-		go func() {
-			defer close(uploadDone)
-			defer reader.Close()
-			_, _ = io.Copy(s.writer, reader)
-			_ = s.writer.Close()
-		}()
-	})
-	return uploadDone, started
 }
 
 func (s *serverSession) markConnected() { s.connectOnce.Do(func() { close(s.connected) }) }
@@ -897,7 +1019,7 @@ func (s *serverSession) close() {
 	})
 }
 
-func readPacketPayload(request *http.Request, options V2RayXHTTPOptions, maxBytes int) ([]byte, error) {
+func readPacketPayload(request *http.Request, options V2RayXHTTPOptions, maxBytes int, w http.ResponseWriter, timeout time.Duration) ([]byte, error) {
 	placement := options.GetNormalizedUplinkDataPlacement()
 	var headerPayload, cookiePayload, bodyPayload []byte
 	var err error
@@ -914,10 +1036,13 @@ func readPacketPayload(request *http.Request, options V2RayXHTTPOptions, maxByte
 		}
 	}
 	if placement == "body" || placement == "auto" || placement == "" {
-		bodyPayload, err = readRequestBody(request, maxBytes)
+		bodyPayload, err = readRequestBody(request, maxBytes-len(headerPayload)-len(cookiePayload), w, timeout)
 		if err != nil {
 			return nil, err
 		}
+	}
+	if len(headerPayload)+len(cookiePayload)+len(bodyPayload) > maxBytes {
+		return nil, fmt.Errorf("xhttp payload exceeds %d bytes", maxBytes)
 	}
 	if len(headerPayload) == 0 && len(cookiePayload) == 0 {
 		return bodyPayload, nil
@@ -935,11 +1060,14 @@ func readPacketPayload(request *http.Request, options V2RayXHTTPOptions, maxByte
 	return payload, nil
 }
 
-func readRequestBody(request *http.Request, maxBytes int) ([]byte, error) {
-	if request.Body == nil {
+func readRequestBody(request *http.Request, maxBytes int, w http.ResponseWriter, timeout time.Duration) ([]byte, error) {
+	if maxBytes < 0 {
+		return nil, errors.New("xhttp headers exceed upload limit")
+	}
+	if request.Body == nil || request.Body == http.NoBody {
 		return nil, nil
 	}
-	payload, err := io.ReadAll(io.LimitReader(request.Body, int64(maxBytes)+1))
+	payload, err := io.ReadAll(io.LimitReader(&deadlineBody{Reader: request.Body, controller: http.NewResponseController(w), timeout: timeout}, int64(maxBytes)+1))
 	if err != nil {
 		return nil, err
 	}

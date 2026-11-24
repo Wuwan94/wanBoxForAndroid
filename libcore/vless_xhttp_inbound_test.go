@@ -6,6 +6,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -312,4 +314,38 @@ func freeTCPPort(t *testing.T) int {
 		t.Fatalf("release temporary TCP port: %v", err)
 	}
 	return port
+}
+
+// Check the complete XHTTP transport through wanBox's registry after applying
+// the App's append-key semantics. The upstream CLI separately checks the base
+// VLESS schema because it does not have wanBox's XHTTP extension.
+func TestVLESSXHTTPInboundExample(t *testing.T) {
+	data, err := os.ReadFile("../docs/config/xhttp-inbound.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		t.Fatal(err)
+	}
+	if len(fields) != 1 || fields["inbounds+"] == nil {
+		t.Fatal("example must append inbounds")
+	}
+	var add []json.RawMessage
+	if err := json.Unmarshal(fields["inbounds+"], &add); err != nil || len(add) != 1 {
+		t.Fatalf("expected one appended inbound: %v", err)
+	}
+	for _, transport := range []string{"xhttp", " XhTtP "} {
+		t.Run(transport, func(t *testing.T) {
+			inbound := strings.Replace(string(add[0]), `"type": "xhttp"`, fmt.Sprintf(`"type": %q`, transport), 1)
+			candidate := fmt.Sprintf(`{"inbounds":[{"type":"mixed","tag":"app-default","listen":"127.0.0.1","listen_port":1080},%s]}`, inbound)
+			server, err := checkVlessConfig(candidate)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := server.Close(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 }
