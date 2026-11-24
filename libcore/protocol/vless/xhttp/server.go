@@ -248,7 +248,7 @@ func (s *Server) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		controller := http.NewResponseController(writer)
 		body := &deadlineBody{Reader: request.Body, controller: controller, timeout: s.uploadReadTimeout}
 		s.serveConnection(writer, request, body, nil)
-		if body.eof {
+		if body.eof.Load() {
 			clearUploadDeadline(writer)
 		} else {
 			_ = controller.SetReadDeadline(time.Now())

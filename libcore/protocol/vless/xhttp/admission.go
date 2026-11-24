@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -87,7 +88,7 @@ type deadlineBody struct {
 	timeout      time.Duration
 	needDeadline bool
 	started      bool
-	eof          bool
+	eof          atomic.Bool // observed by the HTTP handler while the tunnel may still be reading
 }
 
 func (b *deadlineBody) Read(p []byte) (int, error) {
@@ -100,7 +101,9 @@ func (b *deadlineBody) Read(p []byte) (int, error) {
 	}
 	n, err := b.Reader.Read(p)
 	b.needDeadline = n > 0
-	b.eof = err == io.EOF
+	if err == io.EOF {
+		b.eof.Store(true)
+	}
 	return n, err
 }
 func clearUploadDeadline(w http.ResponseWriter) {
