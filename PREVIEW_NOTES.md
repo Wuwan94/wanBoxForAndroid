@@ -1,10 +1,32 @@
-# v3.0.19-preview.1 发行说明
+# v3.0.19-preview.2 发行说明（候选）
+
+**状态：未发布的稳定性预览版候选。**
+
+本版收录 [PR #94](https://github.com/Wuwan94/wanBoxForAndroid/pull/94) 的 VLESS XHTTP 服务端入站加固。正式版仍为 `v3.0.17`，sing-box 固定版本不变。
+
+## 本版修复
+
+- 增加上传滚动读取超时与分层资源配额；连接超时或关闭后及时回收资源，避免慢上传阻塞其他会话。
+- 修复 `stream-up` 续接和 `stream-one` 并发竞态。
+- 收紧会话来源校验、重复下行及请求校验；乱序缓冲溢出时结束会话并释放积压数据。
+- 更新 XHTTP 自定义 JSON 示例，并在 CI 纳入 XHTTP 回归与 Go 竞态检测。
+
+## 升级与验证范围
+
+- APK `versionCode` 从 `10201` 升至 `10207`，Root 模块码从 `2040` 升至 `2041`。使用同一 Release 的管理器 APK 与 Root 模块，不跨版混装。
+- [PR #94 Android 验证](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/45399072399) 已通过。新增请求级回归覆盖 HTTP/1.1；对应 HTTP/2 场景、真机与真实 Xray 客户端互通未实测。
+
+---
+
+## 历史归档
+
+### v3.0.19-preview.1 已发布说明
 
 **状态：已发布的稳定性预览版。**
 
 本版收口 `v3.0.18-preview.4` 发布后合入 `main` 的一项新功能：为 VLESS 新增 XHTTP（SplitHTTP）**服务端入站**（PR #90，合并提交 `f3d8a67a443b2c450ba404683d97ef51f8b26d9f`，7 个文件 +1820/−4，`Verify Android Build` run `45251550225` 在 head `35c9256a` 全绿）。`3.0.18` 预览线已满每线 `preview.4` 的上限，本版按版本规则开新线 `3.0.19`。正式线 `3.0.17 / 2035`（APK `10175`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 均未变；预览元数据为 `3.0.19-preview.1 / 2040`，派生 APK `versionCode=10201`、Root 模块码 `2040`。`Preview Build` run `45338292530` 于 2026-11-24T07:17:56Z 发布本版（轻量 tag 指向升版 PR #91 合并提交 `94a9c9b895ccaf757119abdada3de4153e05aad2`，发布 job 断言 `APPROVED_SHA=94a9c9b` 并回读 tag；前两次尝试的冷启动测量作业因 Maven Central 429 限流失败，第 3 次尝试四作业全绿）；发布后 `prune_prereleases.py` 已清理 `v3.0.18-preview.4`，正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 保留。
 
-## ✦ 与上一版对比
+### ✦ 与上一版对比
 
 | 项目 | v3.0.18-preview.4 | v3.0.19-preview.1 |
 |---|---|---|
@@ -14,7 +36,7 @@
 
 URLTest 稳定性约束（检测间隔 ≥ 10 秒、空闲超时 ≥ 30 分钟、切换时不中断现有连接）、`default` 保真、层级回切门（连续 3 轮健康 + 60 秒无失败）本版均未放宽；失败方向仍是 fail-closed——证据不足时停留在当前层级，不回切。
 
-## ✦ 本版更新
+### ✦ 本版更新
 
 ### 1. VLESS XHTTP 服务端入站（PR #90）
 
@@ -32,7 +54,7 @@ URLTest 稳定性约束（检测间隔 ≥ 10 秒、空闲超时 ≥ 30 分钟�
 
 `nb4a.properties` 预览线升为 `3.0.19-preview.1` / `2040`（新线首个预览）；正式线 `3.0.17 / 2035` 与 sing-box pin 未变。当前版本文档一致性检查改为「已发布 preview.4 + 未发布 preview.1 候选」的双态口径。
 
-## ✦ 资产与安装
+### ✦ 资产与安装
 
 - **运行要求**：Android 12+（API 31+）、arm64-v8a、Magisk / KernelSU / APatch 等 Root 环境。
 - **四件套（API 回读）**：APK `6381543` B / `e91b4a81…196507`、普通 Root ZIP `18295938` B / `95a2ec5f…b920ef`、合一 ZIP `23954760` B / `0b8dd917…88fd47`、`SHA256SUMS` `333` B / `a1c22e05…e1857b`；APK + 普通模块 `24677481` B（23.53 MiB）→ 26 MiB 门禁 PASS。
@@ -40,15 +62,11 @@ URLTest 稳定性约束（检测间隔 ≥ 10 秒、空闲超时 ≥ 30 分钟�
 - **回退**：换回正式版 [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17) 的 APK 与配套模块（模块码 `2035`）成套重装。
 - **升级**：APK 由 `10199` 升到 `10201`、模块由 `2039` 升到 `2040`，严格递增且同签名，可直接覆盖安装。
 
-## 🛡️ 验证与边界
+### 🛡️ 验证与边界
 
 - **PR 门禁**：PR #90 的 `Verify Android Build` run `45251550225`（head `35c9256a`）全绿，含 `go test -race`、`go vet`、Python 工具 125 项、`rootmodule` 测试与文档门禁、JVM 单测与插桩；升版 PR #91 的 Verify run `45328063751`（head `c02f04f`）首跑红于 3 个组编辑器插桩测试、失败作业重跑后全绿（抖动）。
 - **新增回归**：`vless_xhttp_inbound_test.go` 往返用例（四模式 + TLS/HTTP2 + header/cookie 放置 + GET 上行 + 普通 VLESS 与 WebSocket 回归）；`server_test.go` 校验与资源上限用例（会话 ID、请求头、placement、填充互通、缓冲上限与关闭释放、OPTIONS 预检）。
 - **未验证边界**：未执行 Magisk / KernelSU / APatch 真机矩阵（CI 自标 `runtime_regression: not_verified`）；XHTTP 服务端与真实 Xray 客户端的端到端互通未验证（自动化为本项目客户端↔服务端往返）；服务端入站的 OpenSpec 变更已由 PR #92 补齐并合入主规范（`support-xhttp-inbound`，合并提交 `12f657478ef3a6caf082211d415e215f23fe1d31`）。任何自动化结果都不代替真机验证，本版不晋升正式版。
-
----
-
-## 历史归档
 
 ### v3.0.18-preview.4 已发布说明
 
