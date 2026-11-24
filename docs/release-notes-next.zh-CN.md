@@ -1,12 +1,12 @@
-# v3.0.19-preview.1 发行说明（候选）
+# v3.0.19-preview.1 发行说明
 
-**状态：未发布的稳定性预览版候选。**
+**状态：已发布的稳定性预览版。**
 
-本版收口 `v3.0.18-preview.4` 发布后合入的一项新功能：PR #90（合并提交 `f3d8a67a443b2c450ba404683d97ef51f8b26d9f`，7 个文件 +1820/−4）新增 VLESS XHTTP 服务端入站。`3.0.18` 线已满 `preview.4` 上限，本版按版本规则开新线 `3.0.19`。正式线 `3.0.17 / 2035`（APK `10175`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 均未变；预览元数据为 `3.0.19-preview.1 / 2040`，派生 APK `versionCode=10201`、Root 模块码 `2040`（已发布 preview.4 为 `10199 / 2039`）。本条目在候选阶段写定，发布后回填发布 run 号与四件套数据并翻转状态。
+本版收口 `v3.0.18-preview.4` 发布后合入的一项新功能：PR #90（合并提交 `f3d8a67a443b2c450ba404683d97ef51f8b26d9f`，7 个文件 +1820/−4）新增 VLESS XHTTP 服务端入站。`3.0.18` 线已满 `preview.4` 上限，本版按版本规则开新线 `3.0.19`。正式线 `3.0.17 / 2035`（APK `10175`）与 `SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 均未变；预览元数据为 `3.0.19-preview.1 / 2040`，派生 APK `versionCode=10201`、Root 模块码 `2040`（已发布 preview.4 为 `10199 / 2039`）。`Preview Build` run `45338292530` 于 2026-11-24T07:17:56Z 发布（tag `94a9c9b895ccaf757119abdada3de4153e05aad2`，升版 PR #91 合并提交；前两次尝试的冷启动测量作业因 Maven Central 429 限流失败，第 3 次尝试四作业全绿），发布后已清理 `v3.0.18-preview.4`。四件套：APK `6381543` B、普通 Root ZIP `18295938` B、合一 ZIP `23954760` B、`SHA256SUMS` `333` B，APK + 普通模块 `24677481` B（23.53 MiB）→ PASS。
 
 ## ✦ 与上一版对比
 
-| 项目 | v3.0.18-preview.4 | v3.0.19-preview.1（候选） |
+| 项目 | v3.0.18-preview.4 | v3.0.19-preview.1 |
 |---|---|---|
 | 内容 | UDP 回包按来源校验、截止判定先认取消；门代次变化仍删失败证据；自启结果可重放且只消费一次、锁外做 Room/IPC；UDP 迟到回包用例 | 新增 VLESS XHTTP 服务端入站（经自定义 JSON 配置启用）；顺带修复 XHTTP 客户端请求头顺序与上传字节计数 |
 | APK `versionCode` | 10199 | 10201 |
@@ -23,9 +23,9 @@ URLTest 间隔 ≥10 秒、空闲 ≥30 分钟、切换不中断现有连接与�
 
 同一 Release 的瘦管理器 APK 与 Root 模块必须成套安装；回退用正式版 [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17) 的 APK 与配套模块（模块码 `2035`）。升级方向：APK `10199 → 10201`、模块 `2039 → 2040`，严格递增且同签名，可直接覆盖安装。
 
-PR 门禁：PR #90 的 `Verify Android Build` run `45251550225`（head `35c9256a`）全绿。新增回归：`vless_xhttp_inbound_test.go` 端到端往返（四模式、TLS+HTTP/2、header/cookie 放置、GET 上行，及普通 VLESS / WebSocket 入站回归）与 `server_test.go` 的校验、填充互通与缓冲上限用例。
+PR 门禁：PR #90 的 `Verify Android Build` run `45251550225`（head `35c9256a`）全绿；升版 PR #91 的 Verify run `45328063751` 首跑红于 3 个组编辑器插桩测试、重跑后全绿（抖动）。新增回归：`vless_xhttp_inbound_test.go` 端到端往返（四模式、TLS+HTTP/2、header/cookie 放置、GET 上行，及普通 VLESS / WebSocket 入站回归）与 `server_test.go` 的校验、填充互通与缓冲上限用例。
 
-未执行 Root 真机矩阵（CI 自标 `runtime_regression: not_verified`）；与真实 Xray 客户端的端到端互通未验证（自动化为本项目客户端↔服务端往返）；服务端入站的 OpenSpec 变更文档待补。自动化结果不等同于真机验证，本版不晋升正式版。
+未执行 Root 真机矩阵（CI 自标 `runtime_regression: not_verified`）；与真实 Xray 客户端的端到端互通未验证（自动化为本项目客户端↔服务端往返）；服务端入站的 OpenSpec 变更已由 PR #92 补齐并合入主规范。自动化结果不等同于真机验证，本版不晋升正式版。
 
 ## 历史归档
 
