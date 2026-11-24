@@ -502,8 +502,7 @@ class OutboundReferenceAlarmTest {
             // Inspect all visible roots off the app main thread that serves them.
             var reported = false
             for (attempt in 0 until 100) {
-                val roots = instrumentation.uiAutomation.windows.mapNotNull { it.root }
-                    .ifEmpty { listOfNotNull(instrumentation.uiAutomation.rootInActiveWindow) }
+                val roots = instrumentation.interactiveUiRoots()
                 roots.forEach { root -> reported = containsError(root) || reported }
                 if (reported) break
                 Thread.sleep(100)

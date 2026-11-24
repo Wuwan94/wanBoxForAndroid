@@ -63,8 +63,7 @@ class GroupDraftAbandonPersistenceTest {
         }
         fun clickVisibleText(text: String) {
             awaitCondition {
-                val roots = instrumentation.uiAutomation.windows.mapNotNull { it.root }
-                    .ifEmpty { listOfNotNull(instrumentation.uiAutomation.rootInActiveWindow) }
+                val roots = instrumentation.interactiveUiRoots()
                 val candidates = try {
                     roots.flatMap { root ->
                         try {

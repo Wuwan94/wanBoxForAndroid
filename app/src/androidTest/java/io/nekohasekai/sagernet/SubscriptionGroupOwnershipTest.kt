@@ -45,8 +45,7 @@ class SubscriptionGroupOwnershipTest {
         fun clickAccessibleText(text: String) {
             val deadline = android.os.SystemClock.uptimeMillis() + 8000
             while (android.os.SystemClock.uptimeMillis() < deadline) {
-                val roots = instrumentation.uiAutomation.windows.mapNotNull { it.root }
-                    .ifEmpty { listOfNotNull(instrumentation.uiAutomation.rootInActiveWindow) }
+                val roots = instrumentation.interactiveUiRoots()
                 val nodes = try {
                     roots.flatMap { root ->
                         try {
