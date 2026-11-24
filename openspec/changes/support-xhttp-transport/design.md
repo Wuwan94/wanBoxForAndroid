@@ -18,7 +18,7 @@
 - 保持 Android 既有的 `StandardV2RayBean`、UI 与 `XhttpExtraConverter` 格式兼容。
 
 **Non-Goals:**
-- XHTTP 服务端 Inbound 驱动（移动端仅需要 Client Outbound）。
+- ~~XHTTP 服务端 Inbound 驱动（移动端仅需要 Client Outbound）~~ —— 已由 `support-xhttp-inbound` 变更关闭（2026-11-24；PR #90 已实现服务端入站并合入 main）。
 - 为 Trojan / VMess 扩展 XHTTP（主流生态及 T4A 仅使用 VLESS-XHTTP）。
 - 引入外部 Xray-core 二进制或多进程旁路运行。
 
