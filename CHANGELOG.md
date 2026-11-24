@@ -4,6 +4,10 @@
 
 ## wanBox 3.0.x 发布记录
 
+### v3.0.19-preview.1（预览候选，未发布）
+- 候选未发布：收口 v3.0.18-preview.4 发布后合入 main 的 VLESS XHTTP 服务端入站——PR #90（合并提交 `f3d8a67a443b2c450ba404683d97ef51f8b26d9f`，7 个文件 +1820/−4，`Verify Android Build` run `45251550225` 在 head `35c9256a` 全绿）。内容：libcore 在入站注册表覆盖 VLESS 入站，新增 XHTTP（SplitHTTP）服务端传输（`auto` / `packet-up` / `stream-up` / `stream-one`、HTTP/1.1 与 HTTP/2/h2c、TLS、会话与缓冲资源上限、CORS 预检），非 XHTTP 入站仍委托官方实现，普通 VLESS 与既有 XHTTP 出站不倒退；入站经现有节点自定义 JSON 配置路径启用，不新增服务器向导；官方 sing-box 内核与 `SINGBOX_VERSION` 未改。顺带修复 XHTTP 客户端请求头顺序与上传字节计数两处既有问题。
+- 元数据升为模块 `2040` / APK `10201`（已发布 preview.4 为 `2039` / `10199`）；3.0.18 线已满 preview.4 上限，本版按版本规则开新线 3.0.19；正式线 `3.0.17 / 2035` 不变。边界：与真实 Xray 的端到端互通未验证（自动化为本项目客户端↔服务端往返）；Root 真机矩阵未执行（CI 自标 `runtime_regression: not_verified`）。候选阶段记录，发布后由文档同步 PR 翻转状态并回填 run 号与四件套资产数据。
+
 ### v3.0.18-preview.4（已发布预览）
 
 - [GitHub Release v3.0.18-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.18-preview.4) 由 `Preview Build` run `45175762344` 在 main commit/tag `a8cec2fa6676ec0c9a5fb3b7186a9c84e3e44893`（轻量 tag，升版 PR #88 合并提交，2026-11-23T12:35:23Z）于 2026-11-23T12:55:32Z 发布；tag 对象、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与发布 job 的 `APPROVED_SHA` 四者同为 `a8cec2fa`，四个作业全绿。升版 PR #88 的 `Verify Android Build` run `45170090295`（head `a14713f`）全绿。
