@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -199,5 +200,72 @@ func TestSessionBindingAdmissionAndCleanup(t *testing.T) {
 	s.closeSession("valid-session", session)
 	if s.sessions["valid-session"] != nil || s.sessionsPerIP[second] != 0 {
 		t.Fatal("closed session retained a reservation")
+	}
+}
+
+func TestReadFailureReleasesUploadReservation(t *testing.T) {
+	transport, err := NewServer(context.Background(), log.NewNOPFactory().Logger(), V2RayXHTTPOptions{V2RayXHTTPBaseOptions: V2RayXHTTPBaseOptions{
+		Mode: "packet-up", XPaddingObfsMode: true, XPaddingPlacement: PlacementHeader, XPaddingMethod: "repeat-x", XPaddingBytes: Xbadoption.Range{From: 4, To: 4},
+	}}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := transport.(*Server)
+	defer s.Close()
+	r := httptest.NewRequest(http.MethodPost, "http://example.com/isolated-session/0", uploadReaderFunc(func([]byte) (int, error) {
+		return 0, os.ErrDeadlineExceeded
+	}))
+	r.Header.Set("X-Padding", "xxxx")
+	w := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
+	s.ServeHTTP(w, r)
+	if w.Code != http.StatusRequestTimeout || s.uploadLimits.global != 0 || s.uploadLimits.readingBytes != 0 {
+		t.Fatalf("status=%d slots=%d bytes=%d", w.Code, s.uploadLimits.global, s.uploadLimits.readingBytes)
+	}
+}
+
+func TestTunnelFailureDropsSessionImmediately(t *testing.T) {
+	handler := tunnelHandler(func(_ net.Conn, done N.CloseHandlerFunc) { done(errors.New("test handshake failure")) })
+	transport, err := NewServer(context.Background(), log.NewNOPFactory().Logger(), V2RayXHTTPOptions{V2RayXHTTPBaseOptions: V2RayXHTTPBaseOptions{
+		Mode: "packet-up", XPaddingObfsMode: true, XPaddingPlacement: PlacementHeader, XPaddingMethod: "repeat-x", XPaddingBytes: Xbadoption.Range{From: 4, To: 4},
+	}}, nil, handler)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := transport.(*Server)
+	defer s.Close()
+	r := httptest.NewRequest(http.MethodGet, "http://example.com/isolated-session", nil)
+	r.Header.Set("X-Padding", "xxxx")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, r)
+	if w.Code != http.StatusOK || len(s.sessions) != 0 || len(s.sessionsPerIP) != 0 {
+		t.Fatalf("status=%d registered sessions=%d peer reservations=%d", w.Code, len(s.sessions), len(s.sessionsPerIP))
+	}
+}
+
+func TestPacketAssemblerClosesAndReleasesOnBufferOverflow(t *testing.T) {
+	var total atomic.Int64
+	reader, writer := io.Pipe()
+	session := &serverSession{reader: reader, writer: writer, closed: make(chan struct{}), connected: make(chan struct{}),
+		packets: make(chan serverPacket, 2), maxBuffered: 1, totalBufferedBytes: &total}
+	defer session.close()
+	for _, seq := range []uint64{1, 2} {
+		if !session.push(serverPacket{sequence: seq, payload: []byte{'x'}}) {
+			t.Fatal("packet did not enter test queue")
+		}
+	}
+	done := make(chan struct{})
+	go func() { session.copyPackets(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("packet assembler did not stop")
+	}
+	select {
+	case <-session.closed:
+	default:
+		t.Fatal("session survived an overflow")
+	}
+	if total.Load() != 0 || session.bufferedBytes.Load() != 0 {
+		t.Fatal("overflow did not release buffered bytes")
 	}
 }
