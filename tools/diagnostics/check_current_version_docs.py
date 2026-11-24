@@ -17,16 +17,15 @@ ROOT = Path(__file__).resolve().parents[2]
 STABLE_TAG = "v3.0.17"
 STABLE_CODE = "2035"
 STABLE_APK_CODE = "10175"
-# v3.0.19-preview.1 已作为稳定性预览发布：Preview Build run 45338292530（2026-11-24T07:17:56Z 上架；
-# 前两次尝试的冷启动测量作业因 Maven Central 429 限流失败，第 3 次尝试四作业全绿），
-# 发布触发 prune，上一预览 v3.0.18-preview.4 的 Release/tag 已删除。
-PUBLISHED_PREVIEW = "v3.0.19-preview.1"
-PUBLISHED_PREVIEW_COMMIT = "94a9c9b895ccaf757119abdada3de4153e05aad2"
-# 源码候选与当前已发布预览分开记账，发布后再核对并更新已发布状态。
+# v3.0.19-preview.2 已发布：Preview Build run 45426378108 / #63，tag 与发布资产提交为
+# 9f4299e50aa88bc6f385daf4663828e07528036d，2026-11-24T15:55:00Z 上架；发布后 preview.1 已清理。
+PUBLISHED_PREVIEW = "v3.0.19-preview.2"
+PUBLISHED_PREVIEW_COMMIT = "9f4299e50aa88bc6f385daf4663828e07528036d"
+# 当前源码预览线与最近已发布预览一致；版本元数据仍指向 2041。
 SOURCE_PREVIEW = "v3.0.19-preview.2"
 SOURCE_PREVIEW_CODE = "2041"
-# 上一预览（v3.0.18-preview.4）的 Release/tag 已在本次发布时清理，只保留历史说明与资产快照。
-ARCHIVED_PREVIEW = "v3.0.18-preview.4"
+# v3.0.19-preview.1 的 Release/tag 已在 preview.2 发布后清理，只保留历史说明与资产快照。
+ARCHIVED_PREVIEW = "v3.0.19-preview.1"
 HISTORY_MARKER = "历史归档"
 
 FILES = {
@@ -78,7 +77,7 @@ def failures(root: Path = ROOT) -> list[str]:
     except (FileNotFoundError, UnicodeDecodeError) as exc:
         return [f"读取当前版本文档失败: {exc}"]
 
-    # 1. 源码元数据：正式线已晋升 3.0.17 / 2035；预览线为下一预览占位（PRE > FORMAL）。
+    # 1. 源码元数据：正式线为 3.0.17 / 2035；源码预览线可与最近已发布预览相同（PRE > FORMAL）。
     if props.get("VERSION_NAME") != STABLE_TAG[1:]:
         errors.append(f"nb4a.properties: VERSION_NAME 应为 {STABLE_TAG[1:]}，实际 {props.get('VERSION_NAME')!r}")
     if props.get("VERSION_CODE") != STABLE_CODE:
@@ -117,7 +116,7 @@ def failures(root: Path = ROOT) -> list[str]:
         if token not in readme:
             errors.append(f"README.md 下载表缺少{label} {token}")
 
-    # 3. 版本对照：两行发布状态 + 已发布预览的精确提交 + 源码预览占位。
+    # 3. 版本对照：两行发布状态、已发布预览精确提交及当前源码预览线；发布与源码预览可相同。
     table = "\n".join(current.splitlines()[:14])
     for label in ("已发布正式版", "已发布预览版"):
         if label not in table:

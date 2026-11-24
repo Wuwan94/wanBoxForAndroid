@@ -16,7 +16,23 @@
 
 ## 3. 后续验证与清理（非拦路项，复审结论转任务）
 
-- [ ] 3.1 与真实 Xray 端到端对打：wanBox 服务端 ↔ Xray 客户端、Xray 服务端 ↔ wanBox 客户端各跑一遍四种模式
+- [x] 3.1 与真实 Xray 端到端对打：wanBox 服务端 ↔ Xray 客户端、Xray 服务端 ↔ wanBox 客户端各跑一遍四种模式（逐格结果见 [`docs/testing/xhttp-xray-interop.md`](../../../docs/testing/xhttp-xray-interop.md)）
+
+| 实际执行项 | 结果 |
+|---|---|
+| Xray 客户端 → wanBox 服务端：`auto` | 通过 |
+| Xray 客户端 → wanBox 服务端：`packet-up` | 通过 |
+| Xray 客户端 → wanBox 服务端：`stream-up` | 通过 |
+| Xray 客户端 → wanBox 服务端：`stream-one` | 通过 |
+| Xray 客户端 → wanBox 服务端：`auto` + TLS | 通过 |
+| Xray 客户端 → wanBox 服务端：`packet-up` header 上行 | 通过 |
+| Xray 客户端 → wanBox 服务端：`packet-up` cookie 上行 | 通过 |
+| wanBox 客户端 → Xray 服务端：`auto` | 通过 |
+| wanBox 客户端 → Xray 服务端：`packet-up` | 通过 |
+| wanBox 客户端 → Xray 服务端：`stream-up` | 通过 |
+| wanBox 客户端 → Xray 服务端：`stream-one` | 通过 |
+| wanBox 客户端 → Xray 服务端：`auto` + TLS | 通过 |
+
 - [ ] 3.2 真机全链路验证：Preview 包上真机跑 VLESS XHTTP 入站连接，确认手机上全链路通
 - [x] 3.3 清理 `inbound.go` 里的 KTLS 死条件（从上游抄来的恒不成立判断，无害，删掉或注明来源）
-- [x] 3.4 packet 乱序缓冲满时静默丢包改为显式处理（显式错误或主动关闭会话，避免极端情况下会话卡住等超时）
+- [x] 3.4 packet 乱序缓冲达到上限时显式关闭会话并回收缓冲，避免静默丢包
