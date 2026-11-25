@@ -57,6 +57,12 @@ python tools/clean_subscription.py input.json cleaned.json
 脚本更新组与路由引用，删除后出现空组或无效默认引用时会报错，不会静默改为直连。
 不接受覆盖原文件或已有输出文件；不联网、不在终端打印密码或订阅链接。生成 JSON 会保留输入节点凭据及其他未删除字段（可能含订阅链接），请妥善保管。
 
+## XHTTP stream-up 入站保活
+
+[`xhttp-inbound.json`](xhttp-inbound.json) 是 loopback-only 的 VLESS XHTTP `stream-up` 示例，并由仓库的 sing-box 配置检查与完整 XHTTP 配置测试覆盖。`sc_stream_up_server_secs` 控制成功上传响应中的重复 `X` padding 保活间隔；省略时采用 Xray 兼容的 20–80 秒随机区间，设置为 `-1` 可关闭响应 padding。它不是上传读超时：上传正文仍使用独立的滚动空闲截止时间（默认 30 秒）。每轮 padding 的 `Write` 与随后的 `Flush` 共用一个独立 5 秒响应写期限；成功 Flush 后立即清除期限，期限设置失败、写入错误或刷新错误都会停止保活协程，不会改变上传读截止时间。
+
+官方 Xray [服务端实现](https://github.com/XTLS/Xray-core/blob/main/transport/internet/splithttp/hub.go) 与[配置默认值](https://github.com/XTLS/Xray-core/blob/main/transport/internet/splithttp/config.go)采用上述保活语义。注意，Xray [issue #7180](https://github.com/XTLS/Xray-core/issues/7180) 报告过 HTTP/1.1 Nginx 上游与 stream-up 响应保活交互导致上传截断；若遇到类似反代问题，可测试 `-1`（会失去响应保活带来的空闲保护），或让反代到后端使用 HTTP/2。该问题报告不等于已验证所有反代配置或 wanBox 均会受影响。
+
 ## 官方字段参考
 
 - https://sing-box.sagernet.org/configuration/dns/server/fakeip/

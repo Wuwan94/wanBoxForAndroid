@@ -36,15 +36,16 @@ import (
 )
 
 const (
-	maxXHTTPSessions                = 1024
-	maxXHTTPBufferedPosts           = 256
-	maxXHTTPBufferedBytesPerSession = 4 << 20
-	maxXHTTPBufferedBytes           = 32 << 20
-	maxXHTTPPostBytes               = 2 << 20
-	defaultXHTTPUploadReadTimeout   = 30 * time.Second
-	xhttpIdleTimeout                = 90 * time.Second
-	maxXHTTPPaddingBytes            = 4096
-	maxXHTTPSessionIDLength         = 128
+	maxXHTTPSessions                         = 1024
+	maxXHTTPBufferedPosts                    = 256
+	maxXHTTPBufferedBytesPerSession          = 4 << 20
+	maxXHTTPBufferedBytes                    = 32 << 20
+	maxXHTTPPostBytes                        = 2 << 20
+	defaultXHTTPUploadReadTimeout            = 30 * time.Second
+	defaultXHTTPStreamUpResponseWriteTimeout = 5 * time.Second
+	xhttpIdleTimeout                         = 90 * time.Second
+	maxXHTTPPaddingBytes                     = 4096
+	maxXHTTPSessionIDLength                  = 128
 )
 
 // Server implements the XHTTP server side of the V2Ray transport contract.
@@ -97,8 +98,8 @@ func NewServer(ctx context.Context, logger logger.ContextLogger, options V2RayXH
 	if interval := options.ScMinPostsIntervalMs; interval.From < 0 || interval.To < interval.From || interval.To >= int32(defaultXHTTPUploadReadTimeout/time.Millisecond) {
 		return nil, E.New("invalid xhttp sc_min_posts_interval_ms (must be ordered and less than the upload timeout)")
 	}
-	if interval := options.ScStreamUpServerSecs; interval.From != 0 || interval.To != 0 {
-		return nil, E.New("xhttp sc_stream_up_server_secs is not supported on the server")
+	if interval := options.ScStreamUpServerSecs; (interval.From != 0 || interval.To != 0) && !(interval.From == -1 && interval.To == -1) && (interval.From <= 0 || interval.To < interval.From) {
+		return nil, E.New("invalid xhttp sc_stream_up_server_secs (must be -1 or a positive ordered range)")
 	}
 	switch options.GetNormalizedUplinkHTTPMethod() {
 	case http.MethodGet:
@@ -365,11 +366,72 @@ func (s *Server) serveStreamUpload(w http.ResponseWriter, r *http.Request, sessi
 		s.closeSession(session.id, session)
 		return
 	}
-	if _, err := io.Copy(session.writer, &deadlineBody{Reader: r.Body, controller: controller, timeout: s.uploadReadTimeout}); err != nil {
+	stopKeepalive := s.startStreamUpKeepalive(w, r)
+	_, copyErr := io.Copy(session.writer, &deadlineBody{Reader: r.Body, controller: controller, timeout: s.uploadReadTimeout})
+	stopKeepalive()
+	if copyErr != nil {
 		_ = controller.SetReadDeadline(time.Now())
 		s.closeSession(session.id, session)
 	} else {
 		clearUploadDeadline(w)
+	}
+}
+
+func (s *Server) startStreamUpKeepalive(w http.ResponseWriter, r *http.Request) func() {
+	interval := s.options.GetNormalizedScStreamUpServerSecs()
+	if interval.To <= 0 || (r.Header.Get("Referer") == "" && !s.options.XPaddingObfsMode) {
+		return func() {}
+	}
+
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		controller := http.NewResponseController(w)
+		defer controller.SetWriteDeadline(time.Time{})
+		paddingRange := s.options.GetNormalizedXPaddingBytes()
+		for {
+			if err := controller.SetWriteDeadline(time.Now().Add(defaultXHTTPStreamUpResponseWriteTimeout)); err != nil {
+				return
+			}
+			if _, err := io.WriteString(w, strings.Repeat("X", int(paddingRange.Rand()))); err != nil {
+				return
+			}
+			if err := controller.Flush(); err != nil {
+				return
+			}
+			if err := controller.SetWriteDeadline(time.Time{}); err != nil {
+				return
+			}
+
+			timer := time.NewTimer(time.Duration(interval.Rand()) * time.Second)
+			select {
+			case <-stop:
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				return
+			case <-r.Context().Done():
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				return
+			case <-timer.C:
+			}
+		}
+	}()
+	var stopOnce sync.Once
+	return func() {
+		stopOnce.Do(func() {
+			close(stop)
+			<-done
+		})
 	}
 }
 
