@@ -17,16 +17,16 @@ ROOT = Path(__file__).resolve().parents[2]
 STABLE_TAG = "v3.0.17"
 STABLE_CODE = "2035"
 STABLE_APK_CODE = "10175"
-# v3.0.19-preview.1 已作为稳定性预览发布：Preview Build run 45338292530（2026-11-24T07:17:56Z 上架；
-# 前两次尝试的冷启动测量作业因 Maven Central 429 限流失败，第 3 次尝试四作业全绿），
-# 发布触发 prune，上一预览 v3.0.18-preview.4 的 Release/tag 已删除。
-PUBLISHED_PREVIEW = "v3.0.19-preview.1"
-PUBLISHED_PREVIEW_COMMIT = "94a9c9b895ccaf757119abdada3de4153e05aad2"
-# 源码候选与当前已发布预览分开记账，发布后再核对并更新已发布状态。
+# v3.0.19-preview.2 已作为稳定性预览发布：Preview Build 于 2026-11-24T15:55:00Z 上架，
+# tag 与 Release targetCommitish 同为 main 合并提交 9f4299e；发布触发 prune，上一预览
+# v3.0.19-preview.1 的 Release/tag 已删除，仅保留历史说明与资产快照。
+PUBLISHED_PREVIEW = "v3.0.19-preview.2"
+PUBLISHED_PREVIEW_COMMIT = "9f4299e50aa88bc6f385daf4663828e07528036d"
+# nb4a.properties 的预览线元数据跟随当前已发布预览；二者同值时发行说明必须按「已发布」写。
 SOURCE_PREVIEW = "v3.0.19-preview.2"
 SOURCE_PREVIEW_CODE = "2041"
-# 上一预览（v3.0.18-preview.4）的 Release/tag 已在本次发布时清理，只保留历史说明与资产快照。
-ARCHIVED_PREVIEW = "v3.0.18-preview.4"
+# 上一预览（v3.0.19-preview.1）的 Release/tag 已在本次发布时清理，只保留历史说明与资产快照。
+ARCHIVED_PREVIEW = "v3.0.19-preview.1"
 HISTORY_MARKER = "历史归档"
 
 FILES = {
@@ -155,7 +155,7 @@ def failures(root: Path = ROOT) -> list[str]:
     if "未发布候选" in lead:
         errors.append("docs/release-checklist.zh-CN.md 首段仍写「未发布候选」")
 
-    # 5. 发行说明：当前区段跟随源码预览并如实标记发布状态；归档预览保留。
+    # 5. 发行说明：当前区段跟随源码预览并如实标记发布状态；归档预览保留（旧预览标题仍沿用「已发布说明」）。
     for name, text in (("PREVIEW_NOTES.md", notes), ("docs/release-notes-next.zh-CN.md", next_notes)):
         section = current_section(text)
         title = section.splitlines()[0] if section.splitlines() else ""
