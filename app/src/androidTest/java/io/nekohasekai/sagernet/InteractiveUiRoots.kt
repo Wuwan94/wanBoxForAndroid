@@ -9,9 +9,10 @@ internal fun Instrumentation.interactiveUiRoots(): List<AccessibilityNodeInfo> {
     val automation = uiAutomation
     val info = checkNotNull(automation.serviceInfo)
     val flag = AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
-    // Android returns no interactive windows unless the automation client opts in.
-    if ((info.flags and flag) == 0) {
-        info.flags = info.flags or flag
+    val flags = flag or AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
+    // Android only provides the interactive windows and view IDs if the client opts in.
+    if ((info.flags and flags) != flags) {
+        info.flags = info.flags or flags
         automation.serviceInfo = info
     }
     return automation.windows.mapNotNull { it.root }
