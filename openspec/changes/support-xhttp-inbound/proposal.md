@@ -25,7 +25,7 @@
 - `xhttp-transport`（扩展）：定义 XHTTP (SplitHTTP) 服务端入站协议规范，涵盖四种模式、TLS/h2 装配、资源上限、请求校验与会话管理。
 
 ### Modified Capabilities
-- `libcore-integration`：明确自定义协议扩展覆盖 VLESS-XHTTP 入站，通过 out-of-tree 方式注册，保持官方 sing-box 源码树零侵入；`SINGBOX_VERSION` 与版本号文件不受影响。
+- `libcore-integration`：明确扩展版 VLESS 入站通过 out-of-tree 注册处理 XHTTP，非 XHTTP 传输委托官方实现；保持官方 sing-box 源码树零侵入，`SINGBOX_VERSION` 与版本号文件不受影响。
 
 ## Impact
 
@@ -48,8 +48,8 @@
 
 ## Known Limitations （复审结论，非拦路项）
 
-- 往返测试是 wanBox 客户端 ↔ wanBox 服务端自对自，尚未与真正的 Xray 端到端对打过（线格式照 Xray 公开格式写，但出站与入站均未做过跨实现实测）。
+- 原始复审时只有 wanBox 客户端 ↔ wanBox 服务端自对自；后续已使用官方 Xray v26.11.9 完成双向四模式及 TLS、header/cookie 补测。复测发现并修复了 wanBox `stream-one` 客户端 session ID 问题；环境、命令与逐格结果见 [`docs/testing/xhttp-xray-interop.md`](../../../docs/testing/xhttp-xray-interop.md)。
 - 尚未上真机跑过，Go 层通了不等于手机上全链路通。
 - `inbound.go` 里 KTLS 判断条件是从上游抄来的死条件（此路径恒不成立，无害）。
-- packet 乱序缓冲满时静默丢包，极端情况下会让该会话卡住等超时——记一笔，不拦。
-- 以上四点列为后续验证/跟进任务（见 tasks.md 第 3 节），不阻塞本变更归档。
+- packet 乱序缓冲达到上限时会关闭会话并回收缓冲资源；极端乱序会使当前会话中断，客户端需重建会话，不会静默丢包（tasks.md §3.4）。
+- 原始复审列出的后续项状态见 tasks.md 第 3 节；真实 Xray 互通与乱序溢出处理已完成，真机全链路任务仍未执行。

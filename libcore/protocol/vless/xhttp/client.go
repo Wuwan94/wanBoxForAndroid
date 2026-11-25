@@ -151,8 +151,11 @@ func NewClient(ctx context.Context, dialer N.Dialer, serverAddr M.Socksaddr, opt
 func (c *Client) DialContext(ctx context.Context) (net.Conn, error) {
 	options := c.options
 	mode := c.options.Mode
-	sessionIdUuid := uuid.New()
-	sessionId := sessionIdUuid.String()
+	sessionId := ""
+	if mode != "stream-one" {
+		sessionIdUuid := uuid.New()
+		sessionId = sessionIdUuid.String()
+	}
 	httpClient, xmuxClient := c.getHTTPClient()
 	var httpClient2 DialerClient
 	var xmuxClient2 *XmuxClient

@@ -14,20 +14,20 @@
 - 配置 `type: vless` + `transport: xhttp` 时走新代码，其他传输类型原样委托官方实现。
 - 服务端资源上限全部显式化（会话数、缓冲、并发上传、超时），不是裸奔的监听器。
 - 保持固定内核基线纯净，不修改内核源码，不碰版本号文件。
-- 与 Xray 公开的 XHTTP 线格式对齐（跨实现互通未实测，列为后续任务）。
+- 与 Xray 公开的 XHTTP 线格式对齐；真实 Xray 双向互通验证已完成，逐格结果见 [`docs/testing/xhttp-xray-interop.md`](../../../docs/testing/xhttp-xray-interop.md)。
 
 **Non-Goals:**
 - 修改 sing-box upstream 源码或 `SINGBOX_VERSION`。
 - 为 Trojan / VMess 扩展 XHTTP 服务端（本次只做 VLESS 入站）。
 - 引入外部 Xray-core 二进制或多进程旁路运行。
-- 本次不做与真实 Xray 的端到端互通实测与真机全链路验证（列为后续任务）。
+- PR #90 的原始实现范围不包含真实 Xray 互通与真机全链路验证；后续互通结果见验证记录，真机任务仍保留。
 
 ## Decisions
 
 ### 1. 采用 Out-of-tree 扩展注册新增 VLESS 入站
-- **选择**: 在 `libcore/protocol/vless` 中定义自定义 VLESS 入站构造器，并于 `libcore/box_include.go` 的 `nekoboxAndroidInboundRegistry` 中重新注册 `C.TypeVLESS`。
+- **选择**: 在 `libcore/protocol/vless` 中定义自定义 VLESS 入站构造器，并在 `libcore/box_include.go` 的 `nekoboxAndroidInboundRegistry` 中为 `C.TypeVLESS` 新增扩展注册处理。
 - **原因**:
-  - 与出站侧同一手法（方案 1A）：sing-box 留了正规的扩展口，入站/出站都是往注册表里注册；libcore 组装内核时用的是自己的注册表，按同一类型名注册即顶替默认实现。
+-  - 与出站侧同一手法（方案 1A）：sing-box 留有正规的扩展口；自定义构造器仅对 XHTTP 使用自有服务端传输，其他传输类型仍委托官方 `singboxVLESS.NewInbound`，保持官方行为。
   - 非 XHTTP 配置原样委托官方实现，回归面最小。
 - **替代方案**:
   - *修改固定内核源码*: 违反项目主规范对固定内核基线的约束，增加后续升核维护成本。
@@ -42,12 +42,12 @@
 ### 3. 资源上限写死在服务端构造时校验
 - **选择**: 会话全局 1024 / 每来源 IP 32，并发上传全局 64 / 每来源 IP 8 / 每会话 2，单帖 2 MiB、读入预算 24 MiB、队列全局 32 MiB / 每会话 4 MiB、缓冲帖子 256、未连接会话 30 秒超时、填充上限 4096、会话 ID 上限 128，全部在 `NewServer` 构造与配置校验时收口；超限配置直接拒绝启动，不静默放行。
 - **原因**: 入站是对外暴露面，移动端跑服务端更怕无上限的连接/缓冲把内存吃光；显式上限让复审有数可查。
-- **已知取舍**: packet 乱序缓冲满时静默丢包，极端情况下会话卡住等超时——复审已记录为非拦路项，后续可改为显式错误或主动关闭会话。
+- **已知行为**: packet 乱序缓冲达到上限时会关闭会话并回收缓冲资源；极端乱序可能中断当前会话，客户端需重建会话。该行为以显式失败保证资源回收，不会静默丢包（见 tasks.md §3.4）。
 
 ## Risks / Trade-offs
 
-- **[Risk 1] 服务端侧尚未与真实 Xray 对打过** —— 线格式照 Xray 公开格式写、客户端侧已互通，但服务端跨实现互通未实测。
-  - *Mitigation*: 列为后续验证任务（tasks.md 3.1），在真机前先以 Xray 服务端/客户端做端到端对打。
+- **[Risk 1] PR #90 原始验收时尚未完成真实 Xray 互通** —— 后续已使用官方 Xray v26.11.9 完成双向四模式、TLS 与 header/cookie 补测；记录见 [`docs/testing/xhttp-xray-interop.md`](../../../docs/testing/xhttp-xray-interop.md)。
+  - *Mitigation*: tasks.md §3.1 已完成；发现的 `stream-one` session ID 互通缺陷已按授权最小修复并通过复测。
 - **[Risk 2] 未上真机验证** —— Go 层往返测试通了不等于手机上全链路通。
   - *Mitigation*: 列为后续验证任务（tasks.md 3.2），Preview 包上真机跑入站连接。
 - **[Risk 3] KTLS 死条件** —— `inbound.go` 里 KTLS 判断是从上游抄来的死条件，此路径恒不成立，无害但容易误导后人阅读。

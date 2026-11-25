@@ -1,19 +1,34 @@
 # 发布、源码与版本对照
 
-核对日期：2026-11-24。发布状态以 GitHub Release、tag 与实际下载资产为准；源码元数据本身不构成已发布资产的核验。
+核对日期：2026-11-25。发布状态以 GitHub Release、tag 与实际下载资产为准；源码元数据本身不构成已发布资产的核验。
 
 | 对象 | 版本与状态 | 版本码及来源 |
 |---|---|---|
 | 已发布正式版 | [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17)，非 prerelease（Latest）；由 3.0.17 预览线晋升，升版 PR #75 合并提交 `d4e7c5d049d877660108ea11f7212a9f04824cd6`，`release.yml` 两阶段发布（候选 run `44474557410` → 正式 run `44477065390`，2026-11-19T07:24:49Z 上架） | APK / Root 模块 `10175 / 2035`（源码正式线 `VERSION_NAME=3.0.17`、`VERSION_CODE=2035`）；四件套字节与 SHA-256 见下文 |
-| 已发布预览版 | [v3.0.19-preview.1](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.19-preview.1)，prerelease，轻量 tag/commit `94a9c9b895ccaf757119abdada3de4153e05aad2`（升版 PR #91 合并提交，2026-11-24T06:08:17Z）；`Preview Build` run `45338292530`（第 3 次尝试四作业全绿，前两次尝试的冷启动测量作业因 Maven Central 429 限流失败）于 2026-11-24T07:17:56Z 发布，发布后 prune 删除 `v3.0.18-preview.4` | APK `versionCode=10201` / Root 模块码 `2040`（`PRE_VERSION_NAME=3.0.19-preview.1`、`PRE_VERSION_CODE=2040`）；四件套字节与 SHA-256 见下文 |
+| 已发布预览版 | [v3.0.19-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.19-preview.2)，prerelease，tag/资产提交 `9f4299e50aa88bc6f385daf4663828e07528036d`（升版 PR #95）；`Preview Build` run `45426378108`（#63）于 2026-11-24T15:55:00Z 发布 | APK `versionCode=10207` / Root 模块码 `2041`（`PRE_VERSION_NAME=3.0.19-preview.2`、`PRE_VERSION_CODE=2041`）；四件套字节与 SHA-256 见下文 |
 | 上一正式版 | [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14)，非 prerelease，保留；tag `fa9a9194ff89834e574640a0ec8e0d5d973cc024` | APK / Root 模块 `10130 / 2026`（历史资产核验记录，归档语境） |
-| 源码预览线 | `3.0.19-preview.2`（未发布候选，含 PR #94） | `PRE_VERSION_NAME=3.0.19-preview.2`、`PRE_VERSION_CODE=2041`；APK `versionCode=10207`、Root 模块码 `2041` |
+| 源码预览线 | `3.0.19-preview.2`（与最近已发布预览一致，含 PR #94） | `PRE_VERSION_NAME=3.0.19-preview.2`、`PRE_VERSION_CODE=2041`；APK `versionCode=10207`、Root 模块码 `2041` |
 
-源码元数据正式线为 `VERSION_NAME=3.0.17`、`VERSION_CODE=2035`；已发布预览 `3.0.19-preview.1 / 2040` 于 2026-11-24T07:17:56Z 作为稳定性预览发布，tag 与发布二进制同为 `94a9c9b`，派生 APK `10201`、模块 `2040`（上一预览 preview.4 为 `10199 / 2039`）。本次发布触发 `prune_prereleases.py`，`v3.0.18-preview.4` 的 Release/tag 已删除（现返回 404）；正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 未受影响。`SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变。
+源码元数据正式线为 `VERSION_NAME=3.0.17`、`VERSION_CODE=2035`；已发布预览 `3.0.19-preview.2 / 2041` 由 PR #95 升版，Preview Build run `45426378108`（#63）于 2026-11-24T15:55:00Z 上架，tag 与发布资产提交同为 `9f4299e50aa88bc6f385daf4663828e07528036d`，APK `10207`、模块 `2041`。preview.2 发布后，上一预览 `v3.0.19-preview.1` 的 Release 与 tag-ref API 均返回 404（已清理）；先前的 `v3.0.18-preview.4` 也已在 preview.1 发布时清理。正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 保留；`SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变。
+
+## v3.0.19-preview.2 已发布预览四件套（GitHub Release API asset digest）
+
+来源：[GitHub Release v3.0.19-preview.2](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.19-preview.2)，`Preview Build` run `45426378108`（#63）于 2026-11-24T15:55:00Z 发布；tag 与资产提交均为 `9f4299e50aa88bc6f385daf4663828e07528036d`（升版 PR #95）。下表字节数与 SHA-256 来自 GitHub Release API 的 asset digest。
+
+| 文件 | 字节数 | SHA-256 |
+|---|---:|---|
+| `wanBoxForAndroid-3.0.19-preview.2-arm64-v8a-release.apk` | 6381543 | `c9884dcc06a38fb620ba0f6684ba545730f07987de5b2701306e83373c6cef1e` |
+| `wanbox-root-module-arm64-v8a.zip` | 18308156 | `e070088063692787f184068aec32082468c12a317f4b573ad38cc10bf0f059c6` |
+| `wanbox-root-module-with-manager-arm64-v8a.zip` | 23965220 | `8fcaa9d3f68186daedb97d9a514fdfc52235d535c6e76a008340129e184c7d48` |
+| `SHA256SUMS` | 333 | `52eefd6f5a091193c691fee2187370760681d45bc6284091024542251d85abc2` |
+
+APK 与普通 Root 模块合计 `24689699` 字节（23.55 MiB），低于 `27262976` 字节（26 MiB）上限，余量 `2573277` 字节（2.45 MiB）；合一包 `23965220` 字节（22.86 MiB）。互通复核见 [Xray 记录](testing/xhttp-xray-interop.md)：这是含后续 `stream-one` 客户端修复的本地分支测试，不是已发布 preview.2 资产或真机测试结果。
+
+### 历史发布摘要（此前预览，不代表当前发布状态）
 
 预览线由已发布的 `3.0.18-preview.3 / 2038`（2026-11-21T08:13:01Z）前移到 `3.0.18-preview.4 / 2039` 并已完成两阶段之外的预览发布（轻量 tag，发布 job 断言 `APPROVED_SHA=a8cec2fa` 并回读 tag），派生 APK `10199`、模块 `2039`。本版收口 preview.3 之后 `main` 依次合入的三批复审修复：PR #84（合并提交 `00cfeedddc07249cccd8a8344eb1bf7df97d75dc`，head `c6c6f038`，`Verify Android Build` run `44898283085` 全绿，2026-11-21T12:16:42Z）、PR #86（合并提交 `2add76212e54c54b6d4dda02b1077ab373352e24`，head `d6426d10`，run `45152559766` 全绿，2026-11-23T10:33:34Z）、PR #87（合并提交 `f0f80b92d597a334440c25171648b19b76573b59`，head `0c1cbba`，run `45165265102` 全绿，2026-11-23T11:57:32Z），升版 PR #88 的 run `45170090295`（head `a14713f`）全绿。
 
-预览线已由已发布的 `3.0.18-preview.4 / 2039` 前移到 `3.0.19-preview.1 / 2040` 并完成预览发布（3.0.18 线已满每线 preview.4 的上限，按版本规则开新线；轻量 tag，发布 job 断言 `APPROVED_SHA=94a9c9b` 并回读 tag），派生 APK `10201`、模块 `2040`。preview.4 之后 `main` 的内容变更为 PR #90（合并提交 `f3d8a67a443b2c450ba404683d97ef51f8b26d9f`，head `35c9256a`，`Verify Android Build` run `45251550225` 全绿，2026-11-23T20:12:24Z）新增 VLESS XHTTP 服务端入站——libcore 在入站注册表覆盖 VLESS 入站，非 XHTTP 传输委托官方实现，XHTTP 服务端支持四种模式、HTTP/1.1 与 HTTP/2/h2c、TLS 与资源上限，经现有节点自定义 JSON 配置路径启用；官方 sing-box 内核与 `SINGBOX_VERSION` 未改，顺带修复 XHTTP 客户端请求头顺序与上传字节计数；服务端入站的 OpenSpec 变更已由 PR #92 补齐（`support-xhttp-inbound`，合并提交 `12f657478ef3a6caf082211d415e215f23fe1d31`）。四件套：APK `6381543` B / `e91b4a81…196507`、普通 Root ZIP `18295938` B / `95a2ec5f…b920ef`、合一 ZIP `23954760` B / `0b8dd917…88fd47`、`SHA256SUMS` `333` B，APK + 普通模块 `24677481` B（23.53 MiB）→ PASS。
+预览线已由已发布的 `3.0.18-preview.4 / 2039` 前移到 `3.0.19-preview.1 / 2040` 并完成预览发布（3.0.18 线已满每线 preview.4 的上限，按版本规则开新线；轻量 tag，发布 job 断言 `APPROVED_SHA=94a9c9b` 并回读 tag），派生 APK `10201`、模块 `2040`。preview.4 之后 `main` 的内容变更为 PR #90（合并提交 `f3d8a67a443b2c450ba404683d97ef51f8b26d9f`，head `35c9256a`，`Verify Android Build` run `45251550225` 全绿，2026-11-23T20:12:24Z）新增 VLESS XHTTP 服务端入站——libcore 在入站注册表新增 VLESS 注册项，非 XHTTP 传输委托官方实现，XHTTP 服务端支持四种模式、HTTP/1.1 与 HTTP/2/h2c、TLS 与资源上限，经现有节点自定义 JSON 配置路径启用；官方 sing-box 内核与 `SINGBOX_VERSION` 未改，顺带修复 XHTTP 客户端请求头顺序与上传字节计数；服务端入站的 OpenSpec 变更已由 PR #92 补齐（`support-xhttp-inbound`，合并提交 `12f657478ef3a6caf082211d415e215f23fe1d31`）。四件套：APK `6381543` B / `e91b4a81…196507`、普通 Root ZIP `18295938` B / `95a2ec5f…b920ef`、合一 ZIP `23954760` B / `0b8dd917…88fd47`、`SHA256SUMS` `333` B，APK + 普通模块 `24677481` B（23.53 MiB）→ PASS。
 
 本版内容（v3.0.18-preview.4）：UDP 回显探测的回包按来源校验（来源不可核对记 `unverified`，来源不一致或内容不符记 `rejected`），截止判定抽成 `udpProbeContextOutcome`——父上下文取消优先 `canceled`、单探针超时 `unverified`，并在关联/发送/读取后各复核一次（PR #86）；门代次轮内变化时仍删除已 `rejected` 成员的 UDP 证据，「导出/一次性测速排除探测端点」判定抽成可测函数并补四种组合 JVM 回归（PR #84）；开机自启结果改为 `MutableStateFlow` 发布 `Idle`/`Pending`/`Finished`、`AutoStartUiGate.accepts(...)` 纯函数门补 8 条用例、`consume(id)` 呈现一次即清、失败在页面有效时 Toast 一次，锁只保护 `sequence` 与内存态（Room 读写与 IPC 移到锁外）、`settle()` 落库异常兜底与 `CoroutineExceptionHandler`（PR #86 + #87）；`udpProbeContextOutcome` 未停止返回值改零值 `UDPProbeUnobserved`，补三条 UDP 迟到合法回包行为级用例与 spec 来源效力边界（PR #87）。四件套见下文。
 

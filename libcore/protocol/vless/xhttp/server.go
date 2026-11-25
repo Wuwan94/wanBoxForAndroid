@@ -649,7 +649,7 @@ func (s *Server) invalid(writer http.ResponseWriter, request *http.Request, stat
 		writer.Header().Set("Connection", "close")
 	}
 	http.Error(writer, message, status)
-	s.logger.InfoContext(request.Context(), E.New("process xhttp request from ", request.RemoteAddr, ": ", message))
+	s.logger.DebugContext(request.Context(), E.New("process xhttp request from ", request.RemoteAddr, ": ", message))
 }
 
 func pathMatches(requestPath, basePath string) bool {
