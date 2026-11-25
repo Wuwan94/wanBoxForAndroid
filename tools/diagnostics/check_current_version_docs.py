@@ -21,9 +21,10 @@ STABLE_APK_CODE = "10175"
 # 9f4299e50aa88bc6f385daf4663828e07528036d，2026-11-24T15:55:00Z 上架；发布后 preview.1 已清理。
 PUBLISHED_PREVIEW = "v3.0.19-preview.2"
 PUBLISHED_PREVIEW_COMMIT = "9f4299e50aa88bc6f385daf4663828e07528036d"
-# 当前源码预览线与最近已发布预览一致；版本元数据仍指向 2041。
-SOURCE_PREVIEW = "v3.0.19-preview.2"
-SOURCE_PREVIEW_CODE = "2041"
+# 当前源码预览线为未发布候选 v3.0.19-preview.3（2042）：收录 PR #96 的 XHTTP stream-one 客户端
+# 修复与 12 项真实 Xray 互通矩阵、PR #98 的 CI 互通门禁；发布后需改回与已发布预览一致。
+SOURCE_PREVIEW = "v3.0.19-preview.3"
+SOURCE_PREVIEW_CODE = "2042"
 # v3.0.19-preview.1 的 Release/tag 已在 preview.2 发布后清理，只保留历史说明与资产快照。
 ARCHIVED_PREVIEW = "v3.0.19-preview.1"
 HISTORY_MARKER = "历史归档"

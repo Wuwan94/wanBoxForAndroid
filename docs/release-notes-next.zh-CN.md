@@ -1,17 +1,34 @@
-# v3.0.19-preview.2 发行说明
+# v3.0.19-preview.3 发行说明（候选）
+
+**状态：未发布的稳定性预览版候选。** 正式版仍为 `v3.0.17`；官方 sing-box 内核与 `SINGBOX_VERSION` 未改。
+
+### 【修复 XHTTP stream-one 客户端互通缺陷，并把真实 Xray 互通矩阵接进 CI 门禁】
+
+- **修好 `stream-one` 客户端**：wanBox 客户端连 Xray v26.11.9 服务端时不再被识别成 `stream-up` 吃 `400 Bad Request`；`auto` / `packet-up` / `stream-up` 行为不变。
+- **拒绝日志降噪**：XHTTP 服务端 `invalid()` 从 Info 降回 Debug，正常拒绝不再刷屏。
+- **12 项真实互通矩阵**：Xray 客户端 ↔ wanBox 服务端、wanBox 客户端 ↔ Xray 服务端各跑四模式，另加 `auto` 双向 TLS 与 Xray→wanBox header/cookie 补测，逐格记录见 `docs/testing/xhttp-xray-interop.md`。
+- **进 CI 门禁**：`Verify Android Build` 的 `Build LibCore` 新增互通步骤，官方 `Xray-linux-64.zip` 按 SHA-256 `b651f7e1…ed95f82` 校验（Fail-Closed），12 项子用例必须真跑，跳过或少跑即失败。
+- **版本与安装**：APK `versionCode` `10207 → 10213`，Root 模块码 `2041 → 2042`；同一 Release 的管理器 APK 与 Root 模块成套安装，不跨版混装。
+- **验证边界**：PR #96（`Verify Android Build` run `45471279983`）与 PR #98（run `45562021260`）门禁全绿，PR #98 互通步骤日志 12/12 PASS；loopback 自动化不等于真机验证，Root 真机矩阵仍未执行。
+
+---
+
+## 历史归档
+
+### v3.0.19-preview.2 已发布说明
 
 **状态：已发布的稳定性预览版。** 正式版仍为 `v3.0.17`；官方 sing-box 内核与 `SINGBOX_VERSION` 未改。
 
 本版收录 [PR #94](https://github.com/Wuwan94/wanBoxForAndroid/pull/94) 的 VLESS XHTTP 服务端加固，由 [升版 PR #95](https://github.com/Wuwan94/wanBoxForAndroid/pull/95) 发布。`Preview Build` [run 45426378108（#63）](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/45426378108) 于 2026-11-24T15:55:00Z 上架；tag 与资产提交同为 `9f4299e50aa88bc6f385daf4663828e07528036d`。
 
-## 本版修复
+### 本版修复
 
 - 增加上传滚动读取超时与分层资源配额；连接超时或关闭后及时回收资源，避免慢上传阻塞其他会话。
 - 修复 `stream-up` 续接和 `stream-one` 并发竞态。
 - 收紧会话来源校验、重复下行及请求校验；乱序缓冲溢出时结束会话并释放积压数据。
 - 更新 XHTTP 自定义 JSON 示例，并在 CI 纳入 XHTTP 回归与 Go 竞态检测。
 
-## 升级与验证范围
+### 升级与验证范围
 
 - 发布元数据：APK `versionCode=10207`，Root 模块码 `2041`。管理器 APK 与 Root 模块必须取自同一 Release，不跨版混装。
 - [PR #94 Android 验证](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/45399072399) 已通过；新增请求级回归覆盖 HTTP/1.1。HTTP/2/真机矩阵不是该 CI 记录所覆盖的内容。
@@ -26,10 +43,6 @@
 | `SHA256SUMS` | 333 | `52eefd6f5a091193c691fee2187370760681d45bc6284091024542251d85abc2` |
 
 APK + 普通 Root 模块合计 `24689699` B（23.55 MiB），低于 26 MiB 上限 `27262976` B；合一包为 22.86 MiB。preview.2 发布后，preview.1 的 Release/tag 已清理（Release API 与 tag-ref API 均返回 404）；本页仍保留其历史说明与快照。Root 真机矩阵仍未执行。
-
----
-
-## 历史归档
 
 ### v3.0.19-preview.1 已发布说明
 
