@@ -17,16 +17,15 @@ ROOT = Path(__file__).resolve().parents[2]
 STABLE_TAG = "v3.0.17"
 STABLE_CODE = "2035"
 STABLE_APK_CODE = "10175"
-# v3.0.19-preview.2 已发布：Preview Build run 45426378108 / #63，tag 与发布资产提交为
-# 9f4299e50aa88bc6f385daf4663828e07528036d，2026-11-24T15:55:00Z 上架；发布后 preview.1 已清理。
-PUBLISHED_PREVIEW = "v3.0.19-preview.2"
-PUBLISHED_PREVIEW_COMMIT = "9f4299e50aa88bc6f385daf4663828e07528036d"
-# 当前源码预览线为未发布候选 v3.0.19-preview.3（2042）：收录 PR #96 的 XHTTP stream-one 客户端
-# 修复与 12 项真实 Xray 互通矩阵、PR #98 的 CI 互通门禁；发布后需改回与已发布预览一致。
+# v3.0.19-preview.3 已发布：Preview Build run 45573982693，tag 与发布资产提交为
+# 7d193fe45aa3060c9e03aa0befbc4f349f6a712d，2026-11-25T08:32:21Z 上架；发布后 preview.2 已清理。
+PUBLISHED_PREVIEW = "v3.0.19-preview.3"
+PUBLISHED_PREVIEW_COMMIT = "7d193fe45aa3060c9e03aa0befbc4f349f6a712d"
+# 当前源码预览线与最近已发布预览一致；版本元数据仍指向 2042。
 SOURCE_PREVIEW = "v3.0.19-preview.3"
 SOURCE_PREVIEW_CODE = "2042"
-# v3.0.19-preview.1 的 Release/tag 已在 preview.2 发布后清理，只保留历史说明与资产快照。
-ARCHIVED_PREVIEW = "v3.0.19-preview.1"
+# v3.0.19-preview.2 的 Release/tag 已在 preview.3 发布后清理，只保留历史说明与资产快照。
+ARCHIVED_PREVIEW = "v3.0.19-preview.2"
 HISTORY_MARKER = "历史归档"
 
 FILES = {
@@ -173,7 +172,9 @@ def failures(root: Path = ROOT) -> list[str]:
             errors.append(f"{name} 缺少 {ARCHIVED_PREVIEW} 已发布说明的历史归档段落")
 
     # 6. CHANGELOG：正式版本版、最近已发布预览与归档预览分别记账。
-    changelog_head = "\n".join(changelog.splitlines()[:40])
+    # 每条预览记录只占一两行，但每发一版都会在顶部插一条；40 行窗口在多版后会挤掉正式版条目，
+    # 这里放宽到 60 行，断言语义不变（正式版、已发布预览、归档预览都必须在最近记录区内）。
+    changelog_head = "\n".join(changelog.splitlines()[:60])
     if f"### {STABLE_TAG}（正式版）" not in changelog_head:
         errors.append(f"CHANGELOG.md 缺少 {STABLE_TAG}（正式版）条目")
     if PUBLISHED_PREVIEW not in changelog_head:
