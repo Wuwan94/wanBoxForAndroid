@@ -61,19 +61,31 @@ class GroupDraftAbandonPersistenceTest {
             }
             fail("Recovery UI did not reach the expected durable state ($phase): ${instrumentation.interactiveUiDiagnostics()}")
         }
-        fun clickVisibleText(text: String, phase: String) {
+        fun clickVisibleText(text: String, phase: String, resourceId: String? = null) {
             awaitCondition(phase) {
                 val roots = instrumentation.interactiveUiRoots()
                 val candidates = try {
                     roots.flatMap { root ->
                         try {
-                            root.findAccessibilityNodeInfosByText(text).orEmpty()
-                                .filter { it.text?.toString()?.trim()?.equals(text.trim(), ignoreCase = true) == true }
+                            val nodes = if (resourceId == null) root.findAccessibilityNodeInfosByText(text)
+                            else root.findAccessibilityNodeInfosByViewId(resourceId)
+                            nodes.orEmpty().filter { node ->
+                                val matches = node.isVisibleToUser && node.isEnabled &&
+                                    node.packageName?.toString() == context.packageName &&
+                                    node.text?.toString()?.trim()?.equals(text.trim(), ignoreCase = true) == true
+                                if (!matches) node.recycle()
+                                matches
+                            }
                         } finally { root.recycle() }
                     }
                 } catch (_: RuntimeException) { emptyList() }
                 try {
                     candidates.any { node ->
+                        if (resourceId != null) {
+                            // The title has the same text. Never tap by text or coordinates when
+                            // the positive button has not entered the accessibility tree yet.
+                            return@any node.isClickable && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        }
                         var current: AccessibilityNodeInfo? = node
                         var depth = 0
                         var clicked = false
@@ -201,7 +213,7 @@ class GroupDraftAbandonPersistenceTest {
                     assertTrue("The abandon action must be available in the overflow menu", overflowShown)
                     clickVisibleText(abandonLabel, "overflow item")
                     // Confirm the real dialog, rather than bypassing the user's retry path.
-                    clickVisibleText(abandonLabel, "confirmation button")
+                    clickVisibleText(abandonLabel, "confirmation button", resourceId = "android:id/button1")
                     awaitCondition("journal cleared") { !GroupLocalPreparation.pending() }
                     instrumentation.waitForIdleSync()
                     instrumentation.runOnMainSync { assertFalse(recoveryVisible()) }
