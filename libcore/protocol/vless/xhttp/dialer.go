@@ -3,6 +3,7 @@ package xhttp
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -19,6 +20,9 @@ type DialerClient interface {
 	XmuxConn
 
 	// ctx, url, sessionId, body, uploadOnly
+	// The returned ReadCloser's Close must cancel its request and promptly unblock
+	// a concurrent Read; splitConn relies on this to enforce read deadlines without
+	// leaking a blocked I/O worker.
 	OpenStream(context.Context, string, string, io.Reader, bool) (io.ReadCloser, net.Addr, net.Addr, error)
 
 	// ctx, url, sessionId, seq, body, contentLength
@@ -77,7 +81,7 @@ func (c *DefaultDialerClient) getH1Conn(ctx context.Context) (*H1Conn, bool, err
 	}
 	c.h1Mu.Unlock()
 
-	newConn, err := c.dialUploadConn(context.WithoutCancel(ctx))
+	newConn, err := c.dialUploadConn(ctx)
 	if err != nil {
 		return nil, false, err
 	}
@@ -102,6 +106,10 @@ func (c *DefaultDialerClient) putH1Conn(conn *H1Conn, discard bool) {
 	c.h1Mu.Unlock()
 }
 
+func closeH1ConnOnContextDone(ctx context.Context, conn *H1Conn) func() bool {
+	return context.AfterFunc(ctx, func() { _ = conn.Close() })
+}
+
 func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessionId string, body io.Reader, uploadOnly bool) (wrc io.ReadCloser, remoteAddr, localAddr net.Addr, err error) {
 	// this is done when the TCP/UDP connection to the server was established,
 	// and we can unblock the Dial function and print correct net addresses in
@@ -118,8 +126,10 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
 	if body != nil {
 		method = c.options.GetNormalizedUplinkHTTPMethod() // stream-up/one
 	}
-	req, rErr := http.NewRequestWithContext(context.WithoutCancel(ctxTrace), method, url, body)
+	requestCtx, cancelRequest := context.WithCancel(context.WithoutCancel(ctxTrace))
+	req, rErr := http.NewRequestWithContext(requestCtx, method, url, body)
 	if rErr != nil {
+		cancelRequest()
 		return nil, nil, nil, rErr
 	}
 	req.Header = c.options.GetRequestHeader(req.URL.String())
@@ -143,7 +153,7 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
 			}
 		}
 	}
-	waitReader := &WaitReadCloser{Wait: make(chan struct{})}
+	waitReader := &WaitReadCloser{Wait: make(chan struct{}), cancel: cancelRequest}
 	wrc = waitReader
 
 	var doErr error
@@ -159,7 +169,9 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
 	go func() {
 		resp, dErr := c.client.Do(req)
 		if dErr != nil {
-			if !uploadOnly { // stream-down is enough
+			requestCanceled := requestCtx.Err() != nil && errors.Is(dErr, context.Canceled)
+			cancelRequest()
+			if !uploadOnly && !requestCanceled { // an explicit request close must not poison the shared client
 				c.closed.Store(true)
 			}
 			setDoErr(dErr)
@@ -177,11 +189,13 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
 				statusErr := fmt.Errorf("bad status code: %s", resp.Status)
 				setDoErr(statusErr)
 				waitReader.SetErr(statusErr)
+				cancelRequest()
 				if closer, ok := body.(io.Closer); ok {
 					closer.Close()
 				}
 			}
 			io.Copy(io.Discard, io.LimitReader(resp.Body, 32*1024))
+			cancelRequest()
 			resp.Body.Close() // if it is called immediately, the upload will be interrupted also
 			waitReader.Close()
 			return
@@ -193,7 +207,6 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
 		select {
 		case <-waitReader.Wait:
 		case <-ctx.Done():
-			c.closed.Store(true)
 			waitReader.SetErr(ctx.Err())
 			waitReader.Close()
 			return nil, nil, nil, ctx.Err()
@@ -203,7 +216,6 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
 		case <-gotConn.Wait():
 		case <-waitReader.Wait:
 		case <-ctx.Done():
-			c.closed.Store(true)
 			waitReader.SetErr(ctx.Err())
 			waitReader.Close()
 			if closer, ok := body.(io.Closer); ok {
@@ -267,7 +279,9 @@ func (c *DefaultDialerClient) PostPacket(ctx context.Context, url string, sessio
 	if c.httpVersion != "1.1" {
 		resp, err := c.client.Do(req)
 		if err != nil {
-			c.closed.Store(true)
+			if ctx.Err() == nil {
+				c.closed.Store(true)
+			}
 			return err
 		}
 		_, copyErr := io.Copy(io.Discard, io.LimitReader(resp.Body, 32*1024))
@@ -297,9 +311,18 @@ func (c *DefaultDialerClient) PostPacket(ctx context.Context, url string, sessio
 		if err != nil {
 			return err
 		}
+		stopCancel := closeH1ConnOnContextDone(ctx, h1UploadConn)
+		defer func() { stopCancel() }()
+		putH1Conn := func(discard bool) {
+			stopCancel()
+			c.putH1Conn(h1UploadConn, discard || ctx.Err() != nil)
+		}
 		_, err = h1UploadConn.Write(requestBuff.Bytes())
 		if err != nil {
-			c.putH1Conn(h1UploadConn, true)
+			putH1Conn(true)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			if newConnection {
 				return err
 			}
@@ -308,9 +331,13 @@ func (c *DefaultDialerClient) PostPacket(ctx context.Context, url string, sessio
 			if err != nil {
 				return err
 			}
+			stopCancel = closeH1ConnOnContextDone(ctx, h1UploadConn)
 			_, err = h1UploadConn.Write(requestBuff.Bytes())
 			if err != nil {
-				c.putH1Conn(h1UploadConn, true)
+				putH1Conn(true)
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
 				return err
 			}
 		}
@@ -319,9 +346,14 @@ func (c *DefaultDialerClient) PostPacket(ctx context.Context, url string, sessio
 		for h1UploadConn.UnreadedResponsesCount > 0 {
 			resp, err := http.ReadResponse(h1UploadConn.RespBufReader, req)
 			if err != nil {
-				c.closed.Store(true)
+				if ctx.Err() == nil {
+					c.closed.Store(true)
+				}
 				hasErr = true
-				c.putH1Conn(h1UploadConn, true)
+				putH1Conn(true)
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
 				return fmt.Errorf("error while reading response: %s", err.Error())
 			}
 			_, copyErr := io.Copy(io.Discard, io.LimitReader(resp.Body, 32*1024))
@@ -330,28 +362,43 @@ func (c *DefaultDialerClient) PostPacket(ctx context.Context, url string, sessio
 			if resp.StatusCode != 200 {
 				c.closed.Store(true)
 				hasErr = true
-				c.putH1Conn(h1UploadConn, true)
+				putH1Conn(true)
 				if copyErr != nil {
+					if ctx.Err() != nil {
+						return ctx.Err()
+					}
 					return copyErr
 				}
 				if closeErr != nil {
+					if ctx.Err() != nil {
+						return ctx.Err()
+					}
 					return closeErr
 				}
 				return fmt.Errorf("got non-200 error response code: %d", resp.StatusCode)
 			}
 			if copyErr != nil {
 				hasErr = true
-				c.putH1Conn(h1UploadConn, true)
+				putH1Conn(true)
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
 				return copyErr
 			}
 			if closeErr != nil {
 				hasErr = true
-				c.putH1Conn(h1UploadConn, true)
+				putH1Conn(true)
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
 				return closeErr
 			}
 		}
 		if !hasErr {
-			c.putH1Conn(h1UploadConn, false)
+			putH1Conn(false)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 		}
 	}
 
@@ -361,6 +408,7 @@ func (c *DefaultDialerClient) PostPacket(ctx context.Context, url string, sessio
 type WaitReadCloser struct {
 	Wait chan struct{}
 	io.ReadCloser
+	cancel func()
 	err    error
 	mu     sync.Mutex
 	once   sync.Once
@@ -428,9 +476,13 @@ func (w *WaitReadCloser) Close() error {
 	w.closed = true
 	rc := w.ReadCloser
 	w.ReadCloser = nil
+	cancel := w.cancel
 	w.mu.Unlock()
 
 	w.notify()
+	if cancel != nil {
+		cancel()
+	}
 	if rc != nil {
 		return rc.Close()
 	}
