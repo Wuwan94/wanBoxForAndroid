@@ -279,3 +279,58 @@ func TestPacketOverflowTerminatesHTTPDownlink(t *testing.T) {
 		t.Fatalf("overflow downlink must terminate without missing-prefix data: body=%q err=%v", data, err)
 	}
 }
+
+func TestDownlinkCancellationDropsSessionAndSameIDStartsFreshSession(t *testing.T) {
+	transport, err := NewServer(context.Background(), log.NewNOPFactory().Logger(), V2RayXHTTPOptions{V2RayXHTTPBaseOptions: V2RayXHTTPBaseOptions{
+		Mode: "packet-up", ScMaxEachPostBytes: Xbadoption.Range{From: 256, To: 256},
+		XPaddingObfsMode: true, XPaddingPlacement: PlacementHeader,
+		XPaddingMethod: "repeat-x", XPaddingBytes: Xbadoption.Range{From: 4, To: 4},
+	}}, nil, regressionEchoHandler{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := transport.(*Server)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server.ServeHTTP(w, r)
+	}))
+	t.Cleanup(func() {
+		_ = transport.Close()
+		ts.CloseClientConnections()
+		ts.Close()
+	})
+
+	client := regressionClient(t, "")
+	down := regressionDownlink(t, client, ts.URL+"/deadline-session")
+	server.sessionsMu.Lock()
+	original := server.sessions["deadline-session"]
+	server.sessionsMu.Unlock()
+	if original == nil {
+		t.Fatal("downlink did not create its server session")
+	}
+	_ = down.Body.Close()
+
+	removedBy := time.Now().Add(2 * time.Second)
+	for {
+		server.sessionsMu.Lock()
+		current := server.sessions["deadline-session"]
+		server.sessionsMu.Unlock()
+		if current == nil {
+			break
+		}
+		if time.Now().After(removedBy) {
+			t.Fatal("cancelling the downlink left its server session registered")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	regressionUpload(t, client, ts.URL+"/deadline-session/0", "new session", http.StatusOK)
+	server.sessionsMu.Lock()
+	restarted := server.sessions["deadline-session"]
+	server.sessionsMu.Unlock()
+	if restarted == nil {
+		t.Fatal("reusing a closed session ID did not create a new server session")
+	}
+	if restarted == original {
+		t.Fatal("reusing a closed session ID resumed the torn-down server session")
+	}
+}

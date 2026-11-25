@@ -173,7 +173,8 @@ func (c *Client) DialContext(ctx context.Context) (net.Conn, error) {
 	uploadCtx, cancelUpload := context.WithCancel(uploadBaseCtx)
 	reader, writer := io.Pipe()
 	conn := splitConn{
-		writer: writer,
+		writer:       writer,
+		onWriteClose: cancelUpload, // stop packet-up's loop and in-flight POSTs when its one-shot writer closes
 		onClose: func() {
 			if closed.Add(1) > 1 {
 				return
@@ -252,7 +253,10 @@ func (c *Client) DialContext(ctx context.Context) (net.Conn, error) {
 			curSeq := seq
 			seq += 1
 			if scMinPostsIntervalMs.From > 0 {
-				time.Sleep(time.Duration(scMinPostsIntervalMs.Rand())*time.Millisecond - time.Since(lastWrite))
+				interval := time.Duration(scMinPostsIntervalMs.Rand())*time.Millisecond - time.Since(lastWrite)
+				if !waitForUploadInterval(uploadCtx, interval) {
+					return
+				}
 			}
 			// by offloading the uploads into a buffered pipe, multiple conn.Write
 			// calls get automatically batched together into larger POST requests.
@@ -297,6 +301,20 @@ func (c *Client) DialContext(ctx context.Context) (net.Conn, error) {
 		}
 	}()
 	return &conn, nil
+}
+
+func waitForUploadInterval(ctx context.Context, interval time.Duration) bool {
+	if interval <= 0 {
+		return true
+	}
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
 }
 
 func (c *Client) Close() error {

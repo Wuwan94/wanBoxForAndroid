@@ -13,40 +13,69 @@ import (
 )
 
 type splitConn struct {
-	writer     io.WriteCloser
-	reader     io.ReadCloser
-	remoteAddr net.Addr
-	localAddr  net.Addr
-	onClose    func()
-	closeOnce  sync.Once
-	closed     atomic.Bool
+	writer         io.WriteCloser
+	reader         io.ReadCloser
+	remoteAddr     net.Addr
+	localAddr      net.Addr
+	onClose        func()
+	onWriteClose   func()
+	initOnce       sync.Once
+	closeOnce      sync.Once
+	readCloseOnce  sync.Once
+	writeCloseOnce sync.Once
+	lifeDone       chan struct{}
+	readGate       chan struct{}
+	writeGate      chan struct{}
+	readDeadline   connDeadline
+	writeDeadline  connDeadline
+	readCloseErr   error
+	writeCloseErr  error
+	closed         atomic.Bool
 }
 
 func (c *splitConn) Write(b []byte) (int, error) {
+	c.init()
 	if c.closed.Load() {
 		return 0, io.ErrClosedPipe
 	}
-	return c.writer.Write(b)
+	if len(b) == 0 {
+		return 0, nil
+	}
+	return c.runIO(&c.writeDeadline, c.writeGate, c.closeWriter, func() (int, error) {
+		if c.writer == nil {
+			return 0, io.ErrClosedPipe
+		}
+		return c.writer.Write(b)
+	})
 }
 
 func (c *splitConn) Read(b []byte) (int, error) {
-	return c.reader.Read(b)
+	c.init()
+	if c.closed.Load() {
+		return 0, net.ErrClosed
+	}
+	if len(b) == 0 {
+		return 0, nil
+	}
+	return c.runIO(&c.readDeadline, c.readGate, c.Close, func() (int, error) {
+		if c.reader == nil {
+			return 0, io.ErrClosedPipe
+		}
+		return c.reader.Read(b)
+	})
 }
 
 func (c *splitConn) Close() error {
 	var err error
 	c.closeOnce.Do(func() {
+		c.init()
 		c.closed.Store(true)
+		close(c.lifeDone)
 		if c.onClose != nil {
 			c.onClose()
 		}
-		var err1, err2 error
-		if c.writer != nil {
-			err1 = c.writer.Close()
-		}
-		if c.reader != nil {
-			err2 = c.reader.Close()
-		}
+		err1 := c.closeWriter()
+		err2 := c.closeReader()
 		if err1 != nil {
 			err = err1
 		} else {
@@ -68,16 +97,64 @@ func (c *splitConn) RemoteAddr() net.Addr {
 	return c.remoteAddr
 }
 
+// SetDeadline applies the deadline to both directions. XHTTP exposes one-shot
+// bodies and pipes: an actual timeout makes the affected stream unusable, and a
+// read timeout also closes the whole session because the server tears that
+// session down when its downlink request ends.
 func (c *splitConn) SetDeadline(t time.Time) error {
+	c.init()
+	c.readDeadline.set(t)
+	c.writeDeadline.set(t)
 	return nil
 }
 
+// SetReadDeadline sets the read deadline. If it expires during a read, XHTTP
+// tears down the server session when the downlink request is cancelled, so the
+// entire logical connection is closed and cannot be reopened by resetting it.
 func (c *splitConn) SetReadDeadline(t time.Time) error {
+	c.init()
+	c.readDeadline.set(t)
 	return nil
 }
 
+// SetWriteDeadline sets the write deadline. If it expires during a write, the
+// one-shot upload pipe is closed; clearing or moving the deadline cannot reopen
+// that upload direction, though a separate downlink may remain readable.
 func (c *splitConn) SetWriteDeadline(t time.Time) error {
+	c.init()
+	c.writeDeadline.set(t)
 	return nil
+}
+
+func (c *splitConn) init() {
+	c.initOnce.Do(func() {
+		c.lifeDone = make(chan struct{})
+		c.readGate = make(chan struct{}, 1)
+		c.writeGate = make(chan struct{}, 1)
+		c.readGate <- struct{}{}
+		c.writeGate <- struct{}{}
+	})
+}
+
+func (c *splitConn) closeReader() error {
+	c.readCloseOnce.Do(func() {
+		if c.reader != nil {
+			c.readCloseErr = c.reader.Close()
+		}
+	})
+	return c.readCloseErr
+}
+
+func (c *splitConn) closeWriter() error {
+	c.writeCloseOnce.Do(func() {
+		if c.writer != nil {
+			c.writeCloseErr = c.writer.Close()
+		}
+		if c.onWriteClose != nil {
+			c.onWriteClose()
+		}
+	})
+	return c.writeCloseErr
 }
 
 type H1Conn struct {
