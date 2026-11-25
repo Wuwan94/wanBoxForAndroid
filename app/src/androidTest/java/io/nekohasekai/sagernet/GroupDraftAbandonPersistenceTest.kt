@@ -53,16 +53,16 @@ class GroupDraftAbandonPersistenceTest {
         }
         fun openPage(): PolicyGroupsActivity = instrumentation.startActivitySync(
             Intent(context, PolicyGroupsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as PolicyGroupsActivity
-        fun awaitCondition(predicate: () -> Boolean) {
+        fun awaitCondition(phase: String, predicate: () -> Boolean) {
             val deadline = android.os.SystemClock.uptimeMillis() + 8000
             while (android.os.SystemClock.uptimeMillis() < deadline) {
                 if (predicate()) return
                 android.os.SystemClock.sleep(40)
             }
-            fail("Recovery UI did not reach the expected durable state")
+            fail("Recovery UI did not reach the expected durable state ($phase): ${instrumentation.interactiveUiDiagnostics()}")
         }
-        fun clickVisibleText(text: String) {
-            awaitCondition {
+        fun clickVisibleText(text: String, phase: String) {
+            awaitCondition(phase) {
                 val roots = instrumentation.interactiveUiRoots()
                 val candidates = try {
                     roots.flatMap { root ->
@@ -199,10 +199,10 @@ class GroupDraftAbandonPersistenceTest {
                         overflowShown = activity!!.findViewById<MaterialToolbar>(R.id.policy_toolbar).showOverflowMenu()
                     }
                     assertTrue("The abandon action must be available in the overflow menu", overflowShown)
-                    clickVisibleText(abandonLabel)
+                    clickVisibleText(abandonLabel, "overflow item")
                     // Confirm the real dialog, rather than bypassing the user's retry path.
-                    clickVisibleText(abandonLabel)
-                    awaitCondition { !GroupLocalPreparation.pending() }
+                    clickVisibleText(abandonLabel, "confirmation button")
+                    awaitCondition("journal cleared") { !GroupLocalPreparation.pending() }
                     instrumentation.waitForIdleSync()
                     instrumentation.runOnMainSync { assertFalse(recoveryVisible()) }
                 }

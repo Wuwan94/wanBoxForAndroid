@@ -17,3 +17,24 @@ internal fun Instrumentation.interactiveUiRoots(): List<AccessibilityNodeInfo> {
     return automation.windows.mapNotNull { it.root }
         .ifEmpty { listOfNotNull(automation.rootInActiveWindow) }
 }
+
+/** Failure-only window metadata; never dump node text or other app content. */
+internal fun Instrumentation.interactiveUiDiagnostics(): String = runCatching {
+    val automation = uiAutomation
+    val keyguard = targetContext.getSystemService(android.app.KeyguardManager::class.java)
+    val power = targetContext.getSystemService(android.os.PowerManager::class.java)
+    val windows = automation.windows.joinToString { window ->
+        val root = window.root
+        try {
+            "type=${window.type}/active=${window.isActive}/focused=${window.isFocused}" +
+                "/target=${root?.packageName?.toString() == targetContext.packageName}" +
+                "/hasRoot=${root != null}/children=${root?.childCount ?: 0}"
+        } finally { root?.recycle(); window.recycle() }
+    }
+    val active = automation.rootInActiveWindow
+    val activeIsTarget = try {
+        active?.packageName?.toString() == targetContext.packageName
+    } finally { active?.recycle() }
+    "interactive=${power?.isInteractive}, keyguard=${keyguard?.isKeyguardLocked}, " +
+        "flags=${automation.serviceInfo?.flags}, activeRootIsTarget=$activeIsTarget, windows=[$windows]"
+}.getOrElse { "window metadata unavailable (${it.javaClass.simpleName})" }

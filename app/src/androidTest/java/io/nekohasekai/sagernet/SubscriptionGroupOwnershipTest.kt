@@ -70,7 +70,7 @@ class SubscriptionGroupOwnershipTest {
                 } finally { nodes.forEach { it.recycle() } }
                 android.os.SystemClock.sleep(40)
             }
-            fail("Subscription node choice did not become accessible: $text")
+            fail("Subscription node choice did not become accessible: $text; ${instrumentation.interactiveUiDiagnostics()}")
         }
         try {
             source.writeText("socks://192.0.2.1:1080#subscription-node")
