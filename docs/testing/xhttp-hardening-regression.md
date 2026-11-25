@@ -41,7 +41,6 @@ go -C libcore test -race -count=3 ./protocol/vless/xhttp
 
 这些回归将随三份工作流既有的 XHTTP 普通测试及 race 门禁一起执行。真机、真实 Xray 客户端、HTTP/2 下的本组请求级资源隔离，以及物理设备峰值内存，仍需各自独立验证。
 
-
 ## PR-A：stream-up 响应 padding 保活
 
 基线复核（`040efef08cd1a6952b3b6bb9908c7a856f3c0d4c`）确认配额隔离、同会话 stream-up 排队、认证回调回收、乱序溢出关会话、uplink method 校验以及 XHTTP JSON 示例门禁已存在；本 PR 不重复改写这些行为。新增回归使用公开 `NewServer`、`Serve(net.Listener)`、`Close()` 和真实 loopback HTTP 请求，不读取私有会话表或准入计数。
@@ -59,4 +58,8 @@ Codex CLI `0.172.0` 使用模型 `gpt-6.1-sol`，该模型实际编写了 `serve
 
 本轮由当前助手补充了 `TestStreamUpResponseKeepaliveDefaultIntervalRange`、`TestStreamUpResponseKeepaliveStopsWhenWriteDeadlineSetFails`，将 EOF 用例改为使用缺省 20–80 秒配置，并加强阻塞写用例以确认 Flush 错误后不会开始下一轮；这些后续补测并非 Codex 编写。
 
-本地 Go race、完整 XHTTP 回归、`tools/` 测试和治理门禁结果由本次 PR-A 任务清单继续记录；本地复审和提交后推送分支、创建 PR 并运行 GitHub Actions `Verify Android Build`（包括 12 项 Xray v26.11.9 互通硬门禁）。本任务禁止合并或发布；CI 与 Android 构建产物检查在 PR 运行完成前仍属待验证。
+### PR #103 与 GitHub Actions 结果
+
+PR [#103](https://github.com/Wuwan94/wanBoxForAndroid/pull/103) 由提交 `6c4484a09162bbfc9343597bc8966b8316600376` 创建；在该相同头提交上，[`Verify Android Build`](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/45690304123) 第一次运行中，`Build LibCore`（包括 Xray v26.11.9 12 项互通门禁）成功，但 `Build Android Debug APK` 的 emulator instrumentation 有 3 项 app UI 断言失败：`GroupDraftAbandonPersistenceTest`、`OutboundReferenceAlarmTest`、`SubscriptionGroupOwnershipTest`，均报告 `activeRootIsTarget=false`。本 PR 没改 app 或 Root 模块；未做代码修改后重跑 failed jobs，attempt 2 中 `Build LibCore` 与 `Build Android Debug APK` 均成功，workflow 最终结论为 `success`。因此首次 Android UI 失败与模拟器窗口状态波动相符，但不能据此宣称本地 Root 真机链路已验证。
+
+双轴复审、提交、推送与 PR 创建均已完成；任务禁止合并或发布。Android 真机端到端网络行为仍未由本地测试证明。
