@@ -36,3 +36,4 @@
 - [ ] 3.2 真机全链路验证：Preview 包上真机跑 VLESS XHTTP 入站连接，确认手机上全链路通
 - [x] 3.3 清理 `inbound.go` 里的 KTLS 死条件（从上游抄来的恒不成立判断，无害，删掉或注明来源）
 - [x] 3.4 packet 乱序缓冲达到上限时显式关闭会话并回收缓冲，避免静默丢包
+- [x] 3.5 把上述 12 项真实 Xray 互通矩阵接进 `Verify Android Build` 的 `Build LibCore` 作业：固定 `v26.11.9` 与官方包 SHA-256，子用例跳过或少跑按失败处理（`tools/test_xhttp_xray_interop_ci.py` 锁住该门禁）

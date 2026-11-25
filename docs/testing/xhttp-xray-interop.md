@@ -70,6 +70,14 @@ XRAY_BIN=/tmp/xray-26.11.9/xray go test -count=1 \
   -run '^TestRealXrayXHTTPInterop/wanbox-client_to_xray-server/stream-one$' -v .
 ```
 
+## CI 门禁
+
+`.github/workflows/verify-android.yml` 的 `Build LibCore` 作业新增步骤 `Verify Xray v26.11.9 XHTTP interop matrix`，把上述矩阵固定进每个 PR：
+
+- 从官方 Release 下载 `Xray-linux-64.zip`（`v26.11.9`），并以 `sha256sum --check --strict` 校验 `b651f7e1d9966ee2c1b1ee1bf8b52c72771824d3065dce96bbc8bcc19ed95f82`，校验失败即停（Fail-Closed）。
+- 解压后执行 `XRAY_BIN=<临时目录>/xray go test -count=1 -run '^TestRealXrayXHTTPInterop$' -v .`，`go test` 非零、日志出现 `--- SKIP` 或 `set XRAY_BIN to an official` 提示、以及通过的子用例数不等于 12，均按失败处理，防止用例在 CI 里静默跳过。
+- 本地演练：同一脚本 12 项全通过；去掉 `XRAY_BIN` 的对照运行时 `go test` 仍返回 0，但步骤按预期判失败。
+
 ## 相关回归
 
 修复后以下命令均通过：
