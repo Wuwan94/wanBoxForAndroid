@@ -1,15 +1,27 @@
-# v3.0.19-preview.3 发行说明（候选）
+# v3.0.19-preview.3 发行说明
 
-**状态：未发布的稳定性预览版候选。** 正式版仍为 `v3.0.17`；官方 sing-box 内核与 `SINGBOX_VERSION` 未改。
+**状态：已发布的稳定性预览版。** 正式版仍为 `v3.0.17`；官方 sing-box 内核与 `SINGBOX_VERSION` 未改。
 
-### 【修复 XHTTP stream-one 客户端互通缺陷，并把真实 Xray 互通矩阵接进 CI 门禁】
+本版收录 [PR #96](https://github.com/Wuwan94/wanBoxForAndroid/pull/96) 的 XHTTP `stream-one` 客户端修复与 12 项真实 Xray 互通矩阵，以及 [PR #98](https://github.com/Wuwan94/wanBoxForAndroid/pull/98) 把该矩阵接进 CI 门禁，由 [升版 PR #99](https://github.com/Wuwan94/wanBoxForAndroid/pull/99) 发布。`Preview Build` [run 45573982693](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/45573982693) 于 2026-11-25T08:32:21Z 上架；tag、`targetCommitish`、APK 内 `version-control-info` 与发布 job 的 `APPROVED_SHA` 同为 `7d193fe45aa3060c9e03aa0befbc4f349f6a712d`。
 
-- **修好 `stream-one` 客户端**：wanBox 客户端连 Xray v26.11.9 服务端时不再被识别成 `stream-up` 吃 `400 Bad Request`；`auto` / `packet-up` / `stream-up` 行为不变。
-- **拒绝日志降噪**：XHTTP 服务端 `invalid()` 从 Info 降回 Debug，正常拒绝不再刷屏。
-- **12 项真实互通矩阵**：Xray 客户端 ↔ wanBox 服务端、wanBox 客户端 ↔ Xray 服务端各跑四模式，另加 `auto` 双向 TLS 与 Xray→wanBox header/cookie 补测，逐格记录见 `docs/testing/xhttp-xray-interop.md`。
-- **进 CI 门禁**：`Verify Android Build` 的 `Build LibCore` 新增互通步骤，官方 `Xray-linux-64.zip` 按 SHA-256 `b651f7e1…ed95f82` 校验（Fail-Closed），12 项子用例必须真跑，跳过或少跑即失败。
-- **版本与安装**：APK `versionCode` `10207 → 10213`，Root 模块码 `2041 → 2042`；同一 Release 的管理器 APK 与 Root 模块成套安装，不跨版混装。
-- **验证边界**：PR #96（`Verify Android Build` run `45471279983`）与 PR #98（run `45562021260`）门禁全绿，PR #98 互通步骤日志 12/12 PASS；loopback 自动化不等于真机验证，Root 真机矩阵仍未执行。
+### 【修好 XHTTP stream-one 互通，互通测试从此每次提交都真跑】
+
+- **修好连 Xray 服务端时的 400**：以前用 `stream-one` 模式连官方 Xray 服务端会被拒（`400 Bad Request`），现在能正常握手；`auto` / `packet-up` / `stream-up` 行为不变。
+- **日志更安静**：服务端拒绝异常请求的提示从信息级降到调试级，日常日志不再被这类拒绝刷屏。
+- **互通测试真的跑起来了**：每次提交都会用官方 Xray v26.11.9 跑 12 项真实互通测试（双向四模式 + `auto` 双向 TLS + header/cookie 补测），下载包按 SHA-256 `b651f7e1…ed95f82` 校验，跳过或少跑直接判失败。
+- **升级与回退**：APK `versionCode` `10207 → 10213`、Root 模块码 `2041 → 2042`；同一 Release 的管理器 APK 与 Root 模块请成套安装，不要跨版本混用；回退用正式版 [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17)（模块码 `2035`）。
+- **边界**：互通矩阵是本机 loopback + 模拟器 CI，不等同于真机验证；Root 真机矩阵仍未执行，本版不晋升正式版。
+
+## 四件套（GitHub Release API 回读）
+
+| 文件 | 字节数 | SHA-256 |
+|---|---:|---|
+| `wanBoxForAndroid-3.0.19-preview.3-arm64-v8a-release.apk` | 6381543 | `4c8ef03eec5534d6b21e5964cb333cfc4799621db58043a394f5199c65aaabfc` |
+| `wanbox-root-module-arm64-v8a.zip` | 18308150 | `2665ba1de7ce390fbbe752a0a5edcd5208b022ed32b187ff947766db8f2640dc` |
+| `wanbox-root-module-with-manager-arm64-v8a.zip` | 23965116 | `595f35409f91896261babddf96bf112eceb33ce7e5bf36ff79186913d84f0c37` |
+| `SHA256SUMS` | 333 | `eff1f1d491ee8932f527e90c2af50f76151ea19f14d2cf169a046d1b5484d215` |
+
+APK + 普通 Root 模块 `24689693` B（23.55 MiB），低于 26 MiB 上限 `27262976` B；合一包 `23965116` B（22.85 MiB）；APK 内 `lib/` 条目为 0，模块 `module.prop` 为 `3.0.19-preview.3` / `2042`。preview.3 发布后，preview.2 的 Release/tag 已清理（Release API 与 tag-ref API 均返回 404）；本页保留其历史说明与快照。Root 真机矩阵仍未执行。
 
 ---
 
