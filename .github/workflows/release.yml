@@ -105,6 +105,8 @@ jobs:
           (cd libcore && go test -race -tags=with_clash_api,with_gvisor,with_quic,with_wireguard,with_utls .)
           (cd libcore && go test ./internal/... ./protocol/urltest ./protocol/loadbalance ./protocol/vless/xhttp)
           (cd libcore && go test -race ./protocol/vless/xhttp)
+      - name: Verify Xray v26.11.9 XHTTP interop matrix
+        run: bash tools/verify_xhttp_xray_interop.sh
       - name: Upload LibCore AAR
         uses: actions/upload-artifact@v5
         with:
@@ -450,6 +452,7 @@ jobs:
     if: ${{ inputs.publish_release == true }}
     runs-on: ubuntu-24.04
     needs:
+      - libcore
       - build
       - verify_upgrade
     permissions:
