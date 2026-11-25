@@ -507,7 +507,7 @@ class OutboundReferenceAlarmTest {
                 if (reported) break
                 Thread.sleep(100)
             }
-            assertTrue("Installer restoration must report the corrupt journal", reported)
+            if (!reported) fail("Installer restoration must report the corrupt journal: ${instrumentation.interactiveUiDiagnostics()}")
             instrumentation.runOnMainSync {
                 assertEquals(ServiceCommandController.CommandState.Idle, SagerNet.commandController.state.value)
                 assertNull(host.supportFragmentManager.findFragmentByTag("outbound_reference_warning"))

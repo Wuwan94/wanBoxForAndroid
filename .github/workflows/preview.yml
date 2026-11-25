@@ -55,6 +55,8 @@ jobs:
         run: |
           bash buildScript/lib/core/get_source.sh
           (cd libcore && go mod tidy)
+      - name: Verify Xray v26.11.9 XHTTP interop matrix
+        run: bash tools/verify_xhttp_xray_interop.sh
       - name: Verify LibCore AAR
         run: |
           test -s app/libs/libcore.aar
@@ -329,6 +331,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.publish_release == true
     runs-on: ubuntu-24.04
     needs:
+      - libcore
       - build
       - benchmark
     permissions:
