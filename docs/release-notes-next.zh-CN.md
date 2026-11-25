@@ -1,8 +1,8 @@
-# v3.0.19-preview.2 发行说明（候选）
+# v3.0.19-preview.2 发行说明
 
-**状态：未发布的稳定性预览版候选。**
+**状态：已发布的稳定性预览版。**
 
-本版收录 [PR #94](https://github.com/Wuwan94/wanBoxForAndroid/pull/94) 的 VLESS XHTTP 服务端入站加固。正式版仍为 `v3.0.17`，sing-box 固定版本不变。
+本版收录 [PR #94](https://github.com/Wuwan94/wanBoxForAndroid/pull/94) 的 VLESS XHTTP 服务端入站加固。正式版仍为 `v3.0.17`，sing-box 固定版本不变。Release 于 2026-11-24T15:55:00Z 上架，tag 与 `targetCommitish` 同为 main 提交 `9f4299e50aa88bc6f385daf4663828e07528036d`；发布后 `v3.0.19-preview.1` 的 Release/tag 已按单预览策略清理。
 
 ## 本版修复
 
@@ -15,6 +15,7 @@
 
 - APK `versionCode` 从 `10201` 升至 `10207`，Root 模块码从 `2040` 升至 `2041`。使用同一 Release 的管理器 APK 与 Root 模块，不跨版混装。
 - [PR #94 Android 验证](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/45399072399) 已通过。新增请求级回归覆盖 HTTP/1.1；对应 HTTP/2 场景、真机与真实 Xray 客户端互通未实测。
+- 四件套（API 回读）：APK `6381543` B / `c9884dcc…6cef1e`、普通 Root ZIP `18308156` B / `e0700880…f059c6`、合一 ZIP `23965220` B / `8fcaa9d3…c7d48`、`SHA256SUMS` `333` B / `52eefd6f…85abc2`；APK + 普通模块 `24689699` B（23.55 MiB）→ 26 MiB 门禁 PASS。
 
 ---
 
