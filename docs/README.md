@@ -60,6 +60,7 @@ docs/
 - [**liquid-glass.zh-CN.md**](./liquid-glass.zh-CN.md)：**Liquid Glass 视觉规范**，现代半透明磨砂质感卡片与排版系统。
 - [**ui-consistency.zh-CN.md**](./ui-consistency.zh-CN.md)：原生控件行为一致性设计，避免自定义 View 带来的性能回退。
 - [**vless-xhttp-manual-create.zh-CN.md**](./vless-xhttp-manual-create.zh-CN.md)：手动新增 VLESS + XHTTP 节点的菜单入口、表单复用、初始值与验证边界。
+- [**vless-protocol-display-labels.zh-CN.md**](./vless-protocol-display-labels.zh-CN.md)：VLESS+XHTTP 与 VLESS·Reality 的列表、详情、通知标签及验证边界。
 - [**compact-cards-and-icon-picker.zh-CN.md**](./compact-cards-and-icon-picker.zh-CN.md)：紧凑型节点卡片设计与图标选择器交互方案。
 - [**performance-lifecycle-settings.zh-CN.md**](./performance-lifecycle-settings.zh-CN.md)：高频设置项的生命周期监听防抖与界面流畅度优化。
 
@@ -92,6 +93,7 @@ wanBox 严守「证据驱动」与「Fail-Closed」原则，所有关键改动�
 ## ⚙️ 五、配置资产与体积基线
 
 - [**config/**](./config/)：包含 `local-proxy.json` 与 `tun-fakeip.json` 等经过 CI 自动验证的标准核心运行配置示例。
+- [**config/README.zh-CN.md**](./config/README.zh-CN.md)：配置示例说明、组探测时限及当前策略组拨号行为边界。
 - [**rebuild/**](./rebuild/)：
   - [BASELINE-AUDIT.md](./rebuild/BASELINE-AUDIT.md)：代码库重建与旧版差异基线审计。
   - [DEDUP-FEASIBILITY.md](./rebuild/DEDUP-FEASIBILITY.md)：重复依赖去除与空间压缩可行性分析。

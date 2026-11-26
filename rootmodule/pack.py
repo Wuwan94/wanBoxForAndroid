@@ -11,6 +11,11 @@ import json
 import re
 
 VALID_CHANNELS = {'formal', 'preview'}
+PACKAGE_FILES = {
+    'README.md', 'customize.sh', 'example.snapshot.json', 'installer-options.sh',
+    'module.prop', 'service.sh', 'uninstall.sh',
+    'webroot/index.html', 'webroot/app.mjs', 'webroot/controller.mjs', 'webroot/style.css',
+}
 
 def resolve_channel(env=None, explicit=None):
     """Resolve build channel with fail-closed validation for packaging and verification."""
@@ -85,6 +90,27 @@ def check_elf(path, abi):
         raise ValueError('Android executable must be PIE')
     return data
 
+def collect_package_files(package_dir):
+    """Read the exact module source allowlist, including flat webroot assets."""
+    root = pathlib.Path(package_dir)
+    if not root.is_dir() or root.is_symlink():
+        raise ValueError('invalid package directory')
+    files = {}
+    for path in sorted(root.rglob('*')):
+        relative = path.relative_to(root).as_posix()
+        if path.is_symlink():
+            raise ValueError('symlink in package')
+        if path.is_dir():
+            if relative != 'webroot':
+                raise ValueError('unexpected package directory')
+            continue
+        if not path.is_file() or relative not in PACKAGE_FILES:
+            raise ValueError('unexpected package file')
+        files[relative] = path.read_bytes().replace(b'\r\n', b'\n')
+    if set(files) != PACKAGE_FILES:
+        raise ValueError('package file missing')
+    return files
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--abi', choices=['arm64-v8a'], required=True)
@@ -97,8 +123,7 @@ def main():
     if b'core_config_invalid' not in core:
         raise ValueError('rootbox predates module validation; rebuild native core first')
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    files = {item.name: item.read_bytes().replace(b"\r\n", b"\n")
-        for item in sorted((pathlib.Path(__file__).parent / 'package').iterdir())}
+    files = collect_package_files(pathlib.Path(__file__).parent / 'package')
     files['module.prop'] = module_properties(files['module.prop'],
         (pathlib.Path(__file__).parent.parent / 'nb4a.properties').read_text(encoding='utf-8'),
         channel=channel)
