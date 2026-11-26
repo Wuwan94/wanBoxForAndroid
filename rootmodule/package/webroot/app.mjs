@@ -6,6 +6,34 @@ const operationMessage = byId('operation-message');
 const buttons = [...document.querySelectorAll('[data-action]'), byId('export-events')];
 let executeCommand = null;
 let busy = false;
+let callbackSequence = 0;
+
+function managerExecutor(bridge) {
+  return command => new Promise((resolve, reject) => {
+    let callbackName;
+    do {
+      callbackName = `__wanboxWebUIExec${++callbackSequence}`;
+    } while (callbackName in globalThis);
+    const cleanup = () => {
+      clearTimeout(timeout);
+      delete globalThis[callbackName];
+    };
+    const fail = () => {
+      cleanup();
+      reject(new Error('module_operation_failed'));
+    };
+    const timeout = setTimeout(fail, 60_000);
+    globalThis[callbackName] = (errno, stdout, stderr) => {
+      cleanup();
+      resolve({ errno, stdout, stderr });
+    };
+    try {
+      bridge.exec(command, '{}', callbackName);
+    } catch {
+      fail();
+    }
+  });
+}
 
 const actionLabels = {
   logs: '刷新状态',
@@ -121,9 +149,9 @@ for (const button of document.querySelectorAll('[data-action]')) {
 byId('export-events').addEventListener('click', exportEvents);
 
 try {
-  const managerApi = await import('kernelsu');
-  if (typeof managerApi.exec !== 'function') throw new Error('module_bridge_unavailable');
-  executeCommand = managerApi.exec;
+  const bridge = globalThis.ksu;
+  if (typeof bridge?.exec !== 'function') throw new Error('module_bridge_unavailable');
+  executeCommand = managerExecutor(bridge);
   runtimeMessage.textContent = '已连接管理器 WebUI 接口；仅调用固定 wanboxctl 命令。';
   setBusy(false);
   await perform('logs');
