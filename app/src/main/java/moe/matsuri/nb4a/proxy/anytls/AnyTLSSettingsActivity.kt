@@ -23,6 +23,8 @@ class AnyTLSSettingsActivity : ProfileSettingsActivity<AnyTLSBean>() {
     private val sni = pbm.add(PreferenceBinding(Type.Text, "sni"))
     private val alpn = pbm.add(PreferenceBinding(Type.Text, "alpn"))
     private val certificates = pbm.add(PreferenceBinding(Type.Text, "certificates"))
+    private val clientCertificate = pbm.add(PreferenceBinding(Type.Text, "clientCertificate"))
+    private val clientKey = pbm.add(PreferenceBinding(Type.Text, "clientKey"))
     private val allowInsecure = pbm.add(PreferenceBinding(Type.Bool, "allowInsecure"))
     private val utlsFingerprint = pbm.add(PreferenceBinding(Type.Text, "utlsFingerprint"))
     private val realityPubKey = pbm.add(PreferenceBinding(Type.Text, "realityPubKey"))

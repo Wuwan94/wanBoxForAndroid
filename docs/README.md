@@ -52,6 +52,9 @@ docs/
 - [**arm64-background-rtt.zh-CN.md**](./arm64-background-rtt.zh-CN.md)：针对 ARM64 设备的后台 RTT 往返时延测量分析。
 - [**urltest-lifecycle-fix.zh-CN.md**](./urltest-lifecycle-fix.zh-CN.md)：URLTest 节点测速生命周期泄漏修复与超时熔断控制。
 
+### 4. 协议与配置
+- [**anytls-mtls.zh-CN.md**](./anytls-mtls.zh-CN.md)：AnyTLS 客户端证书/私钥配置、分享链接脱敏及备份敏感性说明。
+
 ---
 
 ## 🎨 三、界面交互与用户体验规范

@@ -79,7 +79,9 @@ Root 模块 MUST 提供脱敏诊断包导出：调用方指定目标路径后，
 先写同目录临时文件并 `fsync` 后原子重命名；目标 MUST 是普通文件，否则拒绝。
 包内文件 MUST 按 change 的 design.md §2 的清单与脱敏规则表脱敏后写入；日志每文件取尾部，
 上限 4 MiB/文件。损坏的 JSON 文件 MUST 省略原文并替换为固定 diagnostic_error 说明，
-MUST NOT 把残留名单或凭据作为诊断原文导出。导出 MUST NOT 依赖核心进程运行；
+MUST NOT 把残留名单或凭据作为诊断原文导出。 AnyTLS mTLS 的 `client_key`、`client_certificate`、
+`client_key_path`、`client_certificate_path`（含连字符形式）MUST 在生成配置和 Root 快照中整值替换为 `"***"`，
+包括内联 PEM 字符串数组。诊断包自检 MUST 拒绝含未打码的这些字段或私钥 PEM 标记的文本条目，且不得在该类告警中回显原值。导出 MUST NOT 依赖核心进程运行；
 导出失败 MUST 返回可读错误码，不得谎报成功。远程规则集 MUST 只导出元数据
 （名称/来源/哈希/更新时间），MUST NOT 导出规则原文。wanBox 此前没有持久化的
 service/core 日志文件：supervisor MUST 把自身日志写 `logs/service.log`、把核心 stderr
