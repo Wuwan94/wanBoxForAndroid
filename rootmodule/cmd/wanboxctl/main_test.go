@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 	module "wanbox/module"
 )
 
@@ -26,12 +27,54 @@ func TestCommandAllowlistRejectsExtraArgumentsAndShellInput(t *testing.T) {
 		{"__internal", "schedule-install", "2", "erase"},
 		{"__internal", "schedule-install", "02", "nodes"},
 		{"__internal", "finish-install", "2", "bad", "bad", "nodes"},
+		{"__internal", "google-firewall", "--delay-seconds", "1", "extra"},
+		{"__internal", "google-firewall", "--delay-seconds", "301"},
 		{"data", "selection-finish", "../unsafe"},
 		{"data", "selection-finish", "bad;clear"},
 	} {
 		if err := run(context.Background(), r, args); err == nil || err.Error() != "arguments_invalid" {
 			t.Fatalf("unexpected command acceptance: %q: %v", args, err)
 		}
+	}
+}
+
+func TestGoogleFirewallDelayArgsAreFixedAndBounded(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		want time.Duration
+		bad  bool
+	}{
+		{nil, 0, false},
+		{[]string{"--delay-seconds", "60"}, time.Minute, false},
+		{[]string{"--delay-seconds", "0"}, 0, false},
+		{[]string{"--delay-seconds", "060"}, 0, true},
+		{[]string{"--delay-seconds", "-1"}, 0, true},
+		{[]string{"--delay-seconds", "301"}, 0, true},
+		{[]string{"--delay-seconds", "1;stop"}, 0, true},
+		{[]string{"--anything", "1"}, 0, true},
+		{[]string{"--delay-seconds", "1", "extra"}, 0, true},
+	} {
+		got, err := parseGoogleFirewallDelayArgs(tc.args)
+		if tc.bad {
+			if err == nil || err.Error() != "arguments_invalid" {
+				t.Errorf("args %q error=%v, want arguments_invalid", tc.args, err)
+			}
+			continue
+		}
+		if err != nil || got != tc.want {
+			t.Errorf("args %q delay=%s error=%v, want %s", tc.args, got, err, tc.want)
+		}
+	}
+}
+
+func TestGoogleFirewallCommandRequiresRoot(t *testing.T) {
+	r := module.New(filepath.Join(t.TempDir(), "data"), t.TempDir())
+	args := []string{"__internal", "google-firewall"}
+	if err := runAuthorized(context.Background(), r, args, 1000); err == nil || err.Error() != "root_required" {
+		t.Fatalf("non-root repair command error = %v, want root_required", err)
+	}
+	if err := runAuthorized(context.Background(), r, args, 0); err != nil {
+		t.Fatalf("root repair command did not dispatch safely: %v", err)
 	}
 }
 

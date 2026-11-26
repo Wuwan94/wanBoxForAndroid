@@ -1,6 +1,6 @@
 # 纯 Root 模块化实施记录
 
-作者：雾晚。此分支先在本地实施与验证；用户随后授权发布实验预览版。实际发布状态以 Actions 与 Release 为准。
+作者：雾晚。本文记录 Root 模块实现及独立迭代；当前 PR 的合入与发布状态以用户明确授权及仓库记录为准。
 
 ## 基线与原因
 
@@ -99,3 +99,14 @@ App AtomicFile 日志和模块固定路径日志持久化步骤。中断时 App 
 ## preview.9 安装时序修复
 
 详见 [NetProxy 安装对照](install-reference.zh-CN.md)。preview.9 等待管理器收尾后再热切换，并处理管理器删除安装期文件；该修复不属于 preview.8 的行为。
+
+
+## Google 联网兼容（PR-C：Root 模块）
+
+该兼容是 Root 模块中的一次性、尽力修复，不依赖 App 常驻或核心自启：系统 `sys.boot_completed=1` 后安排 1 分钟延迟检查；模块热激活成功后，在安装锁释放且新目录已生效时立即检查。启动固定的 Root-only `wanboxctl __internal google-firewall` 子进程失败不会阻断模块启动或更新；子进程会再次确认模块仍启用，检查设置有总超时，可取消。
+
+支持范围严格白名单：RedMagic、努比亚和中兴仅在专用 `zte_fw_gms` 链中，删除 UID 精确匹配 Google Play 服务/商店、且末端动作为 DROP 或 REJECT 的过滤规则；OnePlus/OPPO 仅限识别到 ColorOS 16、当前用户为 0、厂商限制设置满足门禁并且 pin 中的 BPF 程序 tag、关联 map ID、类型和 4 字节键值结构全部与已知布局一致。ColorOS 仅删除目标 UID 对应且值为 `1` 的拒绝条目，保留 BPF 程序与 map。包 UID 必须从 Android 包管理器读取；与非白名单应用共享的 UID 会整体跳过。
+
+未知品牌/ROM、未识别规则、共享 UID、未知 BPF 布局或任一策略门禁不匹配时都不修改。iptables 与 ip6tables 都先完成读取，任一读取失败则两族都不删除；ColorOS 会先检查全部已存在的目标 pin 和程序/map 结构，全部通过后才处理 UID。每次实际删除规则或 map 条目前都会再次核对模块启用/卸载标记。不会清空防火墙链、触碰通用输出/共享/DNS 规则，也不会 flush BPF map；不收集、持久化或发送 HWID。此 PR 不增加 App 开关或状态 UI，Root WUI/诊断呈现另属 PR-D。
+
+回退：撤销 PR-C 并安装回原模块版本即可停用后续兼容逻辑；已删除的精确厂商拦截项不会由代码回滚自动重建。若需恢复厂商拦截行为，应通过厂商网络限制设置重新应用，或重启后核对规则；不要手动 flush 共享链或 BPF map。当前仍需在目标 Root 设备验证实际 OEM 行为，CI 编译/单测通过不等于真机兼容。上游行为对照固定在 [NetProxy 提交 `0c29f0c`](https://github.com/Fanju6/NetProxy-Magisk/commit/0c29f0c56bdbf76f40ec3c5541840e2f3bb5507e)，详细验收要求见 [`openspec/specs/root-module-runtime/spec.md`](../openspec/specs/root-module-runtime/spec.md)。

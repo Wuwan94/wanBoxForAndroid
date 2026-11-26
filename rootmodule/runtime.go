@@ -188,14 +188,15 @@ type Runtime struct {
 	changes *changeNotifier
 	// Hot-update seams (v3.0.15): route guard, canary health probe and its
 	// timing. Zero values select the production defaults in hot_update.go.
-	installRouteGuard   func(context.Context, bool) error
-	installCanaryCheck  func(context.Context) bool
-	installCanaryWindow time.Duration
-	installCanaryPoll   time.Duration
+	installRouteGuard          func(context.Context, bool) error
+	installCanaryCheck         func(context.Context) bool
+	installCanaryWindow        time.Duration
+	installCanaryPoll          time.Duration
+	launchGoogleFirewallRepair func(moduleDir string, delay time.Duration) error
 }
 
 func New(root, moduleDir string) *Runtime {
-	r := &Runtime{Root: root, ModuleDir: moduleDir, independentCgroup: IndependentCgroup, changes: newChangeNotifier()}
+	r := &Runtime{Root: root, ModuleDir: moduleDir, independentCgroup: IndependentCgroup, changes: newChangeNotifier(), launchGoogleFirewallRepair: launchGoogleFirewallRepairProcess}
 	r.Validate = func(ctx context.Context, config, assets string) error {
 		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
@@ -1263,6 +1264,7 @@ func (r *Runtime) Boot(ctx context.Context, bootReady func() bool) error {
 		case <-ticker.C:
 		}
 	}
+	r.scheduleGoogleFirewallRepair(r.ModuleDir, time.Minute)
 	if e := r.consumeBootInstallChoice(); e != nil {
 		return e
 	}
