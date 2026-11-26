@@ -17,8 +17,10 @@
 | OSS/Preview 全量 JVM 测试与 `:core-domain:test` | 本地通过：`:app:testOssDebugUnitTest`、`:app:testPreviewDebugUnitTest`、`:core-domain:test` |
 | Android 构建与安全门禁 | 本地通过：OSS/Preview x86_64 Debug 包构建成功；`tools/check_android_security.py ossDebug previewDebug` 通过 |
 | `tools/` 单测与治理门禁 | 本地通过：132 项 Python 单测、`tools/pre-push-check.py`、`tools/check_core_gate.py`（345 个源文件）、版本文档检查及 `git diff --check`；保留项源码检查通过，但本地未落盘的 `assets/sing-box/*.db.xz` 未做产物级检查 |
-| `Verify Android Build` | PR CI 待运行；工作流包含 Xray v26.11.9 的 12 项 XHTTP 互通矩阵 |
+| `Verify Android Build` | [attempt 2 全部通过](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/45816740694)：Build LibCore、Android job 全绿，Xray v26.11.9 XHTTP 互通 **12/12**。首轮 debug UI instrumentation 有 3 项窗口/可访问性断言失败；仅重跑失败 Android job 后全部测试通过。 |
 | Go `-race` | 本 PR 未改 Go/libcore，故不适用本地 Go race 门禁；PR CI 仍会执行核心工作流 |
+
+CI 的 Release manifest、数据库迁移、产物预算与 Magisk 模块步骤通过；`Module Size Lab` 及 baseline/跨版本备份证据 job 被工作流跳过。该 PR 的 CI 不是 Root 真机验证。
 
 ## 需 Root 真机矩阵实测
 
