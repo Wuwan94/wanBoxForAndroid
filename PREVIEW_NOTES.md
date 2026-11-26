@@ -1,10 +1,58 @@
-# v3.0.19-preview.3 发行说明
+# v3.0.19-preview.4 发行说明（候选）
+
+**状态：未发布的稳定性预览版候选。** 正式版仍为 `v3.0.17`；官方 sing-box 内核与 `SINGBOX_VERSION` 未改。
+
+本版是 `v3.0.19-preview.3` 之后合入 `main` 的一批改动：Root 模块第一次有了能用的网页控制台，AnyTLS 支持客户端证书，VLESS 标签把手动入口分清 XHTTP 与 Reality，XHTTP 长上传在服务端保活下不再断流，界面适配全面屏与预测性返回，另有两处稳定性修复。正式线 `3.0.17 / 2035` 与 `SINGBOX_VERSION` 均未变。
+
+### 【Root 模块有了网页控制台：在 KernelSU / APatch 管理器里直接看状态、启停、导事件】
+
+- **能做什么**：在 KernelSU / APatch 管理器里打开 wanBox 的固定页面，看模块运行状态与最近事件，启停模块，导出最近 40 条事件。
+- **怎么连通**：页面只调用固定的 `wanboxctl` 白名单命令，不起本地 HTTP 服务、不加载外部脚本、严格 CSP；重新适配了 KernelSU（以及兼容其 API 的 APatch）的注入桥接，回调、异常和超时都会清理。没有兼容桥接时所有按钮一律禁用，不会假装成功。
+- **边界**：页面与桥接只在单测和模拟器上验证过，Magisk / KernelSU / APatch 真机尚未实测。
+
+### 【AnyTLS 支持客户端证书（mTLS），私钥只留在本机】
+
+- **能填什么**：节点设置里可以贴客户端证书与私钥 PEM，写入 sing-box 出站 TLS 的 `client_certificate` / `client_key`；两项留空就还是原来的单向 TLS。
+- **不会外泄**：`anytls://` 与通用分享链接都不携带证书和私钥，只清理导出副本、不动本地配置；诊断包会把配置与 Root 快照里的 AnyTLS 私钥/证书替换成 `***`；设置页只显示私钥摘要，不回显内容。
+- **兼容**：旧版配置照常读取，新字段走 v2 持久化；HWID、Mieru 与策略组行为未改。
+- **边界**：没有真实 mTLS 服务端可连，只在单测与 JVM 测试里验证字段映射与脱敏。
+
+### 【VLESS 标签分清 XHTTP 与 Reality，手动新建多了直达入口】
+
+- **看得清**：节点列表、选择列表、详情页和通知标题按节点实际字段显示 `VLESS + XHTTP`、`VLESS · Reality` 或 `VLESS + XHTTP · Reality`，不再统一写 `VLESS`；普通协议的通知文案保持原样。
+- **加得快**：「+ → 手动设置」新增「VLESS + XHTTP」，点进去就是预置好 XHTTP 传输的表单，不用再手改类型；普通 VLESS 仍默认 TCP。
+- **没变形**：分享链接、核心配置、策略组拨号与 HWID 外发都没有改动。
+
+### 【XHTTP 更扛得住：服务端保活不再把上传挤断，客户端卡死会按时超时】
+
+- **修好断流**：服务端开启周期保活（padding）时，成功响应原来读到 32 KiB 就被重置，长上传会断在中途；现在会持续排空到响应结束再收尾，上传能完整送达。新加的真实 TLS/HTTP2 回环回归（旧基线 3/3 红、修复版 3/3 绿）盯住这条路径。
+- **不再无限等**：客户端连接有了总时长、读、写三种期限，超时按方向失败关闭，不硬撑也不假装成功；单个请求取消不会把共享的 HTTP/2 连接一起判死。
+- **服务端保活更规整**：`stream-up` 成功响应按 20–80 秒周期发 padding，响应写期限与上传读空闲期限分开计算，`-1` 可关闭。
+- **互通门槛抬高**：官方 Xray v26.11.9 的 12 项互通已成为 PR、预览发布与正式发布的硬门禁，跳过或少跑直接失败。
+
+### 【界面适配全面屏与预测性返回】
+
+- 非浮层页面统一做 edge-to-edge 避让，状态栏、导航栏、挖孔与横屏刘海不再压住内容；返回键改走 AndroidX 分发，支持预测性返回动画，各页面原有返回值不变。
+- **边界**：Android 14/15 的手势、三键导航、输入法与横屏实机行为未验证，单测只覆盖尺寸计算与接线。
+
+### 【两处稳定性修复】
+
+- **回切不再被迟到的 TCP 成功骗到**：TCP 恢复门代次变化后，旧的探测或数据面拨号成功不再覆盖 `URLTestHistory`，也不再清掉成员的连续失败计数。
+- **部分 OEM 的 Google 拦截可按需修掉（待真机确认）**：Root 模块在开机就绪 60 秒后（或成功热激活后）做一次严格白名单预检，只针对红魔/努比亚/中兴 `zte_fw_gms` 里目标 Google UID 的单 UID 拦截规则，以及一加/OPPO ColorOS 16 上值为 `1` 的目标 UID map 条目做定点删除；固件、UID 共享、策略或 BPF 布局任何一项对不上就整体跳过，不 flush 链、不碰 DNS 与共享规则，也不生成或发送 HWID。
+- **升级与回退**：APK `versionCode` `10213 → 10219`、Root 模块码 `2042 → 2043`；同一 Release 的管理器 APK 与 Root 模块请成套安装，不要跨版本混用；回退用正式版 [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17)（模块码 `2035`）。
+- **总边界**：Root 真机矩阵（Magisk / KernelSU / APatch）、WebUI 实机、真实 mTLS 服务端与 OEM Google 兼容都未实测，本版不晋升正式版。
+
+---
+
+## 历史归档
+
+### v3.0.19-preview.3 已发布说明
 
 **状态：已发布的稳定性预览版。** 正式版仍为 `v3.0.17`；官方 sing-box 内核与 `SINGBOX_VERSION` 未改。
 
 本版收录 [PR #96](https://github.com/Wuwan94/wanBoxForAndroid/pull/96) 的 XHTTP `stream-one` 客户端修复与 12 项真实 Xray 互通矩阵，以及 [PR #98](https://github.com/Wuwan94/wanBoxForAndroid/pull/98) 把该矩阵接进 CI 门禁，由 [升版 PR #99](https://github.com/Wuwan94/wanBoxForAndroid/pull/99) 发布。`Preview Build` [run 45573982693](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/45573982693) 于 2026-11-25T08:32:21Z 上架；tag、`targetCommitish`、APK 内 `version-control-info` 与发布 job 的 `APPROVED_SHA` 同为 `7d193fe45aa3060c9e03aa0befbc4f349f6a712d`。
 
-### 【修好 XHTTP stream-one 互通，互通测试从此每次提交都真跑】
+#### 【修好 XHTTP stream-one 互通，互通测试从此每次提交都真跑】
 
 - **修好连 Xray 服务端时的 400**：以前用 `stream-one` 模式连官方 Xray 服务端会被拒（`400 Bad Request`），现在能正常握手；`auto` / `packet-up` / `stream-up` 行为不变。
 - **日志更安静**：服务端拒绝异常请求的提示从信息级降到调试级，日常日志不再被这类拒绝刷屏。
@@ -12,7 +60,7 @@
 - **升级与回退**：APK `versionCode` `10207 → 10213`、Root 模块码 `2041 → 2042`；同一 Release 的管理器 APK 与 Root 模块请成套安装，不要跨版本混用；回退用正式版 [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17)（模块码 `2035`）。
 - **边界**：互通矩阵是本机 loopback + 模拟器 CI，不等同于真机验证；Root 真机矩阵仍未执行，本版不晋升正式版。
 
-## 四件套（GitHub Release API 回读）
+### 四件套（GitHub Release API 回读）
 
 | 文件 | 字节数 | SHA-256 |
 |---|---:|---|
@@ -22,10 +70,6 @@
 | `SHA256SUMS` | 333 | `eff1f1d491ee8932f527e90c2af50f76151ea19f14d2cf169a046d1b5484d215` |
 
 APK + 普通 Root 模块 `24689693` B（23.55 MiB），低于 26 MiB 上限 `27262976` B；合一包 `23965116` B（22.85 MiB）；APK 内 `lib/` 条目为 0，模块 `module.prop` 为 `3.0.19-preview.3` / `2042`。preview.3 发布后，preview.2 的 Release/tag 已清理（Release API 与 tag-ref API 均返回 404）；本页保留其历史说明与快照。Root 真机矩阵仍未执行。
-
----
-
-## 历史归档
 
 ### v3.0.19-preview.2 已发布说明
 
