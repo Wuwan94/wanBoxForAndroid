@@ -27,7 +27,7 @@
 - [x] 4.2 最终 `go test -race ./...`、`go vet ./...`、真实 ARM64 模块 ZIP 构建及源/归档 WebUI 体积门禁通过；真实 APK + 模块合计留待 CI 验证
 - [x] 4.3 完成 `git diff --check` 与 OpenSpec/工作流/manifest 差异检查；`nb4a.properties`、发布/Tag 语义无改动，本任务未改其他工作树
 - [x] 4.4 Standards 与 Spec 双轴独立复审通过；Spec 复核无遗漏/范围外/实现错误，发现的问题已按 red-green 修复并复跑门禁
-- [ ] 4.5 提交并推送独立分支，创建 PR-D；PR-C #106 保持分离，PR-D 不合并、不发布
+- [x] 4.5 已提交并推送独立分支，创建 PR-D #107；PR-C #106 保持分离，PR-D 不合并、不发布
 - [ ] 4.6 报告 GitHub CI 结果；Root 真机验收单独标记待测，不由本地/CI 结果替代
 
 ## TDD 记录
@@ -39,4 +39,4 @@
 - Go 安装权限测试先因 `package_manifest_invalid` 拒绝 WebUI 资源而失败；补 Go 白名单与最小权限后针对性测试转绿。部分 WebUI manifest 测试先失败（错误接受缺少 `style.css`），增加完整资源集校验后针对性测试转绿。
 - WebUI 体积测试先因 CLI 不认识 `--webui-source` 失败；实现源目录/ZIP 子集校验与 1 MiB 门禁后，`tools.test_size_budget` 当前 5/5 通过。为覆盖无签名 APK 的 fork PR，新增 WebUI-only 测试先因 `--apk` 必填失败，再扩展 CLI；该测试 red → green。Spec 复核随后发现门禁依赖 Android app 作业；工作流改为独立 PR job 生成固定 `webroot/` ZIP 探针并运行 WebUI-only 检查，真实模块 ZIP 检查仍保留。
 
-本地复核结果：Node 11/11、Root Python 30/30、tools 全量 136/136，版本文档离线一致性检查通过；`go test -race ./...`、`go vet ./...`、ARM64 模块 ZIP 构建、WebUI-only 源/归档门禁、Actionlint 与 `git diff --check` 均通过。源 WebUI 与最新重建 ZIP 内未压缩 WebUI 均为 13,221 字节，低于各自 1 MiB 门禁；模块 ZIP 18,322,334 字节。Standards 与 Spec 独立复核均通过；仅提示不同触发链重复维护 CI 命令，视为非阻断。下载总量 smoke test 使用 86 字节占位 APK，不作为真实 APK + 模块总量通过结论。GitHub PR/CI 与 Root 真机验收仍待完成；此 change 是 PR-D，禁止与 PR-C 混合、合并或发布。
+本地复核结果：Node 11/11、Root Python 30/30、tools 全量 136/136，版本文档离线一致性检查通过；`go test -race ./...`、`go vet ./...`、ARM64 模块 ZIP 构建、WebUI-only 源/归档门禁、Actionlint 与 `git diff --check` 均通过。源 WebUI 与最新重建 ZIP 内未压缩 WebUI 均为 13,221 字节，低于各自 1 MiB 门禁；模块 ZIP 18,322,334 字节。Standards 与 Spec 独立复核均通过；仅提示不同触发链重复维护 CI 命令，视为非阻断。下载总量 smoke test 使用 86 字节占位 APK，不作为真实 APK + 模块总量通过结论。PR #107 当前 OPEN、未合并未发布；GitHub CI 与 Root 真机验收仍待完成；此 change 是 PR-D，禁止与 PR-C 混合、合并或发布。
