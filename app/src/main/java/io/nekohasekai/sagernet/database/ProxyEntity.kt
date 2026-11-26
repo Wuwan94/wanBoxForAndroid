@@ -246,7 +246,15 @@ data class ProxyEntity(
         TYPE_HTTP -> httpBean?.let { if (it.isTLS()) "HTTPS" else "HTTP" } ?: typeName(type)
         TYPE_SS -> typeName(type)
         TYPE_SSR -> typeName(type)
-        TYPE_VMESS -> vmessBean?.let { if (it.isVLESS) "VLESS" else "VMess" } ?: typeName(type)
+        TYPE_VMESS -> vmessBean?.let {
+            when {
+                !it.isVLESS -> "VMess"
+                it.type?.equals("xhttp", ignoreCase = true) == true && !it.realityPubKey.isNullOrBlank() -> "VLESS + XHTTP · Reality"
+                it.type?.equals("xhttp", ignoreCase = true) == true -> "VLESS + XHTTP"
+                !it.realityPubKey.isNullOrBlank() -> "VLESS · Reality"
+                else -> "VLESS"
+            }
+        } ?: typeName(type)
         TYPE_TROJAN -> typeName(type)
         TYPE_TROJAN_GO -> typeName(type)
         TYPE_MIERU -> typeName(type)

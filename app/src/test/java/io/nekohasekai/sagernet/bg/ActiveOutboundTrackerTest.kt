@@ -24,6 +24,39 @@ class ActiveOutboundTrackerTest {
             assertFalse(single.expanded.contains("Direct"))
         }
     }
+
+    @Test fun xhttpVlessLabelIsIncludedForFixedAndActiveNodes() {
+        val node = NotificationPresentation.nodeName("VLESS + XHTTP", "Node X")
+        assertEquals("VLESS + XHTTP · Node X", node)
+
+        val fixed = NotificationPresentation.content(node, null, false, "↑0 ↓0", null)
+        assertEquals(node, fixed.title)
+
+        val activeMember = NotificationPresentation.content(node, "Auto", true, "↑0 ↓0", null)
+        assertEquals("Auto", activeMember.title)
+        assertEquals("$node · ↑0 ↓0", activeMember.text)
+        assertTrue(activeMember.expanded.contains(node))
+    }
+
+    @Test fun realityVlessTypeIsIncludedInNotificationNode() {
+        assertEquals(
+            "VLESS · Reality · Node R",
+            NotificationPresentation.nodeName("VLESS · Reality", "Node R"),
+        )
+    }
+
+    @Test fun combinedXhttpRealityLabelIsIncludedInNotificationNode() {
+        assertEquals(
+            "VLESS + XHTTP · Reality · Node XR",
+            NotificationPresentation.nodeName("VLESS + XHTTP · Reality", "Node XR"),
+        )
+    }
+
+    @Test fun ordinaryProtocolNamesRemainUnchangedInNotifications() {
+        assertEquals("Node V", NotificationPresentation.nodeName("VLESS", "Node V"))
+        assertEquals("Node M", NotificationPresentation.nodeName("VMess", "Node M"))
+    }
+
     @Test fun membersAreObservedNeverGuessedAndSessionsAreIsolated() {
         val old = ActiveOutboundTracker(mapOf("p-1" to "Node A", "p-2" to "Node B"))
         assertEquals("Node A", old.resolve("p-1"))

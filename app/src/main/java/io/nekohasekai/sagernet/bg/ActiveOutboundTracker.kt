@@ -12,6 +12,13 @@ class ActiveOutboundTracker(private val names: Map<String, String>) {
  * @author 雾晚
  */
 object NotificationPresentation {
+    fun nodeName(displayType: String, displayName: String): String =
+        if (displayType.startsWith("VLESS + XHTTP") || displayType.startsWith("VLESS · Reality")) {
+            "$displayType · $displayName"
+        } else {
+            displayName
+        }
+
     fun content(node: String, group: String?, strategy: Boolean, proxySpeed: String,
         directSpeed: String?): NotificationContentCache.Content {
         val title = group?.let { if (strategy) it else "[$it] $node" } ?: node

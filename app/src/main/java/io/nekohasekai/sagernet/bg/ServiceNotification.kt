@@ -26,6 +26,16 @@ import io.nekohasekai.sagernet.utils.Theme
 import io.nekohasekai.sagernet.bg.proto.ProxyInstance
 import io.nekohasekai.sagernet.ktx.runOnIoDispatcher
 
+private fun ProxyEntity.notificationNodeName(): String =
+    NotificationPresentation.nodeName(displayType(), displayName())
+
+private fun notificationTitle(profile: ProxyEntity): String {
+    val groupName = if (DataStore.showGroupInNotification)
+        SagerDatabase.groupDao.getById(profile.groupId)?.displayName() else null
+    val node = profile.notificationNodeName()
+    return if (groupName == null) node else "[$groupName] $node"
+}
+
 /**
  * @author 雾晚
  * User can customize visibility of notification since Android 8.
@@ -61,7 +71,7 @@ class ServiceNotification(
     private var observedTag = ""
     private var observedProxy: ProxyInstance? = null
     private var tracker = ActiveOutboundTracker(emptyMap())
-    private var initialTitle = title
+    private var initialTitle = service.data.proxy?.profile?.let(::notificationTitle) ?: title
     private var selectedProfile: ProxyEntity? = null
 
     // @author 雾晚: both runtimes supply an observed leaf; never query an unopened app box.
@@ -70,7 +80,7 @@ class ServiceNotification(
         if (proxy !== observedProxy) {
             observedProxy = proxy
             tracker = ActiveOutboundTracker(proxy?.config?.profileTagMap.orEmpty().mapNotNull { (id, nativeTag) ->
-                SagerDatabase.proxyDao.getById(kotlin.math.abs(id))?.let { nativeTag to it.displayName() }
+                SagerDatabase.proxyDao.getById(kotlin.math.abs(id))?.let { nativeTag to it.notificationNodeName() }
             }.toMap())
             lastSpeed = null
             contentCache.clear()
@@ -85,7 +95,7 @@ class ServiceNotification(
 
     suspend fun postNotificationProfile(profile: ProxyEntity) = useBuilder {
         selectedProfile = profile
-        initialTitle = profile.displayName()
+        initialTitle = profile.notificationNodeName()
         lastSpeed = null
         // A selector change must not retain the previous member while the next sample arrives.
         observedTag = ""
@@ -104,7 +114,7 @@ class ServiceNotification(
             (proxy != null && proxy.config.selectorGroupId >= 0 && group != null &&
                 (DataStore.isGroupUrlTest(group.id) || DataStore.isGroupLoadBalance(group.id)))
         val node = tracker.resolve(observedTag) ?: if (strategy) context.getString(R.string.notification_member_pending)
-            else profile?.displayName() ?: initialTitle
+            else profile?.notificationNodeName() ?: initialTitle
         val groupName = if (DataStore.showGroupInNotification) {
             if (profile?.type == ProxyEntity.TYPE_BALANCER) profile.displayName() else group?.displayName()
         } else null
@@ -140,7 +150,7 @@ class ServiceNotification(
     private val builder = NotificationCompat.Builder(service as Context, channel)
         .setWhen(0)
         .setTicker(service.getString(R.string.forward_success))
-        .setContentTitle(title)
+        .setContentTitle(initialTitle)
         .setOnlyAlertOnce(true)
         .setContentIntent(SagerNet.configureIntent(service))
         .setSmallIcon(R.drawable.ic_throne_tile)
