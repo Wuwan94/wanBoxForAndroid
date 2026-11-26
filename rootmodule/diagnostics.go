@@ -34,22 +34,34 @@ const maxDiagnosticsLogCap = 8 << 20
 
 const diagnosticsCorruptJSON = "{\"diagnostic_error\":\"JSON 配置损坏，已省略原文以保护敏感信息\"}\n"
 
+const (
+	anyTLSClientSecretKey = `client[_-](?:key|certificate)(?:[_-]path)?`
+	doubleQuotedValue     = `"(?:[^"\\]|\\.)*"`
+	singleQuotedValue     = `'(?:[^'\\]|\\.)*'`
+	lineSecretValue       = `(?:` + doubleQuotedValue + `|` + singleQuotedValue + `)`
+	lineSecretArray       = `\[(?:[^"'\[\]]|` + lineSecretValue + `)*\]`
+)
+
 var (
 	urlUserinfoPattern = regexp.MustCompile(`(https?://)[^/@\s]+@`)
 	querySecretPattern = regexp.MustCompile(`(?i)([?&](?:token|key|secret|password|auth|uuid|hwid)=)[^&\s]+`)
 	authHeaderPattern  = regexp.MustCompile(`(?i)((?:authorization|proxy-authorization)\s*:\s*(?:bearer|basic)\s+)[^\r\n\s,;]+`)
-	lineSecretPattern  = regexp.MustCompile(`(?i)((?:["']?(?:x-hwid|hwid|uuid|token|password|secret|auth(?:[_-]?(?:str|key))?|p(?:re)?[_-]?shared[_-]?key|psk|private[_-]?key|public[_-]?key|short[_-]?id|custom[_-]?headers)["']?\s*[:=]\s*["']?))[^"'\r\n\s,;}&]+`)
-	httpURLPattern     = regexp.MustCompile(`(?i)\bhttps?://[^\s\p{Cc}<>"'，；。]+`)
-	otherURLPattern    = regexp.MustCompile(`(?i)\b[a-z][a-z0-9+.-]*://[^\s\p{Cc}<>"'，；。]+`)
-	macPattern         = regexp.MustCompile(`(?i)\b[0-9a-f]{2}(?::[0-9a-f]{2}){5}\b`)
-	ipv4Pattern        = regexp.MustCompile(`\b(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(?:\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}\b`)
-	ipv6Candidate      = regexp.MustCompile(`(?i)[0-9a-f]{0,4}(?::[0-9a-f]{0,4}){2,7}`)
+	// Match log-style assignments and whole inline JSON values, including multiline PEM arrays.
+	privateKeyPEMPattern    = regexp.MustCompile(`(?is)-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----.*?-----END (?:[A-Z0-9]+ )*PRIVATE KEY-----`)
+	anyTLSLineSecretPattern = regexp.MustCompile(`(?i)((?:^|[^\w-])["']?` + anyTLSClientSecretKey + `["']?\s*[:=]\s*)(?:` + lineSecretArray + `|` + lineSecretValue + `|[^"'\[\]\r\n\s,;}&]+)`)
+	lineSecretPattern       = regexp.MustCompile(`(?i)((?:["']?(?:x-hwid|hwid|uuid|token|password|secret|auth(?:[_-]?(?:str|key))?|p(?:re)?[_-]?shared[_-]?key|psk|private[_-]?key|public[_-]?key|short[_-]?id|custom[_-]?headers)["']?\s*[:=]\s*["']?))[^"'\r\n\s,;}&]+`)
+	httpURLPattern          = regexp.MustCompile(`(?i)\bhttps?://[^\s\p{Cc}<>"'，；。]+`)
+	otherURLPattern         = regexp.MustCompile(`(?i)\b[a-z][a-z0-9+.-]*://[^\s\p{Cc}<>"'，；。]+`)
+	macPattern              = regexp.MustCompile(`(?i)\b[0-9a-f]{2}(?::[0-9a-f]{2}){5}\b`)
+	ipv4Pattern             = regexp.MustCompile(`\b(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(?:\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}\b`)
+	ipv6Candidate           = regexp.MustCompile(`(?i)[0-9a-f]{0,4}(?::[0-9a-f]{0,4}){2,7}`)
 )
 
 // sensitiveJSONKeys 是脱敏的 JSON 键表（比较时小写、- 与 _ 等价）。
 var sensitiveJSONKeys = map[string]struct{}{
 	"access_token": {}, "api_key": {}, "auth": {}, "auth_key": {}, "auth_str": {},
-	"authorization": {}, "client_secret": {}, "custom_headers": {}, "headers": {},
+	"authorization": {}, "client_certificate": {}, "client_certificate_path": {},
+	"client_key": {}, "client_key_path": {}, "client_secret": {}, "custom_headers": {}, "headers": {},
 	"hwid": {}, "password": {}, "pre_shared_key": {}, "private_key": {},
 	"private_key_passphrase": {}, "private_key_path": {}, "proxy_authorization": {},
 	"psk": {}, "public_key": {}, "secret": {}, "short_id": {}, "token": {},
@@ -83,6 +95,8 @@ func RedactText(value string) string {
 	value = urlUserinfoPattern.ReplaceAllString(value, `$1***@`)
 	value = querySecretPattern.ReplaceAllString(value, `${1}***`)
 	value = authHeaderPattern.ReplaceAllString(value, `${1}***`)
+	value = privateKeyPEMPattern.ReplaceAllString(value, "***")
+	value = anyTLSLineSecretPattern.ReplaceAllString(value, `${1}"***"`)
 	value = lineSecretPattern.ReplaceAllString(value, `${1}***`)
 	value = httpURLPattern.ReplaceAllString(value, "[订阅链接已隐藏]")
 	value = otherURLPattern.ReplaceAllString(value, "[节点链接已隐藏]")

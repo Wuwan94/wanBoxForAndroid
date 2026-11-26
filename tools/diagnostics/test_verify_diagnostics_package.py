@@ -10,6 +10,8 @@ the verifier passes or fails accordingly. Run from the repo root:
 from __future__ import annotations
 
 import io
+import subprocess
+import sys
 import tarfile
 import tempfile
 import unittest
@@ -114,6 +116,38 @@ class VerifyDiagnosticsPackageTest(unittest.TestCase):
         })
         findings = verifier.verify(path)
         self.assertTrue(any("unredacted sensitive JSON key" in f for f in findings))
+
+    def test_anytls_credentials_fail_cli_without_echoing_fixture(self) -> None:
+        for name, contents, finding in (
+            ("config/singbox-config.json", b'{"tls":{"client_key":["fake-key-line"]}}', "client_key"),
+            ("config/root-snapshot.json", b'{"config":{"tls":{"CLIENT-CERTIFICATE":["fake-cert-line"]}}}', "CLIENT-CERTIFICATE"),
+            ("config/root-snapshot.json", b'{"tls":{"client_certificate_path":"/fake/cert path"}}', "client_certificate_path"),
+            ("logs/service.log", b'handshake client-key-path="/fake/key path", done', "client-key-path"),
+            ("logs/service.log", b'handshake client_key=["fake-key-line with ] bracket"]', "client_key"),
+            ("logs/sing-box.log", b"-----BEGIN ENCRYPTED PRIVATE KEY-----\nfake-key-line\n-----END ENCRYPTED PRIVATE KEY-----\n", "private key PEM"),
+        ):
+            with self.subTest(name=name, finding=finding):
+                path = build_package({"README.txt": CLEAN_README.encode(), name: contents})
+                self.addCleanup(path.unlink)
+                result = subprocess.run(
+                    [sys.executable, verifier.__file__, str(path)], capture_output=True, text=True, check=False,
+                )
+                self.assertEqual(1, result.returncode)
+                self.assertIn(name + ":", result.stdout)
+                self.assertIn(finding, result.stdout)
+                self.assertNotIn("fake-", result.stdout + result.stderr)
+                self.assertNotIn("/fake/", result.stdout + result.stderr)
+
+    def test_masked_anytls_credentials_pass(self) -> None:
+        path = build_package({
+            "README.txt": CLEAN_README.encode(),
+            "config/singbox-config.json": b'{"tls":{"client_key":"***","client-certificate":"***",'
+                                          b'"client-key-path":"***","client_certificate_path":"***"},'
+                                          b'"wifi":{"ssid":["***","***"]}}',
+            "logs/service.log": b'outbound TLS "CLIENT-KEY": "***", client_certificate_path=***, ok=1',
+        })
+        self.addCleanup(path.unlink)
+        self.assertEqual([], verifier.verify(path))
 
     def test_remote_rules_and_cache_and_certs_fail(self) -> None:
         path = build_package({

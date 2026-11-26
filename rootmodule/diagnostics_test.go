@@ -7,6 +7,7 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
@@ -558,5 +559,84 @@ func TestCappedLogWriterTrimsToTail(t *testing.T) {
 	defer w2.Close()
 	if info, err := w2.file.Stat(); err != nil || info.Size() > MaxDiagnosticsLogBytes {
 		t.Errorf("reopen did not trim: %v %d", err, info.Size())
+	}
+}
+
+func TestExportDiagnosticsRedactsAnyTLSClientCredentials(t *testing.T) {
+	r, root, _ := diagnosticsFixture(t)
+	gen := filepath.Join(root, "generations", diagnosticsFixtureRev)
+	tls := `{"client_key":["-----BEGIN PRIVATE KEY-----","fake-key-line","-----END PRIVATE KEY-----"],` +
+		`"client_certificate":["-----BEGIN CERTIFICATE-----","fake-cert-line","-----END CERTIFICATE-----"],` +
+		`"client-key-path":"/fake/key file.pem","client_certificate_path":"/fake/cert file.pem","enabled":true}`
+	config := `{"outbounds":[{"type":"anytls","tls":` + tls + `}]}`
+	for name, input := range map[string]string{
+		"run/config.json": config,
+		"snapshot.json":   `{"config":` + config + `}`,
+	} {
+		if err := os.WriteFile(filepath.Join(gen, name), []byte(input), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dest := filepath.Join(root, "wanbox-diagnostics-sanitized.tar.gz")
+	if _, err := r.ExportDiagnostics(diagnosticsRequest(dest)); err != nil {
+		t.Fatal(err)
+	}
+	entries := readDiagnosticsTar(t, dest)
+	for _, name := range []string{"config/singbox-config.json", "config/root-snapshot.json"} {
+		t.Run(name, func(t *testing.T) {
+			var document struct {
+				Outbounds []struct{ TLS map[string]any }
+				Config    json.RawMessage
+			}
+			if err := json.Unmarshal(entries[name], &document); err != nil {
+				t.Fatal(err)
+			}
+			if document.Config != nil {
+				if err := json.Unmarshal(document.Config, &document); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if len(document.Outbounds) != 1 {
+				t.Fatal("missing exported AnyTLS outbound")
+			}
+			outTLS := document.Outbounds[0].TLS
+			for _, key := range []string{"client_key", "client_certificate", "client-key-path", "client_certificate_path"} {
+				if outTLS[key] != "***" {
+					t.Errorf("%s was not wholly redacted", key)
+				}
+			}
+			if outTLS["enabled"] != true {
+				t.Error("non-sensitive TLS setting was not preserved")
+			}
+		})
+	}
+}
+
+func TestRedactAnyTLSClientCredentialsInLogText(t *testing.T) {
+	input := `outbound TLS "CLIENT-KEY": [
+ "-----BEGIN PRIVATE KEY-----", "fake-key-line", "-----END PRIVATE KEY-----"
+ ], "client_certificate": ["fake-cert-line with ] bracket"], client-key-path="/fake/key file.pem", client_certificate_path=/fake/cert.pem, ok=1`
+	got := RedactText(input)
+	for _, secret := range []string{"PRIVATE KEY", "fake-key-line", "fake-cert-line", "/fake/"} {
+		if strings.Contains(got, secret) {
+			t.Errorf("credential marker %q survived redaction", secret)
+		}
+	}
+	if strings.Count(got, "***") != 4 || !strings.HasSuffix(got, "ok=1") {
+		t.Errorf("expected four redacted values and trailing context, got %q", got)
+	}
+}
+
+func TestRedactPrivateKeyPEMBlockInLogText(t *testing.T) {
+	const block = "-----BEGIN ENCRYPTED PRIVATE KEY-----\nfake-key-line\n-----END ENCRYPTED PRIVATE KEY-----"
+	for _, tc := range []struct{ name, input, want string }{
+		{"standalone", "before TLS error\n" + block + "\nafter TLS error\n", "before TLS error\n***\nafter TLS error\n"},
+		{"assignment", "TLS error client_key=" + block + "\nnext line", "TLS error client_key=\"***\"\nnext line"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := RedactText(tc.input); got != tc.want {
+				t.Error("expected the whole private key block, and only that block, to be redacted")
+			}
+		})
 	}
 }
