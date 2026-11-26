@@ -49,6 +49,18 @@ App 的 RootTunService 仅在绑定时观察模块。页面隐藏后解绑并停
 
 原“自动连接”值不擅自改变：App 成功控制模块后同步自启开关，模块 boot 尊重持久 opt-out。App-only WakeLock/唤醒后重置等无效入口已删除，保留历史键值用于备份兼容；不虚构 native WakeLock。App 不再拥有代理前台通知；模块状态由原管理界面显示。Widget 在 App 绑定或显式动作后更新，关闭 App 时不会增加常驻轮询，其显示可能滞后，点击动作仍查询真实模块状态。
 
+## Root 模块静态 WebUI
+
+模块包在 `webroot/` 下携带本地 `index.html`、`app.mjs`、`controller.mjs` 和 `style.css`。页面采用严格 CSP，不请求网络；只在管理器注入 KernelSU WebUI API 时调用 `kernelsu.exec`，并固定到 `/data/adb/modules/wanbox/bin/wanboxctl` 的 `status`、`dashboard`、`logs`、`start`、`stop`、`restart` 子命令。页面不接受命令或路径参数，不透传 shell stderr，操作期间锁定按钮并把错误折叠为稳定中文提示。
+
+页面展示模块状态、健康、配置名、修订、重试次数及最多 40 条状态事件。成功响应必须包含正整数 `schemaVersion`、`ok: true`、对象 `state` 和非空字符串 `state.phase`；缺失或畸形时显示稳定错误。事件导出只含最近 40 条事件的时间与事件码，不保留原始事件的额外字段，不读取或导出原始日志、诊断归档或私有文件。
+
+运行时边界：KernelSU 原生 WebUI API 是目标接口；APatch 仅在提供兼容 KernelSU WebUI API 时可用，仍须真机验证。Magisk 本身不提供原生 WebUI，其他第三方运行时不因页面存在而视为受支持。接口不可用时页面只显示不支持提示，不尝试任意 shell、网络或 HTTP 写接口；用户仍可使用现有 Android Root 管理界面。
+
+首次安装的 `customize.sh` 会保持模块目录可遍历（0755）、普通文件默认私有（0600），再只将四个 WebUI 文件设为 0644；热更新安装也只对模块根目录、`webroot/` 和静态资源设置管理器所需的可读权限。模块其他脚本、二进制及数据权限策略不变。`pack.py`、合包与 Go 安装 manifest 均使用固定资源白名单；部分 WebUI 资源集会被拒绝。
+
+每个 PR（包括 fork PR）都会运行独立 WebUI job：执行 Node 行为测试，并用固定四项资源生成仅用于体积检查的 `webroot/` ZIP 探针；即使 `libcore` 或 Android app 构建失败也会单独检查源与探针 ZIP 均不超过 1 MiB。若完整模块 ZIP 已构建，Android job 也检查真实 ZIP；Preview 同样检查实际模块 ZIP。下载总量仍独立检查模块 ZIP + APK 合计不超过 27,262,976 字节；此本地任务未以占位 APK 代替真实合计结论。若管理器不支持 API，直接不用此页面并继续用 App；撤回代码可单独 revert 本功能 PR 并重新生成模块包，不改变持久配置 schema 或用户数据。以上不替代 Root 管理器、SELinux 与设备权限真机验收。
+
 ## 清理与设备验收门槛
 
 启动/停止、禁用（监督器最多 10 秒发现）、升级及卸载只清理本模块识别的进程，通过 sing-tun Close 释放路由；不全局 flush 防火墙。卸载模块/App 均保留私有恢复快照；其中包含凭据，不能上传。升级先停止旧核心，清理失败即拒绝升级。
@@ -59,6 +71,7 @@ App 的 RootTunService 仅在绑定时观察模块。页面隐藏后解绑并停
 |---|---|
 | Magisk 安装、启用、升级/卸载与重启自启 | 无在线 Root 设备，未执行 |
 | KernelSU 相同流程、SELinux 与 cgroup 脱离 | 未执行 |
+| KernelSU / APatch WebUI API、页面资源权限与操作反馈 | 未执行；本地只验证固定命令与安装权限 contract |
 | 关闭/强停/卸载 App 后真实代理继续、重开状态一致 | 未执行 |
 | Wi-Fi/蜂窝、断网恢复、IPv4/IPv6/DNS/UDP、Doze | 未执行 |
 | Linux 真实子进程/取消/回滚 fixture 与 race | 首次 Actions Native Build 已通过；后续热更新版本以本次 Actions 结果为准 |
@@ -71,7 +84,9 @@ App 的 RootTunService 仅在绑定时观察模块。页面隐藏后解绑并停
 ```text
 go -C rootmodule test -count=1 -v ./...
 go -C rootmodule vet ./...
+node --test rootmodule/test_webui.mjs
 python -m unittest discover -s rootmodule -p "test_*.py"
+python -m unittest discover -s tools -p test_size_budget.py
 (cd libcore && go test ./internal/...)
 go -C ../sing-box-netproxy run ./cmd/sing-box check -c docs/config/local-proxy.json
 go -C ../sing-box-netproxy run ./cmd/sing-box check -c docs/config/tun-fakeip.json

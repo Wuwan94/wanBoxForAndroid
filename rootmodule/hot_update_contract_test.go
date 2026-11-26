@@ -272,15 +272,20 @@ func TestHotInstallInstalledFileModes(t *testing.T) {
 		t.Fatal(e)
 	}
 	checks := map[string]os.FileMode{
-		".":                    0700,
-		"module.prop":          0600,
-		"LICENSE":              0600,
-		"bin/rootbox":          0700,
-		"bin/wanboxctl":        0700,
-		"service.sh":           0700,
-		"customize.sh":         0700,
-		"uninstall.sh":         0700,
-		"installer-options.sh": 0700,
+		".":                      0755,
+		"webroot":                0755,
+		"webroot/index.html":     0644,
+		"webroot/app.mjs":        0644,
+		"webroot/controller.mjs": 0644,
+		"webroot/style.css":      0644,
+		"module.prop":            0600,
+		"LICENSE":                0600,
+		"bin/rootbox":            0700,
+		"bin/wanboxctl":          0700,
+		"service.sh":             0700,
+		"customize.sh":           0700,
+		"uninstall.sh":           0700,
+		"installer-options.sh":   0700,
 	}
 	// installer-options.sh is not in packageFixture; skip it if absent.
 	for name, want := range checks {

@@ -20,7 +20,8 @@ func packageFixture(t *testing.T, r *Runtime) {
 	copy(elf, []byte("\x7fELF\x02\x01"))
 	binary.LittleEndian.PutUint16(elf[16:18], 3)
 	binary.LittleEndian.PutUint16(elf[18:20], 183)
-	for _, name := range []string{"module.prop", "service.sh", "uninstall.sh", "customize.sh", "LICENSE", "LIBCORE-LICENSE", "bin/rootbox", "bin/wanboxctl"} {
+	for _, name := range []string{"module.prop", "service.sh", "uninstall.sh", "customize.sh", "LICENSE", "LIBCORE-LICENSE", "bin/rootbox", "bin/wanboxctl",
+		"webroot/index.html", "webroot/app.mjs", "webroot/controller.mjs", "webroot/style.css"} {
 		data := []byte("fixture\n")
 		if name == "module.prop" {
 			data = []byte("id=wanbox\nversion=new\n")
@@ -54,6 +55,14 @@ func TestHotInstallPreservesDataAndDoesNotStartInactiveCore(t *testing.T) {
 	if e = r.Activate(context.Background(), target); e != nil {
 		t.Fatal(e)
 	}
+	webRootInfo, e := os.Stat(filepath.Join(target, "webroot"))
+	if e != nil || webRootInfo.Mode().Perm() != 0755 {
+		t.Fatal("WebUI directory must be manager-readable:", webRootInfo, e)
+	}
+	webFileInfo, e := os.Stat(filepath.Join(target, "webroot", "index.html"))
+	if e != nil || webFileInfo.Mode().Perm() != 0644 {
+		t.Fatal("WebUI page must be manager-readable:", webFileInfo, e)
+	}
 	if rev, _, e := r.Current(); e != nil || rev != out.Revision {
 		t.Fatal("lost data", e)
 	}
@@ -81,6 +90,43 @@ func TestHotInstallCorruptPackageNeverReplacesCode(t *testing.T) {
 		t.Fatal("replaced old code")
 	}
 }
+func TestPackageManifestRejectsPartialWebUI(t *testing.T) {
+	r, _ := fixture(t)
+	packageFixture(t, r)
+	m, e := packageManifest(r.ModuleDir)
+	if e != nil {
+		t.Fatal(e)
+	}
+	delete(m.Files, "webroot/style.css")
+	if e = jsonWrite(filepath.Join(r.ModuleDir, "package-manifest.json"), m); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = packageManifest(r.ModuleDir); e == nil {
+		t.Fatal("accepted partial WebUI resources")
+	}
+}
+
+func TestPackageManifestAcceptsLegacyPackageWithoutWebUI(t *testing.T) {
+	r, _ := fixture(t)
+	packageFixture(t, r)
+	m, e := packageManifest(r.ModuleDir)
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, name := range packageWebUIFiles {
+		delete(m.Files, name)
+		if e = os.Remove(filepath.Join(r.ModuleDir, name)); e != nil {
+			t.Fatal(e)
+		}
+	}
+	if e = jsonWrite(filepath.Join(r.ModuleDir, "package-manifest.json"), m); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = packageManifest(r.ModuleDir); e != nil {
+		t.Fatal("legacy package without WebUI must remain installable:", e)
+	}
+}
+
 func TestPackageELFRejectsWrongAbiAndManifestRejectsTraversal(t *testing.T) {
 	r, _ := fixture(t)
 	packageFixture(t, r)
