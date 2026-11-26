@@ -57,6 +57,15 @@ class ActiveOutboundTrackerTest {
         assertEquals("Node M", NotificationPresentation.nodeName("VMess", "Node M"))
     }
 
+    @Test fun initialTitlePreservesOrdinaryTextAndLabelsSpecialVlessWithoutLosingGroup() {
+        assertEquals("[Group] Node V", NotificationPresentation.initialTitle("[Group] Node V", "VLESS", "Node V"))
+        assertEquals("[Group] Node M", NotificationPresentation.initialTitle("[Group] Node M", "VMess", "Node M"))
+        assertEquals(
+            "[Group] VLESS + XHTTP · Node X",
+            NotificationPresentation.initialTitle("[Group] Node X", "VLESS + XHTTP", "Node X"),
+        )
+    }
+
     @Test fun membersAreObservedNeverGuessedAndSessionsAreIsolated() {
         val old = ActiveOutboundTracker(mapOf("p-1" to "Node A", "p-2" to "Node B"))
         assertEquals("Node A", old.resolve("p-1"))

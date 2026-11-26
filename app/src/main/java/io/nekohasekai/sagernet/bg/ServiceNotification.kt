@@ -29,13 +29,6 @@ import io.nekohasekai.sagernet.ktx.runOnIoDispatcher
 private fun ProxyEntity.notificationNodeName(): String =
     NotificationPresentation.nodeName(displayType(), displayName())
 
-private fun notificationTitle(profile: ProxyEntity): String {
-    val groupName = if (DataStore.showGroupInNotification)
-        SagerDatabase.groupDao.getById(profile.groupId)?.displayName() else null
-    val node = profile.notificationNodeName()
-    return if (groupName == null) node else "[$groupName] $node"
-}
-
 /**
  * @author 雾晚
  * User can customize visibility of notification since Android 8.
@@ -71,7 +64,9 @@ class ServiceNotification(
     private var observedTag = ""
     private var observedProxy: ProxyInstance? = null
     private var tracker = ActiveOutboundTracker(emptyMap())
-    private var initialTitle = service.data.proxy?.profile?.let(::notificationTitle) ?: title
+    private var initialTitle = service.data.proxy?.profile?.let {
+        NotificationPresentation.initialTitle(title, it.displayType(), it.displayName())
+    } ?: title
     private var selectedProfile: ProxyEntity? = null
 
     // @author 雾晚: both runtimes supply an observed leaf; never query an unopened app box.

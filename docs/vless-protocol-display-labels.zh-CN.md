@@ -11,7 +11,8 @@
 
 ## 本地/CI 已验证项
 
-- 本地 `app:testOssDebugUnitTest` 与 `app:testPreviewDebugUnitTest` 全量 JVM 测试套件通过；定向用例覆盖普通 VLESS、VMess、XHTTP、Reality、组合标签、固定节点通知、活动策略组成员通知及其他协议文案保持不变。
+- 本地 `app:testOssDebugUnitTest` 与 `app:testPreviewDebugUnitTest` 全量 JVM 测试套件通过；定向用例覆盖普通 VLESS、VMess、XHTTP、Reality、组合标签、固定节点通知、活动策略组成员通知及其他协议通知文案保持不变。
+- 初始标题回归用例确认普通 VLESS/VMess 原文保留；特殊 VLESS 只替换节点名，且保留既有分组前缀。
 - 本地 `:core-domain:test` 通过；`python3 -m unittest discover -s tools -p 'test_*.py'` 的 132 项通过。
 - 本地 `tools/check_current_version_docs.py`、`tools/check_core_gate.py`、`python3 tools/check_android_security.py ossDebug previewDebug` 与 `git diff --check` 均通过。安全检查前已生成 PreviewDebug packaged manifest。
 - TDD 顺序为逐项先失败、再最小实现并转绿；没有修改策略组拨号、HWID 外发或 libcore 协议逻辑。
