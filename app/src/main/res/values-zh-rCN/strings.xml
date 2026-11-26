@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- @author 雾晚 -->
 <resources>
+    <string name="action_vless_xhttp">VLESS + XHTTP</string>
     <string name="outbound_reference_title">路由出站引用缺失</string>
     <string name="outbound_reference_message">以下已启用规则引用的出站不存在，无法应用。请检查规则，或明确选择仍然继续。</string>
     <string name="outbound_reference_item">%1$s（规则 %2$d）：缺失%3$s #%4$d</string>

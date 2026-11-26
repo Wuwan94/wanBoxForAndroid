@@ -347,6 +347,7 @@
     <string name="action_shadowsocks" translatable="false">Shadowsocks</string>
     <string name="action_shadowsocksr" translatable="false">ShadowsocksR</string>
     <string name="action_vmess" translatable="false">VMess</string>
+    <string name="action_vless_xhttp">VLESS + XHTTP</string>
     <string name="action_trojan" translatable="false">Trojan</string>
     <string name="action_trojan_go" translatable="false">Trojan Go</string>
     <string name="action_mieru" translatable="false">Mieru</string>
