@@ -1,10 +1,12 @@
 package io.nekohasekai.sagernet.fmt
 
+import androidx.annotation.Keep
 import io.nekohasekai.sagernet.database.ProxyEntity
 import io.nekohasekai.sagernet.database.ProxyGroup
 import moe.matsuri.nb4a.proxy.anytls.AnyTLSBean
 import moe.matsuri.nb4a.utils.Util
 
+@Keep
 fun parseUniversal(link: String): AbstractBean {
     return if (link.contains("?")) {
         val type = link.substringAfter("sn://").substringBefore("?")
@@ -19,6 +21,7 @@ fun parseUniversal(link: String): AbstractBean {
     }
 }
 
+@Keep
 fun AbstractBean.toUniversalLink(): String {
     val sharedBean = when (this) {
         is AnyTLSBean -> clone().apply {
