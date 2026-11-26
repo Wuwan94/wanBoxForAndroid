@@ -17,18 +17,15 @@ ROOT = Path(__file__).resolve().parents[2]
 STABLE_TAG = "v3.0.17"
 STABLE_CODE = "2035"
 STABLE_APK_CODE = "10175"
-# v3.0.19-preview.3 已发布：Preview Build run 45573982693，tag 与发布资产提交为
-# 7d193fe45aa3060c9e03aa0befbc4f349f6a712d，2026-11-25T08:32:21Z 上架；发布后 preview.2 已清理。
-PUBLISHED_PREVIEW = "v3.0.19-preview.3"
-PUBLISHED_PREVIEW_COMMIT = "7d193fe45aa3060c9e03aa0befbc4f349f6a712d"
-# 当前源码预览线为未发布候选 v3.0.19-preview.4（2043）：收录 Root 静态 WebUI 与
-# KernelSU / APatch 桥接（PR #107 / #112）、AnyTLS 本地 mTLS（PR #111）、VLESS 协议标签与
-# 手动 XHTTP 入口（PR #109 / #110）、XHTTP stream-up 排空与期限修复（PR #102 / #103 / #108）
-# 等；发布后需改回与已发布预览一致。
+# v3.0.19-preview.4 已发布：Preview Build run 45890957065，tag 与发布资产提交为
+# cfb1e25c4b02f261dee17baa77a4fa4a1fa60565，2026-11-26T20:54:52Z 上架；发布后 preview.3 已清理。
+PUBLISHED_PREVIEW = "v3.0.19-preview.4"
+PUBLISHED_PREVIEW_COMMIT = "cfb1e25c4b02f261dee17baa77a4fa4a1fa60565"
+# 当前源码预览线与最近已发布预览一致；版本元数据仍指向 2043。
 SOURCE_PREVIEW = "v3.0.19-preview.4"
 SOURCE_PREVIEW_CODE = "2043"
-# v3.0.19-preview.2 的 Release/tag 已在 preview.3 发布后清理，只保留历史说明与资产快照。
-ARCHIVED_PREVIEW = "v3.0.19-preview.2"
+# v3.0.19-preview.3 的 Release/tag 已在 preview.4 发布后清理，只保留历史说明与资产快照。
+ARCHIVED_PREVIEW = "v3.0.19-preview.3"
 HISTORY_MARKER = "历史归档"
 
 FILES = {
