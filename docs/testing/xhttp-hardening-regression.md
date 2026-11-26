@@ -40,3 +40,26 @@ go -C libcore test -race -count=3 ./protocol/vless/xhttp
 ```
 
 这些回归将随三份工作流既有的 XHTTP 普通测试及 race 门禁一起执行。真机、真实 Xray 客户端、HTTP/2 下的本组请求级资源隔离，以及物理设备峰值内存，仍需各自独立验证。
+
+## PR-A：stream-up 响应 padding 保活
+
+基线复核（`040efef08cd1a6952b3b6bb9908c7a856f3c0d4c`）确认配额隔离、同会话 stream-up 排队、认证回调回收、乱序溢出关会话、uplink method 校验以及 XHTTP JSON 示例门禁已存在；本 PR 不重复改写这些行为。新增回归使用公开 `NewServer`、`Serve(net.Listener)`、`Close()` 和真实 loopback HTTP 请求，不读取私有会话表或准入计数。
+
+- 正向保活 RED：未修改基线执行 `go test -count=1 -run '^TestStreamUpResponseWritesConfiguredKeepalivePadding$' ./protocol/vless/xhttp`，在 `NewServer` 处失败，错误为 `xhttp sc_stream_up_server_secs is not supported on the server`。
+- 正向保活 GREEN：同一测试通过；配置 `1-1` 秒、固定 4 字节 padding，成功响应收到连续两段 `XXXX`，证明是周期写入而非单次写入。
+- 禁用哨兵 RED/GREEN：先支持正数区间后，新增 `-1` 禁用用例在构造期因“必须为正数区间”失败；加入精确 `-1/-1` 禁用语义后，`go test -count=1 -run '^TestStreamUpResponse(KeepaliveCanBeDisabled|WritesConfiguredKeepalivePadding)$' ./protocol/vless/xhttp` 通过，禁用情况下成功响应正文为空。
+- 上传读取仍由独立的滚动空闲截止时间处理，默认 30 秒；`sc_stream_up_server_secs` 只选响应 padding 保活间隔。字段缺省为 20–80 秒；只有 Referer 兼容标记或服务端接受 obfs padding 时启用；上传结束/请求取消后写协程停止并退出。每轮 padding 的 `Write` 与随后的 `Flush` 共用独立 5 秒响应写截止时间，成功 Flush 后清除；期限设置、写入或刷新失败会停止保活协程。
+
+Xray 官方 [`hub.go`](https://github.com/XTLS/Xray-core/blob/main/transport/internet/splithttp/hub.go) 与 [`config.go`](https://github.com/XTLS/Xray-core/blob/main/transport/internet/splithttp/config.go) 是线格式与默认值依据。Xray [issue #7180](https://github.com/XTLS/Xray-core/issues/7180) 报告 HTTP/1.1 Nginx 上游可能受响应保活影响；`-1` 可作为诊断/兼容性开关，但会放弃响应保活带来的空闲保护。PR-A 未在 Nginx 反代或 Root 真机上复现/确认该权衡，不能将本地 loopback 测试当作该场景证据。
+
+### GPT/Codex 补充测试
+
+Codex CLI `0.172.0` 使用模型 `gpt-6.1-sol`，该模型实际编写了 `server.go` 中独立 `defaultXHTTPStreamUpResponseWriteTimeout = 5 * time.Second` 与每轮 `ResponseController.SetWriteDeadline`/清理逻辑，并新增了 `TestStreamUpResponseKeepaliveBlockedWriteStopsOnUploadEOF`、`TestStreamUpResponseKeepaliveLegacyRefererCompatibility`、`TestStreamUpResponseKeepaliveNotActivatedWithoutRefererInNonObfsMode`、`TestStreamUpResponseKeepaliveStopsOnUploadEOF`；此前还补充了 `TestStreamUpResponseKeepaliveStopsOnRequestCancellation`。主环境先运行阻塞写用例并在 2 秒后观察到响应 drain 仍阻塞（RED），应用 deadline 修复后该测试普通与 `-race` 均通过，完整 XHTTP 包普通与 `-race -count=3` 也通过。测试通过真实 loopback HTTP 与 test-only `net.Conn` wrapper：无 deadline 时 write 阻塞，安装未来 deadline 后模拟 `os.ErrDeadlineExceeded`；仅验证 deadline 设置及 handler 收尾，不代表真实慢网/反代上发生了 5 秒超时。Codex 沙箱没有运行这些测试。
+
+本轮由当前助手补充了 `TestStreamUpResponseKeepaliveDefaultIntervalRange`、`TestStreamUpResponseKeepaliveStopsWhenWriteDeadlineSetFails`，将 EOF 用例改为使用缺省 20–80 秒配置，并加强阻塞写用例以确认 Flush 错误后不会开始下一轮；这些后续补测并非 Codex 编写。
+
+### PR #103 与 GitHub Actions 结果
+
+PR [#103](https://github.com/Wuwan94/wanBoxForAndroid/pull/103) 由提交 `6c4484a09162bbfc9343597bc8966b8316600376` 创建；在该相同头提交上，[`Verify Android Build`](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/45690304123) 第一次运行中，`Build LibCore`（包括 Xray v26.11.9 12 项互通门禁）成功，但 `Build Android Debug APK` 的 emulator instrumentation 有 3 项 app UI 断言失败：`GroupDraftAbandonPersistenceTest`、`OutboundReferenceAlarmTest`、`SubscriptionGroupOwnershipTest`，均报告 `activeRootIsTarget=false`。本 PR 没改 app 或 Root 模块；未做代码修改后重跑 failed jobs，attempt 2 中 `Build LibCore` 与 `Build Android Debug APK` 均成功，workflow 最终结论为 `success`。因此首次 Android UI 失败与模拟器窗口状态波动相符，但不能据此宣称本地 Root 真机链路已验证。
+
+双轴复审、提交、推送与 PR 创建均已完成；任务禁止合并或发布。Android 真机端到端网络行为仍未由本地测试证明。

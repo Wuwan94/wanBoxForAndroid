@@ -32,7 +32,7 @@ func TestInboundRejectsUnsupportedOptions(t *testing.T) {
 		opts V2RayXHTTPBaseOptions
 	}{
 		{"method", V2RayXHTTPBaseOptions{UplinkHttpMethod: http.MethodOptions}},
-		{"keepalive", V2RayXHTTPBaseOptions{ScStreamUpServerSecs: Xbadoption.Range{From: 1, To: 2}}},
+		{"invalid-keepalive", V2RayXHTTPBaseOptions{ScStreamUpServerSecs: Xbadoption.Range{From: 0, To: 1}}},
 		{"interval", V2RayXHTTPBaseOptions{ScMinPostsIntervalMs: Xbadoption.Range{From: 20, To: 10}}},
 		{"post-memory", V2RayXHTTPBaseOptions{ScMaxEachPostBytes: Xbadoption.Range{From: 1000000, To: 4 << 20}}},
 	} {

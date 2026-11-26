@@ -6,7 +6,14 @@
       "listen": "127.0.0.1",
       "listen_port": 18080,
       "users": [{ "name": "example-only", "uuid": "c989b226-46cb-4665-a0d4-b89a6378dc99" }],
-      "transport": { "type": "xhttp", "mode": "auto", "path": "/xhttp" }
+      "transport": {
+        "type": "xhttp",
+        "mode": "stream-up",
+        "path": "/xhttp",
+        "x_padding_obfs_mode": true,
+        "x_padding_placement": "header",
+        "sc_stream_up_server_secs": "20-80"
+      }
     }
   ]
 }
