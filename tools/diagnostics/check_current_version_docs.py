@@ -21,9 +21,12 @@ STABLE_APK_CODE = "10175"
 # 7d193fe45aa3060c9e03aa0befbc4f349f6a712d，2026-11-25T08:32:21Z 上架；发布后 preview.2 已清理。
 PUBLISHED_PREVIEW = "v3.0.19-preview.3"
 PUBLISHED_PREVIEW_COMMIT = "7d193fe45aa3060c9e03aa0befbc4f349f6a712d"
-# 当前源码预览线与最近已发布预览一致；版本元数据仍指向 2042。
-SOURCE_PREVIEW = "v3.0.19-preview.3"
-SOURCE_PREVIEW_CODE = "2042"
+# 当前源码预览线为未发布候选 v3.0.19-preview.4（2043）：收录 Root 静态 WebUI 与
+# KernelSU / APatch 桥接（PR #107 / #112）、AnyTLS 本地 mTLS（PR #111）、VLESS 协议标签与
+# 手动 XHTTP 入口（PR #109 / #110）、XHTTP stream-up 排空与期限修复（PR #102 / #103 / #108）
+# 等；发布后需改回与已发布预览一致。
+SOURCE_PREVIEW = "v3.0.19-preview.4"
+SOURCE_PREVIEW_CODE = "2043"
 # v3.0.19-preview.2 的 Release/tag 已在 preview.3 发布后清理，只保留历史说明与资产快照。
 ARCHIVED_PREVIEW = "v3.0.19-preview.2"
 HISTORY_MARKER = "历史归档"
