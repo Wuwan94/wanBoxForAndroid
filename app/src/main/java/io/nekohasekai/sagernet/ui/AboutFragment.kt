@@ -25,7 +25,6 @@ import androidx.activity.result.component2
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
-import androidx.core.view.ViewCompat
 import androidx.core.view.doOnPreDraw
 import androidx.recyclerview.widget.RecyclerView
 import com.danielstone.materialaboutlibrary.MaterialAboutFragment
@@ -44,7 +43,6 @@ import io.nekohasekai.sagernet.utils.UpdateDownload
 import io.nekohasekai.sagernet.utils.UpdateFailureClassifier
 import io.nekohasekai.sagernet.utils.UpdateRelease
 import io.nekohasekai.sagernet.utils.UpdateProxyUnavailable
-import io.nekohasekai.sagernet.widget.ListListener
 import libcore.Libcore
 import moe.matsuri.nb4a.plugin.Plugins
 import java.io.File
@@ -66,7 +64,6 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
 
         val binding = LayoutAboutBinding.bind(view)
 
-        ViewCompat.setOnApplyWindowInsetsListener(view, ListListener)
         toolbar.setTitle(R.string.menu_about)
 
         binding.license.maxLines = LICENSE_COLLAPSED_MAX_LINES

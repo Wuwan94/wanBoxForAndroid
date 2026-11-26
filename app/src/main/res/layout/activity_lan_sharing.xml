@@ -6,7 +6,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <!-- 顶部导航栏 (移除 fitsSystemWindows，由 ThemedActivity.applyAppBarInsets 统一适配状态栏高度，避免双重 Inset 导致空白过大) -->
+    <!-- ThemedActivity applies system-bar and cutout safety at the content root. -->
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/appbar"
         android:layout_width="match_parent"

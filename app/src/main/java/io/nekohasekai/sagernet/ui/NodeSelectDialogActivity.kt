@@ -1,7 +1,6 @@
 package io.nekohasekai.sagernet.ui
 
 import android.annotation.SuppressLint
-import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -21,6 +20,8 @@ import io.nekohasekai.sagernet.database.ProxyGroup
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.databinding.ActivityNodeSelectDialogBinding
 import io.nekohasekai.sagernet.ktx.onMainDispatcher
+import io.nekohasekai.sagernet.utils.Theme
+import io.nekohasekai.sagernet.widget.WindowInsetsPolicy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
@@ -48,6 +49,8 @@ class NodeSelectDialogActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityNodeSelectDialogBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        WindowInsetsPolicy.configureWindow(window, lightSystemBars = !Theme.usingNightMode())
+        WindowInsetsPolicy.applySafeAreaPadding(binding.dialogBackdrop)
 
         binding.dialogBackdrop.setOnClickListener { finishWithFade() }
         binding.dialogCard.setOnClickListener { /* prevent dismissal on clicking card */ }

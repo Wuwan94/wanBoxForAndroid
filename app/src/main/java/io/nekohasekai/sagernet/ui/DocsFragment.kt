@@ -6,7 +6,6 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
 import android.view.ViewGroup
-import androidx.core.view.ViewCompat
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -14,7 +13,6 @@ import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.databinding.ItemDocCardBinding
 import io.nekohasekai.sagernet.databinding.ItemDocHeaderBinding
 import io.nekohasekai.sagernet.databinding.LayoutDocsBinding
-import io.nekohasekai.sagernet.widget.ListListener
 
 class DocsFragment : ToolbarFragment(R.layout.layout_docs) {
 
@@ -46,7 +44,6 @@ class DocsFragment : ToolbarFragment(R.layout.layout_docs) {
         super.onViewCreated(view, savedInstanceState)
 
         _binding = LayoutDocsBinding.bind(view)
-        ViewCompat.setOnApplyWindowInsetsListener(view, ListListener)
         toolbar.setTitle(R.string.menu_documentation)
 
         initDocData()

@@ -1,15 +1,11 @@
 // @author 雾晚
 package io.nekohasekai.sagernet.ui
 
-import android.graphics.Color
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
 import androidx.appcompat.widget.Toolbar
 import androidx.core.graphics.drawable.DrawableCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import com.google.android.material.appbar.AppBarLayout
 import io.nekohasekai.sagernet.R
@@ -64,14 +60,6 @@ open class ToolbarFragment : Fragment {
         val appbar = view.findViewById<AppBarLayout?>(R.id.appbar)
         if (appbar != null) {
             UiChrome.apply(appbar)
-            ViewCompat.setOnApplyWindowInsetsListener(appbar) { v, insets ->
-                val bars = insets.getInsets(
-                    WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
-                )
-                v.updatePadding(top = bars.top)
-                insets
-            }
-            ViewCompat.requestApplyInsets(appbar)
         }
     }
 

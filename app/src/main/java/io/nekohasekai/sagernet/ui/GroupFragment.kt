@@ -26,7 +26,6 @@ import io.nekohasekai.sagernet.databinding.LayoutGroupItemBinding
 import io.nekohasekai.sagernet.fmt.toUniversalLink
 import io.nekohasekai.sagernet.group.GroupUpdater
 import io.nekohasekai.sagernet.ktx.*
-import io.nekohasekai.sagernet.widget.ListListener
 import io.nekohasekai.sagernet.widget.QRCodeDialog
 import io.nekohasekai.sagernet.widget.UndoSnackbarManager
 import androidx.lifecycle.lifecycleScope

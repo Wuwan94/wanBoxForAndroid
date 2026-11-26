@@ -105,5 +105,9 @@ object LandingIpBottomSheet {
         }
 
         dialog.show()
+        dialog.window?.let { window ->
+            WindowInsetsPolicy.configureWindow(window, lightSystemBars = !isNight)
+            WindowInsetsPolicy.applySafeAreaPadding(view, includeTop = false)
+        }
     }
 }

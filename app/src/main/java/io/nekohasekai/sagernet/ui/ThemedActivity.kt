@@ -2,8 +2,6 @@
 package io.nekohasekai.sagernet.ui
 
 import android.content.res.Configuration
-import android.graphics.Color
-import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
@@ -12,18 +10,15 @@ import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.graphics.ColorUtils
-import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
-import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.snackbar.Snackbar
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.ktx.getColorAttr
 import io.nekohasekai.sagernet.utils.Theme
+import io.nekohasekai.sagernet.widget.WindowInsetsPolicy
 
 abstract class ThemedActivity : AppCompatActivity {
     constructor() : super()
@@ -69,56 +64,45 @@ abstract class ThemedActivity : AppCompatActivity {
 
         uiMode = resources.configuration.uiMode
 
-        window.statusBarColor = Color.TRANSPARENT
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            window.isStatusBarContrastEnforced = false
-            window.isNavigationBarContrastEnforced = false
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            WindowCompat.setDecorFitsSystemWindows(window, false)
-
-            val insetController = WindowCompat.getInsetsController(window, window.decorView)
-            val surfaceColor = getColorAttr(R.attr.colorSurface)
-            val isLightSurface = ColorUtils.calculateLuminance(surfaceColor) > 0.45
-
-            insetController.isAppearanceLightStatusBars = isLightSurface
-            insetController.isAppearanceLightNavigationBars = isLightSurface
-        }
-
-        applyAppBarInsets()
+        configureWindowInsets()
+        applyContentInsets()
     }
 
-    fun applyAppBarInsets() {
-        val content = findViewById<View>(android.R.id.content) ?: return
-        ViewCompat.setOnApplyWindowInsetsListener(content) { _, insets ->
-            val bars = insets.getInsets(
-                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
-            )
-            findViewById<AppBarLayout>(R.id.appbar)?.apply {
-                updatePadding(top = bars.top)
-            }
-            insets
-        }
-        ViewCompat.requestApplyInsets(content)
+    private fun configureWindowInsets() {
+        if (isDialog) return
+
+        WindowInsetsPolicy.configureWindow(window)
+        val insetController = WindowCompat.getInsetsController(window, window.decorView)
+        val surfaceColor = getColorAttr(R.attr.colorSurface)
+        val isLightSurface = ColorUtils.calculateLuminance(surfaceColor) > 0.45
+        insetController.isAppearanceLightStatusBars = isLightSurface
+        insetController.isAppearanceLightNavigationBars = isLightSurface
+    }
+
+    private fun applyContentInsets() {
+        if (isDialog) return
+
+        val contentContainer = findViewById<ViewGroup>(android.R.id.content) ?: return
+        val contentRoot = contentContainer.getChildAt(0) ?: return
+        WindowInsetsPolicy.applySafeAreaPadding(contentRoot)
     }
 
     override fun setContentView(view: View?) {
         super.setContentView(view)
         view?.let(Theme::tintCustomViews)
-        applyAppBarInsets()
+        applyContentInsets()
     }
 
     override fun setContentView(layoutResID: Int) {
         super.setContentView(layoutResID)
         findViewById<View>(android.R.id.content)?.let(Theme::tintCustomViews)
-        applyAppBarInsets()
+        applyContentInsets()
     }
 
     override fun setContentView(view: View?, params: ViewGroup.LayoutParams?) {
         super.setContentView(view, params)
         view?.let(Theme::tintCustomViews)
-        applyAppBarInsets()
+        applyContentInsets()
     }
 
     override fun setTheme(resId: Int) {

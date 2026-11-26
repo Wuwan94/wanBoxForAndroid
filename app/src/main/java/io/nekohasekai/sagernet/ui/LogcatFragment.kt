@@ -15,12 +15,10 @@ import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.widget.Toolbar
-import androidx.core.view.ViewCompat
 import androidx.core.view.doOnLayout
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.databinding.LayoutLogcatBinding
 import io.nekohasekai.sagernet.ktx.*
-import io.nekohasekai.sagernet.widget.ListListener
 import libcore.Libcore
 import moe.matsuri.nb4a.utils.SendLog
 import io.nekohasekai.sagernet.core.CoreRuntime
@@ -44,7 +42,6 @@ class LogcatFragment : ToolbarFragment(R.layout.layout_logcat),
             binding.textview.breakStrategy = 0 // simple
         }
 
-        ViewCompat.setOnApplyWindowInsetsListener(binding.root, ListListener)
 
         reloadSession()
     }

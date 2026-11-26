@@ -7,6 +7,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.ViewGroup.MarginLayoutParams
 import android.widget.LinearLayout
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -25,7 +26,6 @@ import io.nekohasekai.sagernet.ktx.getColorAttr
 import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.toStringPretty
 import io.nekohasekai.sagernet.ui.ThemedActivity
-import io.nekohasekai.sagernet.widget.ListListener
 import moe.matsuri.nb4a.ui.ExtendedKeyboard
 import org.json.JSONObject
 
@@ -34,6 +34,7 @@ class ConfigEditActivity : ThemedActivity() {
     var dirty = false
     var key = Key.SERVER_CONFIG
     var useConfigStore = false
+    private var unsavedChangesCallback: OnBackPressedCallback? = null
 
     class UnsavedChangesDialogFragment : AlertDialogFragment<Empty, Empty>() {
         override fun AlertDialog.Builder.prepare(listener: DialogInterface.OnClickListener) {
@@ -53,6 +54,12 @@ class ConfigEditActivity : ThemedActivity() {
     @SuppressLint("InlinedApi")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        unsavedChangesCallback = object : OnBackPressedCallback(dirty) {
+            override fun handleOnBackPressed() {
+                UnsavedChangesDialogFragment().apply { key() }
+                    .show(supportFragmentManager, null)
+            }
+        }.also { onBackPressedDispatcher.addCallback(this, it) }
 
         intent?.extras?.apply {
             getString("key")?.let { key = it }
@@ -81,6 +88,7 @@ class ConfigEditActivity : ThemedActivity() {
                 if (!dirty) {
                     dirty = true
                     DataStore.dirty = true
+                    unsavedChangesCallback?.isEnabled = true
                 }
             }
         }
@@ -137,7 +145,6 @@ class ConfigEditActivity : ThemedActivity() {
             WindowInsetsCompat.CONSUMED
         }
 
-        ViewCompat.setOnApplyWindowInsetsListener(binding.root, ListListener)
     }
 
     fun formatText(): String? {
@@ -165,13 +172,8 @@ class ConfigEditActivity : ThemedActivity() {
         }
     }
 
-    override fun onBackPressed() {
-        if (dirty) UnsavedChangesDialogFragment().apply { key() }
-            .show(supportFragmentManager, null) else super.onBackPressed()
-    }
-
     override fun onSupportNavigateUp(): Boolean {
-        if (!super.onSupportNavigateUp()) finish()
+        onBackPressedDispatcher.onBackPressed()
         return true
     }
 
