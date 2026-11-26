@@ -18,6 +18,6 @@ AnyTLS 配置可以保存客户端证书和私钥，并将其用于 sing-box out
 
 - **本地 JVM 已验证：** profile/Kryo 往返、旧版 v1 profile 兼容、PEM 行数组 outbound 映射、标准 `anytls://` 分享边界，以及完整 OssDebug、PreviewDebug、core-domain JVM 测试均通过。
 - **本地门禁已验证：** `tools/` 132 项单测、仓库治理检查与 CoreRuntime 调用门禁通过；本次未改 Go/libcore，因此本地 Go `-race` 不适用，且未改 `nb4a.properties`。
-- **Android instrumentation：** `sn://` 脱敏（含原 profile 保留）和私钥摘要测试已加入；最新 `OssDebug`、`PreviewDebug` 与 instrumentation APK 均编译成功。本地 API 35 AVD 未能启动到可用状态（ADB 持续 `offline`），故不宣称 instrumentation 本地实跑通过。
-- **CI：** GitHub Actions `Verify Android Build` 及 CI CoreRuntime 门禁待 PR 运行并补记结果。
+- **Android instrumentation：** `sn://` 脱敏（含原 profile 保留）和私钥摘要测试已加入，Debug、PreviewDebug 与 instrumentation APK 本地编译成功。本地 API 35 AVD 未能启动到可用状态（ADB 持续 `offline`），故不宣称 instrumentation 本地实跑通过。
+- **CI（PR #111，Verify Android Build attempt 2）：** workflow、Debug 与 Release instrumentation、CoreRuntime 直调门禁均通过；Xray v26.11.9 XHTTP 互通 12/12。Module Size Lab 与 baseline/cross-version backup evidence 两项为 skipped；不将它们记作通过。
 - **需 Root 真机矩阵实测：** 使用启用 mTLS 的 AnyTLS 服务端，在 Magisk、KernelSU、APatch 支持设备上分别验证连接、证书接受/拒绝、重连及配置切换。该矩阵目前未实测。
