@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>wanBox Root 模块</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./app.mjs"></script>
+</head>
+<body>
+  <main class="page">
+    <header class="header">
+      <p class="eyebrow">WANBOX · ROOT MODULE</p>
+      <h1>模块控制台</h1>
+      <p id="runtime-message" class="runtime-message" role="status" aria-live="polite">正在检测管理器 WebUI 能力…</p>
+    </header>
+
+    <section class="card" aria-labelledby="state-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">运行概览</p>
+          <h2 id="state-title">模块状态</h2>
+        </div>
+        <span id="phase-badge" class="badge" data-phase="unknown">未知</span>
+      </div>
+      <dl class="state-grid">
+        <div><dt>健康状态</dt><dd id="health">未知</dd></div>
+        <div><dt>当前配置</dt><dd id="profile">未知</dd></div>
+        <div><dt>运行修订</dt><dd id="revision">未知</dd></div>
+        <div><dt>重试次数</dt><dd id="retry-count">未知</dd></div>
+      </dl>
+      <p id="state-error" class="state-error" hidden></p>
+    </section>
+
+    <section class="card" aria-labelledby="actions-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">固定命令</p>
+          <h2 id="actions-title">模块操作</h2>
+        </div>
+      </div>
+      <div class="actions">
+        <button type="button" data-action="logs" class="button button-secondary">刷新状态</button>
+        <button type="button" data-action="start" class="button">启动</button>
+        <button type="button" data-action="stop" class="button button-secondary">停止</button>
+        <button type="button" data-action="restart" class="button button-secondary">重启</button>
+      </div>
+      <p id="operation-message" class="operation-message" role="status" aria-live="polite">操作前会锁定按钮，完成后显示结果。</p>
+    </section>
+
+    <section class="card" aria-labelledby="events-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">有界事件摘要</p>
+          <h2 id="events-title">最近事件</h2>
+        </div>
+        <button type="button" id="export-events" class="text-button">导出事件</button>
+      </div>
+      <p class="muted">仅展示模块状态事件，不读取原始日志文件。</p>
+      <ol id="events" class="events" aria-live="polite"></ol>
+      <p id="events-empty" class="muted">暂无事件记录。</p>
+    </section>
+
+    <footer class="footer">
+      <p>原生 WebUI 运行时：KernelSU 与兼容其 WebUI API 的 APatch。Magisk 本身不提供原生 WebUI；未验证的第三方运行时不会被视为受支持。</p>
+    </footer>
+  </main>
+</body>
+</html>

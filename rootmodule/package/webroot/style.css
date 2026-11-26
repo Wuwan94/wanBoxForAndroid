@@ -1,0 +1,88 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, "Noto Sans CJK SC", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --bg: #101522;
+  --card: #1a2232;
+  --text: #f2f5fb;
+  --muted: #aeb8ca;
+  --accent: #7fc4ff;
+  --line: #354158;
+  --danger: #ff9b9b;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f3f6fb;
+    --card: #ffffff;
+    --text: #172033;
+    --muted: #536078;
+    --accent: #155fa0;
+    --line: #d8dfeb;
+    --danger: #a31d2b;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.page {
+  width: min(100%, 760px);
+  margin: 0 auto;
+  padding: 24px 16px 40px;
+}
+
+.header { margin: 8px 4px 22px; }
+.eyebrow { margin: 0 0 6px; color: var(--accent); font-size: 0.74rem; font-weight: 700; letter-spacing: 0.09em; }
+h1 { margin: 0; font-size: clamp(1.6rem, 7vw, 2.2rem); }
+h2 { margin: 0; font-size: 1.12rem; }
+.runtime-message, .operation-message { color: var(--muted); line-height: 1.5; }
+
+.card {
+  margin: 14px 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--card);
+}
+
+.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.state-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px; margin: 22px 0 4px; }
+dt { color: var(--muted); font-size: 0.82rem; }
+dd { overflow-wrap: anywhere; margin: 4px 0 0; font-weight: 600; }
+.badge { padding: 6px 10px; border: 1px solid var(--line); border-radius: 99px; color: var(--muted); font-size: 0.82rem; }
+.badge[data-phase="running"] { color: #7ce2a5; border-color: #438862; }
+.badge[data-phase="degraded"], .badge[data-phase="failed"] { color: var(--danger); border-color: currentColor; }
+.state-error { color: var(--danger); overflow-wrap: anywhere; }
+
+.actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 18px; }
+.button, .text-button {
+  min-height: 44px;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: var(--accent);
+  color: #07121f;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.button-secondary { border-color: var(--line); background: transparent; color: var(--text); }
+.button:disabled, .text-button:disabled { opacity: 0.5; cursor: wait; }
+.text-button { min-height: 36px; padding: 0 12px; background: transparent; color: var(--accent); }
+.muted { color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
+.events { display: grid; gap: 8px; margin: 14px 0 0; padding-left: 22px; }
+.events li { padding-left: 2px; overflow-wrap: anywhere; }
+.event-time { display: block; color: var(--muted); font-size: 0.78rem; }
+.event-code { font-family: ui-monospace, monospace; font-size: 0.9rem; }
+.footer { padding: 4px 6px; color: var(--muted); font-size: 0.82rem; line-height: 1.55; }
+
+@media (max-width: 420px) {
+  .card { padding: 15px; }
+  .state-grid { grid-template-columns: 1fr; }
+}
