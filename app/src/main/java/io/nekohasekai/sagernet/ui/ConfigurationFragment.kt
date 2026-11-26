@@ -1442,6 +1442,13 @@ class ConfigurationFragment @JvmOverloads constructor(
                 })
             }
 
+            R.id.action_new_xhttp -> {
+                startActivity(Intent(requireActivity(), VMessSettingsActivity::class.java).apply {
+                    putExtra("vless", true)
+                    putExtra("xhttp", true)
+                })
+            }
+
             R.id.action_new_trojan -> {
                 startActivity(Intent(requireActivity(), TrojanSettingsActivity::class.java))
             }

@@ -59,6 +59,7 @@ docs/
 - [**ui-redesign/**](./ui-redesign/)：**UI 重构专栏**，记录从传统界面向现代 Material 3 原生架构演进的全过程。
 - [**liquid-glass.zh-CN.md**](./liquid-glass.zh-CN.md)：**Liquid Glass 视觉规范**，现代半透明磨砂质感卡片与排版系统。
 - [**ui-consistency.zh-CN.md**](./ui-consistency.zh-CN.md)：原生控件行为一致性设计，避免自定义 View 带来的性能回退。
+- [**vless-xhttp-manual-create.zh-CN.md**](./vless-xhttp-manual-create.zh-CN.md)：手动新增 VLESS + XHTTP 节点的菜单入口、表单复用、初始值与验证边界。
 - [**vless-protocol-display-labels.zh-CN.md**](./vless-protocol-display-labels.zh-CN.md)：VLESS+XHTTP 与 VLESS·Reality 的列表、详情、通知标签及验证边界。
 - [**compact-cards-and-icon-picker.zh-CN.md**](./compact-cards-and-icon-picker.zh-CN.md)：紧凑型节点卡片设计与图标选择器交互方案。
 - [**performance-lifecycle-settings.zh-CN.md**](./performance-lifecycle-settings.zh-CN.md)：高频设置项的生命周期监听防抖与界面流畅度优化。
