@@ -5,13 +5,26 @@
 | 对象 | 版本与状态 | 版本码及来源 |
 |---|---|---|
 | 已发布正式版 | [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17)，非 prerelease（Latest）；由 3.0.17 预览线晋升，升版 PR #75 合并提交 `d4e7c5d049d877660108ea11f7212a9f04824cd6`，`release.yml` 两阶段发布（候选 run `44474557410` → 正式 run `44477065390`，2026-11-19T07:24:49Z 上架） | APK / Root 模块 `10175 / 2035`（源码正式线 `VERSION_NAME=3.0.17`、`VERSION_CODE=2035`）；四件套字节与 SHA-256 见下文 |
-| 已发布预览版 | [v3.0.19-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.19-preview.3)，prerelease，轻量 tag/资产提交 `7d193fe45aa3060c9e03aa0befbc4f349f6a712d`（升版 PR #99 合并提交，2026-11-25T08:10:15Z）；`Preview Build` run `45573982693` 四作业全绿，2026-11-25T08:32:21Z 发布，发布后 prune 删除 `v3.0.19-preview.2` | APK `versionCode=10213` / Root 模块码 `2042`（`PRE_VERSION_NAME=3.0.19-preview.3`、`PRE_VERSION_CODE=2042`）；四件套字节与 SHA-256 见下文 |
+| 已发布预览版 | [v3.0.19-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.19-preview.4)，prerelease，轻量 tag/资产提交 `cfb1e25c4b02f261dee17baa77a4fa4a1fa60565`（升版 PR #113 合并提交，2026-11-26T20:25:16Z）；`Preview Build` run `45890957065` 四作业全绿，2026-11-26T20:54:52Z 发布，发布后 prune 删除 `v3.0.19-preview.3` | APK `versionCode=10219` / Root 模块码 `2043`（`PRE_VERSION_NAME=3.0.19-preview.4`、`PRE_VERSION_CODE=2043`）；四件套字节与 SHA-256 见下文 |
 | 上一正式版 | [v3.0.14](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.14)，非 prerelease，保留；tag `fa9a9194ff89834e574640a0ec8e0d5d973cc024` | APK / Root 模块 `10130 / 2026`（历史资产核验记录，归档语境） |
-| 源码预览线 | `3.0.19-preview.4`（**未发布候选**，含 Root 静态 WebUI 与 KernelSU / APatch 桥接、AnyTLS 本地 mTLS、VLESS 协议标签与手动 XHTTP 入口、XHTTP `stream-up` 排空与期限修复） | `PRE_VERSION_NAME=3.0.19-preview.4`、`PRE_VERSION_CODE=2043`；共享向量计算 APK `versionCode=10219`、Root 模块码 `2043` |
+| 源码预览线 | `3.0.19-preview.4`（与已发布预览同值；`nb4a.properties` 在下一预览升版前仍指向刚发布的 preview.4） | `PRE_VERSION_NAME=3.0.19-preview.4`、`PRE_VERSION_CODE=2043`；共享向量计算 APK `versionCode=10219`、Root 模块码 `2043` |
 
-源码元数据正式线为 `VERSION_NAME=3.0.17`、`VERSION_CODE=2035`；预览线 `3.0.19-preview.3 / 2042` 已于 2026-11-25T08:32:21Z 作为稳定性预览发布，tag、`targetCommitish`、APK 内 `version-control-info` 与发布 job 的 `APPROVED_SHA` 同为 `7d193fe`，派生 APK `10213`、模块 `2042`（上一预览 preview.2 为 `10207 / 2041`）。本次发布触发 `prune_prereleases.py`，`v3.0.19-preview.2` 的 Release/tag 已删除（现返回 404），`v3.0.19-preview.1` 更早已清理；正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 未受影响。`SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变。源码预览线已由 `3.0.19-preview.3 / 2042` 前移到 `3.0.19-preview.4 / 2043`（未发布候选，派生 APK `10219`、模块 `2043`）。preview.3 之后 `main` 依次合入：PR #101（Xray 互通过渡为 PR / 预览 / 正式发布硬门禁）、PR #102（XHTTP 客户端总/读/写期限）、PR #103（`stream-up` 服务端有界 padding 保活）、PR #104（`urltest` TCP 成功态按门代次隔离）、PR #105（edge-to-edge 与预测性返回）、PR #106（Root 模块严格白名单 Google 联网兼容）、PR #107（Root 静态 WebUI）、PR #108（`stream-up` 成功响应持续排空）、PR #109（VLESS XHTTP / Reality 展示标签）、PR #110（手动新增 VLESS + XHTTP 入口）、PR #111（AnyTLS 本地 mTLS 与诊断包脱敏，合并提交 `bb8e109`）、PR #112（KernelSU / APatch WebUI 桥接，合并提交 `9a89b25`）。
+源码元数据正式线为 `VERSION_NAME=3.0.17`、`VERSION_CODE=2035`；预览线 `3.0.19-preview.4 / 2043` 已于 2026-11-26T20:54:52Z 作为稳定性预览发布（升版 PR #113，合并提交 `cfb1e25c4b02f261dee17baa77a4fa4a1fa60565`），tag、`targetCommitish`、APK 内 `version-control-info` 与发布 job 的 `APPROVED_SHA` 同为 `cfb1e25c`，派生 APK `10219`、模块 `2043`（上一预览 preview.3 为 `10213 / 2042`）。本次发布触发 `prune_prereleases.py`，`v3.0.19-preview.3` 的 Release/tag 已删除（现返回 404），`v3.0.19-preview.2`、`v3.0.19-preview.1` 更早已清理；正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 未受影响。`SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变。本版内容是 preview.3 之后 `main` 依次合入的十二条改动：PR #101（Xray 互通过渡为 PR / 预览 / 正式发布硬门禁）、PR #102（XHTTP 客户端总/读/写期限）、PR #103（`stream-up` 服务端有界 padding 保活）、PR #104（`urltest` TCP 成功态按门代次隔离）、PR #105（edge-to-edge 与预测性返回）、PR #106（Root 模块严格白名单 Google 联网兼容）、PR #107（Root 静态 WebUI）、PR #108（`stream-up` 成功响应持续排空）、PR #109（VLESS XHTTP / Reality 展示标签）、PR #110（手动新增 VLESS + XHTTP 入口）、PR #111（AnyTLS 本地 mTLS 与诊断包脱敏，合并提交 `bb8e109`）、PR #112（KernelSU / APatch WebUI 桥接，合并提交 `9a89b25`）。
 
-## v3.0.19-preview.3 已发布预览四件套（GitHub Release API asset digest）
+## v3.0.19-preview.4 已发布预览四件套（GitHub Release API asset digest）
+
+来源：[GitHub Release v3.0.19-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.19-preview.4)，`Preview Build` run `45890957065` 于 2026-11-26T20:54:52Z 发布；tag 与资产提交均为 `cfb1e25c4b02f261dee17baa77a4fa4a1fa60565`（升版 PR #113）。下表字节数与 SHA-256 来自 GitHub Release API 的 asset digest，本地 `sha256sum -c SHA256SUMS` 三件 OK。
+
+| 文件 | 字节数 | SHA-256 |
+|---|---:|---|
+| `wanBoxForAndroid-3.0.19-preview.4-arm64-v8a-release.apk` | 6382731 | `2bb0f76cdba3aba81a9502ff6aaf232fac573552c46b99ce5c89a601268651d7` |
+| `wanbox-root-module-arm64-v8a.zip` | 18333507 | `14641d464a269225452d9eb8f41b97ea07c2fc8028e264081b7049502307c581` |
+| `wanbox-root-module-with-manager-arm64-v8a.zip` | 23991076 | `3723d597b3f265bbc84eaecae507573032a39fa82000cf38c60399516d167e3d` |
+| `SHA256SUMS` | 333 | `1a12188439f4b596124fbe1010ebb2fe1ed2a3be4c77acce58e4c0109125cba1` |
+
+APK + 普通 Root 模块 `24716238` B（23.57 MiB），低于 26 MiB 上限 `27262976` B；合一 ZIP 为 22.88 MiB。APK 内 `lib/` 条目为 0，`versionCode=10219` / `versionName=3.0.19-preview.4`，证书 SHA-256 `80ECEE1C42D861D59CDC460447335FC4BFDF80103D6225A17C1BDF83A33521F6`；模块 `module.prop` 为 `3.0.19-preview.4` / `2043`，含 4 个 `webroot/` 文件，两个 ZIP 均通过 `python3 -m zipfile -t`。
+
+### v3.0.19-preview.3 已发布预览四件套（历史，Release 已清理）
 
 来源：[GitHub Release v3.0.19-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.19-preview.3)，`Preview Build` run `45573982693` 于 2026-11-25T08:32:21Z 发布；tag 与资产提交均为 `7d193fe45aa3060c9e03aa0befbc4f349f6a712d`（升版 PR #99）。下表字节数与 SHA-256 来自 GitHub Release API 的 asset digest，本地 `sha256sum -c SHA256SUMS` 三件 OK。
 

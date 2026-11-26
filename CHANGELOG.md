@@ -4,6 +4,13 @@
 
 ## wanBox 3.0.x 发布记录
 
+### v3.0.19-preview.4（已发布预览）
+
+- [GitHub Release v3.0.19-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.19-preview.4) 由 `Preview Build` [run `45890957065`](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/45890957065)（dispatch `publish_release=true`、`approved_sha=cfb1e25c`）于 2026-11-26T20:54:52Z 发布；tag 对象、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与 `APPROVED_SHA` 四者同为 `cfb1e25c4b02f261dee17baa77a4fa4a1fa60565`（升版 PR #113 合并提交），四个作业全绿。
+- 内容：preview.3 之后合入 main 的十二条改动——Root 静态 WebUI（PR #107，合并提交 `b3479bec`）与 KernelSU / APatch 注入桥接修复（PR #112，`9a89b25b`）；AnyTLS 本地 mTLS 客户端身份与分享/诊断包脱敏（PR #111，`bb8e1099`，含 `2c466b51` 私钥脱敏修复）；VLESS XHTTP / Reality 展示标签（PR #109，`4ad3c28f`）与手动 VLESS + XHTTP 入口（PR #110，`77586048`）；XHTTP 客户端总/读/写期限（PR #102，`f428f446`）、`stream-up` 服务端有界 padding 保活（PR #103，`c3b1b613`）与成功响应持续排空（PR #108，`609ff4c0`）；官方 Xray v26.11.9 的 12 项互通成为 PR / 预览 / 正式发布硬门禁（PR #101，`040efef0`）；edge-to-edge 避让与预测性返回（PR #105，`48597d9d`）；`urltest` TCP 成功态按门代次隔离（PR #104，`d7f22c97`）；Root 模块严格白名单 OEM Google 联网兼容（PR #106，`d3962e07`）。
+- 元数据为模块 `2043` / APK `10219`（preview.3 为 `2042` / `10213`）；正式线 `3.0.17 / 2035` 与 `SINGBOX_VERSION` 不变。四件套经 API digest 与公开 `SHA256SUMS` 回读一致（本地 `sha256sum -c` 三件 OK）：APK `6382731` 字节 / `2bb0f76cdba3aba81a9502ff6aaf232fac573552c46b99ce5c89a601268651d7`、普通 Root ZIP `18333507` 字节 / `14641d464a269225452d9eb8f41b97ea07c2fc8028e264081b7049502307c581`、合一 ZIP `23991076` 字节 / `3723d597b3f265bbc84eaecae507573032a39fa82000cf38c60399516d167e3d`、`SHA256SUMS` `333` 字节 / `1a12188439f4b596124fbe1010ebb2fe1ed2a3be4c77acce58e4c0109125cba1`；APK + 普通模块 `24716238` 字节（23.57 MiB），低于 26 MiB 上限 `27262976` 字节，余量 `2546738` 字节（2.43 MiB）；合一包 22.88 MiB。APK `versionCode=10219` 且 `lib/` 条目为 0、证书与 `v3.0.17` 同源；模块 `module.prop` 为 `3.0.19-preview.4` / `2043` 且含 4 个 `webroot/` 文件。发布后 `prune_prereleases.py` 删除了 `v3.0.19-preview.3` 的 Release/tag（现均 404），正式版 `v3.0.17` / `v3.0.14` / `v3.0.11` 保留。
+- 边界：Root 真机矩阵（Magisk / KernelSU / APatch）、KernelSU/APatch 里真实打开 WebUI、真实 mTLS 服务端连通、OEM Google 联网兼容（真机）与 Android 14/15 手势实机表现均未验证（CI 自标 `runtime_regression: not_verified`）；本版不晋升正式版。
+
 ### v3.0.19-preview.3（已发布预览）
 
 - [GitHub Release v3.0.19-preview.3](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.19-preview.3) 由 `Preview Build` [run `45573982693`](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/45573982693)（dispatch `publish_release=true`、`approved_sha=7d193fe`）于 2026-11-25T08:32:21Z 发布；tag 对象、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与 `APPROVED_SHA` 四者同为 `7d193fe45aa3060c9e03aa0befbc4f349f6a712d`（升版 PR #99 合并提交），四个作业全绿。
