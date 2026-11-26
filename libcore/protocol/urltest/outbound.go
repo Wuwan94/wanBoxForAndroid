@@ -371,7 +371,7 @@ func (s *URLTest) InterfaceUpdated(ctx context.Context) {
 
 // dialOne 尝试单个候选。bounded 为真（还有后备候选可试）时施加 3 秒单步超时，
 // 黑洞候选超时后计入该候选的连续失败；立即失败与父上下文取消不计入。
-// 成功时复位该候选的连续失败计数。
+// 成功时复位该候选的连续失败计数；TCP 仅接受开始时门代次仍有效的结果。
 func (s *URLTest) dialOne(ctx context.Context, bounded bool, detour adapter.Outbound, network string, destination M.Socksaddr) (net.Conn, error) {
 	attemptCtx := ctx
 	var cancel context.CancelFunc
@@ -379,9 +379,24 @@ func (s *URLTest) dialOne(ctx context.Context, bounded bool, detour adapter.Outb
 		attemptCtx, cancel = context.WithTimeout(ctx, urlTestDialAttemptTimeout)
 		defer cancel()
 	}
+	isTCP := N.NetworkName(network) == N.NetworkTCP
+	var gateEpoch uint64
+	if isTCP {
+		s.group.updateAccess.RLock()
+		gateEpoch = s.group.tierTCP.gate.epoch
+		s.group.updateAccess.RUnlock()
+	}
 	conn, err := detour.DialContext(attemptCtx, network, destination)
 	if err == nil {
-		s.group.resetMemberFailure(detour.Tag())
+		if isTCP {
+			s.group.updateAccess.RLock()
+			if gateEpoch == s.group.tierTCP.gate.epoch {
+				s.group.resetMemberFailure(detour.Tag())
+			}
+			s.group.updateAccess.RUnlock()
+		} else {
+			s.group.resetMemberFailure(detour.Tag())
+		}
 		return conn, nil
 	}
 	if bounded && attemptCtx.Err() != nil && ctx.Err() == nil {
@@ -1703,12 +1718,21 @@ func (b *urlTestBatch) probeMemberTCP(detour adapter.Outbound, link string, inte
 	b.logger.Debug("outbound ", tag, " available: ", testResult.delay, "ms")
 	b.round.record(tag, N.NetworkTCP, urlTestSuccess)
 	b.round.addProbed(1)
-	b.history.StoreURLTestHistory(tag, &adapter.URLTestHistory{
-		Time:  time.Now(),
-		Delay: testResult.delay,
-	})
+	// 有归属组时，本轮已快照 TCP 起始门代次；旧成功不能覆盖历史或复位失败计数。
 	if b.group != nil {
-		b.group.resetMemberFailure(tag)
+		b.group.updateAccess.RLock()
+	}
+	if b.group == nil || !b.round.gateChanged(N.NetworkTCP, b.group.tierTCP.gate.epoch) {
+		b.history.StoreURLTestHistory(tag, &adapter.URLTestHistory{
+			Time:  time.Now(),
+			Delay: testResult.delay,
+		})
+		if b.group != nil {
+			b.group.resetMemberFailure(tag)
+		}
+	}
+	if b.group != nil {
+		b.group.updateAccess.RUnlock()
 	}
 	b.access.Lock()
 	b.result[tag] = testResult.delay
