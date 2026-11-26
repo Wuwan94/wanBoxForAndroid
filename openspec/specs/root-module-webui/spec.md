@@ -71,7 +71,7 @@ WebUI MUST 展示模块状态中已有的健康、配置名、修订与重试信
 
 ### Requirement: 兼容性声明必须保守
 
-KernelSU 原生 WebUI API 是目标运行时。APatch 仅在提供兼容 KernelSU WebUI API 时可用；Magisk 本身 MUST NOT 被声明为提供原生 WebUI API。未验证的第三方运行时 MUST NOT 被宣称支持。API 不可用时页面 MUST 说明原因并保持不执行 Root 操作。
+KernelSU 原生 WebUI API 是目标运行时。 页面 MUST 直接使用管理器注入的 `globalThis.ksu.exec(cmd, optionsJson, callbackName)`，不得依赖裸模块导入、importmap 或远程脚本；每次调用 MUST 使用独立的全局回调名，并在回调、调用失败或超时时清理。APatch 仅在提供兼容 KernelSU WebUI API 时可用；Magisk 本身 MUST NOT 被声明为提供原生 WebUI API。未验证的第三方运行时 MUST NOT 被宣称支持。API 不可用时页面 MUST 说明原因并保持不执行 Root 操作。
 
 #### Scenario: 管理器未注入兼容 API
 

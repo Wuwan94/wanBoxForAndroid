@@ -145,3 +145,69 @@ test('WebUI event export summary keeps only time and code for the newest forty e
   assert.deepEqual(summary.at(-1), { time: 45, code: 'event-45' });
   assert.deepEqual(Object.keys(summary[0]).sort(), ['code', 'time']);
 });
+
+async function openWebUI(context, manager) {
+  const element = (dataset = {}) => ({
+    disabled: false, dataset, textContent: '', children: [],
+    addEventListener(type, listener) { this[type] = listener; },
+    replaceChildren() { this.children = []; },
+    append(...children) { this.children.push(...children); },
+  });
+  const actionButtons = ['logs', 'start', 'stop', 'restart'].map(action => element({ action }));
+  const nodes = new Map();
+  const document = {
+    getElementById(id) {
+      if (!nodes.has(id)) nodes.set(id, element());
+      return nodes.get(id);
+    },
+    querySelectorAll(selector) {
+      assert.equal(selector, '[data-action]');
+      return actionButtons;
+    },
+    createElement: () => element(),
+  };
+  const originals = ['document', 'ksu'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
+  context.after(() => {
+    for (const [key, descriptor] of originals) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else delete globalThis[key];
+    }
+  });
+  globalThis.document = document;
+  if (manager === undefined) delete globalThis.ksu;
+  else globalThis.ksu = manager;
+  await import(`./package/webroot/app.mjs?test=${encodeURIComponent(context.name)}`);
+  return { nodes, buttons: [...actionButtons, nodes.get('export-events')] };
+}
+
+test('WebUI without a manager fails closed and disables every action', async context => {
+  const { nodes, buttons } = await openWebUI(context, undefined);
+  assert.match(nodes.get('runtime-message').textContent, /未检测到兼容/);
+  assert.ok(buttons.every(button => button.disabled));
+});
+
+test('WebUI uses the injected manager to load logs and releases each callback', async context => {
+  const commands = [];
+  const callbackNames = [];
+  const manager = {
+    exec(command, options, callbackName) {
+      assert.equal(this, manager);
+      assert.deepEqual(JSON.parse(options), {});
+      assert.match(callbackName, /^[A-Za-z_$][\w$]*$/);
+      assert.equal(typeof globalThis[callbackName], 'function');
+      commands.push(command);
+      callbackNames.push(callbackName);
+      queueMicrotask(() => globalThis[callbackName](0,
+        '{"schemaVersion":1,"ok":true,"state":{"phase":"running"}}', ''));
+    },
+  };
+  const { nodes, buttons } = await openWebUI(context, manager);
+  assert.deepEqual(commands, [`${cli} logs`]);
+  assert.match(nodes.get('runtime-message').textContent, /已连接管理器/);
+  assert.equal(nodes.get('phase-badge').dataset.phase, 'running');
+  assert.ok(buttons.every(button => !button.disabled));
+  await buttons[0].click();
+  assert.deepEqual(commands, [`${cli} logs`, `${cli} logs`]);
+  assert.equal(new Set(callbackNames).size, 2);
+  assert.ok(callbackNames.every(name => !Object.hasOwn(globalThis, name)));
+});
