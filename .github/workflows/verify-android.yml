@@ -22,6 +22,34 @@ permissions:
   contents: read
 
 jobs:
+  webui-budget:
+    name: Root WebUI tests and size
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run WebUI behavior tests
+        run: node --test rootmodule/test_webui.mjs
+      - name: Build isolated WebUI archive probe and enforce 1 MiB gate
+        run: |
+          archive="$RUNNER_TEMP/wanbox-webui-budget.zip"
+          python3 - "$archive" <<'PY'
+          from pathlib import Path
+          import sys
+          import zipfile
+
+          source = Path("rootmodule/package/webroot")
+          archive = Path(sys.argv[1])
+          files = ("index.html", "app.mjs", "controller.mjs", "style.css")
+          with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as output:
+              for name in files:
+                  output.write(source / name, f"webroot/{name}")
+          PY
+          python3 tools/size_budget.py \
+            --module "$archive" \
+            --webui-source rootmodule/package/webroot \
+            --webui-only --json "$RUNNER_TEMP/webui-size-budget.json"
+
   libcore:
     name: Build LibCore
     if: ${{ github.event.inputs.skip_app != 'true' }}
@@ -85,6 +113,7 @@ jobs:
         run: |
           go -C rootmodule test -race ./...
           go -C rootmodule vet ./...
+          node --test rootmodule/test_webui.mjs
           python3 -m unittest discover -s rootmodule -p 'test_*.py'
           ANDROID_NDK_HOME="$ANDROID_HOME/ndk/25.0.8775105" bash rootmodule/build.sh
       - name: Verify native artifact
@@ -254,6 +283,13 @@ jobs:
           cd rootmodule
           chmod +x build.sh
           ./build.sh
+      - name: Verify WebUI source and actual module ZIP budget when app job runs
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        run: |
+          python3 tools/size_budget.py \
+            --module rootmodule/build/wanbox-root-module-arm64-v8a.zip \
+            --webui-source rootmodule/package/webroot \
+            --webui-only --json "$RUNNER_TEMP/webui-size-budget.json"
       - name: Upload Magisk module
         if: ${{ always() }}
         uses: actions/upload-artifact@v5
@@ -275,6 +311,7 @@ jobs:
           python3 tools/size_budget.py \
             --module rootmodule/build/wanbox-root-module-arm64-v8a.zip \
             --apk "$APK" \
+            --webui-source rootmodule/package/webroot \
             --enforce-limit --baseline docs/rebuild/size-baseline.json \
             --json audit-baseline/size-budget.json 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"

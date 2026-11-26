@@ -89,6 +89,7 @@ jobs:
           set -o pipefail
           go -C rootmodule test -race -json ./... | tee root-module-tests.jsonl
           go -C rootmodule vet ./...
+          node --test rootmodule/test_webui.mjs
           python3 -m unittest discover -s rootmodule -p 'test_*.py'
           python3 -m unittest discover -s tools/diagnostics -p test_sample_root_runtime.py
           python3 -m unittest discover -s tools -p test_verify_apk_abi.py
@@ -227,7 +228,7 @@ jobs:
           python3 tools/diagnostics/check_current_version_docs.py
           python3 tools/version_code.py --check-kotlin --check-app-tag
           git diff --exit-code -- nb4a.properties
-          python3 tools/size_budget.py --module module-artifacts/wanbox-root-module-arm64-v8a.zip --apk public-apks/*arm64-v8a*.apk --enforce-limit --json candidate-size-budget.json
+          python3 tools/size_budget.py --module module-artifacts/wanbox-root-module-arm64-v8a.zip --apk public-apks/*arm64-v8a*.apk --webui-source rootmodule/package/webroot --enforce-limit --json candidate-size-budget.json
           mkdir candidate
           cp public-apks/*.apk module-artifacts/*.zip candidate/
           AAPT=$(find "${ANDROID_HOME}/build-tools" -name aapt | sort -V | tail -n 1)

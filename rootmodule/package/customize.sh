@@ -5,6 +5,10 @@ SKIPMOUNT=true
 [ "$ARCH" = arm64 ] || abort '此模块包只包含 arm64-v8a，请勿安装到其他架构'
 [ "$API" -ge 31 ] || abort '需要 Android 12 或更高版本'
 set_perm_recursive "$MODPATH" 0 0 0755 0600
+set_perm "$MODPATH/webroot/index.html" 0 0 0644
+set_perm "$MODPATH/webroot/app.mjs" 0 0 0644
+set_perm "$MODPATH/webroot/controller.mjs" 0 0 0644
+set_perm "$MODPATH/webroot/style.css" 0 0 0644
 set_perm "$MODPATH/bin/wanboxctl" 0 0 0700
 set_perm "$MODPATH/bin/rootbox" 0 0 0700
 set_perm "$MODPATH/service.sh" 0 0 0700

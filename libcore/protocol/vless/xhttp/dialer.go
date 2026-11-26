@@ -183,20 +183,26 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
 			waitReader.Close()
 			return
 		}
-		if resp.StatusCode != 200 || uploadOnly { // stream-up
-			if resp.StatusCode != 200 {
-				c.closed.Store(true)
-				statusErr := fmt.Errorf("bad status code: %s", resp.Status)
-				setDoErr(statusErr)
-				waitReader.SetErr(statusErr)
-				cancelRequest()
-				if closer, ok := body.(io.Closer); ok {
-					closer.Close()
-				}
+		if resp.StatusCode != http.StatusOK {
+			c.closed.Store(true)
+			statusErr := fmt.Errorf("bad status code: %s", resp.Status)
+			setDoErr(statusErr)
+			waitReader.SetErr(statusErr)
+			cancelRequest()
+			if closer, ok := body.(io.Closer); ok {
+				closer.Close()
 			}
 			io.Copy(io.Discard, io.LimitReader(resp.Body, 32*1024))
+			resp.Body.Close()
+			waitReader.Close()
+			return
+		}
+		if uploadOnly { // stream-up
+			// Drain keepalive padding for the lifetime of the response. Canceling
+			// early also interrupts the upload on the same HTTP/2 stream.
+			io.Copy(io.Discard, resp.Body)
 			cancelRequest()
-			resp.Body.Close() // if it is called immediately, the upload will be interrupted also
+			resp.Body.Close()
 			waitReader.Close()
 			return
 		}

@@ -44,6 +44,7 @@ Root 默认测试 URL 通过本地 mixed 入站强制进入当前代理；自定
 网络、节点负载或 TLS 分片造成的真实 2000ms 不会被修改成虚假的低值。
 
 wanBox 手动 URL 延迟测试默认总超时为 3000ms（带宽测速使用独立的 `speedTestTimeoutMs` 设置）；内置自动组探测也限制为 3 秒。
+策略组快速切线的目标口径为 **2 秒单候选拨号上限**，即限制每个候选的一次拨号尝试，不是整组总耗时。当前 main 实现及 `libcore-integration` OpenSpec 仍为 3 秒；本轮只记录目标与现状差异、不改策略逻辑，因此当前实际行为仍是 3 秒，不能把 2 秒当作已实现或已验证。
 sing-box 的 urltest JSON 没有通用 timeout 字段，不要添加不支持的字段。
 模板用于独立官方核心时，自动组遵循该核心自身的超时；间隔为 300 秒。
 
@@ -60,6 +61,8 @@ python tools/clean_subscription.py input.json cleaned.json
 ## XHTTP stream-up 入站保活
 
 [`xhttp-inbound.json`](xhttp-inbound.json) 是 loopback-only 的 VLESS XHTTP `stream-up` 示例，并由仓库的 sing-box 配置检查与完整 XHTTP 配置测试覆盖。`sc_stream_up_server_secs` 控制成功上传响应中的重复 `X` padding 保活间隔；省略时采用 Xray 兼容的 20–80 秒随机区间，设置为 `-1` 可关闭响应 padding。它不是上传读超时：上传正文仍使用独立的滚动空闲截止时间（默认 30 秒）。每轮 padding 的 `Write` 与随后的 `Flush` 共用一个独立 5 秒响应写期限；成功 Flush 后立即清除期限，期限设置失败、写入错误或刷新错误都会停止保活协程，不会改变上传读截止时间。
+
+wanBox 出站会持续排空成功上传的响应体，直到响应结束，不会因累计 padding 字节数而中断上传。
 
 官方 Xray [服务端实现](https://github.com/XTLS/Xray-core/blob/main/transport/internet/splithttp/hub.go) 与[配置默认值](https://github.com/XTLS/Xray-core/blob/main/transport/internet/splithttp/config.go)采用上述保活语义。注意，Xray [issue #7180](https://github.com/XTLS/Xray-core/issues/7180) 报告过 HTTP/1.1 Nginx 上游与 stream-up 响应保活交互导致上传截断；若遇到类似反代问题，可测试 `-1`（会失去响应保活带来的空闲保护），或让反代到后端使用 HTTP/2。该问题报告不等于已验证所有反代配置或 wanBox 均会受影响。
 

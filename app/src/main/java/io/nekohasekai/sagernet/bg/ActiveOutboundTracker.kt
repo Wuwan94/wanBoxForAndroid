@@ -12,6 +12,22 @@ class ActiveOutboundTracker(private val names: Map<String, String>) {
  * @author 雾晚
  */
 object NotificationPresentation {
+    private fun hasSpecialVlessLabel(displayType: String): Boolean =
+        displayType.startsWith("VLESS + XHTTP") || displayType.startsWith("VLESS · Reality")
+
+    fun nodeName(displayType: String, displayName: String): String =
+        if (hasSpecialVlessLabel(displayType)) {
+            "$displayType · $displayName"
+        } else {
+            displayName
+        }
+
+    fun initialTitle(originalTitle: String, displayType: String, displayName: String): String {
+        if (!hasSpecialVlessLabel(displayType)) return originalTitle
+        val prefix = if (originalTitle.endsWith(displayName)) originalTitle.dropLast(displayName.length) else ""
+        return prefix + nodeName(displayType, displayName)
+    }
+
     fun content(node: String, group: String?, strategy: Boolean, proxySpeed: String,
         directSpeed: String?): NotificationContentCache.Content {
         val title = group?.let { if (strategy) it else "[$it] $node" } ?: node

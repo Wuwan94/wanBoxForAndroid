@@ -31,7 +31,9 @@ var packageFiles = map[string]bool{
 	"module.prop": true, "customize.sh": true, "installer-options.sh": true, "service.sh": true, "uninstall.sh": true,
 	"README.md": true, "example.snapshot.json": true, "LICENSE": true, "LIBCORE-LICENSE": true,
 	"bin/rootbox": true, "bin/wanboxctl": true, "manager.apk": true,
+	"webroot/index.html": true, "webroot/app.mjs": true, "webroot/controller.mjs": true, "webroot/style.css": true,
 }
+var packageWebUIFiles = []string{"webroot/index.html", "webroot/app.mjs", "webroot/controller.mjs", "webroot/style.css"}
 
 func packageManifest(dir string) (PackageManifest, error) {
 	var m PackageManifest
@@ -42,6 +44,15 @@ func packageManifest(dir string) (PackageManifest, error) {
 		if _, ok := m.Files[name]; !ok {
 			return m, errors.New("package_file_missing")
 		}
+	}
+	webUIFiles := 0
+	for _, name := range packageWebUIFiles {
+		if _, ok := m.Files[name]; ok {
+			webUIFiles++
+		}
+	}
+	if webUIFiles != 0 && webUIFiles != len(packageWebUIFiles) {
+		return m, errors.New("package_webui_incomplete")
 	}
 	_, hasAPK := m.Files["manager.apk"]
 	if hasAPK != m.WithManager {
@@ -86,6 +97,11 @@ func verifyPackageFile(dir, name string, want PackageFile, destination string) e
 		mode := os.FileMode(0600)
 		if strings.HasPrefix(name, "bin/") || strings.HasSuffix(name, ".sh") {
 			mode = 0700
+		} else if strings.HasPrefix(name, "webroot/") {
+			mode = 0644
+			if e = os.Chmod(filepath.Dir(destination), 0755); e != nil {
+				return e
+			}
 		}
 		output, e = os.OpenFile(destination, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
 		if e != nil {
@@ -168,7 +184,11 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 			return e
 		}
 		defer os.RemoveAll(stage)
+		hasWebUI := false
 		for name, file := range manifest.Files {
+			if strings.HasPrefix(name, "webroot/") {
+				hasWebUI = true
+			}
 			// Magisk removes these two install-only files after customize returns.
 			// ScheduleInstall verified them beforehand. Runtime binaries/config are
 			// always required and hash checked; no general missing-file fallback.
@@ -179,6 +199,11 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 				}
 			}
 			if e = verifyPackageFile(r.ModuleDir, name, file, filepath.Join(stage, name)); e != nil {
+				return e
+			}
+		}
+		if hasWebUI {
+			if e = os.Chmod(stage, 0755); e != nil {
 				return e
 			}
 		}

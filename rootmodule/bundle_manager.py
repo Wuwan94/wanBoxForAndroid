@@ -9,7 +9,9 @@ import zipfile
 from pack import manifest
 
 ALLOWED = {'module.prop', 'service.sh', 'customize.sh', 'installer-options.sh', 'uninstall.sh', 'README.md',
- 'example.snapshot.json', 'LICENSE', 'LIBCORE-LICENSE', 'bin/rootbox', 'bin/wanboxctl', 'package-manifest.json'}
+ 'example.snapshot.json', 'LICENSE', 'LIBCORE-LICENSE', 'bin/rootbox', 'bin/wanboxctl',
+ 'webroot/index.html', 'webroot/app.mjs', 'webroot/controller.mjs', 'webroot/style.css',
+ 'package-manifest.json'}
 
 def bundle(source, apk, output):
     if apk.stat().st_size > 128 * 1024 * 1024: raise ValueError('APK too large')

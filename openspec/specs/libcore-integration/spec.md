@@ -241,6 +241,12 @@ Juicity outbound、覆盖版 HTTP outbound、扩展版 VLESS outbound（含 XHTT
 - **THEN** box 成功解析并注册出站驱动，不报 `unknown transport type: xhttp`
 - **AND** 拨号流量经由 XHTTP 传输层成功发出
 
+#### Scenario: 接收 XHTTP stream-up 上传保活响应
+
+- **GIVEN** VLESS XHTTP 出站使用 `stream-up` 上传，服务端返回成功响应和保活 padding
+- **WHEN** 上传会话仍然有效
+- **THEN** 客户端持续排空响应体，不因累计 padding 字节数而提前关闭上传
+
 #### Scenario: 接受 VLESS XHTTP 入站连接
 
 - **GIVEN** 配置了 `type: vless` + `transport.type = "xhttp"` 的 VLESS 入站

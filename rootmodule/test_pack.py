@@ -8,8 +8,9 @@ import sys
 import zipfile
 import json
 import hashlib
+import shutil
 from bundle_manager import bundle
-from pack import check_elf, module_properties
+from pack import check_elf, module_properties, collect_package_files
 from verify_version import verify
 
 class PackageTest(unittest.TestCase):
@@ -76,7 +77,9 @@ class PackageTest(unittest.TestCase):
             verify(output)
             with zipfile.ZipFile(output) as z:
                 self.assertIsNone(z.testzip())
-                for name in ('LICENSE', 'LIBCORE-LICENSE', 'README.md', 'installer-options.sh', 'example.snapshot.json', 'bin/rootbox', 'bin/wanboxctl'):
+                for name in ('LICENSE', 'LIBCORE-LICENSE', 'README.md', 'installer-options.sh', 'example.snapshot.json',
+                             'bin/rootbox', 'bin/wanboxctl', 'webroot/index.html', 'webroot/app.mjs',
+                             'webroot/controller.mjs', 'webroot/style.css'):
                     self.assertIn(name, z.namelist())
                 for name in ('service.sh', 'customize.sh', 'uninstall.sh'):
                     self.assertNotIn(b'\r', z.read(name))
@@ -97,5 +100,24 @@ class PackageTest(unittest.TestCase):
                 self.assertEqual(apk.read_bytes(), z.read('manager.apk'))
             with zipfile.ZipFile(output, 'a') as z: z.writestr('../escape', b'x')
             with self.assertRaises(ValueError): bundle(output, apk, with_apk)
+
+    def test_webroot_files_are_collected_recursively_and_unknown_files_are_rejected(self):
+        source = pathlib.Path(__file__).parent / 'package'
+        files = collect_package_files(source)
+        expected = {'webroot/index.html', 'webroot/app.mjs', 'webroot/controller.mjs', 'webroot/style.css'}
+        self.assertEqual(expected, {name for name in files if name.startswith('webroot/')})
+
+        with tempfile.TemporaryDirectory() as tmp:
+            copied = pathlib.Path(tmp) / 'package'
+            shutil.copytree(source, copied)
+            (copied / 'webroot' / 'unexpected.js').write_text('not allowlisted', encoding='utf-8')
+            with self.assertRaises(ValueError):
+                collect_package_files(copied)
+
+    def test_initial_install_sets_every_webui_asset_readable(self):
+        customize = (pathlib.Path(__file__).parent / 'package' / 'customize.sh').read_text()
+        for name in ('index.html', 'app.mjs', 'controller.mjs', 'style.css'):
+            with self.subTest(name=name):
+                self.assertIn(f'set_perm "$MODPATH/webroot/{name}" 0 0 0644', customize)
 
 if __name__ == '__main__': unittest.main()
