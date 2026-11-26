@@ -132,7 +132,7 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 	if !validInstallMode(mode) {
 		return errors.New("arguments_invalid")
 	}
-	return r.withInstallLock(mode, func(pending *InstallDataSelection) error {
+	err := r.withInstallLock(mode, func(pending *InstallDataSelection) error {
 		if pending != nil {
 			mode = pending.Mode
 		}
@@ -364,6 +364,11 @@ func (r *Runtime) activateMode(ctx context.Context, target string, managerFinish
 		r.recordEvent("module_updated")
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	r.scheduleGoogleFirewallRepair(target, 0)
+	return nil
 }
 
 // InstallManager uses Android's public package shell command with an APK stream;

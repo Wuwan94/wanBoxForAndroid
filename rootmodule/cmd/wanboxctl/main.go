@@ -286,6 +286,13 @@ func runAuthorized(ctx context.Context, r *module.Runtime, args []string, euid i
 }
 
 func run(ctx context.Context, r *module.Runtime, args []string) error {
+	if len(args) >= 2 && args[0] == "__internal" && args[1] == "google-firewall" {
+		delay, err := parseGoogleFirewallDelayArgs(args[2:])
+		if err != nil {
+			return err
+		}
+		return r.RepairGoogleConnectivity(ctx, delay)
+	}
 	if len(args) == 3 && args[0] == "data" && args[1] == "selection-finish" {
 		return r.FinishInstallSelection(args[2])
 	}
@@ -392,4 +399,8 @@ func run(ctx context.Context, r *module.Runtime, args []string) error {
 		}
 	}
 	return errors.New("arguments_invalid")
+}
+
+func parseGoogleFirewallDelayArgs(args []string) (time.Duration, error) {
+	return module.ParseGoogleFirewallDelayArgs(args)
 }
