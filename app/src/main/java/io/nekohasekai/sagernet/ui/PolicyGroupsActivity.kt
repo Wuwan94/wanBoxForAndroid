@@ -1,14 +1,10 @@
 package io.nekohasekai.sagernet.ui
 
 import android.os.Bundle
-import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
@@ -97,12 +93,6 @@ class PolicyGroupsActivity : ThemedActivity(R.layout.layout_policy_groups) {
             } else if (it === abandonItem) confirmAbandon { syncRecoveryItems() }
             else if (it === editItem) openLocalEditor() else refresh()
             true
-        }
-        val scroll = findViewById<View>(R.id.policy_scroll)
-        ViewCompat.setOnApplyWindowInsetsListener(scroll) { view, insets ->
-            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
-            view.updatePadding(left = bars.left, right = bars.right, bottom = bars.bottom)
-            insets
         }
     }
 

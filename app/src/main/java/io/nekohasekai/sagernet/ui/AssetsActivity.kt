@@ -429,12 +429,8 @@ class AssetsActivity : ThemedActivity() {
     }
 
     override fun onSupportNavigateUp(): Boolean {
-        finish()
+        onBackPressedDispatcher.onBackPressed()
         return true
-    }
-
-    override fun onBackPressed() {
-        finish()
     }
 
     override fun onResume() {

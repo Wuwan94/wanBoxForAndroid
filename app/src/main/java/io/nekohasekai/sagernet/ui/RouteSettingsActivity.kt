@@ -10,12 +10,12 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.component1
 import androidx.activity.result.component2
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.LayoutRes
 import androidx.appcompat.app.AlertDialog
-import androidx.core.view.ViewCompat
 import androidx.preference.EditTextPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceDataStore
@@ -37,7 +37,6 @@ import io.nekohasekai.sagernet.ktx.onMainDispatcher
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import io.nekohasekai.sagernet.utils.PackageCache
 import io.nekohasekai.sagernet.widget.AppListPreference
-import io.nekohasekai.sagernet.widget.ListListener
 import io.nekohasekai.sagernet.widget.OutboundPreference
 import kotlinx.parcelize.Parcelize
 import moe.matsuri.nb4a.ui.EditConfigPreference
@@ -51,6 +50,8 @@ class RouteSettingsActivity(
     @LayoutRes resId: Int = R.layout.layout_settings_activity,
 ) : ThemedActivity(resId),
     OnPreferenceDataStoreChangeListener {
+
+    private var unsavedChangesCallback: OnBackPressedCallback? = null
 
     fun init(packageName: String?) {
         RuleEntity().apply {
@@ -130,6 +131,7 @@ class RouteSettingsActivity(
 
     override fun onResume() {
         super.onResume()
+        syncUnsavedChangesBackCallback()
 
         if (::editConfigPreference.isInitialized) {
             editConfigPreference.notifyChanged()
@@ -279,6 +281,13 @@ class RouteSettingsActivity(
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        unsavedChangesCallback = object : OnBackPressedCallback(false) {
+            override fun handleOnBackPressed() {
+                UnsavedChangesDialogFragment().apply { key() }
+                    .show(supportFragmentManager, null)
+            }
+        }.also { onBackPressedDispatcher.addCallback(this, it) }
+        syncUnsavedChangesBackCallback()
         setSupportActionBar(findViewById(R.id.toolbar))
         supportActionBar?.apply {
             setTitle(R.string.cag_route)
@@ -309,6 +318,7 @@ class RouteSettingsActivity(
                         .commit()
 
                     DataStore.dirty = false
+                    syncUnsavedChangesBackCallback()
                     DataStore.profileCacheStore.registerChangeListener(this@RouteSettingsActivity)
                 }
             }
@@ -461,20 +471,18 @@ class RouteSettingsActivity(
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == android.R.id.home) { onBackPressed(); return true }
+        if (item.itemId == android.R.id.home) { onBackPressedDispatcher.onBackPressed(); return true }
         return (supportFragmentManager.findFragmentById(R.id.settings) as? MyPreferenceFragmentCompat)
             ?.onOptionsItemSelected(item) ?: super.onOptionsItemSelected(item)
     }
 
-    override fun onBackPressed() {
-        if (needSave()) {
-            UnsavedChangesDialogFragment().apply { key() }.show(supportFragmentManager, null)
-        } else super.onBackPressed()
+    override fun onSupportNavigateUp(): Boolean {
+        onBackPressedDispatcher.onBackPressed()
+        return true
     }
 
-    override fun onSupportNavigateUp(): Boolean {
-        onBackPressed()
-        return true
+    private fun syncUnsavedChangesBackCallback() {
+        unsavedChangesCallback?.isEnabled = needSave()
     }
 
     override fun onDestroy() {
@@ -486,6 +494,7 @@ class RouteSettingsActivity(
         if (key != Key.PROFILE_DIRTY) {
             DataStore.dirty = true
         }
+        syncUnsavedChangesBackCallback()
     }
 
     class MyPreferenceFragmentCompat : PreferenceFragmentCompat() {
@@ -511,7 +520,6 @@ class RouteSettingsActivity(
         override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
             super.onViewCreated(view, savedInstanceState)
 
-            ViewCompat.setOnApplyWindowInsetsListener(listView, ListListener)
             setDivider(null)
             setDividerHeight(0)
 

@@ -12,6 +12,7 @@ import androidx.lifecycle.lifecycleScope
 import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
+import io.nekohasekai.sagernet.widget.WindowInsetsPolicy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -66,5 +67,7 @@ class DatabaseRecoveryActivity : ComponentActivity() {
             })
         }
         setContentView(layout)
+        WindowInsetsPolicy.configureWindow(window, lightSystemBars = true)
+        WindowInsetsPolicy.applySafeAreaPadding(layout)
     }
 }

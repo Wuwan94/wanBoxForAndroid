@@ -12,6 +12,7 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.component1
 import androidx.activity.result.component2
 import androidx.activity.result.contract.ActivityResultContracts
@@ -20,7 +21,6 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
-import androidx.core.view.ViewCompat
 import androidx.core.view.isVisible
 import androidx.preference.EditTextPreference
 import androidx.preference.Preference
@@ -40,7 +40,6 @@ import io.nekohasekai.sagernet.databinding.LayoutGroupItemBinding
 import io.nekohasekai.sagernet.fmt.AbstractBean
 import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.ui.ThemedActivity
-import io.nekohasekai.sagernet.widget.ListListener
 import kotlinx.parcelize.Parcelize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -93,9 +92,17 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
 
     val proxyEntity by lazy { SagerDatabase.proxyDao.getById(DataStore.editingId) }
     protected var isSubscription by Delegates.notNull<Boolean>()
+    private var unsavedChangesCallback: OnBackPressedCallback? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        unsavedChangesCallback = object : OnBackPressedCallback(false) {
+            override fun handleOnBackPressed() {
+                UnsavedChangesDialogFragment().apply { key() }
+                    .show(supportFragmentManager, null)
+            }
+        }.also { onBackPressedDispatcher.addCallback(this, it) }
+        syncUnsavedChangesBackCallback()
         setSupportActionBar(findViewById(R.id.toolbar))
         supportActionBar?.apply {
             setTitle(R.string.profile_config)
@@ -132,6 +139,11 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
 
         }
 
+    }
+
+    override fun onResume() {
+        super.onResume()
+        syncUnsavedChangesBackCallback()
     }
 
     open suspend fun saveAndExit() {
@@ -183,14 +195,13 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
 
     override fun onOptionsItemSelected(item: MenuItem) = child.onOptionsItemSelected(item)
 
-    override fun onBackPressed() {
-        if (DataStore.dirty) UnsavedChangesDialogFragment().apply { key() }
-            .show(supportFragmentManager, null) else super.onBackPressed()
+    override fun onSupportNavigateUp(): Boolean {
+        onBackPressedDispatcher.onBackPressed()
+        return true
     }
 
-    override fun onSupportNavigateUp(): Boolean {
-        if (!super.onSupportNavigateUp()) finish()
-        return true
+    private fun syncUnsavedChangesBackCallback() {
+        unsavedChangesCallback?.isEnabled = DataStore.dirty
     }
 
     override fun onDestroy() {
@@ -202,6 +213,7 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
         if (key != Key.PROFILE_DIRTY) {
             DataStore.dirty = true
         }
+        syncUnsavedChangesBackCallback()
     }
 
     abstract fun PreferenceFragmentCompat.createPreferences(
@@ -239,13 +251,13 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
         override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
             super.onViewCreated(view, savedInstanceState)
 
-            ViewCompat.setOnApplyWindowInsetsListener(listView, ListListener)
             setDivider(null)
             setDividerHeight(0)
 
             activity?.apply {
                 viewCreated(view, savedInstanceState)
                 DataStore.dirty = false
+                syncUnsavedChangesBackCallback()
                 DataStore.profileCacheStore.registerChangeListener(this)
             }
         }

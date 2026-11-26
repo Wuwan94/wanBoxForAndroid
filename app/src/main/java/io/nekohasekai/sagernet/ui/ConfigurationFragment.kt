@@ -36,7 +36,6 @@ import androidx.appcompat.widget.Toolbar
 import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.net.toUri
-import androidx.core.view.ViewCompat
 import androidx.core.view.updatePadding
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -3199,7 +3198,6 @@ class ConfigurationFragment @JvmOverloads constructor(
         }
 
         // @author 雾晚: view-scoped listeners; no preference rewrite or service/test work.
-        private var bottomSystemInset = 0
         private var emptyListObserver: RecyclerView.AdapterDataObserver? = null
 
         private fun updateListBottomPadding() {
@@ -3216,15 +3214,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                 override fun onItemRangeInserted(positionStart: Int, itemCount: Int) = updateEmptyState()
                 override fun onItemRangeRemoved(positionStart: Int, itemCount: Int) = updateEmptyState()
             }.also { adapter?.registerAdapterDataObserver(it) }
-            ViewCompat.setOnApplyWindowInsetsListener(configurationListView) { _, insets ->
-                bottomSystemInset = insets.getInsets(
-                    WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
-                ).bottom
-                updateListBottomPadding()
-                insets
-            }
             updateListBottomPadding()
-            ViewCompat.requestApplyInsets(configurationListView)
         }
 
         private var activeNodePopupMenu: PopupMenu? = null
@@ -3232,8 +3222,6 @@ class ConfigurationFragment @JvmOverloads constructor(
         override fun onDestroyView() {
             emptyListObserver?.let { adapter?.unregisterAdapterDataObserver(it) }
             emptyListObserver = null
-            bottomSystemInset = 0
-            listView?.let { ViewCompat.setOnApplyWindowInsetsListener(it, null) }
             if ((listView != null)) {
                 if (::itemTouchHelper.isInitialized) itemTouchHelper.attachToRecyclerView(null)
                 configurationListView.clearOnScrollListeners()

@@ -10,10 +10,10 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.LayoutRes
 import androidx.appcompat.app.AlertDialog
-import androidx.core.view.ViewCompat
 import androidx.preference.*
 import com.github.shadowsocks.plugin.Empty
 import com.github.shadowsocks.plugin.fragment.AlertDialogFragment
@@ -31,7 +31,6 @@ import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.applyDefaultValues
 import io.nekohasekai.sagernet.ktx.onMainDispatcher
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
-import io.nekohasekai.sagernet.widget.ListListener
 import io.nekohasekai.sagernet.widget.OutboundPreference
 import kotlinx.parcelize.Parcelize
 import moe.matsuri.nb4a.ui.SimpleMenuPreference
@@ -44,6 +43,7 @@ class GroupSettingsActivity(
 
     private lateinit var frontProxyPreference: OutboundPreference
     private lateinit var landingProxyPreference: OutboundPreference
+    private var unsavedChangesCallback: OnBackPressedCallback? = null
 
     fun ProxyGroup.init() {
         DataStore.groupName = name ?: ""
@@ -360,6 +360,13 @@ class GroupSettingsActivity(
     override fun onCreate(savedInstanceState: Bundle?) {
         editorIdentityLocked = savedInstanceState?.getBoolean("editorIdentityLocked", true) ?: true
         super.onCreate(savedInstanceState)
+        unsavedChangesCallback = object : OnBackPressedCallback(false) {
+            override fun handleOnBackPressed() {
+                UnsavedChangesDialogFragment().apply { key() }
+                    .show(supportFragmentManager, null)
+            }
+        }.also { onBackPressedDispatcher.addCallback(this, it) }
+        syncUnsavedChangesBackCallback()
         setSupportActionBar(findViewById(R.id.toolbar))
         supportActionBar?.apply {
             setTitle(R.string.group_settings)
@@ -405,12 +412,18 @@ class GroupSettingsActivity(
                         .commit()
 
                     DataStore.dirty = false
+                    syncUnsavedChangesBackCallback()
                     DataStore.profileCacheStore.registerChangeListener(this@GroupSettingsActivity)
                 }
             }
 
         }
 
+    }
+
+    override fun onResume() {
+        super.onResume()
+        syncUnsavedChangesBackCallback()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -457,15 +470,13 @@ class GroupSettingsActivity(
 
     override fun onOptionsItemSelected(item: MenuItem) = child.onOptionsItemSelected(item)
 
-    override fun onBackPressed() {
-        if (needSave()) {
-            UnsavedChangesDialogFragment().apply { key() }.show(supportFragmentManager, null)
-        } else super.onBackPressed()
+    override fun onSupportNavigateUp(): Boolean {
+        onBackPressedDispatcher.onBackPressed()
+        return true
     }
 
-    override fun onSupportNavigateUp(): Boolean {
-        if (!super.onSupportNavigateUp()) finish()
-        return true
+    private fun syncUnsavedChangesBackCallback() {
+        unsavedChangesCallback?.isEnabled = needSave()
     }
 
     override fun onDestroy() {
@@ -477,6 +488,7 @@ class GroupSettingsActivity(
         if (key != Key.PROFILE_DIRTY) {
             DataStore.dirty = true
         }
+        syncUnsavedChangesBackCallback()
     }
 
     class MyPreferenceFragmentCompat : PreferenceFragmentCompat() {
@@ -502,7 +514,6 @@ class GroupSettingsActivity(
         override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
             super.onViewCreated(view, savedInstanceState)
 
-            ViewCompat.setOnApplyWindowInsetsListener(listView, ListListener)
             setDivider(null)
             setDividerHeight(0)
         }

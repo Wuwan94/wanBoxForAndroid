@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.text.InputType
 import android.view.View
 import android.widget.*
+import androidx.activity.OnBackPressedCallback
 import androidx.lifecycle.lifecycleScope
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.bg.RootModuleClient
@@ -40,6 +41,9 @@ class GroupEditorActivity : ThemedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         blocked = savedInstanceState?.getBoolean("blocked") ?: false
         super.onCreate(savedInstanceState)
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() = cancelEditing()
+        })
         form = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 48, 24, 32) }
         setContentView(ScrollView(this).apply { addView(form) })
         lifecycleScope.launch {
@@ -281,5 +285,4 @@ class GroupEditorActivity : ThemedActivity() {
         }
         finish()
     }
-    override fun onBackPressed() = cancelEditing()
 }

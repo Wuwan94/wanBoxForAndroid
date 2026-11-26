@@ -54,6 +54,7 @@
     <application
         android:name="io.nekohasekai.sagernet.SagerNet"
         android:allowBackup="true"
+        android:enableOnBackInvokedCallback="true"
         android:autoRevokePermissions="allowed"
         android:banner="@mipmap/wanbox_launcher"
         android:dataExtractionRules="@xml/backup_rules"

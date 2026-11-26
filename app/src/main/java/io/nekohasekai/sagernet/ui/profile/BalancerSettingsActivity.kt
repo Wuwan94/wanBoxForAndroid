@@ -10,12 +10,8 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
-import androidx.core.view.updatePadding
-import androidx.core.widget.NestedScrollView
 import androidx.preference.EditTextPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
@@ -759,18 +755,6 @@ class BalancerSettingsActivity : ProfileSettingsActivity<BalancerBean>(R.layout.
         configurationAdapter = ProxiesAdapter()
         configurationList.adapter = configurationAdapter
         configurationList.isNestedScrollingEnabled = false
-
-        findViewById<NestedScrollView>(R.id.nested_scroll_view)?.apply {
-            clipToPadding = false
-            ViewCompat.setOnApplyWindowInsetsListener(this) { v, insets ->
-                val navBars = insets.getInsets(
-                    WindowInsetsCompat.Type.navigationBars() or WindowInsetsCompat.Type.systemBars()
-                )
-                v.updatePadding(bottom = navBars.bottom)
-                insets
-            }
-            ViewCompat.requestApplyInsets(this)
-        }
 
         ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
             ItemTouchHelper.UP or ItemTouchHelper.DOWN, ItemTouchHelper.START
