@@ -24,6 +24,12 @@ fun buildSingBoxOutboundAnyTLSBean(bean: AnyTLSBean): SingBoxOptions.Outbound_An
             bean.certificates.blankAsNull()?.let {
                 certificate = it
             }
+            bean.clientCertificate.blankAsNull()?.let { pem ->
+                client_certificate = pem.lines().filter { line -> line.isNotBlank() }
+            }
+            bean.clientKey.blankAsNull()?.let { pem ->
+                client_key = pem.lines().filter { line -> line.isNotBlank() }
+            }
             var fingerprint = bean.utlsFingerprint.blankAsNull()?.trim()?.lowercase()
             if (!bean.realityPubKey.isNullOrBlank()) {
                 reality = SingBoxOptions.OutboundRealityOptions().apply {

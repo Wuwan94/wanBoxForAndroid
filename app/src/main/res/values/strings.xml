@@ -240,6 +240,9 @@
     <string name="sni">Server Name Indication</string>
     <string name="alpn">Application-Layer Protocol Negotiation</string>
     <string name="certificates">Certificates</string>
+    <string name="anytls_client_certificate">Client Certificate (PEM)</string>
+    <string name="anytls_client_private_key">Client Private Key (PEM)</string>
+    <string name="anytls_mtls_local_only_summary">Stored in this local profile; excluded from share links.</string>
     <string name="early_data_header_name">Early Data Header Name</string>
     <string name="encryption">Encryption</string>
     <string name="extra_headers">Extra Headers</string>

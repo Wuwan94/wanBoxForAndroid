@@ -1,4 +1,4 @@
-<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <EditTextPreference
         app:icon="@drawable/ic_line_text"
@@ -39,6 +39,22 @@
             app:key="certificates"
             app:title="@string/certificates"
             app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            android:inputType="textMultiLine|textNoSuggestions"
+            app:defaultValue=""
+            app:icon="@drawable/ic_line_lock"
+            app:key="clientCertificate"
+            app:summary="@string/anytls_mtls_local_only_summary"
+            app:title="@string/anytls_client_certificate"
+            app:useSimpleSummaryProvider="false" />
+        <EditTextPreference
+            android:inputType="textMultiLine|textNoSuggestions"
+            app:defaultValue=""
+            app:icon="@drawable/ic_line_lock"
+            app:key="clientKey"
+            app:summary="@string/anytls_mtls_local_only_summary"
+            app:title="@string/anytls_client_private_key"
+            app:useSimpleSummaryProvider="false" />
         <SwitchPreference
             app:icon="@drawable/ic_line_shield"
             app:key="allowInsecure"

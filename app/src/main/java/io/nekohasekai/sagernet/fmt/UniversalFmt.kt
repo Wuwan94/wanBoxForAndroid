@@ -2,6 +2,7 @@ package io.nekohasekai.sagernet.fmt
 
 import io.nekohasekai.sagernet.database.ProxyEntity
 import io.nekohasekai.sagernet.database.ProxyGroup
+import moe.matsuri.nb4a.proxy.anytls.AnyTLSBean
 import moe.matsuri.nb4a.utils.Util
 
 fun parseUniversal(link: String): AbstractBean {
@@ -19,10 +20,17 @@ fun parseUniversal(link: String): AbstractBean {
 }
 
 fun AbstractBean.toUniversalLink(): String {
+    val sharedBean = when (this) {
+        is AnyTLSBean -> clone().apply {
+            clientCertificate = ""
+            clientKey = ""
+        }
+        else -> this
+    }
     var link = "sn://"
-    link += TypeMap.reversed[ProxyEntity().putBean(this).type]
+    link += TypeMap.reversed[ProxyEntity().putBean(sharedBean).type]
     link += "?"
-    link += Util.b64EncodeUrlSafe(Util.zlibCompress(KryoConverters.serialize(this), 9))
+    link += Util.b64EncodeUrlSafe(Util.zlibCompress(KryoConverters.serialize(sharedBean), 9))
     return link
 }
 
