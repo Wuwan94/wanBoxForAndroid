@@ -88,6 +88,7 @@ wanBox 严守「证据驱动」与「Fail-Closed」原则，所有关键改动�
 - [**portable-backup-and-batch-test.zh-CN.md**](./portable-backup-and-batch-test.zh-CN.md)：便携式备份跨版本双向导入导出互通测试方案。
 - [**sing-box-1.15-assessment.zh-CN.md**](./sing-box-1.15-assessment.zh-CN.md)：上游 sing-box 1.15 新特性与 TUN 协议演进评估。
 - [**upstream-network-review.zh-CN.md**](./upstream-network-review.zh-CN.md)：上游网络栈修复与 wanBox 集成点审查。
+- [**upstream-sync-2026-11.zh-CN.md**](./upstream-sync-2026-11.zh-CN.md)：2026-11 NetProxy-Magisk v8.7.0→v8.7.2 与 OwnBoxForAndroid v26.11.24.6-preview 同步评估逐项结论。
 - [**target-sdk-36-assessment.zh-CN.md**](./target-sdk-36-assessment.zh-CN.md) / [**toolchain-followup.zh-CN.md**](./toolchain-followup.zh-CN.md)：Android Target SDK 与现代构建工具链演进跟踪。
 - [**reference-stability-review.zh-CN.md**](./reference-stability-review.zh-CN.md) / [**alpha10-integration-audit.zh-CN.md**](./alpha10-integration-audit.zh-CN.md)：第三方内核引用稳定性专项审查。
 
