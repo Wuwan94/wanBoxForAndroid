@@ -22,9 +22,10 @@ STABLE_APK_CODE = "10175"
 # 303aa996，published_at 更新为 2026-11-27T10:18:51Z），tag 未移动；发布后 preview.3 已清理。
 PUBLISHED_PREVIEW = "v3.0.19-preview.4"
 PUBLISHED_PREVIEW_COMMIT = "cfb1e25c4b02f261dee17baa77a4fa4a1fa60565"
-# 当前源码预览线与最近已发布预览一致；版本元数据仍指向 2043。
-SOURCE_PREVIEW = "v3.0.19-preview.4"
-SOURCE_PREVIEW_CODE = "2043"
+# 3.0.19 线已满 preview.4 上限，源码预览线按版本规则开新线 v3.0.20-preview.1（未发布
+# 候选）：发行说明当前区段必须明确标为「未发布候选」，已发布预览仍为 preview.4。
+SOURCE_PREVIEW = "v3.0.20-preview.1"
+SOURCE_PREVIEW_CODE = "2044"
 # v3.0.19-preview.3 的 Release/tag 已在 preview.4 发布后清理，只保留历史说明与资产快照。
 ARCHIVED_PREVIEW = "v3.0.19-preview.3"
 HISTORY_MARKER = "历史归档"

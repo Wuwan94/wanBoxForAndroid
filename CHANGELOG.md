@@ -4,6 +4,10 @@
 
 ## wanBox 3.0.x 发布记录
 
+### v3.0.20-preview.1（预览候选，未发布）
+- 候选未发布：收口 v3.0.19-preview.4 之后合入 main 的两项 AnyTLS 修复——PR #115（合并提交 `d4ae3418`，5 个文件 +196/−6，`Verify Android Build` run `45954188062` 在 head `a76ecae6` 全绿）补齐 sing-box JSON 导入的 `client_certificate` / `client_key`，并让 uTLS 指纹真正写入；PR #116（合并提交 `303aa996`，6 个文件 +416/−29，run `45974055040` 在 head `993f3141` 全绿）把证书类数组中的非字符串元素按「未配置」处理、统一换行，并补齐 mTLS 往返测试。两项已以同标签重发进入 preview.4 的现行资产；本版换新版本号从 main 重新出版，恢复 tag 与二进制同源，已装 preview.4 的设备可以覆盖升级。
+- 元数据升为模块 `2044` / APK `10221`（已发布 preview.4 为 `2043` / `10219`）；3.0.19 线已满 preview.4 上限，按版本规则开新线 3.0.20；正式线 `3.0.17 / 2035` 与 `SINGBOX_VERSION` 不变。边界：真实 mTLS 服务端与 Root 真机矩阵未验证（CI 自标 `runtime_regression: not_verified`）。
+
 ### v3.0.19-preview.4（已发布预览）
 
 - [GitHub Release v3.0.19-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.19-preview.4) 由 `Preview Build` [run `45890957065`](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/45890957065)（dispatch `publish_release=true`、`approved_sha=cfb1e25c`）于 2026-11-26T20:54:52Z 首发；首发时 tag 对象、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与 `APPROVED_SHA` 四者同为 `cfb1e25c4b02f261dee17baa77a4fa4a1fa60565`（升版 PR #113 合并提交），四个作业全绿。之后两次同标签修复重发只替换资产、不移动 tag：PR #115（合并提交 `d4ae3418`）由 `Preview Build` run `45957528901` 出候选，`Replace Existing Preview Assets` prepare run `45959760577` / execute run `45959837985` 于 2026-11-27T07:38:44Z 替换；PR #116（合并提交 `303aa996`）由 run `45978054821` 出候选，prepare run `45980842300` / execute run `45980952801` 再次替换，Release API 的 `published_at` 随之更新为 2026-11-27T10:18:51Z。现行 APK 内 `version-control-info` 为 `303aa996567969ce0801ce5c7c30740f5404ae31`，tag 与 `targetCommitish` 仍为 `cfb1e25c`。
