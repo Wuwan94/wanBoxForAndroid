@@ -85,6 +85,7 @@ wanBox 严守「证据驱动」与「Fail-Closed」原则，所有关键改动�
 
 ### 3. 安全、备份与工具链审计
 - [**audit-security-lifecycle.md**](./audit-security-lifecycle.md)：Android 最终 Manifest 导出组件白名单扫描与生命周期安全。
+- [**ghsa-q6pm-rh93-9hr5-audit.zh-CN.md**](./ghsa-q6pm-rh93-9hr5-audit.zh-CN.md)：Husi GHSA-q6pm-rh93-9hr5 同类面排查（备份导入 / 插件执行 / 订阅与分享链接，结论不可达）。
 - [**portable-backup-and-batch-test.zh-CN.md**](./portable-backup-and-batch-test.zh-CN.md)：便携式备份跨版本双向导入导出互通测试方案。
 - [**sing-box-1.15-assessment.zh-CN.md**](./sing-box-1.15-assessment.zh-CN.md)：上游 sing-box 1.15 新特性与 TUN 协议演进评估。
 - [**upstream-network-review.zh-CN.md**](./upstream-network-review.zh-CN.md)：上游网络栈修复与 wanBox 集成点审查。
