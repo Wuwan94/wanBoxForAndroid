@@ -61,6 +61,36 @@ class AnyTLSFmtTest {
     }
 
     @Test
+    fun outboundTlsJsonCarriesChosenUtlsFingerprint() {
+        val bean = AnyTLSBean().apply {
+            allowInsecure = true
+            utlsFingerprint = "Firefox"
+            initializeDefaultValues()
+        }
+
+        val utls = (buildSingBoxOutboundAnyTLSBean(bean).asMap()["tls"] as Map<*, *>)["utls"] as Map<*, *>
+
+        assertEquals(true, utls["enabled"])
+        assertEquals("firefox", utls["fingerprint"])
+    }
+
+    @Test
+    fun realityWithoutFingerprintFallsBackToChrome() {
+        val bean = AnyTLSBean().apply {
+            allowInsecure = true
+            realityPubKey = "reality-public-key"
+            realityShortId = "AB12"
+            initializeDefaultValues()
+        }
+
+        val tls = buildSingBoxOutboundAnyTLSBean(bean).asMap()["tls"] as Map<*, *>
+        val utls = tls["utls"] as Map<*, *>
+
+        assertEquals("chrome", utls["fingerprint"])
+        assertEquals("ab12", (tls["reality"] as Map<*, *>)["short_id"])
+    }
+
+    @Test
     fun sharedAnyTlsUrisOmitClientIdentity() {
         val bean = AnyTLSBean().apply {
             serverAddress = "anytls.example"
