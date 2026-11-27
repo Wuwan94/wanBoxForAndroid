@@ -21,15 +21,18 @@ fun parseUniversal(link: String): AbstractBean {
     }
 }
 
+/** 分享前的副本：AnyTLS 的 mTLS 客户端证书与私钥只留在本机，不进入任何分享链接。原 bean 不变。 */
+internal fun AbstractBean.shareableCopy(): AbstractBean = when (this) {
+    is AnyTLSBean -> clone().apply {
+        clientCertificate = ""
+        clientKey = ""
+    }
+    else -> this
+}
+
 @Keep
 fun AbstractBean.toUniversalLink(): String {
-    val sharedBean = when (this) {
-        is AnyTLSBean -> clone().apply {
-            clientCertificate = ""
-            clientKey = ""
-        }
-        else -> this
-    }
+    val sharedBean = shareableCopy()
     var link = "sn://"
     link += TypeMap.reversed[ProxyEntity().putBean(sharedBean).type]
     link += "?"

@@ -231,21 +231,9 @@ private fun JSONObject.parseSingBoxTLS(): SingBoxTLSFields? {
         sni = tls.getStr("server_name") ?: ""
         allowInsecure = tls.optBoolean("insecure", false)
         alpn = tls.optJSONArray("alpn")?.toStringList()?.joinToString("\n") ?: ""
-        certificates = when (val cert = tls.opt("certificate")) {
-            is String -> cert
-            is JSONArray -> cert.toStringList().joinToString("\n")
-            else -> ""
-        }
-        clientCertificate = when (val cert = tls.opt("client_certificate")) {
-            is String -> cert
-            is JSONArray -> cert.toStringList().joinToString("\n")
-            else -> ""
-        }
-        clientKey = when (val key = tls.opt("client_key")) {
-            is String -> key
-            is JSONArray -> key.toStringList().joinToString("\n")
-            else -> ""
-        }
+        certificates = parseSingBoxPem(tls.opt("certificate"))
+        clientCertificate = parseSingBoxPem(tls.opt("client_certificate"))
+        clientKey = parseSingBoxPem(tls.opt("client_key"))
         tls.optJSONObject("utls")?.let {
             if (it.optBoolean("enabled", true)) {
                 utlsFingerprint = it.getStr("fingerprint") ?: ""
@@ -260,16 +248,35 @@ private fun JSONObject.parseSingBoxTLS(): SingBoxTLSFields? {
         tls.optJSONObject("ech")?.let {
             if (it.optBoolean("enabled", true)) {
                 enableECH = true
-                echConfig = when (val config = it.opt("config")) {
-                    is String -> config
-                    is JSONArray -> config.toStringList().joinToString("\n")
-                    else -> ""
-                }
+                echConfig = parseSingBoxPem(it.opt("config"))
                 echQueryServerName = it.getStr("query_server_name") ?: ""
             }
         }
         disableSNI = tls.optBoolean("disable_sni", false)
     }
+}
+
+/**
+ * sing-box 的 PEM 字段（certificate / client_certificate / client_key / ech.config）
+ * 是 Listable[string]：一个字符串，或按行拆开的字符串数组。统一还原成一段 PEM 文本：
+ * - 数组元素按原顺序用单个 `\n` 连接；
+ * - `\r\n` / `\r` 规范化为 `\n`，只去掉整段首尾空白，正文内部换行不动；
+ * - null、空串、空数组、数组里混入非字符串元素（sing-box 本身也会拒绝）及其他类型一律视为未配置，返回 ""。
+ * 不记录日志、不把内容放进异常，私钥只在内存中流转。
+ */
+internal fun parseSingBoxPem(value: Any?): String {
+    val text = when (value) {
+        is String -> value
+        is JSONArray -> {
+            val lines = ArrayList<String>(value.length())
+            for (i in 0 until value.length()) {
+                lines.add(value.opt(i) as? String ?: return "")
+            }
+            lines.joinToString("\n")
+        }
+        else -> return ""
+    }
+    return text.replace("\r\n", "\n").replace('\r', '\n').trim()
 }
 
 private fun StandardV2RayBean.applySingBoxTLS(tls: SingBoxTLSFields?) {
