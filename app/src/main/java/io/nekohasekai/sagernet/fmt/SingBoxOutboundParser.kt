@@ -174,6 +174,8 @@ fun parseSingBoxOutbound(json: JSONObject): AbstractBean? {
                 sni = tls.sni
                 alpn = tls.alpn
                 certificates = tls.certificates
+                clientCertificate = tls.clientCertificate
+                clientKey = tls.clientKey
                 utlsFingerprint = tls.utlsFingerprint
                 realityPubKey = tls.realityPubKey
                 realityShortId = tls.realityShortId
@@ -211,6 +213,8 @@ private class SingBoxTLSFields {
     var alpn: String = ""
     var allowInsecure: Boolean = false
     var certificates: String = ""
+    var clientCertificate: String = ""
+    var clientKey: String = ""
     var utlsFingerprint: String = ""
     var realityPubKey: String = ""
     var realityShortId: String = ""
@@ -230,6 +234,16 @@ private fun JSONObject.parseSingBoxTLS(): SingBoxTLSFields? {
         certificates = when (val cert = tls.opt("certificate")) {
             is String -> cert
             is JSONArray -> cert.toStringList().joinToString("\n")
+            else -> ""
+        }
+        clientCertificate = when (val cert = tls.opt("client_certificate")) {
+            is String -> cert
+            is JSONArray -> cert.toStringList().joinToString("\n")
+            else -> ""
+        }
+        clientKey = when (val key = tls.opt("client_key")) {
+            is String -> key
+            is JSONArray -> key.toStringList().joinToString("\n")
             else -> ""
         }
         tls.optJSONObject("utls")?.let {
