@@ -41,10 +41,12 @@ fun buildSingBoxOutboundAnyTLSBean(bean: AnyTLSBean): SingBoxOptions.Outbound_An
                     fingerprint = "chrome"
                 }
             }
-            fingerprint?.let {
-                utls = SingBoxOptions.OutboundUTLSOptions().apply {
-                    enabled = true
-                    fingerprint = it
+            fingerprint?.let { chosen ->
+                // 不能在 apply 里写 `fingerprint = it`：外层同名局部变量会遮蔽 OutboundUTLSOptions.fingerprint，
+                // 导致生成的 utls.fingerprint 为 null。
+                utls = SingBoxOptions.OutboundUTLSOptions().also { options ->
+                    options.enabled = true
+                    options.fingerprint = chosen
                 }
             }
             bean.echConfig.blankAsNull()?.let {

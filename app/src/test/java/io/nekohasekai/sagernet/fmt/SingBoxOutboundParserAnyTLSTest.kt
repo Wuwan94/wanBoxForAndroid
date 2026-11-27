@@ -111,7 +111,7 @@ class SingBoxOutboundParserAnyTLSTest {
         assertEquals(CA_CERTIFICATE, tls["certificate"])
         val utls = tls["utls"] as Map<*, *>
         assertEquals(true, utls["enabled"])
-        // utls.fingerprint 目前生成为 null（AnyTLSFmt 中局部变量遮蔽属性的既有问题），不在本次范围，单列后续处理
+        assertEquals("chrome", utls["fingerprint"])
     }
 
     private fun assertClientIdentityRoundTrips(outbound: JSONObject) {
