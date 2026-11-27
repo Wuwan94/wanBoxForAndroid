@@ -9,7 +9,14 @@ import moe.matsuri.nb4a.SingBoxOptions
 import moe.matsuri.nb4a.utils.listByLineOrComma
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
-fun buildSingBoxOutboundAnyTLSBean(bean: AnyTLSBean): SingBoxOptions.Outbound_AnyTLSOptions {
+/**
+ * [globalAllowInsecure] 只在 bean 自身未允许不安全证书时才读取（保持原来的短路顺序），
+ * 默认读全局设置；JVM 单测可传入固定值，避免初始化 DataStore。
+ */
+fun buildSingBoxOutboundAnyTLSBean(
+    bean: AnyTLSBean,
+    globalAllowInsecure: () -> Boolean = { DataStore.globalAllowInsecure },
+): SingBoxOptions.Outbound_AnyTLSOptions {
     return SingBoxOptions.Outbound_AnyTLSOptions().apply {
         type = "anytls"
         server = bean.serverAddress
@@ -19,7 +26,7 @@ fun buildSingBoxOutboundAnyTLSBean(bean: AnyTLSBean): SingBoxOptions.Outbound_An
         tls = SingBoxOptions.OutboundTLSOptions().apply {
             enabled = true
             server_name = bean.sni.blankAsNull()
-            insecure = bean.allowInsecure || DataStore.globalAllowInsecure
+            insecure = bean.allowInsecure || globalAllowInsecure()
             alpn = bean.alpn.blankAsNull()?.listByLineOrComma()
             bean.certificates.blankAsNull()?.let {
                 certificate = it
