@@ -81,7 +81,7 @@ jobs:
         run: |
           set -euo pipefail
           TAG="v$(grep '^PRE_VERSION_NAME=' nb4a.properties | cut -d= -f2 | tr -d '\r\n')"
-          test "$TAG" = v3.0.16-preview.3
+          test "$TAG" = v3.0.19-preview.4
           AAPT=$(find "${ANDROID_HOME}/build-tools" -name aapt | sort -V | tail -n 1)
           APKSIGNER=$(find "${ANDROID_HOME}/build-tools" -name apksigner | sort -V | tail -n 1)
           python3 tools/preview_replacement.py prepare --repo "$GITHUB_REPOSITORY" --candidate candidate --backup rollback --source-sha "$APPROVED_SHA" --run-id "$CANDIDATE_RUN" --tag "$TAG" --old-tag-sha "$OLD_TAG_SHA" --old-manifest-sha256 "$OLD_MANIFEST" --aapt "$AAPT" --apksigner "$APKSIGNER" | tee replacement-preparation.txt
@@ -162,7 +162,7 @@ jobs:
           plan = json.loads(data)
           assert plan['source_sha'] == os.environ['APPROVED_SHA']
           assert plan['candidate_run_id'] == int(os.environ['CANDIDATE_RUN'])
-          assert plan['tag'] == 'v3.0.16-preview.3'
+          assert plan['tag'] == 'v3.0.19-preview.4'
           PY
       - name: Replace verified assets without moving the original tag
         env:
