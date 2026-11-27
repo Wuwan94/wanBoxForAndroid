@@ -18,7 +18,7 @@
 |---|---|---|
 | `VERSION_NAME` | `3.0.17` | tag 必须严格等于 `v$VERSION_NAME` → `v3.0.17` |
 | `VERSION_CODE` | `2035` | APK `versionCode = 2035 × 5 = 10175`；Root 模块码 `2035` |
-| `PRE_VERSION_NAME` | `3.0.19-preview.4` | 当前源码与最近已发布预览一致；PR #101–#112 十二项改动、PR #113 升版，资产提交 `cfb1e25` |
+| `PRE_VERSION_NAME` | `3.0.19-preview.4` | 当前源码与最近已发布预览一致；PR #101–#112 十二项改动、PR #113 升版，首发资产提交 `cfb1e25`（PR #115 / #116 两次同标签重发后现行资产源提交 `303aa996`） |
 | `PRE_VERSION_CODE` | `2043` | 必须 `> VERSION_CODE`（`preview.yml` 硬断言）；派生预览 APK `versionCode=10219` |
 | `SINGBOX_VERSION` | `v1.15.0-alpha.13-reF1nd` | 与 v3.0.14 一致 |
 
@@ -73,18 +73,18 @@ S6 收尾 PR：把候选/正式 run ID、实测字节与 SHA-256 回填到本清
 
 正式版 `v3.0.17` 仍是唯一正式版本；预览线 `v3.0.19-preview.4` 已按 `preview.yml` 发布，不走 `release.yml` 两阶段流程，也不执行深度真机矩阵。该版收录 preview.3 之后合入 main 的十二条改动（Root 静态 WebUI 与 KernelSU / APatch 桥接、AnyTLS 本地 mTLS 与诊断包脱敏、VLESS 标签与手动 XHTTP 入口、XHTTP 期限与 `stream-up` 排空、Xray 互通硬门禁、edge-to-edge 与预测性返回、`urltest` 门代次隔离、OEM Google 联网兼容），由升版 PR #113 发布。
 
-- 发布溯源：`Preview Build` [run `45890957065`](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/45890957065)（dispatch `publish_release=true`、`approved_sha=cfb1e25c`）于 2026-11-26T20:54:52Z 发布；tag 对象、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与 `APPROVED_SHA` 四者同为 `cfb1e25c4b02f261dee17baa77a4fa4a1fa60565`（升版 PR #113 合并提交），四个作业全绿。升版 PR #113 的 `Verify Android Build` run `45886337239` 全绿（Build LibCore 12m36s、Build Android Debug APK 23m10s，后者首次跑在含 PR #111 + #112 的组合树上）；官方 sing-box 内核与 `SINGBOX_VERSION` 未改。
+- 发布溯源：`Preview Build` [run `45890957065`](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/45890957065)（dispatch `publish_release=true`、`approved_sha=cfb1e25c`）于 2026-11-26T20:54:52Z 首发；首发时 tag 对象、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与 `APPROVED_SHA` 四者同为 `cfb1e25c4b02f261dee17baa77a4fa4a1fa60565`（升版 PR #113 合并提交），四个作业全绿。之后两次同标签修复重发只替换资产、不移动 tag：PR #115（合并提交 `d4ae3418`）由 `Preview Build` run `45957528901` 出候选，`Replace Existing Preview Assets` prepare run `45959760577` / execute run `45959837985` 于 2026-11-27T07:38:44Z 替换；PR #116（合并提交 `303aa996`）由 run `45978054821` 出候选，prepare run `45980842300` / execute run `45980952801` 再次替换，Release API 的 `published_at` 随之更新为 2026-11-27T10:18:51Z。现行 APK 内 `version-control-info` 为 `303aa996567969ce0801ce5c7c30740f5404ae31`，tag 与 `targetCommitish` 仍为 `cfb1e25c`。升版 PR #113 的 `Verify Android Build` run `45886337239` 全绿（Build LibCore 12m36s、Build Android Debug APK 23m10s，后者首次跑在含 PR #111 + #112 的组合树上）；官方 sing-box 内核与 `SINGBOX_VERSION` 未改。
 - 元数据：`PRE_VERSION_NAME=3.0.19-preview.4`、`PRE_VERSION_CODE=2043`，APK `versionCode=10219` / Root 模块码 `2043`。正式线 `3.0.17 / 2035` 不变。
-- 资产回读（GitHub Release API，本地 `sha256sum -c` 三件 OK）：
+- 资产回读（第二次重发后 GitHub Release API，本地 `sha256sum -c` 三件 OK）：
 
 | 文件 | 字节数 | SHA-256 |
 |---|---:|---|
-| `wanBoxForAndroid-3.0.19-preview.4-arm64-v8a-release.apk` | 6382731 | `2bb0f76cdba3aba81a9502ff6aaf232fac573552c46b99ce5c89a601268651d7` |
-| `wanbox-root-module-arm64-v8a.zip` | 18333507 | `14641d464a269225452d9eb8f41b97ea07c2fc8028e264081b7049502307c581` |
-| `wanbox-root-module-with-manager-arm64-v8a.zip` | 23991076 | `3723d597b3f265bbc84eaecae507573032a39fa82000cf38c60399516d167e3d` |
-| `SHA256SUMS` | 333 | `1a12188439f4b596124fbe1010ebb2fe1ed2a3be4c77acce58e4c0109125cba1` |
+| `wanBoxForAndroid-3.0.19-preview.4-arm64-v8a-release.apk` | 6382851 | `002407d904023fb6463c5b7e0561d534fdb8c675cf4f60917f944ff3c97b9f72` |
+| `wanbox-root-module-arm64-v8a.zip` | 18333508 | `e88d46a3a193567283d59360924d9b5c150331770b994843927ed27c8053bc88` |
+| `wanbox-root-module-with-manager-arm64-v8a.zip` | 23991715 | `63d4da6012e2fb371512a852af1fa05f73c00a4061473be65084b85e9b8a66b6` |
+| `SHA256SUMS` | 333 | `e203b0214089b509d1f17ec364d1e8c0e9e000a345ed2bc0911c4e8e3078df79` |
 
-APK + 普通 Root 模块 `24716238` B（23.57 MiB），低于 26 MiB 上限 `27262976` B；合一 ZIP 为 22.88 MiB；APK 内 `lib/` 条目为 0、证书 SHA-256 `80ECEE1C42D861D59CDC460447335FC4BFDF80103D6225A17C1BDF83A33521F6` 与 `v3.0.17` 同源，模块 `module.prop` 为 `3.0.19-preview.4` / `2043` 且含 4 个 `webroot/` 文件，两个 ZIP 均通过 `python3 -m zipfile -t`。
+APK + 普通 Root 模块 `24716359` B（23.57 MiB），低于 26 MiB 上限 `27262976` B；合一 ZIP 为 22.88 MiB；APK 内 `lib/` 条目为 0、证书 SHA-256 `80ECEE1C42D861D59CDC460447335FC4BFDF80103D6225A17C1BDF83A33521F6` 与 `v3.0.17` 同源，模块 `module.prop` 为 `3.0.19-preview.4` / `2043` 且含 4 个 `webroot/` 文件，两个 ZIP 均通过 `python3 -m zipfile -t`。
 - 清理：preview.4 发布后，上一预览 `v3.0.19-preview.3` 的 GitHub Release API 与 tag-ref API 均返回 404，已 prune；`v3.0.19-preview.2`、`v3.0.19-preview.1` 更早已清理。正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 保留。
 - 互通与真机边界：12 项 Xray 互通矩阵在每次 PR 与预览/正式发布前真跑（12/12 PASS），但它是本机 loopback + 模拟器 CI，不代表真机与真实网络验证；Root 真机矩阵（Magisk / KernelSU / APatch）、KernelSU/APatch 里的真实 WebUI、真实 mTLS 服务端、OEM Google 联网兼容与 Android 14/15 手势实机表现均未实测。
 

@@ -17,8 +17,9 @@ ROOT = Path(__file__).resolve().parents[2]
 STABLE_TAG = "v3.0.17"
 STABLE_CODE = "2035"
 STABLE_APK_CODE = "10175"
-# v3.0.19-preview.4 已发布：Preview Build run 45890957065，tag 与发布资产提交为
-# cfb1e25c4b02f261dee17baa77a4fa4a1fa60565，2026-11-26T20:54:52Z 上架；发布后 preview.3 已清理。
+# v3.0.19-preview.4 已发布：Preview Build run 45890957065 于 2026-11-26T20:54:52Z 首发，tag 为
+# cfb1e25c4b02f261dee17baa77a4fa4a1fa60565；之后 PR #115 / #116 两次同标签重发只替换资产（现行资产源提交
+# 303aa996，published_at 更新为 2026-11-27T10:18:51Z），tag 未移动；发布后 preview.3 已清理。
 PUBLISHED_PREVIEW = "v3.0.19-preview.4"
 PUBLISHED_PREVIEW_COMMIT = "cfb1e25c4b02f261dee17baa77a4fa4a1fa60565"
 # 当前源码预览线与最近已发布预览一致；版本元数据仍指向 2043。
