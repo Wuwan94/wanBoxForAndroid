@@ -1,6 +1,6 @@
 # 发布、源码与版本对照
 
-核对日期：2026-11-27。发布状态以 GitHub Release、tag 与实际下载资产为准；源码元数据本身不构成已发布资产的核验。
+核对日期：2026-11-28。发布状态以 GitHub Release、tag 与实际下载资产为准；源码元数据本身不构成已发布资产的核验。
 
 | 对象 | 版本与状态 | 版本码及来源 |
 |---|---|---|
@@ -11,7 +11,7 @@
 
 源码元数据正式线为 `VERSION_NAME=3.0.17`、`VERSION_CODE=2035`；预览线 `3.0.19-preview.4 / 2043` 已于 2026-11-26T20:54:52Z 作为稳定性预览发布（升版 PR #113，合并提交 `cfb1e25c4b02f261dee17baa77a4fa4a1fa60565`），首发时 tag、`targetCommitish`、APK 内 `version-control-info` 与发布 job 的 `APPROVED_SHA` 同为 `cfb1e25c`（两次同标签重发后现行 APK 的 `version-control-info` 为 `303aa996`，见下文），派生 APK `10219`、模块 `2043`（上一预览 preview.3 为 `10213 / 2042`）。本次发布触发 `prune_prereleases.py`，`v3.0.19-preview.3` 的 Release/tag 已删除（现返回 404），`v3.0.19-preview.2`、`v3.0.19-preview.1` 更早已清理；正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 未受影响。`SINGBOX_VERSION=v1.15.0-alpha.13-reF1nd` 未改变。本版内容是 preview.3 之后 `main` 依次合入的十二条改动：PR #101（Xray 互通过渡为 PR / 预览 / 正式发布硬门禁）、PR #102（XHTTP 客户端总/读/写期限）、PR #103（`stream-up` 服务端有界 padding 保活）、PR #104（`urltest` TCP 成功态按门代次隔离）、PR #105（edge-to-edge 与预测性返回）、PR #106（Root 模块严格白名单 Google 联网兼容）、PR #107（Root 静态 WebUI）、PR #108（`stream-up` 成功响应持续排空）、PR #109（VLESS XHTTP / Reality 展示标签）、PR #110（手动新增 VLESS + XHTTP 入口）、PR #111（AnyTLS 本地 mTLS 与诊断包脱敏，合并提交 `bb8e109`）、PR #112（KernelSU / APatch WebUI 桥接，合并提交 `9a89b25`）。
 
-预览线已由已发布的 `3.0.19-preview.4 / 2043` 前移到 `3.0.20-preview.1 / 2044`，状态为**未发布候选**（3.0.19 线已满每线 preview.4 的上限，按版本规则开新线），派生 APK `10221`、模块 `2044`；候选发布后由文档同步 PR 翻转本表并回填 run 号与四件套数据。preview.4（tag `cfb1e25c`）之后 `main` 的代码变更为 PR #115（合并提交 `d4ae3418`）与 PR #116（合并提交 `303aa996`）两项 AnyTLS 修复，二者已以同标签重发进入 preview.4 的现行资产；本版从 `main` 重新出版，恢复 tag 与二进制同源。
+预览线已由已发布的 `3.0.19-preview.4 / 2043` 前移到 `3.0.20-preview.1 / 2044`，状态为**未发布候选**（3.0.19 线已满每线 preview.4 的上限，按版本规则开新线），派生 APK `10221`、模块 `2044`；候选发布后由文档同步 PR 翻转本表并回填 run 号与四件套数据。preview.4（tag `cfb1e25c`）之后 `main` 的代码变更为 PR #115（合并提交 `d4ae3418`）与 PR #116（合并提交 `303aa996`）两项 AnyTLS 修复，二者已以同标签重发进入 preview.4 的现行资产；本版从 `main` 重新出版，恢复 tag 与二进制同源。**本版发行说明按「自 `v3.0.17` 正式版以来的全部预览更新」撰写**：`v3.0.18-preview.1`–`.4`、`v3.0.19-preview.1`–`.4` 与 #115 / #116 的内容按主题完整收录在 [PREVIEW_NOTES.md](../PREVIEW_NOTES.md) 与[下一版说明快照](release-notes-next.zh-CN.md)，因为旧预览的 Release 已按单预览策略清理。
 
 ## v3.0.19-preview.4 已发布预览四件套（第二次同标签重发后 GitHub Release API asset digest）
 

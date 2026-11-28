@@ -74,6 +74,7 @@ S6 收尾 PR：把候选/正式 run ID、实测字节与 SHA-256 回填到本清
 正式版 `v3.0.17` 仍是唯一正式版本；预览线因 3.0.19 已满每线 preview.4 的上限，按版本规则开新线 `3.0.20-preview.1` 为未发布候选，待按预览门禁（`preview.yml`，不走 `release.yml` 两阶段、不执行深度真机矩阵）发布。
 
 - 内容：PR #115（合并提交 `d4ae3418`）与 PR #116（合并提交 `303aa996`）的 AnyTLS mTLS 导入、uTLS 指纹与 PEM 字段解析修复；二者已以同标签重发进入 preview.4 的现行资产，本版换新版本号从 `main` 重新出版。官方 sing-box 内核与 `SINGBOX_VERSION` 未改。
+- 发行说明范围：按「自 `v3.0.17` 正式版以来的全部预览更新」撰写，`v3.0.18-preview.1`–`.4`、`v3.0.19-preview.1`–`.4` 与 #115 / #116 的内容按主题逐项完整收录在 `PREVIEW_NOTES.md` 与 `docs/release-notes-next.zh-CN.md`（旧预览 Release 已按单预览策略清理，只能靠这两份文档回看）；`CHANGELOG.md` 的候选条目只做精炼汇总，并保证 `v3.0.17`（正式版）条目仍在检查器 60 行窗口内。
 - 元数据：`PRE_VERSION_NAME=3.0.20-preview.1`、`PRE_VERSION_CODE=2044`，派生 APK `10221` / 模块 `2044`，严格高于 preview.4 的 `10219 / 2043`。正式线 `3.0.17 / 2035` 不变。
 - PR 门禁：PR #115 的 `Verify Android Build` run `45954188062`（head `a76ecae6`）与 PR #116 的 run `45974055040`（head `993f3141`）全绿。
 - 未验证边界：Root 真机矩阵未执行（`runtime_regression: not_verified`）；真实 mTLS AnyTLS 服务端未验证。

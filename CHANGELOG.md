@@ -5,8 +5,8 @@
 ## wanBox 3.0.x 发布记录
 
 ### v3.0.20-preview.1（预览候选，未发布）
-- 候选未发布：收口 v3.0.19-preview.4 之后合入 main 的两项 AnyTLS 修复——PR #115（合并提交 `d4ae3418`，5 个文件 +196/−6，`Verify Android Build` run `45954188062` 在 head `a76ecae6` 全绿）补齐 sing-box JSON 导入的 `client_certificate` / `client_key`，并让 uTLS 指纹真正写入；PR #116（合并提交 `303aa996`，6 个文件 +416/−29，run `45974055040` 在 head `993f3141` 全绿）把证书类数组中的非字符串元素按「未配置」处理、统一换行，并补齐 mTLS 往返测试。两项已以同标签重发进入 preview.4 的现行资产；本版换新版本号从 main 重新出版，恢复 tag 与二进制同源，已装 preview.4 的设备可以覆盖升级。
-- 元数据升为模块 `2044` / APK `10221`（已发布 preview.4 为 `2043` / `10219`）；3.0.19 线已满 preview.4 上限，按版本规则开新线 3.0.20；正式线 `3.0.17 / 2035` 与 `SINGBOX_VERSION` 不变。边界：真实 mTLS 服务端与 Root 真机矩阵未验证（CI 自标 `runtime_regression: not_verified`）。
+- 候选未发布：`v3.0.17` 正式版之后的第一次**完整汇总预览**，收录 `v3.0.18-preview.1`–`.4` 与 `v3.0.19-preview.1`–`.4` 的全部内容，并追加两项 AnyTLS 修复（PR #115 补齐 sing-box JSON 导入的 `client_certificate` / `client_key` 并让 uTLS 指纹真正生效；PR #116 把证书类数组中的非字符串元素按「未配置」处理、统一换行并补齐 mTLS 往返测试）；按主题分组的完整逐项说明见 [PREVIEW_NOTES.md](PREVIEW_NOTES.md)，同批三份文档 PR（#117 preview.4 重发记录、#118 上游同步评估、#119 GHSA-q6pm-rh93-9hr5 同类面排查）不改代码。旧预览 Release 已按单预览策略清理，升级到本版即等于拿到这期间全部改动；换新版本号从 main 重新出版，恢复 tag 与二进制同源，已装 preview.4 的设备可以覆盖升级。
+- 元数据升为模块 `2044` / APK `10221`（已发布 preview.4 为 `2043` / `10219`）；3.0.19 线已满 preview.4 上限，按版本规则开新线 3.0.20；正式线 `3.0.17 / 2035` 与 `SINGBOX_VERSION` 不变。边界：真实 mTLS 服务端、Root 真机矩阵、WebUI 实机与 OEM Google 联网兼容均未验证（CI 自标 `runtime_regression: not_verified`）。
 
 ### v3.0.19-preview.4（已发布预览）
 

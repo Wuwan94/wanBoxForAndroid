@@ -2,20 +2,108 @@
 
 **状态：未发布的稳定性预览版候选。** 正式版仍为 `v3.0.17`；官方 sing-box 内核与 `SINGBOX_VERSION` 未改。
 
-3.0.19 线已用满每线 preview.4 的上限，本版按版本规则开新线 3.0.20。内容是 `v3.0.19-preview.4`（tag `cfb1e25c`）之后合入 `main` 的两项 AnyTLS 修复：[PR #115](https://github.com/Wuwan94/wanBoxForAndroid/pull/115)（合并提交 `d4ae3418d5ab1ca8921aae92564d5b9381f4edf2`，5 个文件 +196/−6，`Verify Android Build` run `45954188062` 在 head `a76ecae6` 全绿）和 [PR #116](https://github.com/Wuwan94/wanBoxForAndroid/pull/116)（合并提交 `303aa996567969ce0801ce5c7c30740f5404ae31`，6 个文件 +416/−29，run `45974055040` 在 head `993f3141` 全绿）。这两项修复已经以同标签重发的方式进了 preview.4 的现行资产，但那样做 tag 不动、`versionCode` 不变，已安装旧包的设备收不到更新。本版用新的版本号从 `main` 重新出版，让 tag 与二进制重新同源，也让已装 preview.4 的设备可以正常覆盖升级。另有三份文档 PR（#117 preview.4 重发记录、#118 上游同步评估、#119 GHSA-q6pm-rh93-9hr5 同类面排查），都不改代码。
+这一版是 `v3.0.17` 正式版之后的**第一次完整汇总预览**：从 `v3.0.18-preview.1` 到 `v3.0.19-preview.4` 的四个 3.0.18 预览、四个 3.0.19 预览，加上预览线期间合入的两项 AnyTLS 修复（[PR #115](https://github.com/Wuwan94/wanBoxForAndroid/pull/115) / [PR #116](https://github.com/Wuwan94/wanBoxForAndroid/pull/116)），全部内容都在本版里。以往每发一版预览只保留最新一个，旧预览的 Release 会被清理，想回看某次改动只能翻更新日志和旧 PR；这一次把自 `v3.0.17` 以来所有预览版的更新按主题写全在一处，在用 `v3.0.19-preview.4` 的只要升级到本版一次，就等于拿到了这期间的全部改动。
 
-### 【AnyTLS 客户端证书：从 sing-box JSON 导入不再丢】
+3.0.19 线已经用满每线 `preview.4` 的上限，按版本规则开新线 3.0.20。前两项 AnyTLS 修复此前是以**同标签重发**的方式进了 `v3.0.19-preview.4` 的现行资产，那样 tag 不动、`versionCode` 不变，已装旧包的设备收不到更新；本版换新版本号从 `main` 重新出版，tag 与二进制重新同源，已装 `v3.0.19-preview.4`（无论首发包还是两次重发包）都能正常覆盖升级。同期合入的三份文档（[PR #117](https://github.com/Wuwan94/wanBoxForAndroid/pull/117) preview.4 重发记录、[PR #118](https://github.com/Wuwan94/wanBoxForAndroid/pull/118) 上游同步评估、[PR #119](https://github.com/Wuwan94/wanBoxForAndroid/pull/119) 安全公告同类面排查）不改代码。
 
-- **导入补全**：从 sing-box JSON 导入 AnyTLS 节点时，会读取 `client_certificate` / `client_key`（字符串或数组两种写法都支持），保存后完整写回出站配置；没有客户端证书的节点，输出与原来一样（PR #115）。
-- **uTLS 指纹真的生效**：以前生成配置时，指纹值被同名局部变量覆盖，`utls.fingerprint` 一直是空的，sing-box 一律按 chrome 处理。现在选 firefox 等会如实写入；REALITY 没选指纹时回落 chrome（PR #115）。
-- **PEM 不会被写坏**：`certificate` / `client_certificate` / `client_key` / `ech.config` 数组里混进 `null` 或数字时，以前会被当成 `"null"` / `"1"` 拼进证书。现在这类值和空串、空数组一样按「未配置」处理；Windows 换行统一为 `\n`，只去掉首尾空白，正文不动（PR #116）。
-- **边界**：只在 JVM 单测与 PR CI 的模拟器 instrumentation 里验证过；没有在真机和真实 mTLS AnyTLS 服务端上验证。VMess / VLESS / Trojan 等协议从 JSON 导入时同样不读客户端证书，留待后续。
+### 【一、智能选路：TCP 与 UDP 分开记账，回切只认真凭据】
+
+这是 3.0.18 全线的主线，从 preview.1 一路修到 preview.4，再由 3.0.19-preview.4 补掉最后一处迟到观测的漏洞。
+
+- **当前层级按网络各存一份**：以前一个策略组只共用一份「当前层级 + 回切门」状态，UDP 的结果会顶掉 TCP 的判断、反过来也一样；现在 TCP 和 UDP 各有一份当前层级与恢复门，故障转移只下移出问题的那张网，另一张网不受牵连（3.0.18-preview.1，[PR #77](https://github.com/Wuwan94/wanBoxForAndroid/pull/77)，附 11 条跨协议隔离回归）。
+- **每轮探测按「成员 + 网络」分账**：一轮测速里 TCP 与 UDP 的观测分成两张表，两层恢复门只读自己那张；同一轮里缓存跳过的记「跳过」、预算到期或调用方取消的记「取消」，都不算健康轮次；嵌套的策略组按网络各汇总一份，单协议成员只对自己支持的网络产生观测（3.0.18-preview.2，[PR #80](https://github.com/Wuwan94/wanBoxForAndroid/pull/80)）。
+- **UDP 探测改成真实往返回显**：以前只要能把 UDP 连接建起来就算成功——VMess / VLESS / Trojan / XUDP 都是「首次写入才真正建会话」，建起来什么也证明不了，回切门可能凭假证据提前切回。现在要发出一条探测包、收到目标原样回显才算「已验证」；首次写入失败、关联失败、回包内容不符记「失败」；静默丢弃、超时、空包记「未知」；没配端点或成员不支持 UDP 记「跳过」（零流量）；取消记「取消」。只有「已验证」推进回切计数，「失败」清零并盖戳，「未知」既不涨也不清零，TCP 成功也不再冒充 UDP 证据（3.0.18-preview.2，PR #80）。
+- **探测目标只来自你自己配置**：UDP 回显端点不默认任何第三方服务、不额外发 DNS 查询；目标的服务器必须是 `IP:port`，探测载荷 ≤512 字节，单次超时 ≤5 秒且不超过整轮 5 秒预算；每个成员只发一条、只读一次、不重试，取消即关闭连接叫醒阻塞读（PR #80）。
+- **新增「UDP 回显端点」设置**：设置 → 连接与核心 → UDP 回显端点，可以填自管的数字 IP 和端口，默认留空就是零流量；这个端点会传到外层和各子层级，但不会进入导出配置，也不会被一次性测速拿去用；不支持 UDP 回显的服务不能当端点（3.0.18-preview.3，[PR #83](https://github.com/Wuwan94/wanBoxForAndroid/pull/83)）。
+- **只有 UDP 的上层成员不再借 TCP 的延迟**：这类成员凭有效回显证据进入候选，TCP 与 UDP 的历史互不替代；回切仍要求连续三轮新观测 + 60 秒无失败（3.0.18-preview.3，PR #83）。
+- **降级即作废旧回切资格**：发生故障转移时，在同一把写锁里清零失败层并重盖失败戳、当前层级只往下移、更高层的连续健康计数全部作废，且只作用在被拨的那张网；同时把「门代次」加一，让迟到的观测失效（3.0.18-preview.2，PR #80）。
+- **迟到的成功不再有副作用**：门代次变化之后，迟到的 TCP 探测或数据面拨号成功，不再覆盖历史的延迟记录，也不再清掉成员的连续失败计数，回切不会被一条过期的「成功」骗走（3.0.19-preview.4，[PR #104](https://github.com/Wuwan94/wanBoxForAndroid/pull/104)）。
+- **UDP 回包按来源核对**：回包来源核对不了记「未知」，来源不符或内容不符记「失败」；截止判定先看是不是父级取消（记「取消」），再看是不是单探针超时（记「未知」），并且在关联、发送、读取之后各再核对一次（3.0.18-preview.4，[PR #86](https://github.com/Wuwan94/wanBoxForAndroid/pull/86)）。
+- **迟到回包永远不算成功**：新增行为级用例——回包在探针结束之后才到、或者调用方已经取消，都只记「未知」、不推进回切门（3.0.18-preview.4，[PR #87](https://github.com/Wuwan94/wanBoxForAndroid/pull/87)）。
+- **已明确失败的证据照常删除**：门代次在一轮内发生变化时，此前会把整轮 UDP 证据的更新（含删除）一起跳过，已明确失败的成员会一直保留旧的「已验证」；现在代次变化只拦「记成功」，失败删除照常落地（3.0.18-preview.4，[PR #84](https://github.com/Wuwan94/wanBoxForAndroid/pull/84)）。
+- **组关掉就不再偷偷拨备用**：策略组一关，在途的尝试就会被取消（含 3 秒单步超时窗口），备用循环不再发起任何新拨号，迟到的连接统一关闭释放并返回统一错误（3.0.18-preview.2，PR #80）。
+- **「导出 / 一次性测速排除探测端点」可测了**：这条判定从配置构建里抽成可测函数，补了四种组合的回归（3.0.18-preview.4，PR #84）。
+- **没放宽的约束**：测速间隔 ≥10 秒、空闲超时 ≥30 分钟、切换时不中断现有连接、层级回切门（连续 3 轮健康 + 60 秒无失败）都没动；失败方向仍是 fail-closed——证据不足就停在当前层级，不回切。
+
+### 【二、开机自启与 Root 设置：不再「开关点了没反应」】
+
+- **开机自启开关终于生效**：这个开关此前在界面上没有绑定，永远按默认「关」下发给模块；现在会写回设置并立刻同步给 Root 模块（3.0.18-preview.1，[PR #78](https://github.com/Wuwan94/wanBoxForAndroid/pull/78)）。
+- **「重启核心」和「回滚配置」有了入口**：重启带确认弹窗；回滚配置是模块保留的上一代配置自救通道，以前 App 侧白名单里没有 `config rollback`，点了会被拒，现在放行。两处都复用模块已有命令，模块侧零改动（3.0.18-preview.1，PR #78）。
+- **顶栏显示模块版本**：仪表盘顶栏副标题跟随模块版本，热更新之后在主界面就能看到版本变化，不用再翻设置子页（3.0.18-preview.1，PR #78）。
+- **自启改成「下发 → 回读确认 → 落库」闭环**：失败、超时、结果未知都重试一次，仍失败就保持原值、开关回滚显示并给中文提示；返回设置页会回读比对，不一致显示「待同步」；模块没在运行时不会被擅自拉起（3.0.18-preview.2，PR #80）。
+- **连点按最后一次选择落地**：等待确认期间连续点开关，按最后一次点的值生效，旧回调不覆盖新选择（3.0.18-preview.3，PR #83）。
+- **自启结果不再「粘住」**：结果改成可重放的状态发布，页面重开后会接续同步；界面呈现过一次就清掉，不会再出现「昨天切开关失败、今天进设置还显示同步失败」；失败时在页面还有效的情况下弹一次提示，而不是只留一句摘要（3.0.18-preview.4，PR #87）。
+- **锁只保护该保护的东西**：登记锁只管序号和内存状态，数据库读写与系统开关调用全部移到锁外，点开关不会排在写库后面干等；落库抛异常时界面发布可见失败并保持原值，不会永远停在「同步中」（3.0.18-preview.4，PR #87）。
+- **首次应用配置前也回读自启设置**：没有有效配置就不启动核心，配置损坏照旧不可用（3.0.18-preview.3，PR #83）。
+- **`boot.json` 的状态不再含糊**：文件不存在 → 回落最近快照；格式损坏、空文件、缺字段、字段类型不对 → 「配置无效」；权限或读取错误 → 「配置不可读」。后几种不会再拿快照冒充生效值，坏文件也不改写不删除；重新切一次开关（原子重写）是唯一修复路径，重写前会记一条事件。设置页把「待同步」和「待处理」分开显示，后者给中文提示（3.0.18-preview.2 / preview.4，PR #80 / #86）。
+
+### 【三、Root 模块有了网页控制台】
+
+- **能做什么**：在 KernelSU / APatch 管理器里打开 wanBox 的固定页面，看模块运行状态与最近事件、启停模块、导出最近 40 条事件（3.0.19-preview.4，[PR #107](https://github.com/Wuwan94/wanBoxForAndroid/pull/107)）。
+- **怎么连通**：页面只调用固定的 `wanboxctl` 白名单命令，不起本地 HTTP 服务、不加载外部脚本、严格 CSP，成功响应严格校验；事件视图与导出共用同一份「最近 40 条」过滤。
+- **打包和权限都定死**：打包、合包、Go 安装器都用固定资源白名单，目录 0755、四项资源 0644；完全不含 WebUI 的旧模块清单照常兼容，只给一部分的会被拒绝。
+- **KernelSU / APatch 桥接修好**：去掉裸的 `kernelsu` 导入，改走兼容的 `globalThis.ksu.exec` 加独立回调；回调、异常、超时都会清理回调名；没有兼容桥接时所有按钮一律禁用，不会假装成功（3.0.19-preview.4，[PR #112](https://github.com/Wuwan94/wanBoxForAndroid/pull/112)）。
+- **门禁**：WebUI 有独立的 Node 测试（修桥接后 13 项），源码与打包后的 WebUI 各有一道 1 MiB 体积门禁，Root 模块总包与「APK + 模块」总量门禁不变。
+- **边界**：页面与桥接只在单测和模拟器上验证过，Magisk / KernelSU / APatch 真机尚未实测。
+
+### 【四、AnyTLS 客户端证书（mTLS）：私钥只留在本机】
+
+- **能填什么**：节点设置里可以贴客户端证书与私钥 PEM，写进 sing-box 出站 TLS 的客户端证书与私钥字段；两项留空就还是原来的单向 TLS（3.0.19-preview.4，[PR #111](https://github.com/Wuwan94/wanBoxForAndroid/pull/111)）。
+- **旧配置照常读**：新字段走 v2 持久化，旧版配置照常读取；HWID、Mieru 与策略组行为未改。
+- **不会外泄**：`anytls://` 与通用分享链接都不携带证书和私钥（只清理导出副本，不动本地配置）；诊断包会把配置与 Root 快照里的 AnyTLS 私钥 / 证书替换成 `***`；设置页只显示私钥摘要，不回显内容。
+- **从 sing-box JSON 导入不再丢证书**：导入时会读客户端证书与私钥（字符串或数组两种写法都支持），保存后完整写回出站配置；没有客户端证书的节点，输出与原来一样（本版，[PR #115](https://github.com/Wuwan94/wanBoxForAndroid/pull/115)）。
+- **uTLS 指纹真的生效**：以前生成配置时指纹值被同名局部变量覆盖，`utls.fingerprint` 一直是空的，sing-box 一律按 chrome 处理；现在选 firefox 等会如实写入，REALITY 没选指纹时回落 chrome（本版，PR #115）。
+- **PEM 不会被写坏**：证书类数组里混进 `null` 或数字时，以前会被当成 `"null"` / `"1"` 拼进证书；现在这类值和空串、空数组一样按「未配置」处理，Windows 换行统一成 `\n`、只去掉首尾空白、正文不动，各协议 TLS 字段导入都补了回归（本版，[PR #116](https://github.com/Wuwan94/wanBoxForAndroid/pull/116)）。
+- **边界**：没有真实 mTLS 服务端可连，只在 JVM 单测与 CI 模拟器里验证字段映射、导入往返与脱敏；VMess / VLESS / Trojan 从 JSON 导入时同样不读客户端证书，留待后续。
+
+### 【五、XHTTP：wanBox 自己也能当服务端，长上传不再断流】
+
+- **新增 XHTTP 服务端入站**：官方 sing-box 不支持 XHTTP 传输，项目此前已在扩展层补齐客户端，这一版补齐服务端——wanBox 可以作为 XHTTP 服务端接受连接。支持 `auto`、`packet-up`、`stream-up`、`stream-one` 四种模式，HTTP/1.1、HTTP/2 与 h2c、TLS，会话与上行数据的 path / query / header / cookie 放置兼容，带 X-Padding 校验与 CORS 预检；传输不是 XHTTP 时原样交回官方实现，普通 VLESS（含 ws 等传输）行为不倒退。经现有节点自定义 JSON（`transport.type = "xhttp"`）启用，不新增配置向导，App 界面与数据模型未改，官方内核与 `SINGBOX_VERSION` 未动（3.0.19-preview.1，[PR #90](https://github.com/Wuwan94/wanBoxForAndroid/pull/90)）。
+- **服务端不裸奔**：会话数、单会话与全局缓冲字节、并发上行数、未连接会话超时都有上限，异常请求按状态码拒绝；上传用滚动读取超时，连接超时或关闭后及时回收资源，慢上传不会堵住其他会话（3.0.19-preview.1 / preview.2，PR #90 / [PR #94](https://github.com/Wuwan94/wanBoxForAndroid/pull/94)）。
+- **修掉两处客户端老问题**：出站构造请求时先整体替换 Header 再写会话头，会把会话头冲掉；上传字节计数在缓冲区被消费之后才读长度、一直偏小。两处都改了（3.0.19-preview.1，PR #90）。
+- **连真 Xray 服务端不再 400**：`stream-one` 模式的客户端会话 ID 让 Xray 把请求识别成 `stream-up` 并拒绝，现已修好；`auto` / `packet-up` / `stream-up` 行为不变（3.0.19-preview.3，[PR #96](https://github.com/Wuwan94/wanBoxForAndroid/pull/96)）。
+- **修掉续接与并发竞态**：`stream-up` 续接与 `stream-one` 并发竞态；会话来源校验、重复下行与请求校验收紧；乱序缓冲溢出时结束会话并释放积压数据（3.0.19-preview.2，PR #94）。
+- **客户端不再无限等**：连接有了总时长、读、写三种期限，超时按方向失败关闭（读超时关掉这条会话，写超时关掉上传方向）；不做不安全的自动重连续传，也不假装成功；单个请求取消不会把共享的 HTTP/2 连接一起判死（3.0.19-preview.4，[PR #102](https://github.com/Wuwan94/wanBoxForAndroid/pull/102)）。
+- **服务端保活更规整**：`stream-up` 成功响应按 20–80 秒周期发 padding 保活，响应写期限与上传读空闲期限分开算，填 `-1` 可以关闭（3.0.19-preview.4，[PR #103](https://github.com/Wuwan94/wanBoxForAndroid/pull/103)）。
+- **长上传不再被保活挤断**：服务端开保活时，成功响应以前读到 32 KiB 就被重置，长上传会断在中途；现在会持续排空到响应结束再收尾，上传能完整送达。新增真实 TLS / HTTP/2 回环回归盯这条路径：旧代码 3 次全红、修复后 3 次全绿（3.0.19-preview.4，[PR #108](https://github.com/Wuwan94/wanBoxForAndroid/pull/108)）。
+- **日常日志不再刷屏**：服务端拒绝异常请求的提示从信息级降到调试级（3.0.19-preview.3，PR #96）。
+- **互通门槛抬成硬门禁**：每次提交都会用官方 Xray v26.11.9 跑 12 项真实互通（双向四模式 + `auto` 双向 TLS + header/cookie 补测），下载包按 SHA-256 校验，跳过或少跑直接判失败；同一份校验脚本同时用于 PR、预览发布和正式发布，命中构建缓存也不跳过（3.0.19-preview.3 / preview.4，[PR #98](https://github.com/Wuwan94/wanBoxForAndroid/pull/98) / [PR #101](https://github.com/Wuwan94/wanBoxForAndroid/pull/101)）。
+- **示例与文档跟上**：更新 XHTTP 自定义 JSON 示例，CI 纳入 XHTTP 回归与 Go 竞态检测（3.0.19-preview.2，PR #94）。
+
+### 【六、节点标签与手动新建：XHTTP / Reality 一眼分清】
+
+- **看得清**：节点列表、选择列表、详情页和通知标题按节点实际字段显示 `VLESS + XHTTP`、`VLESS · Reality` 或 `VLESS + XHTTP · Reality`，不再统一写 `VLESS`；普通协议的通知文案保持原样，特殊标签只替换节点名并保留原有分组前缀（3.0.19-preview.4，[PR #109](https://github.com/Wuwan94/wanBoxForAndroid/pull/109)）。
+- **加得快**：「+ → 手动设置」新增「VLESS + XHTTP」，点进去就是预置好 XHTTP 传输的表单，不用再手改类型；普通 VLESS 仍默认 TCP（3.0.19-preview.4，[PR #110](https://github.com/Wuwan94/wanBoxForAndroid/pull/110)）。
+- **没变形**：分享链接、核心配置、策略组拨号、HWID 外发都没有改动，也没有数据库迁移。
+
+### 【七、界面：全面屏避让与预测性返回】
+
+- 非浮层页面统一做 edge-to-edge 避让，状态栏、导航栏、挖孔与横屏刘海不再压住内容；浮层窗口保持原有行为，透明节点选择、数据库恢复、落地 IP 底部面板各有明确策略（3.0.19-preview.4，[PR #105](https://github.com/Wuwan94/wanBoxForAndroid/pull/105)）。
+- 返回键改走 AndroidX 分发，支持预测性返回动画，各页面原有的返回值不变。
+- **边界**：Android 14/15 的手势、三键导航、输入法与横屏实机行为未验证，单测只覆盖尺寸计算与接线。
+
+### 【八、部分 OEM 的 Google 联网拦截可按需修掉（待真机确认）】
+
+- **只删该删的那一条**：Root 模块在开机就绪 60 秒后（或成功热激活、锁释放后）做一次严格白名单预检——红魔 / 努比亚 / 中兴只读取并定点删除 `zte_fw_gms` 里目标 Google UID 的单 UID 拦截规则，IPv4 / IPv6 全量读取预检通过后才动手；一加 / OPPO ColorOS 16 要求 user 0、厂商策略门禁与所有已存在的 pin / program / map 结构全部匹配，只删目标 UID 且值为 `1` 的 map 条目，保留 BPF 程序与 map（3.0.19-preview.4，[PR #106](https://github.com/Wuwan94/wanBoxForAndroid/pull/106)）。
+- **认不出来就整体跳过**：固件、UID 共享、策略或 BPF 布局任何一项对不上都不动；不 flush 链、不碰 DNS 与共享规则、不生成也不发送 HWID，逐项删除前复核模块状态。
+- **边界**：这是可选的一次性尽力修复，不改变核心自启、App 界面与用户配置；Root 真机矩阵（红魔 / 努比亚 / 中兴、一加 / OPPO ColorOS 16）都还没测，已经删掉的拦截项也不会因为回退代码自动重建。
+
+### 【九、文档与安全排查（不改代码）】
+
+- **preview.4 同标签重发的记录补齐**：preview.4 首发之后又有两次同标签修复重发，仓库文档把首发与两次重发的时间、run 号、现行四件套数据分开记清了（[PR #117](https://github.com/Wuwan94/wanBoxForAndroid/pull/117)）。
+- **上游同步评估逐项结论**：把 NetProxy v8.7.1–v8.7.3 与 OwnBox `v26.11.24.6-preview` 的「借鉴 / 不借鉴 / 不适用」逐项写进 `docs/upstream-sync-2026-11.zh-CN.md`，只写文档、不改结论口径（[PR #118](https://github.com/Wuwan94/wanBoxForAndroid/pull/118)）。
+- **安全公告同类面排查**：对照 Husi 的「不可信备份可恢复并执行自定义插件」公告（GHSA-q6pm-rh93-9hr5），排查了备份导入、插件 / 外部程序、订阅与分享链接三个面，结论是三个面在 wanBox 都不可达，没有改代码（[PR #119](https://github.com/Wuwan94/wanBoxForAndroid/pull/119)）。
 
 ### 【升级与回退】
 
-- APK `versionCode` `10219 → 10221`、Root 模块码 `2043 → 2044`。已装 preview.4（无论首发包还是重发包）都可以直接覆盖升级；同一 Release 的管理器 APK 与 Root 模块请成套安装，不要跨版本混用。
-- 回退用正式版 [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17)（模块码 `2035`）。
-- **总边界**：Root 真机矩阵（Magisk / KernelSU / APatch）、WebUI 实机、真实 mTLS 服务端与 OEM Google 兼容都未实测，本版不晋升正式版。
+- APK `versionCode` `10219 → 10221`、Root 模块码 `2043 → 2044`；同一 Release 的管理器 APK 与 Root 模块请成套安装，不要跨版本混用。
+- 已装 `v3.0.19-preview.4`（首发包或两次重发包都行）可以直接覆盖升级；从更早的 3.0.18 / 3.0.19 预览升上来同理，一路覆盖即可，中间版本不用逐个装。
+- 回退用正式版 [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17)（模块码 `2035`）成套重装；`v3.0.19-preview.3` 及更早预览的 Release/tag 已按单预览策略清理（现为 404），不要指向它们。
+
+### 【验证边界】
+
+- **自动化覆盖**：Go 单测与 `-race`、`go vet`、Python 工具与文档门禁、JVM 单测、PR CI 的模拟器 instrumentation、官方 Xray v26.11.9 的 12 项互通、Root 模块的 Node / Python 测试与体积门禁。
+- **仍未验证**：Root 真机矩阵（Magisk / KernelSU / APatch）、KernelSU / APatch 里真实打开 WebUI、真实 mTLS AnyTLS 服务端握手、真实 Xray 客户端连本项目的 XHTTP 服务端、OEM Google 联网兼容真机、Android 14/15 手势与横屏实机表现。CI 自标 `runtime_regression: not_verified`，自动化结果不等于真机签核，本版不晋升正式版。
 
 ---
 
