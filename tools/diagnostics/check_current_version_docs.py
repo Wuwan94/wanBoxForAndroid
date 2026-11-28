@@ -13,18 +13,20 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# v3.0.17 正式版：正式线元数据为 3.0.17 / 2035（APK 10175），两阶段发布已完成并回填。
-STABLE_TAG = "v3.0.17"
-STABLE_CODE = "2035"
-STABLE_APK_CODE = "10175"
+# v3.0.19 正式版：正式线元数据为 3.0.19 / 2044（APK 10220），两阶段发布已完成并回填；
+# v3.0.17（10175 / 2035）转为回退目标，仍在 Releases 中保留。
+STABLE_TAG = "v3.0.19"
+STABLE_CODE = "2044"
+STABLE_APK_CODE = "10220"
 # v3.0.19-preview.4 已发布：Preview Build run 45890957065 于 2026-11-26T20:54:52Z 首发，tag 为
 # cfb1e25c4b02f261dee17baa77a4fa4a1fa60565；之后 PR #115 / #116 两次同标签重发只替换资产（现行资产源提交
 # 303aa996，published_at 更新为 2026-11-27T10:18:51Z），tag 未移动；发布后 preview.3 已清理。
 PUBLISHED_PREVIEW = "v3.0.19-preview.4"
 PUBLISHED_PREVIEW_COMMIT = "cfb1e25c4b02f261dee17baa77a4fa4a1fa60565"
-# 当前源码预览线与最近已发布预览一致；版本元数据仍指向 2043。
-SOURCE_PREVIEW = "v3.0.19-preview.4"
-SOURCE_PREVIEW_CODE = "2043"
+# 正式版发布后源码预览线开新线 v3.0.20-preview.1（未发布占位）：发行说明当前区段必须
+# 明确标为「未发布候选」；已发布预览仍为 preview.4（正式发布不触发 prune，preview.4 保留）。
+SOURCE_PREVIEW = "v3.0.20-preview.1"
+SOURCE_PREVIEW_CODE = "2045"
 # v3.0.19-preview.3 的 Release/tag 已在 preview.4 发布后清理，只保留历史说明与资产快照。
 ARCHIVED_PREVIEW = "v3.0.19-preview.3"
 HISTORY_MARKER = "历史归档"

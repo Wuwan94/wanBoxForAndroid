@@ -1,6 +1,6 @@
-# v3.0.17 正式版发布清单
+# v3.0.19 正式版发布清单
 
-本版 **v3.0.17 为正式版（非预览）**：正式线元数据由 `3.0.14 / 2026` 晋升为 `3.0.17 / 2035`（APK `versionCode=10175`、Root 模块码 `2035`），内容承接 3.0.17 预览线（preview.1–.4）与 PR #74 的全部修复。用户已明确指令“我新的提交通过了，你帮我合并发布正式版”（2026-11-19），本次按 `release.yml` **两阶段**流程执行：阶段一候选构建（`publish_release=false`）→ 核对 `SHA256SUMS` → 阶段二正式上架（`publish_release=true`，带 `candidate_run_id` 与 `expected_checksums_sha256`）。本版已于 2026-11-19T07:24:49Z 上架（候选 run `44474557410` → 正式 run `44477065390`），四件套字节与 SHA-256 已回读入本清单与[版本对照](current-version.zh-CN.md)。**Root 真机矩阵仍未执行**，不以自动化结果代替真机签核。
+本版 **v3.0.19 为正式版（非预览）**：正式线元数据由 `3.0.17 / 2035` 晋升为 `3.0.19 / 2044`（APK `versionCode=10220`、Root 模块码 `2044`），内容承接 `v3.0.17` 之后的全部预览（`v3.0.18-preview.1`–`.4`、`v3.0.19-preview.1`–`.4`）、两项 AnyTLS 导入修复（PR #115 / #116）与构建输入 GeoSite 固定版本前移（PR #121）。用户 2026-11-28 明确指令发正式版，本次按 `release.yml` **两阶段**流程执行：阶段一候选构建（`publish_release=false`）→ 核对 `SHA256SUMS` → 阶段二正式上架（`publish_release=true`，带 `candidate_run_id` 与 `expected_checksums_sha256`）。**Root 真机矩阵仍未执行**，不以自动化结果代替真机签核。
 
 ## 当前基线与不可变约束
 
@@ -9,20 +9,20 @@
 - 内核 `reF1nd/sing-box v1.15.0-alpha.13-reF1nd`。内核和 targetSdk 阶段只评估，升级须另获确认。
 - 模块拥有代理生命周期；管理器为瘦 APK，不引入多内核、不恢复 VPN、不重做 UI。
 - 不删除或改名设置键、不改默认值；TLS 默认证书验证；日志不得含备份内容、节点凭据、订阅原文。
-- 本版元数据：正式线 `3.0.17 / 2035`（APK `10175`、模块 `2035`）；当前预览线 `3.0.19-preview.4 / 2043` 已于 2026-11-26T20:54:52Z 发布（3.0.18 线已满 preview.4 上限而开新线，见下方「预览线现状」）；`SINGBOX_VERSION` 不变。
-- 正式发布时保留的预览 `v3.0.17-preview.4`（`10174 / 2034`，源码 `906a6ea3`）当时仍在 Releases 中（正式发布不执行 `prune_prereleases.py`）；它已在 `v3.0.18-preview.1` 发布后按单预览策略清理，现为 404。
+- 本版元数据：正式线 `3.0.19 / 2044`（APK `10220`、模块 `2044`）；下一条预览线占位 `3.0.20-preview.1 / 2045`（未发布，派生 APK `10226`、模块 `2045`）；`SINGBOX_VERSION` 不变。
+- 正式发布时保留的预览 `v3.0.19-preview.4`（`10219 / 2043`，tag `cfb1e25c`，现行资产源提交 `303aa996`）仍在 Releases 中（正式发布不执行 `prune_prereleases.py`）；已装 preview.4 的设备可由 `10219 → 10220` 覆盖升级。
 
 ## 版本规则（`nb4a.properties`）
 
 | 字段 | 本版值 | 说明 |
 |---|---|---|
-| `VERSION_NAME` | `3.0.17` | tag 必须严格等于 `v$VERSION_NAME` → `v3.0.17` |
-| `VERSION_CODE` | `2035` | APK `versionCode = 2035 × 5 = 10175`；Root 模块码 `2035` |
-| `PRE_VERSION_NAME` | `3.0.19-preview.4` | 当前源码与最近已发布预览一致；PR #101–#112 十二项改动、PR #113 升版，首发资产提交 `cfb1e25`（PR #115 / #116 两次同标签重发后现行资产源提交 `303aa996`） |
-| `PRE_VERSION_CODE` | `2043` | 必须 `> VERSION_CODE`（`preview.yml` 硬断言）；派生预览 APK `versionCode=10219` |
+| `VERSION_NAME` | `3.0.19` | tag 必须严格等于 `v$VERSION_NAME` → `v3.0.19` |
+| `VERSION_CODE` | `2044` | APK `versionCode = 2044 × 5 = 10220`；Root 模块码 `2044` |
+| `PRE_VERSION_NAME` | `3.0.20-preview.1` | 下一条预览线占位，避免与正式版撞号；派生预览 APK `versionCode=10226` |
+| `PRE_VERSION_CODE` | `2045` | 必须 `> VERSION_CODE`（`preview.yml` 硬断言）；模块码 `2045` |
 | `SINGBOX_VERSION` | `v1.15.0-alpha.13-reF1nd` | 与 v3.0.14 一致 |
 
-`×5` 换算与渠道判定由 `tools/version_code.py` 统一实现，两条渠道不得各自用 shell 算术推断。升级方向硬门禁：APK `10175 > 10130`（v3.0.14）、`> 10174`（preview.4）、`> 10065`（v3.0.11）；模块 `2035 > 2026 / 2034 / 2013`。
+`×5` 换算与渠道判定由 `tools/version_code.py` 统一实现，两条渠道不得各自用 shell 算术推断。升级方向硬门禁：APK `10220 > 10219`（`v3.0.19-preview.4`）、`> 10175`（`v3.0.17`）、`> 10130`（`v3.0.14`）、`> 10065`（`v3.0.11`）；模块 `2044 > 2043 / 2035 / 2026 / 2013`。
 
 ## 发布前门禁清单（G1–G13，沿用正式门禁基线）
 
@@ -33,9 +33,9 @@
 | G3 | `app:testOssDebugUnitTest`、`app:compileOssDebugAndroidTestKotlin`、`:core-domain:test`、Python 全量单测 | 停止 |
 | G4 | tag == `v$VERSION_NAME`；tag 不存在；dispatch 的 `approved_sha` == `github.sha` | 停止 |
 | G5 | `version_code.py --enforce`：APK `> 10065`、模块 `> 2013` | 停止 |
-| G6 | `aapt`：包名 / `versionName=3.0.17` / `versionCode=10175` / `minSdk=31` / `targetSdk=35`；`verify_apk_abi.py --thin`；`lib/` 条目为 0 | 停止 |
+| G6 | `aapt`：包名 / `versionName=3.0.19` / `versionCode=10220` / `minSdk=31` / `targetSdk=35`；`verify_apk_abi.py --thin`；`lib/` 条目为 0 | 停止 |
 | G7 | `apksigner`：v2 验签 + 证书 `80ecee…21f6`；**下载 v3.0.11 实际 APK 做跨版本包名 / 签名 / 版本码比对** | 停止 |
-| G8 | 正式模块 `--channel formal`；`module.prop` 为 `3.0.17` / `2035`；ZIP 完整性 | 停止 |
+| G8 | 正式模块 `--channel formal`；`module.prop` 为 `3.0.19` / `2044`；ZIP 完整性 | 停止 |
 | G9 | 普通模块 ZIP 与带管理器 ZIP 均通过 `python3 -m zipfile -t` | 停止 |
 | G10 | 资产白名单恰为 `{APK, 普通模块 ZIP, 带管理器 ZIP, SHA256SUMS}` | 停止 |
 | G11 | 上传前 `sha256sum --check`；发布后回读资产并比对大小 / SHA256 | 停止 |
@@ -47,21 +47,27 @@ CI 层**不执行**覆盖安装；`verify_upgrade` 只保留纯静态契约硬�
 ## 流程顺序（两阶段，不可跳步）
 
 ```
-S1 从最新 main 建 chore/release-v3.0.17：升版 nb4a.properties、同步七份发布文档与检查器
+S1 从最新 main 建 chore/release-v3.0.19：升版 nb4a.properties、同步七份发布文档与检查器
 S2 Verify Android Build 全绿 → --merge 合入 main，记录合并提交 SHA（APPROVED_SHA）
-S3 阶段一（候选构建）：在 main 上触发 release.yml，tag=v3.0.17、publish_release=false、approved_sha=<合并提交 SHA>
+S3 阶段一（候选构建）：在 main 上触发 release.yml，tag=v3.0.19、publish_release=false、approved_sha=<合并提交 SHA>
    产出 release-candidate-assets 并取得 SHA256SUMS 文件自身哈希（expected_checksums_sha256）
-S4 阶段二（正式上架）：二次触发 release.yml，tag=v3.0.17、publish_release=true，
+S4 阶段二（正式上架）：二次触发 release.yml，tag=v3.0.19、publish_release=true，
    填入阶段一的 candidate_run_id 与 expected_checksums_sha256
 S5 发布后回读 Release API：prerelease=false、四件套名称/大小/SHA256 吻合、
    tag / targetCommitish / APPROVED_SHA / APK 内 version-control-info 四处同源、
-   v3.0.14、v3.0.11 与 v3.0.17-preview.4 均完好保留
-S6 收尾 PR：把候选/正式 run ID、实测字节与 SHA-256 回填到本清单与版本对照（已完成）
+   v3.0.17、v3.0.14、v3.0.11 与 v3.0.19-preview.4 均完好保留
+S6 收尾 PR：把候选/正式 run ID、实测字节与 SHA-256 回填到本清单与版本对照
 ```
 
 > Release 正文由 CI 从 `RELEASE_NOTES.md` 复制生成；发布后若需勘误，只编辑 Release 正文（`PATCH /repos/{owner}/{repo}/releases/{id}`），不覆盖 tag、不重发同名 Release。
 
-## 本次发布证据
+## 本次发布（v3.0.19）证据（待回填）
+
+- 前置：GeoSite 固定版本前移 PR #121（`buildScript/lib/geo-assets.lock.json`，`20261108011013` → `20261127135030`）`Verify Android Build` 全绿后合入 main。
+- 升版 PR #122：`Verify Android Build` run 待回填；合并提交 `<升版合并提交>`（即 `APPROVED_SHA`）。
+- 阶段一（候选 run 待回填）→ 阶段二（正式 run 待回填），四件套字节与 SHA-256 待回读。
+
+## 历史：v3.0.17 正式版发布证据
 
 - PR #74（`fix/urltest-tier-failover-observations`）：`Verify Android Build` run `44465876305` 在 head `1553d0b2` 全绿，2026-11-19T06:07:25Z 以 `--merge` 合入，合并提交 `6a20a0ca7113decbe6155500dd9e70c79650bb5a`；远端分支已删除。
 - 升版 PR #75：`Verify Android Build` run `44470604018`（head `b8a29c4`）全绿，2026-11-19T06:45:34Z 以 `--merge` 合入，合并提交 `d4e7c5d049d877660108ea11f7212a9f04824cd6`（即 `APPROVED_SHA`）。本地另跑 `tools` 125 项单测、`check_current_version_docs`、`version_code --enforce` / `--check-kotlin` / `--check-app-tag`、`check_core_gate`、`roo_check_repo_governance`、`git diff --check`，全部通过。
