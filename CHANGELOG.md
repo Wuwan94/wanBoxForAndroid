@@ -4,6 +4,11 @@
 
 ## wanBox 3.0.x 发布记录
 
+### v3.0.19（正式版）
+
+- **晋升说明**：3.0.19 由预览线晋升为正式版，把 `v3.0.17` 之后的全部预览成果收进一个版本——智能选路的 TCP / UDP 分账与 UDP 真实回显、开机自启「下发 → 回读 → 落库」闭环、Root 模块静态 WebUI 与 KernelSU / APatch 桥接、AnyTLS 客户端证书、XHTTP 服务端入站与长上传稳定性、官方 Xray v26.11.9 互通硬门禁、VLESS 标签与手动 XHTTP 入口、edge-to-edge 与预测性返回、OEM Google 联网兼容，另含两项 AnyTLS 导入修复（PR #115 / #116）与 GeoSite 固定版本前移（PR #121）；逐项说明见 [RELEASE_NOTES.md](RELEASE_NOTES.md) 与 [PREVIEW_NOTES.md](PREVIEW_NOTES.md) 的历史归档。
+- 版本映射为 Root 模块码 `2044`、APK `versionCode=10220`（`VERSION_CODE=2044` × 5），严格高于 `v3.0.19-preview.4`（`10219 / 2043`）、`v3.0.17`（`10175 / 2035`）与 `v3.0.14`（`10130 / 2026`），同包名同签名可覆盖安装；`PRE_VERSION_NAME=3.0.20-preview.1` / `PRE_VERSION_CODE=2045` 仅为下一预览线占位。发布走 `release.yml` 两阶段（候选 `publish_release=false` → 核对 `SHA256SUMS` → 正式 `publish_release=true` 带 `candidate_run_id` 与 `expected_checksums_sha256`）；正式版不触发 `prune_prereleases.py`，`v3.0.17`、`v3.0.14`、`v3.0.11` 与 `v3.0.19-preview.4` 均保留。发布结果待回填。
+
 ### v3.0.19-preview.4（已发布预览）
 
 - [GitHub Release v3.0.19-preview.4](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.19-preview.4) 由 `Preview Build` [run `45890957065`](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/45890957065)（dispatch `publish_release=true`、`approved_sha=cfb1e25c`）于 2026-11-26T20:54:52Z 首发；首发时 tag 对象、Release `targetCommitish`、APK 内 `version-control-info.textproto` 与 `APPROVED_SHA` 四者同为 `cfb1e25c4b02f261dee17baa77a4fa4a1fa60565`（升版 PR #113 合并提交），四个作业全绿。之后两次同标签修复重发只替换资产、不移动 tag：PR #115（合并提交 `d4ae3418`）由 `Preview Build` run `45957528901` 出候选，`Replace Existing Preview Assets` prepare run `45959760577` / execute run `45959837985` 于 2026-11-27T07:38:44Z 替换；PR #116（合并提交 `303aa996`）由 run `45978054821` 出候选，prepare run `45980842300` / execute run `45980952801` 再次替换，Release API 的 `published_at` 随之更新为 2026-11-27T10:18:51Z。现行 APK 内 `version-control-info` 为 `303aa996567969ce0801ce5c7c30740f5404ae31`，tag 与 `targetCommitish` 仍为 `cfb1e25c`。
