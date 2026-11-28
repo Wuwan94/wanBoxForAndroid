@@ -1,8 +1,16 @@
 # v3.0.19-preview.4 发行说明
 
+> **同标签修复重发（第二次，Fri 2026-11-27 6:18 PM CST）**：本页四件套已由 [PR #116](https://github.com/Wuwan94/wanBoxForAndroid/pull/116) 合并后的 `main` 提交 `303aa996567969ce0801ce5c7c30740f5404ae31` 重新构建并替换（`Preview Build` [run 45978054821](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/45978054821)，含模拟器冷启动门禁；替换 [prepare 45980842300](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/45980842300) / [execute 45980952801](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/45980952801)）。第一次重发（Fri 2026-11-27 3:38 PM CST，源提交 `d4ae341`，[PR #115](https://github.com/Wuwan94/wanBoxForAndroid/pull/115)）的两项修复全部保留。版本号、`versionCode`、签名证书与 tag 指向均未变。
+>
+> - **修复 P1：AnyTLS 从 sing-box JSON 导入时丢失客户端证书 / 私钥。** 导入解析现在读取 `client_certificate` / `client_key`（字符串或数组两种写法），经持久化后完整写回出站配置；没有客户端证书的节点输出不变。
+> - **修复：AnyTLS 选择的 uTLS 指纹没有生效。** 生成配置时指纹值被同名局部变量吞掉，`utls.fingerprint` 恒为空，sing-box 一律按 chrome 处理；现在选 firefox 等会如实写入，REALITY 未选指纹时回落 chrome。
+> - **修复：导入证书时混入非法数组元素会写坏 PEM。** sing-box JSON 的 `certificate` / `client_certificate` / `client_key` / `ech.config` 数组里若夹着 `null` 或数字，原先会被当成 `"null"` / `"1"` 行拼进证书；现在这类值与空串、空数组一样按未配置处理，Windows 换行统一为 `\n`、只去掉首尾空白，正文不动。各协议 TLS 字段导入加了回归测试。
+> - **怎么更新**：已装旧 preview.4 的不会收到自动更新，请下载本页同签名 APK 覆盖安装，Root 模块同样换成本页的包，成套安装。
+> - **边界**：JVM 单测 774 项全过（oss / preview 两套变体），PR CI 的模拟器 instrumentation 通过，未在真机与真实 mTLS AnyTLS 服务端上验证；VMess / VLESS / Trojan 等协议从 JSON 导入时同样不读客户端证书，留待后续。
+
 **状态：已发布的稳定性预览版。** 正式版仍为 `v3.0.17`；官方 sing-box 内核与 `SINGBOX_VERSION` 未改。
 
-本版由 [升版 PR #113](https://github.com/Wuwan94/wanBoxForAndroid/pull/113) 发布（合并提交 `cfb1e25c4b02f261dee17baa77a4fa4a1fa60565`），`Preview Build` [run 45890957065](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/45890957065) 四个作业全绿，2026-11-26T20:54:52Z 上架；tag、`targetCommitish`、APK 内 `version-control-info` 与发布 job 的 `APPROVED_SHA` 同为 `cfb1e25c4b02f261dee17baa77a4fa4a1fa60565`。内容是 `v3.0.19-preview.3` 之后合入 `main` 的十二条改动：Root 模块第一次有了能用的网页控制台，AnyTLS 支持客户端证书，VLESS 标签把手动入口分清 XHTTP 与 Reality，XHTTP 长上传在服务端保活下不再断流，界面适配全面屏与预测性返回，另有两处稳定性修复。正式线 `3.0.17 / 2035` 与 `SINGBOX_VERSION` 均未变。
+本版由 [升版 PR #113](https://github.com/Wuwan94/wanBoxForAndroid/pull/113) 发布（合并提交 `cfb1e25c4b02f261dee17baa77a4fa4a1fa60565`），`Preview Build` [run 45890957065](https://github.com/Wuwan94/wanBoxForAndroid/actions/runs/45890957065) 四个作业全绿，2026-11-26T20:54:52Z 首发上架；首发时 tag、`targetCommitish`、APK 内 `version-control-info` 与发布 job 的 `APPROVED_SHA` 同为 `cfb1e25c4b02f261dee17baa77a4fa4a1fa60565`。两次同标签重发只替换资产、不移动 tag：现行 APK 内 `version-control-info` 为 `303aa996567969ce0801ce5c7c30740f5404ae31`，tag 与 `targetCommitish` 仍为 `cfb1e25c`；Release API 的 `published_at` 随第二次重发更新为 2026-11-27T10:18:51Z。内容是 `v3.0.19-preview.3` 之后合入 `main` 的十二条改动：Root 模块第一次有了能用的网页控制台，AnyTLS 支持客户端证书，VLESS 标签把手动入口分清 XHTTP 与 Reality，XHTTP 长上传在服务端保活下不再断流，界面适配全面屏与预测性返回，另有两处稳定性修复。正式线 `3.0.17 / 2035` 与 `SINGBOX_VERSION` 均未变。
 
 ### 【Root 模块有了网页控制台：在 KernelSU / APatch 管理器里直接看状态、启停、导事件】
 
@@ -15,7 +23,8 @@
 - **能填什么**：节点设置里可以贴客户端证书与私钥 PEM，写入 sing-box 出站 TLS 的 `client_certificate` / `client_key`；两项留空就还是原来的单向 TLS。
 - **不会外泄**：`anytls://` 与通用分享链接都不携带证书和私钥，只清理导出副本、不动本地配置；诊断包会把配置与 Root 快照里的 AnyTLS 私钥/证书替换成 `***`；设置页只显示私钥摘要，不回显内容。
 - **兼容**：旧版配置照常读取，新字段走 v2 持久化；HWID、Mieru 与策略组行为未改。
-- **边界**：没有真实 mTLS 服务端可连，只在单测与 JVM 测试里验证字段映射与脱敏。
+- **导入**：首发包从 sing-box JSON 导入时会丢掉证书与私钥，已在本页重发包修复（见顶部）。
+- **边界**：没有真实 mTLS 服务端可连，只在单测与 JVM 测试里验证字段映射、导入往返与脱敏。
 
 ### 【VLESS 标签分清 XHTTP 与 Reality，手动新建多了直达入口】
 
@@ -42,16 +51,16 @@
 - **升级与回退**：APK `versionCode` `10213 → 10219`、Root 模块码 `2042 → 2043`；同一 Release 的管理器 APK 与 Root 模块请成套安装，不要跨版本混用；回退用正式版 [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17)（模块码 `2035`）。
 - **总边界**：Root 真机矩阵（Magisk / KernelSU / APatch）、WebUI 实机、真实 mTLS 服务端与 OEM Google 兼容都未实测，本版不晋升正式版。
 
-## 四件套（GitHub Release API 回读）
+## 四件套（重发后 GitHub Release API 回读）
 
 | 文件 | 字节数 | SHA-256 |
 |---|---:|---|
-| `wanBoxForAndroid-3.0.19-preview.4-arm64-v8a-release.apk` | 6382731 | `2bb0f76cdba3aba81a9502ff6aaf232fac573552c46b99ce5c89a601268651d7` |
-| `wanbox-root-module-arm64-v8a.zip` | 18333507 | `14641d464a269225452d9eb8f41b97ea07c2fc8028e264081b7049502307c581` |
-| `wanbox-root-module-with-manager-arm64-v8a.zip` | 23991076 | `3723d597b3f265bbc84eaecae507573032a39fa82000cf38c60399516d167e3d` |
-| `SHA256SUMS` | 333 | `1a12188439f4b596124fbe1010ebb2fe1ed2a3be4c77acce58e4c0109125cba1` |
+| `wanBoxForAndroid-3.0.19-preview.4-arm64-v8a-release.apk` | 6382851 | `002407d904023fb6463c5b7e0561d534fdb8c675cf4f60917f944ff3c97b9f72` |
+| `wanbox-root-module-arm64-v8a.zip` | 18333508 | `e88d46a3a193567283d59360924d9b5c150331770b994843927ed27c8053bc88` |
+| `wanbox-root-module-with-manager-arm64-v8a.zip` | 23991715 | `63d4da6012e2fb371512a852af1fa05f73c00a4061473be65084b85e9b8a66b6` |
+| `SHA256SUMS` | 333 | `e203b0214089b509d1f17ec364d1e8c0e9e000a345ed2bc0911c4e8e3078df79` |
 
-APK + 普通 Root 模块 `24716238` B（23.57 MiB），低于 26 MiB 上限 `27262976` B（余量 `2546738` B，2.43 MiB）；合一包 `23991076` B（22.88 MiB）。APK 内 `lib/` 条目为 0，`versionCode=10219` / `versionName=3.0.19-preview.4`，证书 SHA-256 `80ECEE1C42D861D59CDC460447335FC4BFDF80103D6225A17C1BDF83A33521F6`（与 `v3.0.17` 同源）；模块 `module.prop` 为 `3.0.19-preview.4` / `2043`，含 4 个 `webroot/` 文件，两个 ZIP 均通过 `python3 -m zipfile -t`。本版发布后，`v3.0.19-preview.3` 的 Release 与 tag-ref API 均返回 404（已按单预览策略清理），正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 保留。Root 真机矩阵仍未执行。
+APK + 普通 Root 模块 `24716359` B（23.57 MiB），低于 26 MiB 上限 `27262976` B（余量 `2546617` B，2.43 MiB）；合一包 `23991715` B（22.88 MiB）。前两版包的副本保留在各次替换流程的回滚产物中（90 天）。APK 内 `lib/` 条目为 0，`versionCode=10219` / `versionName=3.0.19-preview.4`，证书 SHA-256 `80ECEE1C42D861D59CDC460447335FC4BFDF80103D6225A17C1BDF83A33521F6`（与 `v3.0.17` 同源）；模块 `module.prop` 为 `3.0.19-preview.4` / `2043`，含 4 个 `webroot/` 文件，两个 ZIP 均通过 `python3 -m zipfile -t`。本版发布后，`v3.0.19-preview.3` 的 Release 与 tag-ref API 均返回 404（已按单预览策略清理），正式版 `v3.0.17`、`v3.0.14`、`v3.0.11` 保留。Root 真机矩阵仍未执行。
 
 ---
 

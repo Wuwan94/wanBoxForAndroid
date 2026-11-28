@@ -27,7 +27,7 @@
 ### 1. 采用 Out-of-tree 扩展注册新增 VLESS 入站
 - **选择**: 在 `libcore/protocol/vless` 中定义自定义 VLESS 入站构造器，并在 `libcore/box_include.go` 的 `nekoboxAndroidInboundRegistry` 中为 `C.TypeVLESS` 新增扩展注册处理。
 - **原因**:
--  - 与出站侧同一手法（方案 1A）：sing-box 留有正规的扩展口；自定义构造器仅对 XHTTP 使用自有服务端传输，其他传输类型仍委托官方 `singboxVLESS.NewInbound`，保持官方行为。
+  - 与出站侧同一手法（方案 1A）：sing-box 留有正规的扩展口；自定义构造器仅对 XHTTP 使用自有服务端传输，其他传输类型仍委托官方 `singboxVLESS.NewInbound`，保持官方行为。
   - 非 XHTTP 配置原样委托官方实现，回归面最小。
 - **替代方案**:
   - *修改固定内核源码*: 违反项目主规范对固定内核基线的约束，增加后续升核维护成本。

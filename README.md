@@ -159,7 +159,7 @@ flowchart TB
 <summary><strong>尝鲜预览 · v3.0.19-preview.4</strong>（与正式版并行发布，各自成套使用）</summary>
 <br />
 
-本版是 preview.3 之后合入的 12 条改动：Root 模块第一次有了网页控制台（在 KernelSU / APatch 管理器里看状态、启停、导出事件），AnyTLS 支持客户端证书（私钥只留本机、诊断包脱敏），VLESS 标签分清 `XHTTP` 与 `Reality` 并在手动新建里加了直达入口，XHTTP 长上传在服务端保活下不再断流、客户端卡死会按时超时，界面适配全面屏与预测性返回，另修 `urltest` 门代次隔离并加入 OEM Google 联网兼容。由 PR #101–#112 组成、升版 PR #113 发布。`Preview Build` run `45890957065` 于 2026-11-26T20:54:52Z 发布，tag、`targetCommitish`、APK 内 `version-control-info` 与 `APPROVED_SHA` 同为 `cfb1e25c4b02f261dee17baa77a4fa4a1fa60565`。官方 sing-box 内核与 `SINGBOX_VERSION` 未改；Root 真机矩阵与 WebUI 实机仍未验证。
+本版是 preview.3 之后合入的 12 条改动：Root 模块第一次有了网页控制台（在 KernelSU / APatch 管理器里看状态、启停、导出事件），AnyTLS 支持客户端证书（私钥只留本机、诊断包脱敏），VLESS 标签分清 `XHTTP` 与 `Reality` 并在手动新建里加了直达入口，XHTTP 长上传在服务端保活下不再断流、客户端卡死会按时超时，界面适配全面屏与预测性返回，另修 `urltest` 门代次隔离并加入 OEM Google 联网兼容。由 PR #101–#112 组成、升版 PR #113 发布。`Preview Build` run `45890957065` 于 2026-11-26T20:54:52Z 发布，首发时 tag、`targetCommitish`、APK 内 `version-control-info` 与 `APPROVED_SHA` 同为 `cfb1e25c4b02f261dee17baa77a4fa4a1fa60565`；之后经 PR #115 / #116 两次同标签修复重发（tag 未移动，现行 APK 的 `version-control-info` 为 `303aa996`），已装旧包的需下载同签名 APK 与模块手动覆盖安装。官方 sing-box 内核与 `SINGBOX_VERSION` 未改；Root 真机矩阵与 WebUI 实机仍未验证。
 
 | 资产 | 文件名 | 体积 |
 |:--|:--|--:|
@@ -176,7 +176,7 @@ flowchart TB
 - 回退：换回正式版 [v3.0.17](https://github.com/Wuwan94/wanBoxForAndroid/releases/tag/v3.0.17) 的 APK 与配套模块（模块码 `2035`）成套重装，不要跨 Release 混用。
 - 逐项修复说明见 [PREVIEW_NOTES.md](PREVIEW_NOTES.md)。
 
-四件套经 GitHub Release API 核验，本地 `sha256sum -c` 三件 OK：APK `6382731` B / `2bb0f76c…68651d7`、普通 Root ZIP `18333507` B / `14641d46…307c581`、合一 ZIP `23991076` B / `3723d597…d167e3d`、`SHA256SUMS` `333` B / `1a121884…125cba1`。APK + 普通模块合计 `24716238` B（23.57 MiB），低于 26 MiB 上限；真机验证仍未执行。
+四件套（第二次重发后）经 GitHub Release API 核验，本地 `sha256sum -c` 三件 OK：APK `6382851` B / `002407d9…97b9f72`、普通 Root ZIP `18333508` B / `e88d46a3…053bc88`、合一 ZIP `23991715` B / `63d4da60…b8a66b6`、`SHA256SUMS` `333` B / `e203b021…078df79`。APK + 普通模块合计 `24716359` B（23.57 MiB），低于 26 MiB 上限；真机验证仍未执行。
 
 </details>
 
